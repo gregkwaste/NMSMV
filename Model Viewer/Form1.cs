@@ -1,0 +1,650 @@
+﻿using System;
+using System.Windows.Forms;
+using System.Diagnostics;
+using System.IO;
+using OpenTK;
+using OpenTK.Graphics.OpenGL;
+using System.Collections.Generic;
+using System.Xml;
+
+namespace Model_Viewer
+{
+    enum treeviewCheckStatus
+    {
+        Single=0x0,
+        Children=0x1
+    }
+
+    public partial class Form1 : Form
+    {
+        private bool glloaded = false;
+        private Vector3 rot = new Vector3(0.0f, 0.0f, 0.0f);
+        private Vector3 target = new Vector3(0.0f, 0.0f, 0.0f);
+        private Vector3 eye_pos = new Vector3(0.0f, 5.5f, 50.0f);
+        private Vector3 eye_dir = new Vector3(0.0f, 0.0f, -10.0f);
+        private Vector3 eye_up = new Vector3(0.0f, 1.0f, 0.0f);
+        private Camera cam = new Camera(35);
+        
+        private float light_angle_y = 0.0f;
+        private float light_angle_x = 0.0f;
+        private float light_distance = 5.0f;
+        private float scale = 1.0f;
+        private int[] shader_programs;
+        //Mouse Pos
+        private int mouse_x;
+        private int mouse_y;
+
+        public int childCounter = 0;
+        //private float rot_x = 0.0f;
+        //private float rot_y = 0.0f;
+
+        //Shader objects
+        int vertex_shader_ob;
+        int fragment_shader_ob;
+        int shader_program_ob;
+        //Shader locators
+        int vertex_shader_loc;
+        int fragment_shader_loc;
+        int shader_program_loc;
+
+        private List<GMDL.GeomObject> geomobjects = new List<GMDL.GeomObject>();
+        private List<GMDL.model> vboobjects = new List<GMDL.model>();
+        private GMDL.model rootObject;
+        private XmlDocument xmlDoc;
+        private Dictionary<string, int> index_dict = new Dictionary<string, int>();
+
+        private treeviewCheckStatus tvchkstat = treeviewCheckStatus.Children;
+
+        public Form1()
+        {
+            InitializeComponent();
+        }
+
+        private void openToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Debug.WriteLine("Opening File");
+            openFileDialog1.ShowDialog();
+            var filename = openFileDialog1.FileName;
+
+            var split = filename.Split('.');
+            var ext = split[split.Length - 1].ToUpper();
+            Debug.WriteLine(ext);
+
+            //if (ext != "MBIN")
+            //{
+            //    Debug.WriteLine("Not an MBIN file");
+            //    return;
+            //}
+
+            var fs = new FileStream(filename, FileMode.Open);
+            //geomobjects.Add(GEOMMBIN.Parse(fs));
+            XmlDocument xml = new XmlDocument();
+            Debug.WriteLine("Parsing SCENE XML");
+            this.xmlDoc = SCENEMBIN.Parse(fs);
+            
+            //Store path locally for now
+            string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
+
+            this.rootObject = GEOMMBIN.LoadObjects(dirpath, this.xmlDoc, shader_programs);
+            this.rootObject.Index = this.childCounter;
+            this.childCounter++;
+
+            //Debug.WriteLine("Objects Returned: {0}",oblist.Count);
+            TreeNode node = new TreeNode("ROOT_LOC");
+            node.Checked = true;
+            //Clear index dictionary
+            index_dict.Clear();
+            this.childCounter = 0;
+            //Add root to dictionary
+            index_dict["ROOT_LOC"] = this.childCounter;
+            this.childCounter += 1;
+            //Set indices and TreeNodes 
+            traverse_oblist(this.rootObject, node);
+            //Add root to treeview
+            treeView1.Nodes.Clear();
+            treeView1.Nodes.Add(node);
+
+            //vboobjects.Add(new GMDL.customVBO(GEOMMBIN.Parse(fs)));
+            glControl1.Invalidate();
+            fs.Close();
+        }
+
+        private void glControl_Load(object sender, EventArgs e)
+        {
+            GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
+            GL.ClearColor(System.Drawing.Color.Black);
+            GL.Enable(EnableCap.DepthTest);
+            //glControl1.SwapBuffers();
+            //glControl1.Invalidate();
+            Debug.WriteLine("GL Cleared");
+            Debug.WriteLine(GL.GetError());
+
+            this.glloaded = true;
+
+            //Set mouse pos
+            mouse_x = 0;
+            mouse_y = 0;
+        }
+
+        private void glControl1_Paint(object sender, PaintEventArgs e)
+        {
+            if (!this.glloaded)
+                return;
+            glControl1.MakeCurrent();
+            GL.Clear(ClearBufferMask.ColorBufferBit| ClearBufferMask.DepthBufferBit);
+            render_scene();
+            //GL.ClearColor(System.Drawing.Color.Black);
+            glControl1.SwapBuffers();
+            //translate_View();
+            ////Draw scene
+            //GL.MatrixMode(MatrixMode.Modelview);
+
+            //glControl1.Invalidate();
+            //Debug.WriteLine("Painting Control");
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            if (!this.glloaded)
+                return;
+            //Compile Object Shaders
+            using (StreamReader vs = new StreamReader("Shaders/Simple_VS.glsl"))
+            using (StreamReader fs = new StreamReader("Shaders/Simple_FS.glsl"))
+                CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), out vertex_shader_ob,
+                    out fragment_shader_ob, out shader_program_ob);
+            //Compile Locator Shaders
+            using (StreamReader vs = new StreamReader("Shaders/locator_VS.glsl"))
+            using (StreamReader fs = new StreamReader("Shaders/locator_FS.glsl"))
+                CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), out vertex_shader_loc,
+                    out fragment_shader_loc, out shader_program_loc);
+
+            //Populate shader list
+            this.shader_programs = new int[2] { this.shader_program_ob, this.shader_program_loc };
+            Debug.WriteLine("Programs {0} {1}", shader_programs[0], shader_programs[1]);
+            this.rootObject = new GMDL.locator();
+            this.rootObject.ShaderProgram = shader_programs[1];
+            this.rootObject.Index = this.childCounter;
+            this.childCounter++;
+            TreeNode node = new TreeNode("ORIGIN");
+            node.Checked = true;
+            treeView1.Nodes.Add(node);
+
+            //Set to current cam fov
+            numericUpDown1.Value = 35;
+            numericUpDown2.Value = (decimal) 5.0;
+        }
+
+        private void glControl1_Resize(object sender, EventArgs e)
+        {
+            if (!this.glloaded)
+                return;
+            if (glControl1.ClientSize.Height == 0)
+                glControl1.ClientSize = new System.Drawing.Size(glControl1.ClientSize.Width, 1);
+            Debug.WriteLine("GLControl Resizing");
+            Debug.WriteLine(this.eye_pos.X.ToString() + " "+ this.eye_pos.Y.ToString());
+            GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
+            //GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
+        }
+
+        private void glControl1_KeyDown(object sender, PreviewKeyDownEventArgs e)
+        {
+            //Debug.WriteLine("Key pressed {0}",e.KeyCode);
+            switch (e.KeyCode)
+            {
+                //Translations
+                //X Axis
+                //case (Keys.Right):
+                //    this.eye.X += 0.1f;
+                //    break;
+                //case Keys.Left:
+                //    this.eye.X -= 0.1f;
+                //    break;
+                //Z Axis
+                //Local Transformation
+                case Keys.Q:
+                    this.rot.Y -= 4.0f;
+                    break;
+                case Keys.E:
+                    this.rot.Y += 4.0f;
+                    break;
+                case Keys.Z:
+                    this.rot.X -= 4.0f;
+                    break;
+                case Keys.C:
+                    this.rot.X += 4.0f;
+                    break;
+                //Camera Movement
+                case Keys.W:
+                    cam.Move(0.0f, 0.1f, 0.0f);
+                    break;
+                case Keys.S:
+                    cam.Move(0.0f, -0.1f, 0.0f);
+                    break;
+                case (Keys.D):
+                    cam.Move(+0.1f, 0.0f, 0.0f);
+                    break;
+                case Keys.A:
+                    cam.Move(-0.1f, 0.0f, 0.0f);
+                    break;
+                case (Keys.R):
+                    cam.Move(0.0f, 0.0f, 0.1f);
+                    break;
+                case Keys.F:
+                    cam.Move(0.0f, 0.0f, -0.1f);
+                    break;
+                //Light Rotation
+                case Keys.N:
+                    this.light_angle_y -= 1;
+                    break;
+                case Keys.M:
+                    this.light_angle_y += 1;
+                    break;
+                case Keys.Oemcomma:
+                    this.light_angle_x -= 1;
+                    break;
+                case Keys.OemPeriod:
+                    this.light_angle_x += 1;
+                    break;
+                default:
+                    Debug.WriteLine("Not Implemented Yet");
+                    break;
+            }
+            glControl1.Invalidate();
+            
+        }
+
+        private void render_scene()
+        {
+            glControl1.MakeCurrent();
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            //Debug.WriteLine("Rendering Scene Cam Position : {0}", this.cam.Position);
+            //Debug.WriteLine("Rendering Scene Cam Orientation: {0}", this.cam.Orientation);
+
+            if (this.rootObject != null)
+            {
+                traverse_render(this.rootObject);
+            }
+            
+            
+            //GL.MatrixMode(MatrixMode.Projection);
+            //GL.LoadIdentity();
+            //glControl1.SwapBuffers();
+        }
+
+
+        //private bool render_object(GMDL.customVBO vbo)
+        //{
+        //    Debug.WriteLine("Rendering VBO Object here");
+
+        //    //Bind vertex buffer
+        //    GL.BindBuffer(BufferTarget.ArrayBuffer, vbo.vertex_buffer_object);
+        //    GL.VertexPointer(3, VertexPointerType.HalfFloat, vbo.vx_size, vbo.vx_stride);
+
+        //    int vpos;
+        //    //Vertex attribute
+        //    vpos = GL.GetAttribLocation(this.shader_program,"vPosition");
+        //    GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.HalfFloat,false, vbo.vx_size, vbo.vx_stride);
+        //    GL.EnableVertexAttribArray(vpos);
+
+        //    //Normal Attribute
+        //    vpos = GL.GetAttribLocation(this.shader_program, "nPosition");
+        //    GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.HalfFloat, false, vbo.vx_size, vbo.n_stride);
+        //    GL.EnableVertexAttribArray(vpos);
+
+        //    //Render Elements
+        //    GL.DrawElements(BeginMode.Triangles, vbo.iCount, DrawElementsType.UnsignedShort, 0);
+
+        //    return true;
+        //}
+        
+        private void CreateShaders(string vs,string fs, out int vertexObject, 
+            out int fragmentObject, out int program)
+        {
+            int status_code;
+            string info;
+
+            vertexObject = GL.CreateShader(ShaderType.VertexShader);
+            fragmentObject = GL.CreateShader(ShaderType.FragmentShader);
+
+            //Compile vertex Shader
+            GL.ShaderSource(vertexObject, vs);
+            GL.CompileShader(vertexObject);
+            GL.GetShaderInfoLog(vertexObject, out info);
+            GL.GetShader(vertexObject, ShaderParameter.CompileStatus, out status_code);
+            if (status_code != 1)
+                throw new ApplicationException(info);
+
+            //Compile fragment Shader
+            GL.ShaderSource(fragmentObject, fs);
+            GL.CompileShader(fragmentObject);
+            GL.GetShaderInfoLog(fragmentObject, out info);
+            GL.GetShader(fragmentObject, ShaderParameter.CompileStatus, out status_code);
+            if (status_code != 1)
+                throw new ApplicationException(info);
+
+            program = GL.CreateProgram();
+            GL.AttachShader(program, fragmentObject);
+            GL.AttachShader(program, vertexObject);
+            GL.LinkProgram(program);
+            //GL.UseProgram(program);
+            
+        }
+
+        private void glControl1_MouseMove(object sender, MouseEventArgs e)
+        {
+            //int delta_x = (int) (Math.Pow(cam.fov, 4) * (e.X - mouse_x));
+            //int delta_y = (int) (Math.Pow(cam.fov, 4) * (e.Y - mouse_y));
+            int delta_x = (e.X - mouse_x);
+            int delta_y = (e.Y - mouse_y);
+
+            delta_x = Math.Min(Math.Max(delta_x, -10), 10);
+            delta_y = Math.Min(Math.Max(delta_y, -10), 10);
+
+            if (e.Button == MouseButtons.Left)
+            {
+                //Debug.WriteLine("Deltas {0} {1} {2}", delta_x, delta_y, e.Button);
+                cam.AddRotation(delta_x, delta_y);
+                glControl1.Invalidate();
+            }
+            
+            mouse_x = e.X;
+            mouse_y = e.Y;
+
+        }
+
+        private void glControl1_Scroll(object sender, MouseEventArgs e)
+        {
+            if (Math.Abs(e.Delta) > 0)
+            {
+                //Debug.WriteLine("Wheel Delta {0}", e.Delta);
+                int sign = e.Delta / Math.Abs(e.Delta);
+                int newval = (int)numericUpDown1.Value + sign;
+                newval = (int) Math.Min(Math.Max(newval, numericUpDown1.Minimum), numericUpDown1.Maximum);
+                cam.setFOV(newval);
+                numericUpDown1.Value = newval;
+                
+                //eye.Z += e.Delta * 0.2f;
+                glControl1.Invalidate();
+            }
+
+        }
+
+        private void numericUpDown1_ValueChanged(object sender, EventArgs e)
+        {
+            //Set Camera FOV
+            cam.setFOV((int) Math.Max(1, numericUpDown1.Value));
+            glControl1.Invalidate();
+        }
+
+        private void treeView1_AfterCheck(object sender, TreeViewEventArgs e)
+        {
+            //Debug.WriteLine("{0} {1}", e.Node.Checked, e.Node.Index);
+            //Toggle Renderability of node
+            traverse_oblist_rs(this.rootObject, this.index_dict[e.Node.Text], e.Node.Checked);
+            //Handle Children in treeview
+            if (this.tvchkstat == treeviewCheckStatus.Children)
+            {
+                foreach (TreeNode node in e.Node.Nodes)
+                    node.Checked = e.Node.Checked;
+            }
+            
+            glControl1.Invalidate();
+        }
+
+        private void numericUpDown2_ValueChanged(object sender, EventArgs e)
+        {
+            light_distance = (float) numericUpDown2.Value;
+            glControl1.Invalidate();
+        }
+
+        private void traverse_oblist(GMDL.model ob, TreeNode parent)
+        {
+            if (ob.Children.Count > 0)
+            {
+                List<GMDL.model> duplicates = new List<GMDL.model>();
+                foreach (GMDL.model child in ob.Children)
+                {
+                    //Keep only Meshes and locators
+                    if (child.Type != "MESH" & child.Type != "LOCATOR")
+                        continue;
+                    //Check if Shape object
+                    //if (child.Name.Contains("Shape"))
+                    //    continue;
+                    
+
+                    //Don't Save Duplicates
+                    if (!index_dict.ContainsKey(child.Name))
+                    {
+                        //Set object index
+                        child.Index = this.childCounter;
+                        this.index_dict.Add(child.Name, child.Index);
+                        this.childCounter++;
+                        TreeNode node = new TreeNode(child.Name);
+                        
+                        //Debug.WriteLine("Testing Geom {0}  Node {1}", child.Index, node.Index);
+                        node.Checked = true;
+                        parent.Nodes.Add(node);
+                        traverse_oblist(child, node);
+
+                    }
+                    else
+                    {
+                        Debug.WriteLine("Duplicate {0} {1}", child.Name,ob.Children.Count);
+                        duplicates.Add(child);
+                    }
+                }
+                //Remove duplicates
+                foreach (GMDL.model dupl in duplicates)
+                {
+                    ob.Children.Remove(dupl);
+                }
+            }
+        }
+
+        private void traverse_oblist_rs(GMDL.model root, int index, bool status)
+        {
+            if (root.Index == index)
+            {
+                //If you found the index toggle all children
+                //Debug.WriteLine("Toggling Renderability on {0}", root.Name);
+                root.Renderable = status;
+
+                //foreach (GMDL.model child in root.Children)
+                //{
+                //    child.Renderable = !child.Renderable;
+                //    Debug.WriteLine("Toggling Renderability on {0}", child.Name);
+                //    traverse_oblist_rs(child, index);
+                //}
+            }
+            else
+            {
+                //If not continue traversing the children
+                foreach (GMDL.model child in root.Children)
+                {
+                    traverse_oblist_rs(child, index, status);
+                }
+            }
+        }
+
+        private void traverse_render(GMDL.model root)
+        {
+            //GL.LinkProgram(root.ShaderProgram);
+            GL.UseProgram(root.ShaderProgram);
+            if (root.ShaderProgram == -1)
+                throw new ApplicationException("Shit program");
+            Matrix4 look = cam.GetViewMatrix();
+            float aspect = (float)glControl1.ClientSize.Width / glControl1.ClientSize.Height;
+            Matrix4 proj = Matrix4.CreatePerspectiveFieldOfView(cam.fov, aspect,
+                                                                0.1f, 300.0f);
+            int loc;
+            //Send LookAt matrix to all shaders
+            loc = GL.GetUniformLocation(root.ShaderProgram, "look");
+            GL.UniformMatrix4(loc, false, ref look);
+            //Send projection matrix to all shaders
+            loc = GL.GetUniformLocation(root.ShaderProgram, "proj");
+            GL.UniformMatrix4(loc, false, ref proj);
+            //Send theta to all shaders
+            loc = GL.GetUniformLocation(root.ShaderProgram, "theta");
+            GL.Uniform3(loc, this.rot);
+
+            if (root.ShaderProgram == shader_programs[0])
+            {
+                //Object program
+                //Local Transformation is the same for all objects 
+                //Pending - Personalize local matrix on each object
+                loc = GL.GetUniformLocation(root.ShaderProgram, "scale");
+                GL.Uniform1(loc, this.scale);
+
+                loc = GL.GetUniformLocation(root.ShaderProgram, "light");
+
+                GL.Uniform3(loc, new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
+                                                            Math.Sin(this.light_angle_y * Math.PI / 180.0)),
+                                             (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
+                                             (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
+                                                            Math.Cos(this.light_angle_y * Math.PI / 180.0))));
+    
+            } else if (root.ShaderProgram == shader_programs[1])
+            {
+                //Locator Program
+            }
+            GL.ClearColor(System.Drawing.Color.Black);
+            if (this.index_dict.ContainsKey(root.Name))
+                root.render();
+            //Render Children
+            foreach (GMDL.model child in root.Children){
+                traverse_render(child);
+            }
+        }
+
+        private TreeNode findNodeFromText(TreeNodeCollection coll, string text)
+        {
+            foreach (TreeNode node in coll)
+            {
+                //Debug.WriteLine(node.Text + " " + text + " {0}", node.Text == text);
+                if (node.Text == text)
+                {
+                    return node;
+                } else
+                {
+                    TreeNode retnode =  findNodeFromText(node.Nodes, text);
+                    if (retnode != null)
+                        return retnode;
+                    else
+                        continue;
+                }
+            }
+
+            return null;
+        }
+
+
+        private GMDL.model collectPart(List<GMDL.model> coll, string name)
+        {
+            foreach (GMDL.model child in coll)
+            {
+                if (child.Name == name)
+                {
+                    return child;
+                }
+                else
+                {
+                    
+                    GMDL.model ret = collectPart(child.Children, name);
+                    if (ret != null)
+                        return ret;
+                    else
+                        continue;
+                } 
+            }
+            return null;
+        }
+
+        private void randomgenerator_Click(object sender, EventArgs e)
+        {
+            XmlNode level0 = this.xmlDoc.SelectSingleNode("./ROOT/SECTIONS");
+            List<Selector> sellist = ModelProcGen.parse_level(level0);
+            List<List<GMDL.model>> allparts = new List<List<GMDL.model>>();
+            //Create 12 random instances
+            for (int k = 0; k < 15; k++)
+            {
+                List<string> parts = new List<string>();
+                for (int i = 0; i < sellist.Count; i++)
+                    ModelProcGen.parse_selector(sellist[i], ref parts);
+
+                Debug.WriteLine(String.Join(" ", parts.ToArray()));
+                //Make list of active parts
+                List<GMDL.model> vboParts = new List<GMDL.model>();
+                for (int i = 0; i < parts.Count; i++)
+                {
+                    GMDL.model part = collectPart(this.rootObject.Children, parts[i]);
+                    GMDL.model npart = (GMDL.model)part.Clone();
+                    npart.Children.Clear();
+                    vboParts.Add(npart);
+                }
+
+                allparts.Add(vboParts);
+            }
+            
+            /* This code renders changes to the main viewport
+            //Reset all nodes
+            foreach (TreeNode node in treeView1.Nodes[0].Nodes)
+                node.Checked = false;
+            
+            //Temporarity swap tvscheckstatus
+            this.tvchkstat = treeviewCheckStatus.Single;
+            for (int i = 0; i < parts.Count; i++)
+            {
+                TreeNode node = findNodeFromText(treeView1.Nodes, parts[i]);
+                if (node !=null)
+                    node.Checked = true;
+            }
+
+            //Bring it back
+            this.tvchkstat = treeviewCheckStatus.Children;
+
+            */
+            
+            Form vpwin = new Form();
+            vpwin.AutoSize = true;
+            //vpwin.Size = new System.Drawing.Size(800, 600);
+
+            TableLayoutPanel table = new TableLayoutPanel();
+            table.AutoSize = true;
+            table.RowCount = 3;
+            table.ColumnCount = 5;
+            table.Dock = DockStyle.Fill;
+            //table.Anchor = AnchorStyles.Bottom | AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Left;
+
+            List<CGLControl> ctlist = new List<CGLControl>();
+
+            for (int i = 0; i < table.RowCount; i++)
+            {
+                for (int j = 0; j < table.ColumnCount; j++)
+                {
+                    CGLControl n = new CGLControl();
+                    n.objects = allparts[i * table.ColumnCount + j];
+                    n.shader_programs = shader_programs;
+                    table.Controls.Add(n, j, i);
+                    ctlist.Add(n);
+                }
+            }
+
+            vpwin.Controls.Add(table);
+
+            vpwin.Show();
+
+            foreach (GLControl ctl in ctlist)
+            {
+                ctl.Invalidate();
+            }
+
+        }
+
+        private void glControl1_MouseHover(object sender, EventArgs e)
+        {
+            glControl1.Focus();
+            glControl1.Invalidate();
+        }
+
+    }
+}
