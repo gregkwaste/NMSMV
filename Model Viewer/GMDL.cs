@@ -253,72 +253,7 @@ namespace GMDL
         //public GMDL.Material material;
 
 
-        ////Interface properties
-        //public int Index
-        //{
-        //    get
-        //    {
-        //        return this.index;
-        //    }
-        //    set
-        //    {
-        //        this.index = value;
-        //    }
-        //}
-        //public bool Renderable
-        //{
-        //    get { return this.renderable; }
-        //    set { this.renderable = value; }
-        //}
-        //public int ShaderProgram
-        //{
-        //    set
-        //    {
-        //        this.shader_program = value;
-        //    }
-        //    get
-        //    {
-        //        return this.shader_program;
-        //    }
-        //}
-        //public string Name
-        //{
-        //    set
-        //    {
-        //        this.name = value;
-        //    }
-
-        //    get
-        //    {
-        //        return this.name;
-        //    }
-        //}
-        //public string Type
-        //{
-        //    set
-        //    {
-        //        this.type = value;
-        //    }
-        //    get
-        //    {
-        //        return this.type;
-        //    }
-        //}
-        //public List<model> children = new List<model>();
-        //public List<model> Children
-        //{
-        //    set
-        //    {
-        //        this.children = value;
-        //    }
-
-        //    get
-        //    {
-        //        return this.children;
-        //    }
-        //}
-
-
+        
         public override bool render()
         {
             if (this.renderable == false)
@@ -625,6 +560,60 @@ namespace GMDL
         public PixelInternalFormat pif;
         public PixelFormat pf;
         public DDSImage ddsImage;
+
+    }
+
+    public class Joint: model
+    {
+        public Matrix3 jointmatrix = Matrix3.Identity;
+        public Vector3 locPosition;
+        public Vector3 worldPosition;
+        public Vector3 locScale;
+        public Vector3 locRotation;
+        public model parent;
+
+
+        public void init(string trans)
+        {
+            Debug.WriteLine(trans);
+            //Get Local Position
+            string[] split = trans.Split(',');
+            this.locPosition.X = float.Parse(split[0]);
+            this.locPosition.Y = float.Parse(split[1]);
+            this.locPosition.Z = float.Parse(split[2]);
+            //Get Local Rotation
+            this.locRotation.X = float.Parse(split[3]);
+            this.locRotation.Y = float.Parse(split[4]);
+            this.locRotation.Z = float.Parse(split[5]);
+            //Get Local Scale
+            this.locScale.X = float.Parse(split[6]);
+            this.locScale.Y = float.Parse(split[7]);
+            this.locScale.Z = float.Parse(split[8]);
+            
+            //Now Calculate the joint matrix;
+            this.jointmatrix *= Matrix3.CreateFromAxisAngle(new Vector3(1.0f,0.0f,0.0f),
+                                                        this.locRotation.X);
+            this.jointmatrix *= Matrix3.CreateFromAxisAngle(new Vector3(0.0f, 1.0f, 0.0f),
+                                                        this.locRotation.Y);
+            this.jointmatrix *= Matrix3.CreateFromAxisAngle(new Vector3(0.0f, 0.0f, 1.0f),
+                                                        this.locRotation.Z);
+
+        }
+        //Empty stuff
+        public override model Clone()
+        {
+            throw new ApplicationException("Not Implemented yet");
+        }
+            
+        
+        //Render should render Bones from joint to children
+        public override bool render()
+        {
+            return false;
+        }
+            
+        
+
 
     }
 }

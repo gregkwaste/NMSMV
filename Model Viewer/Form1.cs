@@ -81,10 +81,11 @@ namespace Model_Viewer
             XmlDocument xml = new XmlDocument();
             Debug.WriteLine("Parsing SCENE XML");
             this.xmlDoc = SCENEMBIN.Parse(fs);
-            
-            //Store path locally for now
-            string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
 
+            //Store path locally for now
+            //string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
+            string dirpath = "C:\\Users\\greg\\Source\\Repos\\nms-viewer\\Model Viewer\\Samples";
+            
             this.rootObject = GEOMMBIN.LoadObjects(dirpath, this.xmlDoc, shader_programs);
             this.rootObject.index = this.childCounter;
             this.childCounter++;

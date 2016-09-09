@@ -1,7 +1,8 @@
+#version 420
 /* Copies incoming fragment color without change. */
-out vec4 gl_FragColor;
+
 uniform vec3 color;
-in vec3 E,N;
+varying vec3 E,N;
 void main()
 {	
 	float kd = max(dot(E, N), 0.0);

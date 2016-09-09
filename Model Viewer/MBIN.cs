@@ -500,13 +500,10 @@ public static class GEOMMBIN{
         //Store Counts
         geom.indicesCount = (uint) indices_num;
         if (indices_flag == 0x1)
-        {
             geom.indicesLength = 0x2;
-        }
         else
-        {
             geom.indicesLength = 0x4;
-        }
+        
 
         
         geom.vertCount = (uint) vert_num;
@@ -602,13 +599,13 @@ public static class GEOMMBIN{
         //Store sections node
         XmlNode sections = xml.FirstChild.ChildNodes[1];
         foreach (XmlElement node in sections)
-            root.children.Add(parseNode(dirpath,randgen, node, cvbo, shader_programs));
+            root.children.Add(parseNode(node, cvbo, shader_programs,null));
         
         return root;
     }
 
-       private static GMDL.model parseNode(string dirpath, Random randgen, XmlElement node, 
-           GMDL.customVBO cvbo, int[] shader_programs)
+       private static GMDL.model parseNode(XmlElement node, 
+           GMDL.customVBO cvbo, int[] shader_programs, GMDL.model parent)
         {
         XmlElement info,opts,childs;
         info = (XmlElement)node.SelectSingleNode(".//INFO");
@@ -638,10 +635,10 @@ public static class GEOMMBIN{
             so.shader_program = shader_programs[0];
             so.name = name;
             so.type = type;
-
-            so.color[0] = randgen.Next(255) / 255.0f;
-            so.color[1] = randgen.Next(255) / 255.0f;
-            so.color[2] = randgen.Next(255) / 255.0f;
+            //Set Random Color
+            so.color[0] = Model_Viewer.Util.randgen.Next(255) / 255.0f;
+            so.color[1] = Model_Viewer.Util.randgen.Next(255) / 255.0f;
+            so.color[2] = Model_Viewer.Util.randgen.Next(255) / 255.0f;
 
             Debug.WriteLine("Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]);
             //Get Options
@@ -664,7 +661,7 @@ public static class GEOMMBIN{
             opt = (XmlElement)opts.SelectSingleNode(".//OPTION[@NAME='MATERIAL']");
             string matname = opt.GetAttribute("VALUE");
             //Parse material file
-            FileStream ms = new FileStream(Path.Combine(dirpath, matname), FileMode.Open);
+            FileStream ms = new FileStream(Path.Combine(Model_Viewer.Util.dirpath, matname), FileMode.Open);
             GMDL.Material mat = MATERIALMBIN.ParseXml(MATERIALMBIN.Parse(ms));
             mat.prepTextures();
             ms.Close();
@@ -677,7 +674,7 @@ public static class GEOMMBIN{
                 Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
-                    so.children.Add(parseNode(dirpath,randgen, childnode, cvbo, shader_programs));
+                    so.children.Add(parseNode(childnode, cvbo, shader_programs, null));
                 }
             }
             
@@ -703,11 +700,23 @@ public static class GEOMMBIN{
                 Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
-                    so.children.Add(parseNode(dirpath,randgen, childnode, cvbo, shader_programs));
+                    so.children.Add(parseNode(childnode, cvbo, shader_programs,null));
                 }
             }
 
             return so;
+        }
+        else if (type == "JOINT")
+        {
+            Debug.WriteLine("Joint Detected");
+            GMDL.Joint joint = new GMDL.Joint();
+            //Set properties
+            joint.name = name;
+            //Get Transformation
+            XmlElement opt = (XmlElement) info.SelectSingleNode(".//TRANSMAT");
+            joint.init(opt.InnerText);
+            joint.parent = parent;
+            return joint;
         }
         else
         {

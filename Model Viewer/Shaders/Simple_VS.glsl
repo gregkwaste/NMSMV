@@ -1,13 +1,16 @@
+#version 420
 /* Copies incoming vertex color without change.
  * Applies the transformation matrix to vertex position.
  */
 
 attribute vec4 vPosition;
 attribute vec4 nPosition;
+attribute vec2 uvPosition0;
 uniform vec3 theta, pan, light;
 uniform float scale;
 uniform mat4 look, proj;
-out vec3 E,N;
+varying vec3 E,N;
+varying vec2 uv0;
 
 void main()
 {
@@ -15,6 +18,7 @@ void main()
     vec3 c = cos( angles );
     vec3 s = sin( angles );
     vec4 light4 = vec4(light, 0.0);
+    uv0 = uvPosition0;
 
 	// Remeber: thse matrices are column-major
     mat4 rx = mat4( 1.0,  0.0,  0.0, 0.0,

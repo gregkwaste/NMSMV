@@ -1,3 +1,4 @@
+#version 420
 /* Copies incoming vertex color without change.
  * Applies the transformation matrix to vertex position.
  */
@@ -6,7 +7,7 @@ attribute vec4 vPosition;
 attribute vec3 vcolor;
 uniform mat4 look, proj;
 uniform vec3 theta;
-out vec3 color;
+varying vec3 color;
 
 void main()
 {
