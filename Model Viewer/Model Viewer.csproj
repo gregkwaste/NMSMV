@@ -67,6 +67,7 @@
     <Compile Include="Class2.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Include="DDSImage.cs" />
     <Compile Include="ModelProcGen.cs" />
     <Compile Include="GMDL.cs" />
     <Compile Include="MBIN.cs" />

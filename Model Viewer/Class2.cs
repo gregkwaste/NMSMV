@@ -46,8 +46,8 @@ namespace Model_Viewer
             this.MakeCurrent();
             foreach (GMDL.model m in objects)
             {
-                GL.UseProgram(m.ShaderProgram);
-                if (m.ShaderProgram == -1)
+                GL.UseProgram(m.shader_program);
+                if (m.shader_program == -1)
                     throw new ApplicationException("Shit program");
                 Matrix4 look = cam.GetViewMatrix();
                 //Matrix4 look = Matrix4.Identity;
@@ -56,24 +56,24 @@ namespace Model_Viewer
                                                                     0.1f, 300.0f);
                 int loc;
                 //Send LookAt matrix to all shaders
-                loc = GL.GetUniformLocation(m.ShaderProgram, "look");
+                loc = GL.GetUniformLocation(m.shader_program, "look");
                 GL.UniformMatrix4(loc, false, ref look);
                 //Send projection matrix to all shaders
-                loc = GL.GetUniformLocation(m.ShaderProgram, "proj");
+                loc = GL.GetUniformLocation(m.shader_program, "proj");
                 GL.UniformMatrix4(loc, false, ref proj);
                 //Send theta to all shaders
-                loc = GL.GetUniformLocation(m.ShaderProgram, "theta");
+                loc = GL.GetUniformLocation(m.shader_program, "theta");
                 GL.Uniform3(loc, this.rot);
 
-                if (m.ShaderProgram == shader_programs[0])
+                if (m.shader_program == shader_programs[0])
                 {
                     //Object program
                     //Local Transformation is the same for all objects 
                     //Pending - Personalize local matrix on each object
-                    loc = GL.GetUniformLocation(m.ShaderProgram, "scale");
+                    loc = GL.GetUniformLocation(m.shader_program, "scale");
                     GL.Uniform1(loc, this.scale);
 
-                    loc = GL.GetUniformLocation(m.ShaderProgram, "light");
+                    loc = GL.GetUniformLocation(m.shader_program, "light");
 
                     GL.Uniform3(loc, new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                                 Math.Sin(this.light_angle_y * Math.PI / 180.0)),
@@ -82,7 +82,7 @@ namespace Model_Viewer
                                                                 Math.Cos(this.light_angle_y * Math.PI / 180.0))));
 
                 }
-                else if (m.ShaderProgram == shader_programs[1])
+                else if (m.shader_program == shader_programs[1])
                 {
                     //Locator Program
                 }

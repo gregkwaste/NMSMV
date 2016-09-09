@@ -86,7 +86,7 @@ namespace Model_Viewer
             string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
 
             this.rootObject = GEOMMBIN.LoadObjects(dirpath, this.xmlDoc, shader_programs);
-            this.rootObject.Index = this.childCounter;
+            this.rootObject.index = this.childCounter;
             this.childCounter++;
 
             //Debug.WriteLine("Objects Returned: {0}",oblist.Count);
@@ -162,8 +162,8 @@ namespace Model_Viewer
             this.shader_programs = new int[2] { this.shader_program_ob, this.shader_program_loc };
             Debug.WriteLine("Programs {0} {1}", shader_programs[0], shader_programs[1]);
             this.rootObject = new GMDL.locator();
-            this.rootObject.ShaderProgram = shader_programs[1];
-            this.rootObject.Index = this.childCounter;
+            this.rootObject.shader_program = shader_programs[1];
+            this.rootObject.index = this.childCounter;
             this.childCounter++;
             TreeNode node = new TreeNode("ORIGIN");
             node.Checked = true;
@@ -399,13 +399,13 @@ namespace Model_Viewer
 
         private void traverse_oblist(GMDL.model ob, TreeNode parent)
         {
-            if (ob.Children.Count > 0)
+            if (ob.children.Count > 0)
             {
                 List<GMDL.model> duplicates = new List<GMDL.model>();
-                foreach (GMDL.model child in ob.Children)
+                foreach (GMDL.model child in ob.children)
                 {
                     //Keep only Meshes and locators
-                    if (child.Type != "MESH" & child.Type != "LOCATOR")
+                    if (child.type != "MESH" & child.type != "LOCATOR")
                         continue;
                     //Check if Shape object
                     //if (child.Name.Contains("Shape"))
@@ -413,13 +413,13 @@ namespace Model_Viewer
                     
 
                     //Don't Save Duplicates
-                    if (!index_dict.ContainsKey(child.Name))
+                    if (!index_dict.ContainsKey(child.name))
                     {
                         //Set object index
-                        child.Index = this.childCounter;
-                        this.index_dict.Add(child.Name, child.Index);
+                        child.index = this.childCounter;
+                        this.index_dict.Add(child.name, child.index);
                         this.childCounter++;
-                        TreeNode node = new TreeNode(child.Name);
+                        TreeNode node = new TreeNode(child.name);
                         
                         //Debug.WriteLine("Testing Geom {0}  Node {1}", child.Index, node.Index);
                         node.Checked = true;
@@ -429,37 +429,37 @@ namespace Model_Viewer
                     }
                     else
                     {
-                        Debug.WriteLine("Duplicate {0} {1}", child.Name,ob.Children.Count);
+                        Debug.WriteLine("Duplicate {0} {1}", child.name,ob.children.Count);
                         duplicates.Add(child);
                     }
                 }
                 //Remove duplicates
                 foreach (GMDL.model dupl in duplicates)
                 {
-                    ob.Children.Remove(dupl);
+                    ob.children.Remove(dupl);
                 }
             }
         }
 
         private void traverse_oblist_rs(GMDL.model root, int index, bool status)
         {
-            if (root.Index == index)
+            if (root.index == index)
             {
                 //If you found the index toggle all children
-                //Debug.WriteLine("Toggling Renderability on {0}", root.Name);
-                root.Renderable = status;
+                //Debug.WriteLine("Toggling Renderability on {0}", root.name);
+                root.renderable = status;
 
-                //foreach (GMDL.model child in root.Children)
+                //foreach (GMDL.model child in root.children)
                 //{
                 //    child.Renderable = !child.Renderable;
-                //    Debug.WriteLine("Toggling Renderability on {0}", child.Name);
+                //    Debug.WriteLine("Toggling Renderability on {0}", child.name);
                 //    traverse_oblist_rs(child, index);
                 //}
             }
             else
             {
                 //If not continue traversing the children
-                foreach (GMDL.model child in root.Children)
+                foreach (GMDL.model child in root.children)
                 {
                     traverse_oblist_rs(child, index, status);
                 }
@@ -469,8 +469,8 @@ namespace Model_Viewer
         private void traverse_render(GMDL.model root)
         {
             //GL.LinkProgram(root.ShaderProgram);
-            GL.UseProgram(root.ShaderProgram);
-            if (root.ShaderProgram == -1)
+            GL.UseProgram(root.shader_program);
+            if (root.shader_program == -1)
                 throw new ApplicationException("Shit program");
             Matrix4 look = cam.GetViewMatrix();
             float aspect = (float)glControl1.ClientSize.Width / glControl1.ClientSize.Height;
@@ -478,24 +478,24 @@ namespace Model_Viewer
                                                                 0.1f, 300.0f);
             int loc;
             //Send LookAt matrix to all shaders
-            loc = GL.GetUniformLocation(root.ShaderProgram, "look");
+            loc = GL.GetUniformLocation(root.shader_program, "look");
             GL.UniformMatrix4(loc, false, ref look);
             //Send projection matrix to all shaders
-            loc = GL.GetUniformLocation(root.ShaderProgram, "proj");
+            loc = GL.GetUniformLocation(root.shader_program, "proj");
             GL.UniformMatrix4(loc, false, ref proj);
             //Send theta to all shaders
-            loc = GL.GetUniformLocation(root.ShaderProgram, "theta");
+            loc = GL.GetUniformLocation(root.shader_program, "theta");
             GL.Uniform3(loc, this.rot);
 
-            if (root.ShaderProgram == shader_programs[0])
+            if (root.shader_program == shader_programs[0])
             {
                 //Object program
                 //Local Transformation is the same for all objects 
                 //Pending - Personalize local matrix on each object
-                loc = GL.GetUniformLocation(root.ShaderProgram, "scale");
+                loc = GL.GetUniformLocation(root.shader_program, "scale");
                 GL.Uniform1(loc, this.scale);
 
-                loc = GL.GetUniformLocation(root.ShaderProgram, "light");
+                loc = GL.GetUniformLocation(root.shader_program, "light");
 
                 GL.Uniform3(loc, new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                             Math.Sin(this.light_angle_y * Math.PI / 180.0)),
@@ -503,15 +503,15 @@ namespace Model_Viewer
                                              (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                             Math.Cos(this.light_angle_y * Math.PI / 180.0))));
     
-            } else if (root.ShaderProgram == shader_programs[1])
+            } else if (root.shader_program == shader_programs[1])
             {
                 //Locator Program
             }
             GL.ClearColor(System.Drawing.Color.Black);
-            if (this.index_dict.ContainsKey(root.Name))
+            if (this.index_dict.ContainsKey(root.name))
                 root.render();
-            //Render Children
-            foreach (GMDL.model child in root.Children){
+            //Render children
+            foreach (GMDL.model child in root.children){
                 traverse_render(child);
             }
         }
@@ -542,14 +542,14 @@ namespace Model_Viewer
         {
             foreach (GMDL.model child in coll)
             {
-                if (child.Name == name)
+                if (child.name == name)
                 {
                     return child;
                 }
                 else
                 {
                     
-                    GMDL.model ret = collectPart(child.Children, name);
+                    GMDL.model ret = collectPart(child.children, name);
                     if (ret != null)
                         return ret;
                     else
@@ -576,9 +576,9 @@ namespace Model_Viewer
                 List<GMDL.model> vboParts = new List<GMDL.model>();
                 for (int i = 0; i < parts.Count; i++)
                 {
-                    GMDL.model part = collectPart(this.rootObject.Children, parts[i]);
+                    GMDL.model part = collectPart(this.rootObject.children, parts[i]);
                     GMDL.model npart = (GMDL.model)part.Clone();
-                    npart.Children.Clear();
+                    npart.children.Clear();
                     vboParts.Add(npart);
                 }
 
@@ -600,7 +600,7 @@ namespace Model_Viewer
             }
 
             //Bring it back
-            this.tvchkstat = treeviewCheckStatus.Children;
+            this.tvchkstat = treeviewCheckStatus.children;
 
             */
             

@@ -341,7 +341,7 @@ public static class MATERIALMBIN
             string samplName = (new string(charbuffer)).Trim('\0');
             charbuffer = br.ReadChars(0x80);
             string samplfile = (new string(charbuffer)).Trim('\0');
-            fs.Seek(0xC8 - 0x60, SeekOrigin.Current);
+            fs.Seek(0xC8 - 0xA0, SeekOrigin.Current);
 
             XmlElement prop = xml.CreateElement("PROPERTY");
             prop.SetAttribute("NAME", "CLASS");
@@ -595,8 +595,8 @@ public static class GEOMMBIN{
 
         //Create Root
         GMDL.locator root = new GMDL.locator();
-        root.Name = "ROOT_LOC";
-        root.Type = "LOCATOR";
+        root.name = "ROOT_LOC";
+        root.type = "LOCATOR";
         root.shader_program = shader_programs[1];
 
         //Store sections node
@@ -635,9 +635,9 @@ public static class GEOMMBIN{
 
             //Set cvbo
             so.vbo = cvbo;
-            so.ShaderProgram = shader_programs[0];
-            so.Name = name;
-            so.Type = type;
+            so.shader_program = shader_programs[0];
+            so.name = name;
+            so.type = type;
 
             so.color[0] = randgen.Next(255) / 255.0f;
             so.color[1] = randgen.Next(255) / 255.0f;
@@ -666,7 +666,10 @@ public static class GEOMMBIN{
             //Parse material file
             FileStream ms = new FileStream(Path.Combine(dirpath, matname), FileMode.Open);
             GMDL.Material mat = MATERIALMBIN.ParseXml(MATERIALMBIN.Parse(ms));
+            mat.prepTextures();
             ms.Close();
+            so.material = mat;
+            
 
 
             if (childs != null)
@@ -687,10 +690,10 @@ public static class GEOMMBIN{
             GMDL.locator so = new GMDL.locator();
             //Set Properties
             //Testingso.Name = name + "_LOC";
-            so.Name = name;
-            so.Type = type;
+            so.name = name;
+            so.type = type;
             //Set Shader Program
-            so.ShaderProgram = shader_programs[1];
+            so.shader_program = shader_programs[1];
 
             //Locator Objects don't have options
 
@@ -711,8 +714,8 @@ public static class GEOMMBIN{
             Debug.WriteLine("Unknown Type, {0}", type);
             GMDL.locator so = new GMDL.locator();
             //Set Properties
-            so.Name = name + "_JOINT";
-            so.Type = type;
+            so.name = name + "_JOINT";
+            so.type = type;
             //Set Shader Program
             so.shader_program = shader_programs[1];
 

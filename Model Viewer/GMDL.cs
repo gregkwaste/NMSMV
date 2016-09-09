@@ -5,19 +5,34 @@ using System.Diagnostics;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Graphics;
 using OpenTK;
+using KUtility;
 
 namespace GMDL
 {
-    public interface model{
-        bool render();
-        GMDL.model Clone();
-        bool Renderable { get; set; }
-        int ShaderProgram { set; get; }
-        int Index { set; get; }
-        string Type { set; get; }
-        string Name { set; get; }
-        List<model> Children { set; get; }
-    };
+    public abstract class model
+    {
+        public abstract bool render();
+        public abstract GMDL.model Clone();
+        public bool renderable = true;
+        public int shader_program = -1;
+        public int index;
+        public string type = "";
+        public string name = "";
+        public GMDL.Material material;
+        public List<model> children = new List<model>();
+    }
+
+    //public interface model{
+    //    bool render();
+    //    GMDL.model Clone();
+    //    bool Renderable { get; set; }
+    //    int ShaderProgram { set; get; }
+    //    int Index { set; get; }
+    //    string Type { set; get; }
+    //    string Name { set; get; }
+    //    GMDL.Material material { set; get; }
+    //    List<model> Children { set; get; }
+    //};
     
     public class locator: model
     {
@@ -25,89 +40,92 @@ namespace GMDL
         private float[] verts = new float[6*3];
         private float[] colors = new float[6 * 3];
         private Int32[] indices;
-        public bool renderable = true;
+        //public bool renderable = true;
         int vertex_buffer_object;
-        int color_buffer_object;
+        //int color_buffer_object;
         int element_buffer_object;
-        public int shader_program = -1;
-        string type = "";
-        string name = "";
-        public int index;
+        //public int shader_program = -1;
+        //this.type = "";
+        //string name = "";
+        //public int index;
+        
 
-        public int Index
-        {
-            get
-            {
-                return this.index;
-            }
-            set
-            {
-                this.index = value;
-            }
-        }
-        public bool Renderable
-        {
-            get
-            {
-                return this.renderable;
-            }
-            set
-            {
-                this.renderable = value;
-            }
-        }
-        public int ShaderProgram
-        {
-            set
-            {
-                this.shader_program = value;
-            }
-            get
-            {
-                return this.shader_program;
-            }
-        }
-        public string Name
-        {
-            set
-            {
-                this.name = value;
-            }
+        //public int Index
+        //{
+        //    get
+        //    {
+        //        return this.index;
+        //    }
+        //    set
+        //    {
+        //        this.index = value;
+        //    }
+        //}
+        //public bool Renderable
+        //{
+        //    get
+        //    {
+        //        return this.renderable;
+        //    }
+        //    set
+        //    {
+        //        this.renderable = value;
+        //    }
+        //}
+        //public int ShaderProgram
+        //{
+        //    set
+        //    {
+        //        this.shader_program = value;
+        //    }
+        //    get
+        //    {
+        //        return this.shader_program;
+        //    }
+        //}
+        //public string Name
+        //{
+        //    set
+        //    {
+        //        this.name = value;
+        //    }
 
-            get
-            {
-                return this.name;
-            }
+        //    get
+        //    {
+        //        return this.name;
+        //    }
 
-        }
-        public string Type
-        {
-            set
-            {
-                this.type = value;
-            }
-            get
-            {
-                return this.type;
-            }
-        }
-        public List<model> children = new List<model>();
-        public List<model> Children
-        {
-            set
-            {
-                this.children = value;
-            }
+        //}
+        //public string Type
+        //{
+        //    set
+        //    {
+        //        this.type = value;
+        //    }
+        //    get
+        //    {
+        //        return this.type;
+        //    }
+        //}
+        //public List<model> children = new List<model>();
+        //public List<model> Children
+        //{
+        //    set
+        //    {
+        //        this.children = value;
+        //    }
 
-            get
-            {
-                return this.children;
-            }
-        }
+        //    get
+        //    {
+        //        return this.children;
+        //    }
+        //}
 
         //Default Constructor
         public locator()
         {
+            //Set type
+            //this.type = "LOCATOR";
             //Assemble geometry in the constructor
             //X
             float vlen = 0.5f;
@@ -139,9 +157,8 @@ namespace GMDL
 
             //Indices
             indices = new Int32[2 * 3] {0, 1, 2, 3, 4, 5};
-
+            
             //Generate OpenGL buffers
-            int size;
             int arraysize = sizeof(float) * 6 * 3;
             GL.GenBuffers(1, out vertex_buffer_object);
             //GL.GenBuffers(1, out color_buffer_object);
@@ -161,7 +178,7 @@ namespace GMDL
             GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr) (sizeof(int) * 6), indices, BufferUsageHint.StaticDraw);
         }
 
-        public bool render()
+        public override bool render()
         {
             if (this.renderable == false)
             {
@@ -204,7 +221,7 @@ namespace GMDL
             return true;
         }
 
-        public GMDL.model Clone()
+        public override GMDL.model Clone()
         {
             GMDL.locator copy = new GMDL.locator();
             copy.renderable = true; //Override Renderability
@@ -225,80 +242,84 @@ namespace GMDL
         public int batchcount = 0;
         public int firstskinmat = 0;
         public int lastskinmat = 0;
-        public string name = "";
-        public string type = "";
+        //public string name = "";
+        //public string type = "";
         public customVBO vbo;
         public Vector3 color = new Vector3();
-        public bool renderable = true;
-        public int shader_program = -1;
-        public int index;
+        //public bool renderable = true;
+        //public int shader_program = -1;
+        //public int index;
+        //Material
+        //public GMDL.Material material;
 
-        //Interface properties
-        public int Index
-        {
-            get
-            {
-                return this.index;
-            }
-            set
-            {
-                this.index = value;
-            }
-        }
-        public bool Renderable
-        {
-            get { return this.renderable; }
-            set { this.renderable = value; }
-        }
-        public int ShaderProgram
-        {
-            set
-            {
-                this.shader_program = value;
-            }
-            get
-            {
-                return this.shader_program;
-            }
-        }
-        public string Name
-        {
-            set
-            {
-                this.name = value;
-            }
 
-            get
-            {
-                return this.name;
-            }
-        }
-        public string Type
-        {
-            set
-            {
-                this.type = value;
-            }
-            get
-            {
-                return this.type;
-            }
-        }
-        public List<model> children = new List<model>();
-        public List<model> Children
-        {
-            set
-            {
-                this.children = value;
-            }
+        ////Interface properties
+        //public int Index
+        //{
+        //    get
+        //    {
+        //        return this.index;
+        //    }
+        //    set
+        //    {
+        //        this.index = value;
+        //    }
+        //}
+        //public bool Renderable
+        //{
+        //    get { return this.renderable; }
+        //    set { this.renderable = value; }
+        //}
+        //public int ShaderProgram
+        //{
+        //    set
+        //    {
+        //        this.shader_program = value;
+        //    }
+        //    get
+        //    {
+        //        return this.shader_program;
+        //    }
+        //}
+        //public string Name
+        //{
+        //    set
+        //    {
+        //        this.name = value;
+        //    }
 
-            get
-            {
-                return this.children;
-            }
-        }
+        //    get
+        //    {
+        //        return this.name;
+        //    }
+        //}
+        //public string Type
+        //{
+        //    set
+        //    {
+        //        this.type = value;
+        //    }
+        //    get
+        //    {
+        //        return this.type;
+        //    }
+        //}
+        //public List<model> children = new List<model>();
+        //public List<model> Children
+        //{
+        //    set
+        //    {
+        //        this.children = value;
+        //    }
 
-        public bool render()
+        //    get
+        //    {
+        //        return this.children;
+        //    }
+        //}
+
+
+        public override bool render()
         {
             if (this.renderable == false)
             {
@@ -311,7 +332,7 @@ namespace GMDL
             //Bind vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
 
-            int vpos, npos;
+            int vpos,npos,uv0pos;
             //Vertex attribute
             vpos = GL.GetAttribLocation(this.shader_program, "vPosition");
             int vstride = vbo.vx_size * vertrstart;
@@ -324,11 +345,48 @@ namespace GMDL
             GL.VertexAttribPointer(npos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.n_stride);
             GL.EnableVertexAttribArray(npos);
 
-            //Set Color
-            int loc;
-            loc = GL.GetUniformLocation(this.shader_program, "color");
-            GL.Uniform3(loc, this.color);
+            //UV0
+            uv0pos = GL.GetAttribLocation(this.shader_program, "uvPosition0");
+            GL.VertexAttribPointer(uv0pos, 2, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.uv0_stride);
+            GL.EnableVertexAttribArray(uv0pos);
 
+
+            //BIND TEXTURES
+            int loc;
+            Texture tex;
+            loc = GL.GetUniformLocation(this.shader_program, "diffuseFlag");
+            if (this.material.textures.Count > 0)
+            {
+                // Diffuse Texture Exists
+                GL.Uniform1(loc, 1.0f);
+                tex = this.material.textures[0];
+                // Bind Diffuse Texture
+                GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
+                // Send Image to Device
+                //GL.TexImage2D(TextureTarget.Texture2D, 0, tex.pif, tex.width,
+                //    tex.height, 0, tex.pf, PixelType.UnsignedByte, tex.ddsImage.bdata);
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int) TextureWrapMode.Repeat);
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+
+                GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, tex.pif,
+                    tex.width, tex.height, 0, tex.ddsImage.header.dwPitchOrLinearSize, tex.ddsImage.bdata);
+                //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int) TextureMagFilter.Nearest);
+                //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int) TextureMinFilter.Nearest);
+                loc = GL.GetUniformLocation(this.shader_program, "color");
+                GL.Uniform3(loc, this.color);
+            }
+            else
+            {
+                GL.Uniform1(loc, 0.0f);
+                loc = GL.GetUniformLocation(this.shader_program, "color");
+                GL.Uniform3(loc, this.material.uniforms[0].value.Xyz);
+            }
+                
+            //Uniform Color probably deprecated
+            //Set Color
+            
             //Render Elements
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
 
@@ -342,11 +400,12 @@ namespace GMDL
             
             GL.DisableVertexAttribArray(vpos);
             GL.DisableVertexAttribArray(npos);
+            GL.DisableVertexAttribArray(uv0pos);
 
             return true;
         }
 
-        public GMDL.model Clone()
+        public override GMDL.model Clone()
         {
             GMDL.sharedVBO copy = new GMDL.sharedVBO();
             copy.vertrend = this.vertrend;
@@ -362,7 +421,8 @@ namespace GMDL
             copy.batchcount = this.batchcount;
             copy.batchstart = this.batchstart;
             copy.color = this.color;
-            
+            copy.material = this.material;
+
 
             return (GMDL.model)copy;
         }
@@ -378,6 +438,7 @@ namespace GMDL
         public int vx_size;
         public int vx_stride;
         public int n_stride;
+        public int uv0_stride;
         public int trisCount;
         public int iCount;
         public int iLength;
@@ -398,6 +459,7 @@ namespace GMDL
             //Set essential parameters
             this.vx_size = geom.vx_size;
             this.vx_stride = geom.offsets[0];
+            this.uv0_stride = geom.offsets[1];
             this.n_stride = geom.offsets[2];
             this.iCount = (int) geom.indicesCount;
             this.trisCount = (int) geom.indicesCount / 3;
@@ -495,6 +557,44 @@ namespace GMDL
         public List<int> materialflags = new List<int>();
         public List<Uniform> uniforms = new List<Uniform>();
         public List<Sampler> samplers = new List<Sampler>();
+        public List<Texture> textures = new List<Texture>();
+
+        public void prepTextures()
+        {
+            int counter = 0;
+            foreach (Sampler sam in samplers){
+                Texture tex = new Texture();
+                DDSImage dds;
+                try { 
+                    dds = new DDSImage(File.ReadAllBytes(Path.Combine(Model_Viewer.Util.dirpath, sam.path)));
+                } catch (System.IO.FileNotFoundException e) {
+                    Debug.WriteLine("Texture Not Found:" + Path.Combine(Model_Viewer.Util.dirpath, sam.path));
+                    continue;
+                }
+
+                Debug.WriteLine("Sampler Name {2} Path "+sam.path+" Width {0} Height {1}", dds.header.dwWidth, dds.header.dwHeight,sam.name);
+                tex.width = dds.header.dwWidth;
+                tex.height = dds.header.dwHeight;
+                switch (dds.header.ddspf.dwFourCC)
+                {
+                    //DXT1
+                    case (0x31545844):
+                        tex.pif = PixelInternalFormat.CompressedRgbaS3tcDxt1Ext;
+                        break;
+                    case (0x35545844):
+                        tex.pif = PixelInternalFormat.CompressedRgbaS3tcDxt5Ext;
+                        break;
+                    default:
+                        throw new ApplicationException("Unimplemented Pixel format");
+                }
+                //Force RGBA for now
+                tex.pf = PixelFormat.Rgba;
+                tex.bufferID = GL.GenTexture();
+                tex.ddsImage = dds;
+                counter++;
+                this.textures.Add(tex);
+            }
+        }
     }
 
     public class Uniform
@@ -515,5 +615,16 @@ namespace GMDL
     {
         public string name;
         public string path;
+    }
+
+    public class Texture
+    {
+        public int bufferID;
+        public int width;
+        public int height;
+        public PixelInternalFormat pif;
+        public PixelFormat pf;
+        public DDSImage ddsImage;
+
     }
 }

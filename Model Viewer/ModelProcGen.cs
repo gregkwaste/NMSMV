@@ -8,9 +8,10 @@ using System.Diagnostics;
 
 namespace Model_Viewer
 {
-    static class Util
+    public static class Util
     {
         public static readonly Random randgen = new Random();
+        public static string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
     }
 
     class ModelProcGen
