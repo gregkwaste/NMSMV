@@ -20,6 +20,90 @@ namespace GMDL
         public string name = "";
         public GMDL.Material material;
         public List<model> children = new List<model>();
+        //Transformation Parameters
+        public Matrix4 localMat = Matrix4.Identity;
+        //public Matrix4 worldMat = Matrix4.Identity;
+        public Vector3 worldPosition {
+            get
+            {
+                if (parent != null)
+                    return parent.worldPosition + Vector3.Transform(this.localPosition, parent.worldMat);
+                else
+                    return this.localPosition;
+            }
+        }
+        public Matrix4 worldMat
+        {
+            get
+            {
+                if (parent != null)
+                    return Matrix4.Mult(this.localMat, parent.worldMat);
+                else
+                    return this.localMat;
+            }
+        }
+        public Vector3 localPosition = new Vector3(0.0f, 0.0f, 0.0f);
+        public Vector3 localScale = new Vector3(1.0f, 1.0f, 1.0f);
+        public Vector3 localRotation = new Vector3(0.0f, 0.0f, 0.0f);
+        public model parent;
+
+        public static void vectofloatArray(float[] flist, List<Vector3> veclist)
+        {
+            int count = veclist.Count;
+            for (int i = 0; i < count; i++)
+            {
+                flist[3 * i] = veclist[i].X;
+                flist[3 * i+1] = veclist[i].Y;
+                flist[3 * i+2] = veclist[i].Z;
+            }   
+        }
+
+        public void init(string trans)
+        {
+            //Get Local Position
+            string[] split = trans.Split(',');
+            this.localPosition.X = float.Parse(split[0]);
+            this.localPosition.Y = float.Parse(split[1]);
+            this.localPosition.Z = float.Parse(split[2]);
+            //Get Local Rotation
+            this.localRotation.X = float.Parse(split[3]);
+            this.localRotation.Y = float.Parse(split[4]);
+            this.localRotation.Z = float.Parse(split[5]);
+            //Get Local Scale
+            this.localScale.X = float.Parse(split[6]);
+            this.localScale.Y = float.Parse(split[7]);
+            this.localScale.Z = float.Parse(split[8]);
+
+            //Now Calculate the joint matrix;
+
+            Matrix4 rotx, roty, rotz;
+
+            Matrix4.CreateRotationX((float)Math.PI * this.localRotation.X / 180.0f, out rotx);
+            Matrix4.CreateRotationY((float)Math.PI * this.localRotation.Y / 180.0f, out roty);
+            Matrix4.CreateRotationZ((float)Math.PI * this.localRotation.Z / 180.0f, out rotz);
+            //Matrix4.CreateTranslation(this.localPosition);
+            //Calculate local matrix
+            this.localMat = rotz * rotx * roty;
+            //Transpose Matrix
+            //this.localMat.Transpose();
+
+
+            //Calculation is done via properties
+            ////Calculate world position
+            //if (this.parent != null)
+            //{
+            //    //this.worldMat = Matrix4.Mult(parent.worldMat, this.localMat);
+            //    this.worldMat = Matrix4.Mult(this.localMat, parent.worldMat);
+            //    Vector3 transformed = Vector3.Transform(this.localPosition, parent.worldMat);
+            //    this.worldPosition = parent.worldPosition + transformed;
+            //}
+            //else
+            //{
+            //    this.worldPosition = this.localPosition;
+            //    this.worldMat = this.localMat;
+            //}
+
+        }
     }
 
     //public interface model{
@@ -49,77 +133,6 @@ namespace GMDL
         //string name = "";
         //public int index;
         
-
-        //public int Index
-        //{
-        //    get
-        //    {
-        //        return this.index;
-        //    }
-        //    set
-        //    {
-        //        this.index = value;
-        //    }
-        //}
-        //public bool Renderable
-        //{
-        //    get
-        //    {
-        //        return this.renderable;
-        //    }
-        //    set
-        //    {
-        //        this.renderable = value;
-        //    }
-        //}
-        //public int ShaderProgram
-        //{
-        //    set
-        //    {
-        //        this.shader_program = value;
-        //    }
-        //    get
-        //    {
-        //        return this.shader_program;
-        //    }
-        //}
-        //public string Name
-        //{
-        //    set
-        //    {
-        //        this.name = value;
-        //    }
-
-        //    get
-        //    {
-        //        return this.name;
-        //    }
-
-        //}
-        //public string Type
-        //{
-        //    set
-        //    {
-        //        this.type = value;
-        //    }
-        //    get
-        //    {
-        //        return this.type;
-        //    }
-        //}
-        //public List<model> children = new List<model>();
-        //public List<model> Children
-        //{
-        //    set
-        //    {
-        //        this.children = value;
-        //    }
-
-        //    get
-        //    {
-        //        return this.children;
-        //    }
-        //}
 
         //Default Constructor
         public locator()
@@ -361,6 +374,9 @@ namespace GMDL
 
             return (GMDL.model)copy;
         }
+
+
+
     }
 
     public class customVBO
@@ -563,57 +579,292 @@ namespace GMDL
 
     }
 
-    public class Joint: model
+    public class Joint : model
     {
-        public Matrix3 jointmatrix = Matrix3.Identity;
-        public Vector3 locPosition;
-        public Vector3 worldPosition;
-        public Vector3 locScale;
-        public Vector3 locRotation;
-        public model parent;
+        private int vertex_buffer_object;
+        private int element_buffer_object;
 
 
-        public void init(string trans)
+        public Joint()
         {
-            Debug.WriteLine(trans);
-            //Get Local Position
-            string[] split = trans.Split(',');
-            this.locPosition.X = float.Parse(split[0]);
-            this.locPosition.Y = float.Parse(split[1]);
-            this.locPosition.Z = float.Parse(split[2]);
-            //Get Local Rotation
-            this.locRotation.X = float.Parse(split[3]);
-            this.locRotation.Y = float.Parse(split[4]);
-            this.locRotation.Z = float.Parse(split[5]);
-            //Get Local Scale
-            this.locScale.X = float.Parse(split[6]);
-            this.locScale.Y = float.Parse(split[7]);
-            this.locScale.Z = float.Parse(split[8]);
-            
-            //Now Calculate the joint matrix;
-            this.jointmatrix *= Matrix3.CreateFromAxisAngle(new Vector3(1.0f,0.0f,0.0f),
-                                                        this.locRotation.X);
-            this.jointmatrix *= Matrix3.CreateFromAxisAngle(new Vector3(0.0f, 1.0f, 0.0f),
-                                                        this.locRotation.Y);
-            this.jointmatrix *= Matrix3.CreateFromAxisAngle(new Vector3(0.0f, 0.0f, 1.0f),
-                                                        this.locRotation.Z);
-
+            //Create Buffers
+            GL.GenBuffers(1, out vertex_buffer_object);
+            //GL.GenBuffers(1, out color_buffer_object);
+            GL.GenBuffers(1, out element_buffer_object);
         }
+
         //Empty stuff
         public override model Clone()
         {
             throw new ApplicationException("Not Implemented yet");
         }
             
-        
         //Render should render Bones from joint to children
         public override bool render()
         {
-            return false;
-        }
-            
-        
+            if (this.renderable == false)
+            {
+                //Debug.WriteLine("Not Renderable");
+                return false;
+            }
+            if (this.children.Count == 0)
+                return false;
 
+            //Draw Lines to children joints
+            List<Vector3> verts = new List<Vector3>();
+            //List<int> indices = new List<int>();
+            List<Vector3> colors = new List<Vector3>();
+            int arraysize = this.children.Count * 2 * 3 * sizeof(float);
+            int[] indices = new int[this.children.Count * 2];
+            for (int i = 0; i < this.children.Count; i++)
+            {
+                verts.Add(this.worldPosition);
+                verts.Add(children[i].worldPosition);
+                //Choosing red color for the skeleton
+                colors.Add(new Vector3(1.0f, 0.0f, 0.0f));
+                colors.Add(new Vector3(1.0f, 0.0f, 0.0f));
+                //Add line indices
+                indices[2 * i] = 2 * i;
+                indices[2 * i + 1] = 2 * i + 1;
+            }
+
+            float[] vertsf = new float[verts.Count * 3];
+            float[] colorf = new float[colors.Count * 3];
+            vectofloatArray(vertsf, verts);
+            vectofloatArray(colorf, colors);
+
+            //Upload vertex buffer
+            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vertex_buffer_object);
+            //Allocate to NULL
+            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)(2 * arraysize), (IntPtr)null, BufferUsageHint.StaticDraw);
+            //Add verts data
+            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, vertsf);
+            //Add vert color data
+            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)arraysize, (IntPtr)arraysize, colorf);
+
+            ////Upload index buffer
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.element_buffer_object);
+            GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr)(sizeof(int) * indices.Length), indices, BufferUsageHint.StaticDraw);
+
+            //Render Immediately
+            //Bind vertex buffer
+            int vpos, cpos;
+            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vertex_buffer_object);
+            vpos = GL.GetAttribLocation(this.shader_program, "vPosition");
+            GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.Float, false, 0, 0);
+            GL.EnableVertexAttribArray(vpos);
+
+            //Color Attribute
+            cpos = GL.GetAttribLocation(this.shader_program, "vcolor");
+            GL.VertexAttribPointer(cpos, 3, VertexAttribPointerType.Float, false, 0, (IntPtr)arraysize);
+            GL.EnableVertexAttribArray(cpos);
+
+            //Render Elements
+            //Bind elem buffer
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.element_buffer_object);
+            GL.PointSize(10.0f);
+            //GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Point);
+
+            //GL.DrawElements(PrimitiveType.Points, 6, DrawElementsType.UnsignedInt, this.indices);
+            GL.DrawArrays(PrimitiveType.Lines, 0, indices.Length);
+            GL.DrawArrays(PrimitiveType.Points, 0, vertsf.Length);
+            //Debug.WriteLine("Locator Object {2} vpos {0} cpos {1} prog {3}", vpos, cpos, this.name, this.shader_program);
+            //Debug.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vertex_buffer_object,this.color_buffer_object);
+
+            GL.DisableVertexAttribArray(vpos);
+            GL.DisableVertexAttribArray(cpos);
+            
+            return true;
+        }
+
+    }
+
+    //Animation Classes
+    public class AnimNodeFrameData
+    {
+        public List<Quaternion> rotations = new List<Quaternion>();
+        public List<Quaternion> translations = new List<Quaternion>();
+        public List<Quaternion> scales = new List<Quaternion>();
+
+        public void LoadRotations(FileStream fs,int count)
+        {
+            BinaryReader br = new BinaryReader(fs);
+            for (int i = 0; i < count; i++)
+            {
+                Quaternion q = new Quaternion();
+                q.X = br.ReadSingle();
+                q.Y = br.ReadSingle();
+                q.Z = br.ReadSingle();
+                q.W = br.ReadSingle();
+
+                this.rotations.Add(q);
+            }
+        }
+
+        public void LoadTranslations(FileStream fs, int count)
+        {
+            BinaryReader br = new BinaryReader(fs);
+            for (int i = 0; i < count; i++)
+            {
+                Quaternion q = new Quaternion();
+                q.X = br.ReadSingle();
+                q.Y = br.ReadSingle();
+                q.Z = br.ReadSingle();
+                q.W = br.ReadSingle();
+
+                this.translations.Add(q);
+            }
+        }
+
+        public void LoadScales(FileStream fs, int count)
+        {
+            BinaryReader br = new BinaryReader(fs);
+            for (int i = 0; i < count; i++)
+            {
+                Quaternion q = new Quaternion();
+                q.X = br.ReadSingle();
+                q.Y = br.ReadSingle();
+                q.Z = br.ReadSingle();
+                q.W = br.ReadSingle();
+
+                this.scales.Add(q);
+            }
+        }
+
+    }
+
+
+    public class AnimFrameData
+    {
+        public List<AnimNodeFrameData> frames = new List<AnimNodeFrameData>();
+        public int frameCount;
+
+        public void Load(FileStream fs, int count)
+        {
+            BinaryReader br = new BinaryReader(fs);
+            this.frameCount = count;
+            for (int i = 0; i < count; i++)
+            {
+                uint rotOff = (uint)fs.Position + br.ReadUInt32();
+                fs.Seek(0x4, SeekOrigin.Current);
+                int rotCount = br.ReadInt32();
+                fs.Seek(0x4, SeekOrigin.Current);
+
+                uint transOff = (uint)fs.Position + br.ReadUInt32();
+                fs.Seek(0x4, SeekOrigin.Current);
+                int transCount = br.ReadInt32();
+                fs.Seek(0x4, SeekOrigin.Current);
+
+                uint scaleOff = (uint)fs.Position + br.ReadUInt32();
+                fs.Seek(0x4, SeekOrigin.Current);
+                int scaleCount = br.ReadInt32();
+                fs.Seek(0x4, SeekOrigin.Current);
+
+                long back = fs.Position;
+
+                AnimNodeFrameData frame = new AnimNodeFrameData();
+                fs.Seek(rotOff, SeekOrigin.Begin);
+                frame.LoadRotations(fs, rotCount);
+                fs.Seek(transOff, SeekOrigin.Begin);
+                frame.LoadTranslations(fs, transCount);
+                fs.Seek(scaleOff, SeekOrigin.Begin);
+                frame.LoadScales(fs, scaleCount);
+
+                fs.Seek(back, SeekOrigin.Begin);
+
+                this.frames.Add(frame);
+
+            }
+        }
+    }
+    public class AnimeNode
+    {
+        public int index;
+        public string name = "";
+        public bool canCompress = false;
+        public int rotIndex = 0;
+        public int transIndex = 0;
+        public int scaleIndex = 0;
+
+
+        public AnimeNode(int fIndex)
+        {
+            this.index = fIndex;
+        }
+        public void Load(FileStream fs)
+        {
+            //Binary reader
+            BinaryReader br = new BinaryReader(fs);
+            char[] charbuffer = new char[0x100];
+
+            charbuffer = br.ReadChars(0x10);
+            name = (new string(charbuffer)).Trim('\0');
+            canCompress = (br.ReadInt32()==0) ? false : true;
+            rotIndex = br.ReadInt32();
+            transIndex = br.ReadInt32();
+            scaleIndex = br.ReadInt32();
+        }
+    }
+    public class NodeData
+    {
+        public List<AnimeNode> nodeList = new List<AnimeNode>();
+        public int nodeCount = 0;
+
+        public void parseNodes(FileStream fs, int count)
+        {
+            nodeCount = count;
+
+            for (int i = 0; i < count; i++)
+            {
+                AnimeNode node = new AnimeNode(i);
+                node.Load(fs);
+                nodeList.Add(node);
+            }
+        }
+
+    }
+
+    public class AnimeMetaData
+    {
+        public int nodeCount = 0;
+        public int frameCount = 0;
+        public NodeData nodeData = new NodeData();
+        public AnimFrameData frameData = new AnimFrameData();
+
+        public void Load(FileStream fs)
+        {
+            //Binary Reader
+            BinaryReader br = new BinaryReader(fs);
+            fs.Seek(0x60, SeekOrigin.Begin);
+            frameCount = br.ReadInt32();
+            nodeCount = br.ReadInt32();
+
+            //Get Offsets
+            uint nodeOffset = (uint)fs.Position + br.ReadUInt32();
+            fs.Seek(0xC, SeekOrigin.Current);
+            uint animeFrameDataOff = (uint)fs.Position + br.ReadUInt32();
+            fs.Seek(0xC, SeekOrigin.Current);
+            uint staticFrameOff = (uint)fs.Position;
+
+            Debug.WriteLine("Animation File");
+            Debug.WriteLine("Frames {0} Nodes {1}", frameCount, nodeCount);
+            Debug.WriteLine("Parsing Nodes NodeOffset {0}", nodeOffset);
+
+            fs.Seek(nodeOffset, SeekOrigin.Begin);
+            NodeData nodedata = new NodeData();
+            nodedata.parseNodes(fs, nodeCount);
+            nodeData = nodedata;
+
+            Debug.WriteLine("Parsing Animation Frame Data Offset {0}", animeFrameDataOff);
+            fs.Seek(animeFrameDataOff, SeekOrigin.Begin);
+            AnimFrameData framedata = new AnimFrameData();
+            framedata.Load(fs, frameCount);
+            this.frameData = framedata;
+
+        }
 
     }
 }
+
+
+

@@ -52,8 +52,13 @@ namespace Model_Viewer
         private GMDL.model rootObject;
         private XmlDocument xmlDoc;
         private Dictionary<string, int> index_dict = new Dictionary<string, int>();
-
+        private Dictionary<string, GMDL.model> joint_dict = new Dictionary<string, GMDL.model>();
         private treeviewCheckStatus tvchkstat = treeviewCheckStatus.Children;
+
+        //Animation Meta
+        public GMDL.AnimeMetaData meta = new GMDL.AnimeMetaData();
+
+
 
         public Form1()
         {
@@ -63,7 +68,11 @@ namespace Model_Viewer
         private void openToolStripMenuItem_Click(object sender, EventArgs e)
         {
             Debug.WriteLine("Opening File");
-            openFileDialog1.ShowDialog();
+            DialogResult res = openFileDialog1.ShowDialog();
+
+            if (res == DialogResult.Cancel)
+                return;
+
             var filename = openFileDialog1.FileName;
 
             var split = filename.Split('.');
@@ -81,11 +90,10 @@ namespace Model_Viewer
             XmlDocument xml = new XmlDocument();
             Debug.WriteLine("Parsing SCENE XML");
             this.xmlDoc = SCENEMBIN.Parse(fs);
-
-            //Store path locally for now
-            //string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
-            string dirpath = "C:\\Users\\greg\\Source\\Repos\\nms-viewer\\Model Viewer\\Samples";
             
+            //Store path locally for now
+            string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
+
             this.rootObject = GEOMMBIN.LoadObjects(dirpath, this.xmlDoc, shader_programs);
             this.rootObject.index = this.childCounter;
             this.childCounter++;
@@ -405,8 +413,8 @@ namespace Model_Viewer
                 List<GMDL.model> duplicates = new List<GMDL.model>();
                 foreach (GMDL.model child in ob.children)
                 {
-                    //Keep only Meshes and locators
-                    if (child.type != "MESH" & child.type != "LOCATOR")
+                    //Keep only Meshes, Locators and Joints
+                    if (child.type != "MESH" & child.type != "LOCATOR" & child.type !="JOINT")
                         continue;
                     //Check if Shape object
                     //if (child.Name.Contains("Shape"))
@@ -418,7 +426,8 @@ namespace Model_Viewer
                     {
                         //Set object index
                         child.index = this.childCounter;
-                        this.index_dict.Add(child.name, child.index);
+                        this.index_dict.Add(child.name.ToUpper(), child.index);
+                        this.joint_dict.Add(child.name.ToUpper(), child);
                         this.childCounter++;
                         TreeNode node = new TreeNode(child.name);
                         
@@ -481,6 +490,20 @@ namespace Model_Viewer
             //Send LookAt matrix to all shaders
             loc = GL.GetUniformLocation(root.shader_program, "look");
             GL.UniformMatrix4(loc, false, ref look);
+            //Send World Position to all shaders
+            loc = GL.GetUniformLocation(root.shader_program, "worldTrans");
+            GL.Uniform3(loc, root.worldPosition);
+            //Send local Rotation Matrix to all shaders
+            loc = GL.GetUniformLocation(root.shader_program, "worldRot");
+            Matrix4 wMat;
+            if (root.parent != null)
+                wMat = root.parent.worldMat;
+            else
+                wMat = root.worldMat;
+
+            GL.UniformMatrix4(loc, true, ref wMat);
+
+
             //Send projection matrix to all shaders
             loc = GL.GetUniformLocation(root.shader_program, "proj");
             GL.UniformMatrix4(loc, false, ref proj);
@@ -647,5 +670,95 @@ namespace Model_Viewer
             glControl1.Invalidate();
         }
 
+        private void openAnimationToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            //Opening Animation File
+            Debug.WriteLine("Opening File");
+
+            DialogResult res = openFileDialog1.ShowDialog();
+            var filename = openFileDialog1.FileName;
+
+            if (res == DialogResult.Cancel)
+                return;
+            
+            FileStream fs = new FileStream(filename,FileMode.Open);
+            meta = new GMDL.AnimeMetaData();
+            meta.Load(fs);
+
+            //Update GUI
+            frameBox.Enabled = true;
+            frameBox.Minimum = 0;
+            frameBox.Maximum = meta.frameCount - 1;
+
+
+            fs.Close();
+
+        }
+
+        private void frameBox_ValueChanged(object sender, EventArgs e)
+        {
+            //Get FrameIndex
+            int frameIndex = (int) frameBox.Value;
+            //Debug.WriteLine("Setting Frame Index {0}", frameIndex);
+            GMDL.AnimNodeFrameData frame = new GMDL.AnimNodeFrameData();
+            frame = meta.frameData.frames[frameIndex];
+            
+            foreach (GMDL.AnimeNode node in meta.nodeData.nodeList)
+            {
+                //Check if there is a rotation for that node
+                if (node.rotIndex < frame.rotations.Count - 1)
+                {
+                    if (joint_dict.ContainsKey(node.name))
+                        joint_dict[node.name].localMat = Matrix4.CreateFromQuaternion(frame.rotations[node.rotIndex]);
+                }
+                //Debug.WriteLine("Node " + node.name+ " {0} {1} {2}",node.rotIndex,node.transIndex,node.scaleIndex);
+            }
+            glControl1.Invalidate();
+
+        }
+
+
+
+        //Animation Playback
+        private void backgroundWorker1_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
+        {
+            int val = (int) frameBox.Value;
+            int max = (int) frameBox.Maximum;
+            int i = val;
+            while (true)
+            {
+                //Reset
+                if (i >= max) i = 0;
+                System.Threading.Thread.Sleep(100);
+                i += 1;
+
+                backgroundWorker1.ReportProgress(i);
+
+                if (backgroundWorker1.CancellationPending)
+                {
+                    e.Cancel = true;
+                    return;
+                }
+            }
+            
+        }
+        
+        private void newButton1_Click(object sender, EventArgs e)
+        {
+            if (newButton1.status)
+            {
+                backgroundWorker1.RunWorkerAsync();
+            } else
+            {
+                backgroundWorker1.CancelAsync();
+            }
+            newButton1.status = !newButton1.status;
+            newButton1.Invalidate();
+        }
+
+        private void backgroundWorker1_ProgressChanged(object sender, System.ComponentModel.ProgressChangedEventArgs e)
+        {
+            frameBox.Value = e.ProgressPercentage;
+        }
     }
 }
