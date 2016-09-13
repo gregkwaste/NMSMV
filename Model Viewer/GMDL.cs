@@ -386,6 +386,7 @@ namespace GMDL
         public int element_buffer_object;
         public int color_buffer_object;
 
+        public List<JointBindingData> jointData;
         public int vx_size;
         public int vx_stride;
         public int n_stride;
@@ -419,7 +420,8 @@ namespace GMDL
                 this.iType = DrawElementsType.UnsignedShort;
             else
                 this.iType = DrawElementsType.UnsignedInt;
-            
+            //Set Joint Data
+            this.jointData = geom.jointData;
 
             GL.GenBuffers(1, out vertex_buffer_object);
             //Create normal buffer if normals exist
@@ -455,9 +457,9 @@ namespace GMDL
         public int vx_size;
 
         //Counters
-        public UInt32 indicesCount=0;
+        public int indicesCount=0;
         public int indicesLength = 0;
-        public UInt32 vertCount = 0;
+        public int vertCount = 0;
 
         //make sure there are enough buffers for non interleaved formats
         public byte[] ibuffer;
@@ -470,7 +472,9 @@ namespace GMDL
         public List<float[]> bWeights;
         public int[] offsets; //List to save strides according to meshdescr
 
-
+        //Joint info
+        public List<JointBindingData> jointData = new List<JointBindingData>();
+        
         public Vector3 get_vec3_half(BinaryReader br)
         {
             Vector3 temp;
@@ -864,6 +868,52 @@ namespace GMDL
         }
 
     }
+
+    public class JointBindingData
+    {
+        public Matrix4 invBindMatrix = Matrix4.Identity;
+        public Vector3 BindTranslate;
+        public Quaternion BindRotation;
+        public Vector3 Bindscale;
+
+        public void Load(FileStream fs)
+        {
+            //Binary Reader
+            BinaryReader br = new BinaryReader(fs);
+            //Lamest way to read a matrix
+            invBindMatrix.M11 = br.ReadSingle();
+            invBindMatrix.M12 = br.ReadSingle();
+            invBindMatrix.M13 = br.ReadSingle();
+            invBindMatrix.M14 = br.ReadSingle();
+            invBindMatrix.M21 = br.ReadSingle();
+            invBindMatrix.M22 = br.ReadSingle();
+            invBindMatrix.M23 = br.ReadSingle();
+            invBindMatrix.M24 = br.ReadSingle();
+            invBindMatrix.M31 = br.ReadSingle();
+            invBindMatrix.M32 = br.ReadSingle();
+            invBindMatrix.M33 = br.ReadSingle();
+            invBindMatrix.M34 = br.ReadSingle();
+            invBindMatrix.M41 = br.ReadSingle();
+            invBindMatrix.M42 = br.ReadSingle();
+            invBindMatrix.M43 = br.ReadSingle();
+            invBindMatrix.M44 = br.ReadSingle();
+            //Get Translate
+            BindTranslate.X = br.ReadSingle();
+            BindTranslate.Y = br.ReadSingle();
+            BindTranslate.Z = br.ReadSingle();
+            //Get Quaternion
+            BindRotation.X = br.ReadSingle();
+            BindRotation.Y = br.ReadSingle();
+            BindRotation.Z = br.ReadSingle();
+            BindRotation.W = br.ReadSingle();
+            //Get Scale
+            Bindscale.X = br.ReadSingle();
+            Bindscale.Y = br.ReadSingle();
+            Bindscale.Z = br.ReadSingle();
+
+        }
+    }
+
 }
 
 

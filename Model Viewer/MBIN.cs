@@ -464,11 +464,16 @@ public static class GEOMMBIN{
         Debug.WriteLine("Model Indices: {0}", indices_num);
         Debug.WriteLine("Indices Flag: {0}", indices_flag);
 
-        //Skip Unknown yet offset sections
         //Joint Bindings
+        fs.Seek(0x4, SeekOrigin.Current);
+        var jointbindingOffset = fs.Position + br.ReadInt32();
+        fs.Seek(0x4, SeekOrigin.Current);
+        var jointCount = br.ReadInt32();
+        fs.Seek(0x4, SeekOrigin.Current);
+        //Skip Unknown yet offset sections
         //Joint Extensions
         //Joint Mirror Pairs
-        fs.Seek(0x4 + 4 * 0x10, SeekOrigin.Current);
+        fs.Seek(3 * 0x10, SeekOrigin.Current);
 
         //Usefull Bone Remapping information
 
@@ -514,18 +519,24 @@ public static class GEOMMBIN{
         var geom = new GMDL.GeomObject();
 
         //Store Counts
-        geom.indicesCount = (uint) indices_num;
+        geom.indicesCount = indices_num;
         if (indices_flag == 0x1)
             geom.indicesLength = 0x2;
         else
             geom.indicesLength = 0x4;
         
-
-        
-        geom.vertCount = (uint) vert_num;
-
+        geom.vertCount = vert_num;
         geom.vx_size = vx_type;
-        
+
+        //Store Joint Data
+        fs.Seek(jointbindingOffset, SeekOrigin.Begin);
+        for (int i = 0; i < jointCount; i++)
+        {
+            GMDL.JointBindingData jdata = new GMDL.JointBindingData();
+            jdata.Load(fs);
+            geom.jointData.Add(jdata);
+        }
+
         //Get indices buffer
         fs.Seek(indices_offset, SeekOrigin.Begin);
         geom.ibuffer = new byte[indices_num * geom.indicesLength];

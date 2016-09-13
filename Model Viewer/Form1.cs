@@ -435,7 +435,6 @@ namespace Model_Viewer
                         node.Checked = true;
                         parent.Nodes.Add(node);
                         traverse_oblist(child, node);
-
                     }
                     else
                     {
