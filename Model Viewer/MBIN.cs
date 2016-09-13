@@ -551,7 +551,13 @@ public static class GEOMMBIN{
         //Get mesh description
         fs.Seek(mesh_descr_offset, SeekOrigin.Begin);
         var mesh_desc = "";
-        int[] mesh_offsets = new int[buf_count];
+        //int[] mesh_offsets = new int[buf_count];
+        //Set size excplicitly to 7
+        int[] mesh_offsets = new int[7];
+        //Set all offsets to -1
+        for (int i = 0; i < 7; i++)
+            mesh_offsets[i] = -1;
+        
         
         for (int i = 0; i < buf_count; i++)
         {
@@ -559,7 +565,7 @@ public static class GEOMMBIN{
             fs.Seek(0x4, SeekOrigin.Current);
             var buf_type = br.ReadInt32();
             var buf_localoffset = br.ReadInt32();
-            mesh_offsets[i] = buf_localoffset;
+            mesh_offsets[buf_id] = buf_localoffset;
             fs.Seek(0x10, SeekOrigin.Current);
             switch (buf_id) {
                 case 0:
@@ -706,7 +712,7 @@ public static class GEOMMBIN{
                 Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
-                    so.children.Add(parseNode(childnode, cvbo, shader_programs, null));
+                    so.children.Add(parseNode(childnode, cvbo, shader_programs, so));
                 }
             }
             
@@ -737,7 +743,7 @@ public static class GEOMMBIN{
                 Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
-                    so.children.Add(parseNode(childnode, cvbo, shader_programs,null));
+                    so.children.Add(parseNode(childnode, cvbo, shader_programs, so));
                 }
             }
 
@@ -755,6 +761,9 @@ public static class GEOMMBIN{
             XmlElement opt = (XmlElement) info.SelectSingleNode(".//TRANSMAT");
             joint.parent = parent;
             joint.init(opt.InnerText);
+            //Get JointIndex
+            opt = (XmlElement)opts.SelectSingleNode(".//OPTION[@NAME='JOINTINDEX']");
+            joint.jointIndex = int.Parse(opt.GetAttribute("VALUE")) - 1;
             
             //Handle Children
             if (childs != null)

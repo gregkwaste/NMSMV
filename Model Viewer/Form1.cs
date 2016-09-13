@@ -58,6 +58,9 @@ namespace Model_Viewer
         //Animation Meta
         public GMDL.AnimeMetaData meta = new GMDL.AnimeMetaData();
 
+        //Joint Array for shader
+        public float[] JMArray = new float[60 * 16];
+
 
 
         public Form1()
@@ -92,9 +95,9 @@ namespace Model_Viewer
             this.xmlDoc = SCENEMBIN.Parse(fs);
             
             //Store path locally for now
-            string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
+            //string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
 
-            this.rootObject = GEOMMBIN.LoadObjects(dirpath, this.xmlDoc, shader_programs);
+            this.rootObject = GEOMMBIN.LoadObjects(Util.dirpath, this.xmlDoc, shader_programs);
             this.rootObject.index = this.childCounter;
             this.childCounter++;
 
@@ -427,7 +430,14 @@ namespace Model_Viewer
                         //Set object index
                         child.index = this.childCounter;
                         this.index_dict.Add(child.name.ToUpper(), child.index);
-                        this.joint_dict.Add(child.name.ToUpper(), child);
+                        //Add only joints to joint dictionary
+                        if (child.type == "JOINT")
+                        {
+                            GMDL.Joint temp = (GMDL.Joint) child;
+                            this.joint_dict.Add(child.name.ToUpper(), child);
+                            insertMatToArray(this.JMArray, temp.jointIndex*16, temp.worldMat);
+                        }
+                            
                         this.childCounter++;
                         TreeNode node = new TreeNode(child.name);
                         
@@ -494,13 +504,8 @@ namespace Model_Viewer
             GL.Uniform3(loc, root.worldPosition);
             //Send local Rotation Matrix to all shaders
             loc = GL.GetUniformLocation(root.shader_program, "worldRot");
-            Matrix4 wMat;
-            if (root.parent != null)
-                wMat = root.parent.worldMat;
-            else
-                wMat = root.worldMat;
-
-            GL.UniformMatrix4(loc, true, ref wMat);
+            Matrix4 wMat = root.worldMat;
+            GL.UniformMatrix4(loc, false, ref wMat);
 
 
             //Send projection matrix to all shaders
@@ -525,7 +530,15 @@ namespace Model_Viewer
                                              (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
                                              (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                             Math.Cos(this.light_angle_y * Math.PI / 180.0))));
-    
+                //Upload firstskinmat
+                loc = GL.GetUniformLocation(root.shader_program, "firstskinmat");
+                GL.Uniform1(loc, ((GMDL.sharedVBO)root).firstskinmat);
+
+                //Upload joint data
+                loc = GL.GetUniformLocation(root.shader_program, "jMs");
+                GL.UniformMatrix4(loc, 60, false, JMArray);
+
+
             } else if (root.shader_program == shader_programs[1])
             {
                 //Locator Program
@@ -708,10 +721,23 @@ namespace Model_Viewer
                 if (node.rotIndex < frame.rotations.Count - 1)
                 {
                     if (joint_dict.ContainsKey(node.name))
-                        joint_dict[node.name].localMat = Matrix4.CreateFromQuaternion(frame.rotations[node.rotIndex]);
+                    {
+                        Matrix4 newrot = Matrix4.CreateFromQuaternion(frame.rotations[node.rotIndex]);
+                        joint_dict[node.name].localMat = newrot;
+                    }
+                
                 }
                 //Debug.WriteLine("Node " + node.name+ " {0} {1} {2}",node.rotIndex,node.transIndex,node.scaleIndex);
             }
+
+            //Update JMArrays
+            foreach (GMDL.model joint in joint_dict.Values)
+            {
+                GMDL.Joint j = (GMDL.Joint) joint;
+                insertMatToArray(JMArray, j.jointIndex * 16, j.worldMat);
+            }
+
+
             glControl1.Invalidate();
 
         }
@@ -759,5 +785,27 @@ namespace Model_Viewer
         {
             frameBox.Value = e.ProgressPercentage;
         }
+
+        //Add matrix to JMArray
+        private void insertMatToArray(float[] array, int offset, Matrix4 mat)
+        {
+            array[offset + 0] = mat.M11;
+            array[offset + 1] = mat.M12;
+            array[offset + 2] = mat.M13;
+            array[offset + 3] = mat.M14;
+            array[offset + 4] = mat.M21;
+            array[offset + 5] = mat.M22;
+            array[offset + 6] = mat.M23;
+            array[offset + 7] = mat.M24;
+            array[offset + 8] = mat.M31;
+            array[offset + 9] = mat.M32;
+            array[offset + 10] = mat.M33;
+            array[offset + 11] = mat.M34;
+            array[offset + 12] = mat.M41;
+            array[offset + 13] = mat.M42;
+            array[offset + 14] = mat.M43;
+            array[offset + 15] = mat.M44;
+        }
+
     }
 }

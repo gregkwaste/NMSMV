@@ -265,8 +265,68 @@ namespace GMDL
         //Material
         //public GMDL.Material material;
 
+        public float[] getJointMats
+        {
+            get
+            {
+                float[] jMats = new float[60*16];
 
-        
+                for (int i = 0; i < this.vbo.jointData.Count; i++)
+                {
+                    jMats[i * 16] = this.vbo.jointData[i].invBindMatrix.M11;
+                    jMats[i * 16 + 1] = this.vbo.jointData[i].invBindMatrix.M12;
+                    jMats[i * 16 + 2] = this.vbo.jointData[i].invBindMatrix.M13;
+                    jMats[i * 16 + 3] = this.vbo.jointData[i].invBindMatrix.M14;
+                    jMats[i * 16 + 4] = this.vbo.jointData[i].invBindMatrix.M21;
+                    jMats[i * 16 + 5] = this.vbo.jointData[i].invBindMatrix.M22;
+                    jMats[i * 16 + 6] = this.vbo.jointData[i].invBindMatrix.M23;
+                    jMats[i * 16 + 7] = this.vbo.jointData[i].invBindMatrix.M24;
+                    jMats[i * 16 + 8] = this.vbo.jointData[i].invBindMatrix.M31;
+                    jMats[i * 16 + 9] = this.vbo.jointData[i].invBindMatrix.M32;
+                    jMats[i * 16 + 10] = this.vbo.jointData[i].invBindMatrix.M33;
+                    jMats[i * 16 + 11] = this.vbo.jointData[i].invBindMatrix.M34;
+                    jMats[i * 16 + 12] = this.vbo.jointData[i].invBindMatrix.M41;
+                    jMats[i * 16 + 13] = this.vbo.jointData[i].invBindMatrix.M42;
+                    jMats[i * 16 + 14] = this.vbo.jointData[i].invBindMatrix.M43;
+                    jMats[i * 16 + 15] = this.vbo.jointData[i].invBindMatrix.M44;
+                }
+
+                return jMats;
+            }
+            
+
+        }
+        public float[] getBindRotMats
+        {
+            get
+            {
+                float[] jMats = new float[60 * 16];
+
+                for (int i = 0; i < this.vbo.jointData.Count; i++)
+                {
+                    Matrix4 temp = Matrix4.CreateFromQuaternion(vbo.jointData[i].BindRotation);
+                    jMats[i * 16] = temp.M11;
+                    jMats[i * 16 + 1] = temp.M12;
+                    jMats[i * 16 + 2] = temp.M13;
+                    jMats[i * 16 + 3] = temp.M14;
+                    jMats[i * 16 + 4] = temp.M21;
+                    jMats[i * 16 + 5] = temp.M22;
+                    jMats[i * 16 + 6] = temp.M23;
+                    jMats[i * 16 + 7] = temp.M24;
+                    jMats[i * 16 + 8] = temp.M31;
+                    jMats[i * 16 + 9] = temp.M32;
+                    jMats[i * 16 + 10] = temp.M33;
+                    jMats[i * 16 + 11] = temp.M34;
+                    jMats[i * 16 + 12] = temp.M41;
+                    jMats[i * 16 + 13] = temp.M42;
+                    jMats[i * 16 + 14] = temp.M43;
+                    jMats[i * 16 + 15] = temp.M44;
+                }
+
+                return jMats;
+            }
+        }
+
         public override bool render()
         {
             if (this.renderable == false)
@@ -280,7 +340,7 @@ namespace GMDL
             //Bind vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
 
-            int vpos,npos,uv0pos;
+            int vpos,npos,uv0pos,bI,bW;
             //Vertex attribute
             vpos = GL.GetAttribLocation(this.shader_program, "vPosition");
             int vstride = vbo.vx_size * vertrstart;
@@ -298,11 +358,34 @@ namespace GMDL
             GL.VertexAttribPointer(uv0pos, 2, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.uv0_stride);
             GL.EnableVertexAttribArray(uv0pos);
 
+            //BlendIndices
+            bI = GL.GetAttribLocation(this.shader_program, "blendIndices");
+            bW = GL.GetAttribLocation(this.shader_program, "blendWeights");
+            if (vbo.blendI_stride != -1)
+            {
+                //If there are BlendIndices there are obviously blendWeights as well
+                //Max Indices count found so far is 4. I'm hardcoding it unless i find something else in the files.
+                
+                GL.VertexAttribPointer(bI, 4, VertexAttribPointerType.UnsignedByte, false, vbo.vx_stride, vbo.blendI_stride);
+                GL.EnableVertexAttribArray(bI);
+
+                
+                GL.VertexAttribPointer(bW, 4, VertexAttribPointerType.HalfFloat, false, vbo.vx_stride, vbo.blendW_stride);
+                GL.EnableVertexAttribArray(bW);
+            }
+
+            //InverseBind Matrices
+            int loc;
+            loc = GL.GetUniformLocation(shader_program, "invBMs");
+            GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.getJointMats);
+            //Bind Matrices
+            loc = GL.GetUniformLocation(shader_program, "BMs");
+            GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.getBindRotMats);
+
 
             //BIND TEXTURES
-            int loc;
             Texture tex;
-            loc = GL.GetUniformLocation(this.shader_program, "diffuseFlag");
+            loc = GL.GetUniformLocation(shader_program, "diffuseFlag");
             if (this.material.textures.Count > 0)
             {
                 // Diffuse Texture Exists
@@ -331,16 +414,17 @@ namespace GMDL
                 loc = GL.GetUniformLocation(this.shader_program, "color");
                 GL.Uniform3(loc, this.material.uniforms[0].value.Xyz);
             }
-                
+
             //Uniform Color probably deprecated
             //Set Color
-            
+
             //Render Elements
+            GL.PointSize(5.0f);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
 
             GL.PolygonMode(MaterialFace.Front, PolygonMode.Fill);
             GL.PolygonMode(MaterialFace.Back, PolygonMode.Fill);
-            GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
+            GL.DrawRangeElements(PrimitiveType.Points, vertrstart, vertrend,
                 batchcount, vbo.iType, (IntPtr) (batchstart*vbo.iLength));
 
             //Debug.WriteLine("Normal Object {2} vpos {0} cpos {1} prog {3}", vpos, npos, this.name, this.shader_program);
@@ -349,6 +433,8 @@ namespace GMDL
             GL.DisableVertexAttribArray(vpos);
             GL.DisableVertexAttribArray(npos);
             GL.DisableVertexAttribArray(uv0pos);
+            GL.DisableVertexAttribArray(bI);
+            GL.DisableVertexAttribArray(bW);
 
             return true;
         }
@@ -391,6 +477,8 @@ namespace GMDL
         public int vx_stride;
         public int n_stride;
         public int uv0_stride;
+        public int blendI_stride;
+        public int blendW_stride;
         public int trisCount;
         public int iCount;
         public int iLength;
@@ -413,6 +501,8 @@ namespace GMDL
             this.vx_stride = geom.offsets[0];
             this.uv0_stride = geom.offsets[1];
             this.n_stride = geom.offsets[2];
+            this.blendI_stride = geom.offsets[5];
+            this.blendW_stride = geom.offsets[6];
             this.iCount = (int) geom.indicesCount;
             this.trisCount = (int) geom.indicesCount / 3;
             this.iLength = (int)geom.indicesLength;
@@ -587,6 +677,7 @@ namespace GMDL
     {
         private int vertex_buffer_object;
         private int element_buffer_object;
+        public int jointIndex;
 
 
         public Joint()
@@ -876,6 +967,7 @@ namespace GMDL
         public Quaternion BindRotation;
         public Vector3 Bindscale;
 
+        
         public void Load(FileStream fs)
         {
             //Binary Reader
@@ -912,6 +1004,8 @@ namespace GMDL
             Bindscale.Z = br.ReadSingle();
 
         }
+
+        
     }
 
 }
