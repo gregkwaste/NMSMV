@@ -21,7 +21,7 @@ namespace GMDL
         public GMDL.Material material;
         public List<model> children = new List<model>();
         //Transformation Parameters
-        public Matrix4 localMat = Matrix4.Identity;
+        //public Matrix4 localMat = Matrix4.Identity;
         //public Matrix4 worldMat = Matrix4.Identity;
         public Vector3 worldPosition {
             get
@@ -29,9 +29,10 @@ namespace GMDL
                 if (parent != null)
                 {
                     //Original working
-                    return parent.worldPosition + Vector3.Transform(this.localPosition, parent.worldMat);
+                    //return parent.worldPosition + Vector3.Transform(this.localPosition, parent.worldMat);
+                    
                     //Add Translation as well
-                    //return Vector3.Transform(this.localPosition, this.worldMat);
+                    return Vector3.Transform(new Vector3(), this.worldMat);
                 }
                     
                 else
@@ -52,9 +53,30 @@ namespace GMDL
                     return this.localMat;
             }
         }
+        public Matrix4 localMat
+        {
+            get
+            {
+                //Combine localRotation and Position to return the localMatrix
+                Matrix4 rot = Matrix4.Identity;
+                rot.M11 = localRotation.M11;
+                rot.M12 = localRotation.M12;
+                rot.M13 = localRotation.M13;
+                rot.M21 = localRotation.M21;
+                rot.M22 = localRotation.M22;
+                rot.M23 = localRotation.M23;
+                rot.M31 = localRotation.M31;
+                rot.M32 = localRotation.M32;
+                rot.M33 = localRotation.M33;
+
+                return rot * Matrix4.CreateTranslation(localPosition);
+            }
+        }
         public Vector3 localPosition = new Vector3(0.0f, 0.0f, 0.0f);
         public Vector3 localScale = new Vector3(1.0f, 1.0f, 1.0f);
-        public Vector3 localRotation = new Vector3(0.0f, 0.0f, 0.0f);
+        //public Vector3 localRotation = new Vector3(0.0f, 0.0f, 0.0f);
+        public Matrix3 localRotation = Matrix3.Identity;
+
         public model parent;
 
         public static void vectofloatArray(float[] flist, List<Vector3> veclist)
@@ -72,13 +94,30 @@ namespace GMDL
         {
             //Get Local Position
             string[] split = trans.Split(',');
+            Vector3 rotation;
             this.localPosition.X = float.Parse(split[0]);
             this.localPosition.Y = float.Parse(split[1]);
             this.localPosition.Z = float.Parse(split[2]);
             //Get Local Rotation
-            this.localRotation.X = float.Parse(split[3]);
-            this.localRotation.Y = float.Parse(split[4]);
-            this.localRotation.Z = float.Parse(split[5]);
+            //Quaternion qx = Quaternion.FromAxisAngle(new Vector3(1.0f, 0.0f, 0.0f),
+            //    (float)Math.PI * float.Parse(split[3]) / 180.0f);
+            //Quaternion qy = Quaternion.FromAxisAngle(new Vector3(0.0f, 1.0f, 0.0f),
+            //    (float)Math.PI * float.Parse(split[4]) / 180.0f);
+            //Quaternion qz = Quaternion.FromAxisAngle(new Vector3(0.0f, 0.0f, 1.0f),
+            //    (float)Math.PI * float.Parse(split[5]) / 180.0f);
+
+            Quaternion qx = Quaternion.FromAxisAngle(new Vector3(1.0f, 0.0f, 0.0f),
+                float.Parse(split[3]));
+            Quaternion qy = Quaternion.FromAxisAngle(new Vector3(0.0f, 1.0f, 0.0f),
+                float.Parse(split[4]));
+            Quaternion qz = Quaternion.FromAxisAngle(new Vector3(0.0f, 0.0f, 1.0f),
+                float.Parse(split[5]));
+
+            //this.localRotation = qz * qx * qy;
+            rotation.X = float.Parse(split[3]);
+            rotation.Y = float.Parse(split[4]);
+            rotation.Z = float.Parse(split[5]);
+
             //Get Local Scale
             this.localScale.X = float.Parse(split[6]);
             this.localScale.Y = float.Parse(split[7]);
@@ -86,16 +125,16 @@ namespace GMDL
 
             //Now Calculate the joint matrix;
 
-            Matrix4 rotx, roty, rotz;
-
-            Matrix4.CreateRotationX((float)Math.PI * this.localRotation.X / 180.0f, out rotx);
-            Matrix4.CreateRotationY((float)Math.PI * this.localRotation.Y / 180.0f, out roty);
-            Matrix4.CreateRotationZ((float)Math.PI * this.localRotation.Z / 180.0f, out rotz);
-            //Matrix4.CreateTranslation(this.localPosition);
+            Matrix3 rotx, roty, rotz;
+            Matrix3.CreateRotationX((float)Math.PI * rotation.X / 180.0f, out rotx);
+            Matrix3.CreateRotationY((float)Math.PI * rotation.Y / 180.0f, out roty);
+            Matrix3.CreateRotationZ((float)Math.PI * rotation.Z / 180.0f, out rotz);
+            //Matrix4.CreateTranslation(ref this.localPosition, out transM);
             //Calculate local matrix
-            this.localMat = rotz * rotx * roty;
-            //Transpose Matrix
-            //this.localMat.Transpose();
+            this.localRotation = rotz*rotx*roty;
+            
+            //this.localMat = rotz * rotx * roty * transM;
+            
 
 
             //Calculation is done via properties
@@ -295,14 +334,10 @@ namespace GMDL
                     jMats[i * 16 + 9] = this.vbo.jointData[i].invBindMatrix.M32;
                     jMats[i * 16 + 10] = this.vbo.jointData[i].invBindMatrix.M33;
                     jMats[i * 16 + 11] = this.vbo.jointData[i].invBindMatrix.M34;
-                    //jMats[i * 16 + 12] = this.vbo.jointData[i].invBindMatrix.M41;
-                    //jMats[i * 16 + 13] = this.vbo.jointData[i].invBindMatrix.M42;
-                    //jMats[i * 16 + 14] = this.vbo.jointData[i].invBindMatrix.M43;
-                    //jMats[i * 16 + 15] = this.vbo.jointData[i].invBindMatrix.M44;
-                    jMats[i * 16 + 12] = 0.0f;
-                    jMats[i * 16 + 13] = 0.0f;
-                    jMats[i * 16 + 14] = 0.0f;
-                    jMats[i * 16 + 15] = 1.0f;
+                    jMats[i * 16 + 12] = this.vbo.jointData[i].invBindMatrix.M41;
+                    jMats[i * 16 + 13] = this.vbo.jointData[i].invBindMatrix.M42;
+                    jMats[i * 16 + 14] = this.vbo.jointData[i].invBindMatrix.M43;
+                    jMats[i * 16 + 15] = this.vbo.jointData[i].invBindMatrix.M44;
                 }
 
                 return jMats;
@@ -420,6 +455,7 @@ namespace GMDL
             //Bind Matrices
             loc = GL.GetUniformLocation(shader_program, "BMs");
             GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.getBindRotMats);
+            
             //Bind Translations
             loc = GL.GetUniformLocation(shader_program, "BTs");
             GL.Uniform3(loc, this.vbo.jointData.Count, this.getBindTransMats);
@@ -466,7 +502,7 @@ namespace GMDL
 
             GL.PolygonMode(MaterialFace.Front, PolygonMode.Fill);
             GL.PolygonMode(MaterialFace.Back, PolygonMode.Fill);
-            GL.DrawRangeElements(PrimitiveType.Points, vertrstart, vertrend,
+            GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
                 batchcount, vbo.iType, (IntPtr) (batchstart*vbo.iLength));
 
             //Debug.WriteLine("Normal Object {2} vpos {0} cpos {1} prog {3}", vpos, npos, this.name, this.shader_program);
@@ -859,8 +895,8 @@ namespace GMDL
     public class AnimNodeFrameData
     {
         public List<Quaternion> rotations = new List<Quaternion>();
-        public List<Quaternion> translations = new List<Quaternion>();
-        public List<Quaternion> scales = new List<Quaternion>();
+        public List<Vector3> translations = new List<Vector3>();
+        public List<Vector3> scales = new List<Vector3>();
 
         public void LoadRotations(FileStream fs,int count)
         {
@@ -882,12 +918,11 @@ namespace GMDL
             BinaryReader br = new BinaryReader(fs);
             for (int i = 0; i < count; i++)
             {
-                Quaternion q = new Quaternion();
+                Vector3 q = new Vector3();
                 q.X = br.ReadSingle();
                 q.Y = br.ReadSingle();
                 q.Z = br.ReadSingle();
-                q.W = br.ReadSingle();
-
+                br.ReadSingle();
                 this.translations.Add(q);
             }
         }
@@ -897,12 +932,11 @@ namespace GMDL
             BinaryReader br = new BinaryReader(fs);
             for (int i = 0; i < count; i++)
             {
-                Quaternion q = new Quaternion();
+                Vector3 q = new Vector3();
                 q.X = br.ReadSingle();
                 q.Y = br.ReadSingle();
                 q.Z = br.ReadSingle();
-                q.W = br.ReadSingle();
-
+                br.ReadSingle();
                 this.scales.Add(q);
             }
         }
@@ -1072,6 +1106,8 @@ namespace GMDL
             invBindMatrix.M44 = br.ReadSingle();
             //transpose the matrix
             //invBindMatrix.Transpose();
+            //invBindMatrix.Invert();
+            
             //Get Translate
             BindTranslate.X = br.ReadSingle();
             BindTranslate.Y = br.ReadSingle();

@@ -504,11 +504,8 @@ namespace Model_Viewer
             //Send LookAt matrix to all shaders
             loc = GL.GetUniformLocation(root.shader_program, "look");
             GL.UniformMatrix4(loc, false, ref look);
-            //Send World Position to all shaders
-            loc = GL.GetUniformLocation(root.shader_program, "worldTrans");
-            GL.Uniform3(loc, root.worldPosition);
-            //Send local Rotation Matrix to all shaders
-            loc = GL.GetUniformLocation(root.shader_program, "worldRot");
+            //Send object world Matrix to all shaders
+            loc = GL.GetUniformLocation(root.shader_program, "worldMat");
             Matrix4 wMat = root.worldMat;
             GL.UniformMatrix4(loc, false, ref wMat);
 
@@ -725,15 +722,16 @@ namespace Model_Viewer
             
             foreach (GMDL.AnimeNode node in meta.nodeData.nodeList)
             {
-                //Check if there is a rotation for that node
-                if (node.rotIndex < frame.rotations.Count - 1)
+                if (joint_dict.ContainsKey(node.name))
                 {
-                    if (joint_dict.ContainsKey(node.name))
-                    {
-                        Matrix4 newrot = Matrix4.CreateFromQuaternion(frame.rotations[node.rotIndex]);
-                        joint_dict[node.name].localMat = newrot;
-                    }
-                
+                    //Check if there is a rotation for that node
+                    if (node.rotIndex < frame.rotations.Count - 1)
+                        joint_dict[node.name].localRotation = Matrix3.CreateFromQuaternion(frame.rotations[node.rotIndex]);
+                    
+                    //Matrix4 newrot = Matrix4.CreateFromQuaternion(frame.rotations[node.rotIndex]);
+                    if (node.transIndex < frame.translations.Count - 1)
+                        joint_dict[node.name].localPosition = frame.translations[node.transIndex];
+
                 }
                 //Debug.WriteLine("Node " + node.name+ " {0} {1} {2}",node.rotIndex,node.transIndex,node.scaleIndex);
             }
@@ -761,7 +759,7 @@ namespace Model_Viewer
             {
                 //Reset
                 if (i >= max) i = 0;
-                System.Threading.Thread.Sleep(100);
+                System.Threading.Thread.Sleep(50);
                 i += 1;
 
                 backgroundWorker1.ReportProgress(i);

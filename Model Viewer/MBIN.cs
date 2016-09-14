@@ -532,7 +532,7 @@ public static class GEOMMBIN{
         fs.Seek(skinmatoffset, SeekOrigin.Begin);
         for (int i = 0; i < bc; i++)
         {
-            geom.boneRemap[i] = br.ReadInt32()-1;
+            geom.boneRemap[i] = br.ReadInt32();
         }
         
         //Store Joint Data
@@ -770,7 +770,7 @@ public static class GEOMMBIN{
             joint.init(opt.InnerText);
             //Get JointIndex
             opt = (XmlElement)opts.SelectSingleNode(".//OPTION[@NAME='JOINTINDEX']");
-            joint.jointIndex = int.Parse(opt.GetAttribute("VALUE")) -1;
+            joint.jointIndex = int.Parse(opt.GetAttribute("VALUE"));
             //Set Random Color
             joint.color[0] = Model_Viewer.Util.randgen.Next(255) / 255.0f;
             joint.color[1] = Model_Viewer.Util.randgen.Next(255) / 255.0f;
