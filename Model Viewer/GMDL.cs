@@ -27,7 +27,13 @@ namespace GMDL
             get
             {
                 if (parent != null)
+                {
+                    //Original working
                     return parent.worldPosition + Vector3.Transform(this.localPosition, parent.worldMat);
+                    //Add Translation as well
+                    //return Vector3.Transform(this.localPosition, this.worldMat);
+                }
+                    
                 else
                     return this.localPosition;
             }
@@ -37,7 +43,11 @@ namespace GMDL
             get
             {
                 if (parent != null)
+                {
+                    //Original working
                     return Matrix4.Mult(this.localMat, parent.worldMat);
+                }
+
                 else
                     return this.localMat;
             }
@@ -285,10 +295,14 @@ namespace GMDL
                     jMats[i * 16 + 9] = this.vbo.jointData[i].invBindMatrix.M32;
                     jMats[i * 16 + 10] = this.vbo.jointData[i].invBindMatrix.M33;
                     jMats[i * 16 + 11] = this.vbo.jointData[i].invBindMatrix.M34;
-                    jMats[i * 16 + 12] = this.vbo.jointData[i].invBindMatrix.M41;
-                    jMats[i * 16 + 13] = this.vbo.jointData[i].invBindMatrix.M42;
-                    jMats[i * 16 + 14] = this.vbo.jointData[i].invBindMatrix.M43;
-                    jMats[i * 16 + 15] = this.vbo.jointData[i].invBindMatrix.M44;
+                    //jMats[i * 16 + 12] = this.vbo.jointData[i].invBindMatrix.M41;
+                    //jMats[i * 16 + 13] = this.vbo.jointData[i].invBindMatrix.M42;
+                    //jMats[i * 16 + 14] = this.vbo.jointData[i].invBindMatrix.M43;
+                    //jMats[i * 16 + 15] = this.vbo.jointData[i].invBindMatrix.M44;
+                    jMats[i * 16 + 12] = 0.0f;
+                    jMats[i * 16 + 13] = 0.0f;
+                    jMats[i * 16 + 14] = 0.0f;
+                    jMats[i * 16 + 15] = 1.0f;
                 }
 
                 return jMats;
@@ -317,16 +331,36 @@ namespace GMDL
                     jMats[i * 16 + 9] = temp.M32;
                     jMats[i * 16 + 10] = temp.M33;
                     jMats[i * 16 + 11] = temp.M34;
-                    jMats[i * 16 + 12] = temp.M41;
-                    jMats[i * 16 + 13] = temp.M42;
-                    jMats[i * 16 + 14] = temp.M43;
-                    jMats[i * 16 + 15] = temp.M44;
+                    //jMats[i * 16 + 12] = temp.M41;
+                    //jMats[i * 16 + 13] = temp.M42;
+                    //jMats[i * 16 + 14] = temp.M43;
+                    //jMats[i * 16 + 15] = temp.M44;
+                    jMats[i * 16 + 12] = 0.0f;
+                    jMats[i * 16 + 13] = 0.0f;
+                    jMats[i * 16 + 14] = 0.0f;
+                    jMats[i * 16 + 15] = 1.0f;
                 }
 
                 return jMats;
             }
         }
+        public float[] getBindTransMats
+        {
+            get
+            {
+                float[] trans = new float[60 * 3];
 
+                for (int i = 0; i < this.vbo.jointData.Count; i++)
+                {
+                    Vector3 temp = vbo.jointData[i].BindTranslate;
+                    trans[3 * i + 0] = temp.X;
+                    trans[3 * i + 1] = temp.Y;
+                    trans[3 * i + 2] = temp.Z;
+                }
+
+                return trans;
+            }
+        }
         public override bool render()
         {
             if (this.renderable == false)
@@ -361,7 +395,7 @@ namespace GMDL
             //If there are BlendIndices there are obviously blendWeights as well
             //Max Indices count found so far is 4. I'm hardcoding it unless i find something else in the files.
             bI = GL.GetAttribLocation(this.shader_program, "blendIndices");
-            GL.VertexAttribPointer(bI, 4, VertexAttribPointerType.Byte , false, vbo.vx_size, vbo.blendI_stride);
+            GL.VertexAttribPointer(bI, 4, VertexAttribPointerType.UnsignedByte , false, vbo.vx_size, vbo.blendI_stride);
             GL.EnableVertexAttribArray(bI);
 
             bW = GL.GetAttribLocation(this.shader_program, "blendWeights");
@@ -386,6 +420,10 @@ namespace GMDL
             //Bind Matrices
             loc = GL.GetUniformLocation(shader_program, "BMs");
             GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.getBindRotMats);
+            //Bind Translations
+            loc = GL.GetUniformLocation(shader_program, "BTs");
+            GL.Uniform3(loc, this.vbo.jointData.Count, this.getBindTransMats);
+
 
             //BIND TEXTURES
             Texture tex;
@@ -552,17 +590,17 @@ namespace GMDL
 
             ////Binary Reader
             //MemoryStream ms = new MemoryStream();
-            //ms.Write(geom.vbuffer,0,geom.vbuffer.Length);
+            //ms.Write(geom.vbuffer, 0, geom.vbuffer.Length);
             //BinaryReader br = new BinaryReader(ms);
             //ms.Position = blendI_stride;
             //for (int i = 0; i < geom.vertCount; i++)
             //{
-            //    bIndices[4 * i] = br.ReadByte();
-            //    bIndices[4 * i+1] = br.ReadByte();
-            //    bIndices[4 * i+2] = br.ReadByte();
-            //    bIndices[4 * i+3] = br.ReadByte();
+            //    //bIndices[4 * i] = br.ReadByte();
+            //    //bIndices[4 * i + 1] = br.ReadByte();
+            //    //bIndices[4 * i + 2] = br.ReadByte();
+            //    //bIndices[4 * i + 3] = br.ReadByte();
 
-            //    //Debug.WriteLine("Indices {0} {1} {2} {3}", br.ReadByte(), br.ReadByte(), br.ReadByte(), br.ReadByte());
+            //    Debug.WriteLine("Indices {0} {1} {2} {3}", br.ReadByte(), br.ReadByte(), br.ReadByte(), br.ReadByte());
             //    ms.Position += geom.vx_size - 4;
             //}
 
@@ -716,6 +754,7 @@ namespace GMDL
         private int vertex_buffer_object;
         private int element_buffer_object;
         public int jointIndex;
+        public Vector3 color;
 
 
         public Joint()
@@ -753,9 +792,13 @@ namespace GMDL
             {
                 verts.Add(this.worldPosition);
                 verts.Add(children[i].worldPosition);
-                //Choosing red color for the skeleton
+                ////Choosing red color for the skeleton
                 colors.Add(new Vector3(1.0f, 0.0f, 0.0f));
                 colors.Add(new Vector3(1.0f, 0.0f, 0.0f));
+                //Use Random Color for Testing
+                //colors.Add(color);
+                //colors.Add(color);
+                
                 //Add line indices
                 indices[2 * i] = 2 * i;
                 indices[2 * i + 1] = 2 * i + 1;
@@ -798,11 +841,11 @@ namespace GMDL
             GL.PointSize(10.0f);
             //GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Point);
 
-            //GL.DrawElements(PrimitiveType.Points, 6, DrawElementsType.UnsignedInt, this.indices);
+
             GL.DrawArrays(PrimitiveType.Lines, 0, indices.Length);
             GL.DrawArrays(PrimitiveType.Points, 0, vertsf.Length);
-            //Debug.WriteLine("Locator Object {2} vpos {0} cpos {1} prog {3}", vpos, cpos, this.name, this.shader_program);
-            //Debug.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vertex_buffer_object,this.color_buffer_object);
+            //Draw only Joint Point
+            //GL.DrawArrays(PrimitiveType.Points, 0, 1);
 
             GL.DisableVertexAttribArray(vpos);
             GL.DisableVertexAttribArray(cpos);
@@ -1027,6 +1070,8 @@ namespace GMDL
             invBindMatrix.M42 = br.ReadSingle();
             invBindMatrix.M43 = br.ReadSingle();
             invBindMatrix.M44 = br.ReadSingle();
+            //transpose the matrix
+            //invBindMatrix.Transpose();
             //Get Translate
             BindTranslate.X = br.ReadSingle();
             BindTranslate.Y = br.ReadSingle();

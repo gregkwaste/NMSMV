@@ -60,6 +60,7 @@ namespace Model_Viewer
 
         //Joint Array for shader
         public float[] JMArray = new float[60 * 16];
+        public float[] JColors = new float[60 * 3];
 
 
 
@@ -436,6 +437,10 @@ namespace Model_Viewer
                             GMDL.Joint temp = (GMDL.Joint) child;
                             this.joint_dict.Add(child.name.ToUpper(), child);
                             insertMatToArray(this.JMArray, temp.jointIndex*16, temp.worldMat);
+                            //Insert color to joint color array
+                            JColors[temp.jointIndex * 3 + 0] = temp.color.X;
+                            JColors[temp.jointIndex * 3 + 1] = temp.color.Y;
+                            JColors[temp.jointIndex * 3 + 2] = temp.color.Z;
                         }
                             
                         this.childCounter++;
@@ -534,9 +539,12 @@ namespace Model_Viewer
                 loc = GL.GetUniformLocation(root.shader_program, "firstskinmat");
                 GL.Uniform1(loc, ((GMDL.sharedVBO)root).firstskinmat);
 
-                //Upload joint data
+                //Upload joint transform data
                 loc = GL.GetUniformLocation(root.shader_program, "jMs");
                 GL.UniformMatrix4(loc, 60, false, JMArray);
+                //Upload joint colors
+                loc = GL.GetUniformLocation(root.shader_program, "jColors");
+                GL.Uniform3(loc, 60, JColors);
 
 
             } else if (root.shader_program == shader_programs[1])
@@ -788,6 +796,7 @@ namespace Model_Viewer
         //Add matrix to JMArray
         private void insertMatToArray(float[] array, int offset, Matrix4 mat)
         {
+            //mat.Transpose();//Transpose Matrix Testing
             array[offset + 0] = mat.M11;
             array[offset + 1] = mat.M12;
             array[offset + 2] = mat.M13;
