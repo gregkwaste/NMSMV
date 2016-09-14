@@ -528,6 +528,13 @@ public static class GEOMMBIN{
         geom.vertCount = vert_num;
         geom.vx_size = vx_type;
 
+        //Get Bone Remapping Information
+        fs.Seek(skinmatoffset, SeekOrigin.Begin);
+        for (int i = 0; i < bc; i++)
+        {
+            geom.boneRemap[i] = br.ReadInt32();
+        }
+        
         //Store Joint Data
         fs.Seek(jointbindingOffset, SeekOrigin.Begin);
         for (int i = 0; i < jointCount; i++)

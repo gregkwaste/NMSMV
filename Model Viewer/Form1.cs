@@ -737,7 +737,6 @@ namespace Model_Viewer
                 insertMatToArray(JMArray, j.jointIndex * 16, j.worldMat);
             }
 
-
             glControl1.Invalidate();
 
         }

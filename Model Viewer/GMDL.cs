@@ -358,30 +358,34 @@ namespace GMDL
             GL.VertexAttribPointer(uv0pos, 2, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.uv0_stride);
             GL.EnableVertexAttribArray(uv0pos);
 
-            //BlendIndices
+            //If there are BlendIndices there are obviously blendWeights as well
+            //Max Indices count found so far is 4. I'm hardcoding it unless i find something else in the files.
             bI = GL.GetAttribLocation(this.shader_program, "blendIndices");
-            bW = GL.GetAttribLocation(this.shader_program, "blendWeights");
-            if (vbo.blendI_stride != -1)
-            {
-                //If there are BlendIndices there are obviously blendWeights as well
-                //Max Indices count found so far is 4. I'm hardcoding it unless i find something else in the files.
-                
-                GL.VertexAttribPointer(bI, 4, VertexAttribPointerType.UnsignedByte, false, vbo.vx_stride, vbo.blendI_stride);
-                GL.EnableVertexAttribArray(bI);
+            GL.VertexAttribPointer(bI, 4, VertexAttribPointerType.Byte , false, vbo.vx_size, vbo.blendI_stride);
+            GL.EnableVertexAttribArray(bI);
 
-                
-                GL.VertexAttribPointer(bW, 4, VertexAttribPointerType.HalfFloat, false, vbo.vx_stride, vbo.blendW_stride);
-                GL.EnableVertexAttribArray(bW);
-            }
+            bW = GL.GetAttribLocation(this.shader_program, "blendWeights");
+            GL.VertexAttribPointer(bW, 4, VertexAttribPointerType.HalfFloat, false, vbo.vx_size, vbo.blendW_stride);
+            GL.EnableVertexAttribArray(bW);
+
+            //Testing Upload full bIndices array
+            //GL.BindBuffer(BufferTarget.ArrayBuffer, vbo.bIndices_buffer_object);
+            //bI = GL.GetAttribLocation(this.shader_program, "blendIndices");
+            //GL.VertexAttribPointer(bI, 4, VertexAttribPointerType.Int, false, 0, 0);
+            //GL.EnableVertexAttribArray(bI);
 
             //InverseBind Matrices
             int loc;
             loc = GL.GetUniformLocation(shader_program, "invBMs");
             GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.getJointMats);
+
+            //Upload BoneRemap Information
+            loc = GL.GetUniformLocation(shader_program, "boneRemap");
+            GL.Uniform1(loc, 50, vbo.boneRemap);
+
             //Bind Matrices
             loc = GL.GetUniformLocation(shader_program, "BMs");
             GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.getBindRotMats);
-
 
             //BIND TEXTURES
             Texture tex;
@@ -471,6 +475,8 @@ namespace GMDL
         public int normal_buffer_object;
         public int element_buffer_object;
         public int color_buffer_object;
+        //Testing
+        public int bIndices_buffer_object;
 
         public List<JointBindingData> jointData;
         public int vx_size;
@@ -482,8 +488,11 @@ namespace GMDL
         public int trisCount;
         public int iCount;
         public int iLength;
+        public int[] boneRemap = new int[40];
         public DrawElementsType iType;
 
+        
+        
         public customVBO()
         {
         }
@@ -506,6 +515,7 @@ namespace GMDL
             this.iCount = (int) geom.indicesCount;
             this.trisCount = (int) geom.indicesCount / 3;
             this.iLength = (int)geom.indicesLength;
+            this.boneRemap = geom.boneRemap;
             if (geom.indicesLength == 0x2)
                 this.iType = DrawElementsType.UnsignedShort;
             else
@@ -520,6 +530,7 @@ namespace GMDL
 
             GL.GenBuffers(1, out color_buffer_object);
             GL.GenBuffers(1, out element_buffer_object);
+            GL.GenBuffers(1, out bIndices_buffer_object);
 
             //Upload vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, vertex_buffer_object);
@@ -533,6 +544,32 @@ namespace GMDL
             //Upload index buffer
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, element_buffer_object);
             GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr)(geom.indicesLength * geom.indicesCount), geom.ibuffer, BufferUsageHint.StaticDraw);
+
+            ////Explicitly Parse BlendIndices
+            //int offset = blendI_stride;
+            //int[] bIndices = new int[geom.vertCount * 4];
+            //float[] bWeights = new float[geom.vertCount * 4];
+
+            ////Binary Reader
+            //MemoryStream ms = new MemoryStream();
+            //ms.Write(geom.vbuffer,0,geom.vbuffer.Length);
+            //BinaryReader br = new BinaryReader(ms);
+            //ms.Position = blendI_stride;
+            //for (int i = 0; i < geom.vertCount; i++)
+            //{
+            //    bIndices[4 * i] = br.ReadByte();
+            //    bIndices[4 * i+1] = br.ReadByte();
+            //    bIndices[4 * i+2] = br.ReadByte();
+            //    bIndices[4 * i+3] = br.ReadByte();
+
+            //    //Debug.WriteLine("Indices {0} {1} {2} {3}", br.ReadByte(), br.ReadByte(), br.ReadByte(), br.ReadByte());
+            //    ms.Position += geom.vx_size - 4;
+            //}
+
+            //GL.BindBuffer(BufferTarget.ArrayBuffer, bIndices_buffer_object);
+            //GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr) (sizeof(int) * 4 * geom.vertCount),
+            //    bIndices, BufferUsageHint.StaticDraw);
+
         }
     }
 
@@ -561,6 +598,7 @@ namespace GMDL
         public List<int[]> bIndices;
         public List<float[]> bWeights;
         public int[] offsets; //List to save strides according to meshdescr
+        public int[] boneRemap = new int[50];
 
         //Joint info
         public List<JointBindingData> jointData = new List<JointBindingData>();
