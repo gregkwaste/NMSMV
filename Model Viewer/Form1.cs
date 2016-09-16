@@ -537,8 +537,14 @@ namespace Model_Viewer
                 GL.Uniform1(loc, ((GMDL.sharedVBO)root).firstskinmat);
 
                 //Upload joint transform data
-                loc = GL.GetUniformLocation(root.shader_program, "jMs");
-                GL.UniformMatrix4(loc, 60, false, JMArray);
+                //Multiply matrices before sending them
+                float[] skinmats = mulMatArrays(((GMDL.sharedVBO) root).vbo.invBMats,JMArray,60);
+                loc = GL.GetUniformLocation(root.shader_program, "skinMats");
+                GL.UniformMatrix4(loc, 60, false, skinmats);
+
+                //loc = GL.GetUniformLocation(root.shader_program, "jMs");
+                //GL.UniformMatrix4(loc, 60, false, JMArray);
+                
                 //Upload joint colors
                 loc = GL.GetUniformLocation(root.shader_program, "jColors");
                 GL.Uniform3(loc, 60, JColors);
@@ -811,6 +817,26 @@ namespace Model_Viewer
             array[offset + 13] = mat.M42;
             array[offset + 14] = mat.M43;
             array[offset + 15] = mat.M44;
+        }
+
+        private float[] mulMatArrays(float[] lmat1, float[] lmat2, int count)
+        {
+            float[] res = new float[count * 16];
+            for (int i=0;i< count; i++)
+            {
+                int off = 16 * i;
+
+                for (int j = 0; j < 4; j++)
+                    for (int k = 0; k < 4; k++)
+                    {
+                        res[off + 4 * j + k] = 0;
+                        for (int m = 0; m < 4; m++)
+                            res[off + 4 * j + k] += lmat1[off + 4 * j + m] * lmat2[off + 4 * m + k];
+                    }
+                        
+            }
+
+            return res;
         }
 
     }

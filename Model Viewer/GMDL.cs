@@ -313,38 +313,6 @@ namespace GMDL
         //public int index;
         //Material
         //public GMDL.Material material;
-
-        public float[] getJointMats
-        {
-            get
-            {
-                float[] jMats = new float[60*16];
-
-                for (int i = 0; i < this.vbo.jointData.Count; i++)
-                {
-                    jMats[i * 16] = this.vbo.jointData[i].invBindMatrix.M11;
-                    jMats[i * 16 + 1] = this.vbo.jointData[i].invBindMatrix.M12;
-                    jMats[i * 16 + 2] = this.vbo.jointData[i].invBindMatrix.M13;
-                    jMats[i * 16 + 3] = this.vbo.jointData[i].invBindMatrix.M14;
-                    jMats[i * 16 + 4] = this.vbo.jointData[i].invBindMatrix.M21;
-                    jMats[i * 16 + 5] = this.vbo.jointData[i].invBindMatrix.M22;
-                    jMats[i * 16 + 6] = this.vbo.jointData[i].invBindMatrix.M23;
-                    jMats[i * 16 + 7] = this.vbo.jointData[i].invBindMatrix.M24;
-                    jMats[i * 16 + 8] = this.vbo.jointData[i].invBindMatrix.M31;
-                    jMats[i * 16 + 9] = this.vbo.jointData[i].invBindMatrix.M32;
-                    jMats[i * 16 + 10] = this.vbo.jointData[i].invBindMatrix.M33;
-                    jMats[i * 16 + 11] = this.vbo.jointData[i].invBindMatrix.M34;
-                    jMats[i * 16 + 12] = this.vbo.jointData[i].invBindMatrix.M41;
-                    jMats[i * 16 + 13] = this.vbo.jointData[i].invBindMatrix.M42;
-                    jMats[i * 16 + 14] = this.vbo.jointData[i].invBindMatrix.M43;
-                    jMats[i * 16 + 15] = this.vbo.jointData[i].invBindMatrix.M44;
-                }
-
-                return jMats;
-            }
-            
-
-        }
         public float[] getBindRotMats
         {
             get
@@ -445,20 +413,20 @@ namespace GMDL
 
             //InverseBind Matrices
             int loc;
-            loc = GL.GetUniformLocation(shader_program, "invBMs");
-            GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.getJointMats);
+            //loc = GL.GetUniformLocation(shader_program, "invBMs");
+            //GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.vbo.invBMats);
 
             //Upload BoneRemap Information
             loc = GL.GetUniformLocation(shader_program, "boneRemap");
             GL.Uniform1(loc, 50, vbo.boneRemap);
 
             //Bind Matrices
-            loc = GL.GetUniformLocation(shader_program, "BMs");
-            GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.getBindRotMats);
+            //loc = GL.GetUniformLocation(shader_program, "BMs");
+            //GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.getBindRotMats);
             
             //Bind Translations
-            loc = GL.GetUniformLocation(shader_program, "BTs");
-            GL.Uniform3(loc, this.vbo.jointData.Count, this.getBindTransMats);
+            //loc = GL.GetUniformLocation(shader_program, "BTs");
+            //GL.Uniform3(loc, this.vbo.jointData.Count, this.getBindTransMats);
 
 
             //BIND TEXTURES
@@ -553,6 +521,7 @@ namespace GMDL
         public int bIndices_buffer_object;
 
         public List<JointBindingData> jointData;
+        public float[] invBMats;
         public int vx_size;
         public int vx_stride;
         public int n_stride;
@@ -596,7 +565,11 @@ namespace GMDL
                 this.iType = DrawElementsType.UnsignedInt;
             //Set Joint Data
             this.jointData = geom.jointData;
-
+            invBMats = new float[60 * 16];
+            //Copy inverted Matrix to local variable
+            for (int i = 0; i < jointData.Count; i++)
+                Array.Copy(jointData[i].convertMat(), 0, invBMats, 16 * i, 16);
+            
             GL.GenBuffers(1, out vertex_buffer_object);
             //Create normal buffer if normals exist
             if (geom.mesh_descr.Contains("n"))
@@ -1124,7 +1097,30 @@ namespace GMDL
 
         }
 
-        
+        public float[] convertMat()
+        {
+            float[] fmat = new float[16];
+
+            fmat[0] = this.invBindMatrix.M11;
+            fmat[1] = this.invBindMatrix.M12;
+            fmat[2] = this.invBindMatrix.M13;
+            fmat[3] = this.invBindMatrix.M14;
+            fmat[4] = this.invBindMatrix.M21;
+            fmat[5] = this.invBindMatrix.M22;
+            fmat[6] = this.invBindMatrix.M23;
+            fmat[7] = this.invBindMatrix.M24;
+            fmat[8] = this.invBindMatrix.M31;
+            fmat[9] = this.invBindMatrix.M32;
+            fmat[10] = this.invBindMatrix.M33;
+            fmat[11] = this.invBindMatrix.M34;
+            fmat[12] = this.invBindMatrix.M41;
+            fmat[13] = this.invBindMatrix.M42;
+            fmat[14] = this.invBindMatrix.M43;
+            fmat[15] = this.invBindMatrix.M44;
+
+            return fmat;
+        }
+
     }
 
 }
