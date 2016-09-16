@@ -711,8 +711,10 @@ public static class GEOMMBIN{
             mat.prepTextures();
             ms.Close();
             so.material = mat;
+            //Decide if its a skinned mesh or not
+            if (so.firstskinmat == so.lastskinmat)
+                so.skinned = 0;
             
-
 
             if (childs != null)
             {

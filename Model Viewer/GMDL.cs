@@ -304,6 +304,7 @@ namespace GMDL
         public int batchcount = 0;
         public int firstskinmat = 0;
         public int lastskinmat = 0;
+        public int skinned = 1;
         //public string name = "";
         //public string type = "";
         public customVBO vbo;
@@ -420,6 +421,11 @@ namespace GMDL
             loc = GL.GetUniformLocation(shader_program, "boneRemap");
             GL.Uniform1(loc, 50, vbo.boneRemap);
 
+            //Upload skinned status
+            loc = GL.GetUniformLocation(shader_program, "skinned");
+            GL.Uniform1(loc, skinned);
+            
+            
             //Bind Matrices
             //loc = GL.GetUniformLocation(shader_program, "BMs");
             //GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.getBindRotMats);
