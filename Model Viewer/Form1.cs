@@ -639,6 +639,16 @@ namespace Model_Viewer
             descrpath += ".DESCRIPTOR.MBIN";
             Debug.WriteLine("Opening " + descrpath);
 
+            //Check if its a procGenModel or not
+            if (!File.Exists(descrpath))
+            {
+                Debug.WriteLine("No ProcGen Model. Exiting...");
+                return;
+            }
+            
+
+
+
             //Convert only if file does not exist
             if (!File.Exists(exmlPath))
             {

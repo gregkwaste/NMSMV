@@ -13,8 +13,8 @@ namespace Model_Viewer
     public static class Util
     {
         public static readonly Random randgen = new Random();
-        public static string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
-        //public static string dirpath = "C:\\Users\\greg\\Source\\Repos\\nms-viewer\\Model Viewer\\Samples";
+        //public static string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
+        public static string dirpath = "C:\\Users\\greg\\Source\\Repos\\nms-viewer\\Model Viewer\\Samples";
     }
 
 
@@ -739,6 +739,10 @@ namespace Model_Viewer
                                                                             Vector3.Multiply(new Vector3 (100, 107, 87) , rbgFloat),
                                                                             Vector3.Multiply(new Vector3 (119, 108, 80) , rbgFloat)};
 
+        //Palette Selection
+        public static Dictionary<string,Dictionary<string,Vector3>> paletteSel;
+        
+        //Methods
         public static List<Vector3> getPalette(string name)
         {
             Type t = typeof(Palettes);
@@ -755,6 +759,40 @@ namespace Model_Viewer
             throw new ApplicationException("Missing Pallete" + name);
         }
 
+        public static void set_palleteColors()
+        {
+            //Initialize the palette everytime this is called
+            paletteSel = new Dictionary<string, Dictionary<string, Vector3>>();
+            Type t = typeof(Palettes);
+            FieldInfo[] fields = t.GetFields(System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
+            foreach (FieldInfo f in fields)
+            {
+                //Get palette
+                List<Vector3> palette = (List<Vector3>)f.GetValue(null);
+                int rand;
+                switch (f.Name)
+                {
+                    case ("Fur"):
+                    case ("Scale"):
+                        
+                        //In those palettes colors are organize in group of 4 
+                        //So there is a total of 16 color ranges in the palette
+                        //Chossing one range
+                        rand = Util.randgen.Next(0, 16);
+                        paletteSel[f.Name]["Primary"]      = palette[4 * rand];
+                        paletteSel[f.Name]["Alternative1"] = palette[4 * rand + 1];
+                        paletteSel[f.Name]["Alternative2"] = palette[4 * rand + 2];
+                        paletteSel[f.Name]["Alternative3"] = palette[4 * rand + 3];
+                        break;
+
+                    default:
+                        //Chose 1/64 random color
+                        rand = Util.randgen.Next(0, 64);
+                        paletteSel[f.Name]["Primary"] = palette[rand];
+                        break;
+                }
+            }
+        }
     }
 
 
