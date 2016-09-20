@@ -9,6 +9,7 @@ using System.Xml;
 
 namespace Model_Viewer
 {
+
     enum treeviewCheckStatus
     {
         Single=0x0,
@@ -59,8 +60,11 @@ namespace Model_Viewer
         public GMDL.AnimeMetaData meta = new GMDL.AnimeMetaData();
 
         //Joint Array for shader
-        public float[] JMArray = new float[60 * 16];
-        public float[] JColors = new float[60 * 3];
+        public float[] JMArray = new float[128 * 16];
+        public float[] JColors = new float[128 * 3];
+
+        //Path
+        private string mainFilePath;
 
 
 
@@ -73,11 +77,11 @@ namespace Model_Viewer
         {
             Debug.WriteLine("Opening File");
             DialogResult res = openFileDialog1.ShowDialog();
-
             if (res == DialogResult.Cancel)
                 return;
 
             var filename = openFileDialog1.FileName;
+            mainFilePath = openFileDialog1.FileName;
 
             var split = filename.Split('.');
             var ext = split[split.Length - 1].ToUpper();
@@ -107,6 +111,7 @@ namespace Model_Viewer
             node.Checked = true;
             //Clear index dictionary
             index_dict.Clear();
+            joint_dict.Clear();
             this.childCounter = 0;
             //Add root to dictionary
             index_dict["ROOT_LOC"] = this.childCounter;
@@ -151,7 +156,8 @@ namespace Model_Viewer
             //translate_View();
             ////Draw scene
             //GL.MatrixMode(MatrixMode.Modelview);
-
+            //Update Joystick 
+            
             //glControl1.Invalidate();
             //Debug.WriteLine("Painting Control");
         }
@@ -185,6 +191,14 @@ namespace Model_Viewer
             //Set to current cam fov
             numericUpDown1.Value = 35;
             numericUpDown2.Value = (decimal) 5.0;
+
+            //Joystick Init
+            for (int i = 0; i < 2; i++)
+            {
+                var caps = OpenTK.Input.GamePad.GetCapabilities(i);
+                Debug.WriteLine(caps);
+            }
+            
         }
 
         private void glControl1_Resize(object sender, EventArgs e)
@@ -274,9 +288,15 @@ namespace Model_Viewer
             //Debug.WriteLine("Rendering Scene Cam Orientation: {0}", this.cam.Orientation);
 
             if (this.rootObject != null)
-            {
                 traverse_render(this.rootObject);
-            }
+            
+            //Render Info
+
+            ////Clear Matrices
+            //GL.MatrixMode(MatrixMode.Modelview);
+            //GL.LoadIdentity();
+            //GL.MatrixMode(MatrixMode.Projection);
+            //GL.LoadIdentity();
             
             
             //GL.MatrixMode(MatrixMode.Projection);
@@ -430,12 +450,12 @@ namespace Model_Viewer
                     {
                         //Set object index
                         child.index = this.childCounter;
-                        this.index_dict.Add(child.name.ToUpper(), child.index);
+                        this.index_dict.Add(child.name, child.index);
                         //Add only joints to joint dictionary
                         if (child.type == "JOINT")
                         {
                             GMDL.Joint temp = (GMDL.Joint) child;
-                            this.joint_dict.Add(child.name.ToUpper(), child);
+                            this.joint_dict.Add(child.name, child);
                             insertMatToArray(this.JMArray, temp.jointIndex*16, temp.worldMat);
                             //Insert color to joint color array
                             JColors[temp.jointIndex * 3 + 0] = temp.color.X;
@@ -538,9 +558,9 @@ namespace Model_Viewer
 
                 //Upload joint transform data
                 //Multiply matrices before sending them
-                float[] skinmats = mulMatArrays(((GMDL.sharedVBO) root).vbo.invBMats,JMArray,60);
+                float[] skinmats = mulMatArrays(((GMDL.sharedVBO) root).vbo.invBMats,JMArray,128);
                 loc = GL.GetUniformLocation(root.shader_program, "skinMats");
-                GL.UniformMatrix4(loc, 60, false, skinmats);
+                GL.UniformMatrix4(loc, 128, false, skinmats);
 
                 //loc = GL.GetUniformLocation(root.shader_program, "jMs");
                 //GL.UniformMatrix4(loc, 60, false, JMArray);
@@ -605,6 +625,94 @@ namespace Model_Viewer
             }
             return null;
         }
+
+
+        private void randgenClickNew(object sender, EventArgs e)
+        {
+            //Construct Descriptor Path
+            string[] split = mainFilePath.Split('.');
+            string descrpath = "";
+            for (int i = 0; i< split.Length-2; i++)
+                descrpath = Path.Combine(descrpath, split[i]);
+
+            string exmlPath = descrpath + ".DESCRIPTOR.exml";
+            descrpath += ".DESCRIPTOR.MBIN";
+            Debug.WriteLine("Opening " + descrpath);
+
+            //Convert only if file does not exist
+            if (!File.Exists(exmlPath))
+            {
+                Debug.WriteLine("Exml does not exist");
+                //Convert Descriptor MBIN to exml
+                Process proc = new System.Diagnostics.Process();
+                proc.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
+                proc.StartInfo.FileName = "MBINCompiler.exe";
+                proc.StartInfo.Arguments = " \" " + descrpath + " \" ";
+                proc.Start();
+                proc.WaitForExit();
+            }
+            
+
+            //Parse exml now
+            XmlDocument descrXml = new XmlDocument();
+            descrXml.Load(exmlPath);
+            XmlElement root = (XmlElement) descrXml.ChildNodes[1].ChildNodes[0];
+
+            List<List<GMDL.model>> allparts = new List<List<GMDL.model>>();
+
+            //Create 12 random instances
+            for (int k = 0; k < 15; k++)
+            {
+                List<string> parts = new List<string>();
+                ModelProcGen.parse_descriptor(ref parts, root);
+
+                List<GMDL.model> vboparts = new List<GMDL.model>();
+                ModelProcGen.get_procgen_parts(ref vboparts, ref parts, this.rootObject);
+
+                Debug.WriteLine("Run {0}",k);
+                foreach (GMDL.model m in vboparts)
+                    Debug.WriteLine(m.name);
+                
+
+                allparts.Add(vboparts);
+            }
+
+            Form vpwin = new Form();
+            vpwin.AutoSize = true;
+            //vpwin.Size = new System.Drawing.Size(800, 600);
+
+            TableLayoutPanel table = new TableLayoutPanel();
+            table.AutoSize = true;
+            table.RowCount = 3;
+            table.ColumnCount = 5;
+            table.Dock = DockStyle.Fill;
+            //table.Anchor = AnchorStyles.Bottom | AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Left;
+
+            List<CGLControl> ctlist = new List<CGLControl>();
+
+            for (int i = 0; i < table.RowCount; i++)
+            {
+                for (int j = 0; j < table.ColumnCount; j++)
+                {
+                    CGLControl n = new CGLControl();
+                    n.objects = allparts[i * table.ColumnCount + j];
+                    n.shader_programs = shader_programs;
+                    table.Controls.Add(n, j, i);
+                    ctlist.Add(n);
+                }
+            }
+
+            vpwin.Controls.Add(table);
+
+            vpwin.Show();
+
+            foreach (GLControl ctl in ctlist)
+            {
+                ctl.Invalidate();
+            }
+
+        }
+
 
         private void randomgenerator_Click(object sender, EventArgs e)
         {
@@ -828,16 +936,18 @@ namespace Model_Viewer
 
                 for (int j = 0; j < 4; j++)
                     for (int k = 0; k < 4; k++)
-                    {
-                        res[off + 4 * j + k] = 0;
                         for (int m = 0; m < 4; m++)
                             res[off + 4 * j + k] += lmat1[off + 4 * j + m] * lmat2[off + 4 * m + k];
-                    }
-                        
             }
 
             return res;
         }
 
+    }
+    
+    //Class Which will store all the texture resources for better memory management
+    public static class ResourceMgmt
+    {
+        public static Dictionary<string, GMDL.Texture> GLtextures = new Dictionary<string, GMDL.Texture>();
     }
 }

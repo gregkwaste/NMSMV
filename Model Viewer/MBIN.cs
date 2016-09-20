@@ -436,6 +436,7 @@ public static class MATERIALMBIN
             sampl.name = sn.GetAttribute("VALUE");
             sn = (XmlElement)n.SelectSingleNode(".//PROPERTY[@NAME='TEXPATH']");
             sampl.path = sn.GetAttribute("VALUE");
+
             mat.samplers.Add(sampl);
         }
         
@@ -530,10 +531,9 @@ public static class GEOMMBIN{
 
         //Get Bone Remapping Information
         fs.Seek(skinmatoffset, SeekOrigin.Begin);
+        geom.boneRemap = new int[bc];
         for (int i = 0; i < bc; i++)
-        {
-            geom.boneRemap[i] = br.ReadInt32();
-        }
+           geom.boneRemap[i] = br.ReadInt32();
         
         //Store Joint Data
         fs.Seek(jointbindingOffset, SeekOrigin.Begin);
@@ -628,8 +628,7 @@ public static class GEOMMBIN{
 
         //Random Generetor for colors
         Random randgen = new Random();
-
-
+        
         //Create Root
         GMDL.locator root = new GMDL.locator();
         root.name = "ROOT_LOC";
@@ -673,7 +672,7 @@ public static class GEOMMBIN{
             //Set cvbo
             so.vbo = cvbo;
             so.shader_program = shader_programs[0];
-            so.name = name.ToUpper();
+            so.name = name;
             so.type = type;
             //Set Random Color
             so.color[0] = Model_Viewer.Util.randgen.Next(255) / 255.0f;
@@ -714,8 +713,11 @@ public static class GEOMMBIN{
             //Decide if its a skinned mesh or not
             if (so.firstskinmat == so.lastskinmat)
                 so.skinned = 0;
+            //Configure boneRemap properly
+            so.BoneRemap = new int[so.lastskinmat - so.firstskinmat];
+            for (int i = 0; i < so.lastskinmat - so.firstskinmat; i++)
+                so.BoneRemap[i] = so.vbo.boneRemap[so.firstskinmat + i];
             
-
             if (childs != null)
             {
                 Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
@@ -734,7 +736,7 @@ public static class GEOMMBIN{
             GMDL.locator so = new GMDL.locator();
             //Set Properties
             //Testingso.Name = name + "_LOC";
-            so.name = name.ToUpper();
+            so.name = name;
             so.type = type;
             //Set Shader Program
             so.shader_program = shader_programs[1];
