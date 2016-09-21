@@ -1,13 +1,12 @@
-#version 420
 /* Copies incoming vertex color without change.
  * Applies the transformation matrix to vertex position.
  */
 
 attribute vec4 vPosition;
 attribute vec3 vcolor;
-uniform mat4 look, proj;
-uniform vec3 theta;
-varying vec3 color;
+uniform mat4 look, proj, worldRot;
+uniform vec3 theta, worldTrans;;
+out vec3 color;
 
 void main()
 {
@@ -34,6 +33,11 @@ void main()
             0.0,  0.0, 1.0, 0.0,
             0.0,  0.0, 0.0, 1.0 );
     
+    mat4 worldTransMat = mat4(1.0, 0.0, 0.0 , 0.0,
+          0.0, 1.0, 0.0, 0.0,
+          0.0, 0.0, 1.0, 0.0,
+          worldTrans.x, worldTrans.y, worldTrans.z, 1.0);
+
     mat4 rotMat = rx*ry*rz;
     gl_Position = proj * look * rotMat * vPosition;
 }
