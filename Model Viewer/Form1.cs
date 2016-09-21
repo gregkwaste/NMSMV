@@ -96,6 +96,11 @@ namespace Model_Viewer
             var fs = new FileStream(filename, FileMode.Open);
             //geomobjects.Add(GEOMMBIN.Parse(fs));
             XmlDocument xml = new XmlDocument();
+
+            //Initialize Palettes
+            Model_Viewer.Palettes.set_palleteColors();
+            
+            //Parse the Scene XML file
             Debug.WriteLine("Parsing SCENE XML");
             this.xmlDoc = SCENEMBIN.Parse(fs);
             
@@ -638,16 +643,6 @@ namespace Model_Viewer
             string exmlPath = descrpath + ".DESCRIPTOR.exml";
             descrpath += ".DESCRIPTOR.MBIN";
             Debug.WriteLine("Opening " + descrpath);
-
-            //Check if its a procGenModel or not
-            if (!File.Exists(descrpath))
-            {
-                Debug.WriteLine("No ProcGen Model. Exiting...");
-                return;
-            }
-            
-
-
 
             //Convert only if file does not exist
             if (!File.Exists(exmlPath))

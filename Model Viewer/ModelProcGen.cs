@@ -13,8 +13,8 @@ namespace Model_Viewer
     public static class Util
     {
         public static readonly Random randgen = new Random();
-        //public static string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
-        public static string dirpath = "C:\\Users\\greg\\Source\\Repos\\nms-viewer\\Model Viewer\\Samples";
+        public static string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
+        //public static string dirpath = "C:\\Users\\greg\\Source\\Repos\\nms-viewer\\Model Viewer\\Samples";
     }
 
 
@@ -738,7 +738,137 @@ namespace Model_Viewer
                                                                             Vector3.Multiply(new Vector3 (119, 103, 80) , rbgFloat),
                                                                             Vector3.Multiply(new Vector3 (100, 107, 87) , rbgFloat),
                                                                             Vector3.Multiply(new Vector3 (119, 108, 80) , rbgFloat)};
+        public static readonly List<Vector3> Plant = new List<Vector3> {
+                                                                            Vector3.Multiply(new Vector3 (57, 98, 31) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (58, 118, 21) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (69, 139, 27) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (79, 166, 25) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (57, 150, 44) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (129, 179, 43) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (138, 179, 73) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (98, 125, 56) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (74, 126, 71) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (68, 142, 62) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (73, 159, 67) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (73, 182, 66) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (159, 180, 0) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (140, 157, 1) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (105, 123, 15) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (85, 101, 19) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (130, 169, 0) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (134, 169, 0) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (171, 185, 67) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (188, 198, 59) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (68, 105, 116) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (38, 109, 129) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (44, 128, 150) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (39, 137, 178) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (113, 150, 7) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (91, 121, 16) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (56, 83, 32) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (112, 112, 16) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (12, 132, 148) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (38, 129, 129) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (44, 150, 149) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (39, 167, 178) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (31, 98, 71) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (21, 118, 79) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (27, 139, 95) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (25, 166, 109) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (133, 122, 4) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (163, 140, 0) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (174, 84, 23) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (196, 102, 38) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (110, 44, 40) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (131, 34, 29) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (151, 40, 33) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (178, 36, 29) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (133, 119, 20) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (172, 82, 50) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (142, 68, 51) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (201, 131, 26) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (108, 46, 54) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (127, 37, 49) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (147, 42, 55) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (172, 40, 58) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (197, 137, 15) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (165, 99, 26) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (167, 98, 24) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (144, 86, 30) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (105, 76, 120) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (88, 71, 104) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (87, 70, 105) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (80, 67, 94) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (180, 159, 0) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (157, 137, 1) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (123, 115, 15) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (101, 98, 19) , rbgFloat)};
 
+        public static readonly List<Vector3> Crystal = new List<Vector3> {
+                                                                            Vector3.Multiply(new Vector3 (61, 252, 138) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 158, 51) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 126, 79) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (184, 60, 255) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 60, 90) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (206, 255, 237) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (210, 59, 219) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (208, 250, 255) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (124, 252, 61) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 158, 51) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 126, 79) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (184, 60, 255) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 60, 90) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (32, 253, 172) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (181, 34, 189) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (32, 232, 255) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (126, 227, 31) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 169, 45) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 135, 74) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (197, 54, 255) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 64, 81) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (28, 250, 181) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (160, 34, 159) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (28, 217, 252) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (103, 222, 25) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (254, 187, 36) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 148, 66) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (214, 45, 255) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 69, 67) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (22, 246, 197) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (155, 27, 142) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (22, 193, 248) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (77, 216, 18) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (254, 206, 26) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 163, 57) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (234, 35, 255) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 76, 50) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (16, 241, 212) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (149, 19, 123) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (16, 166, 243) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (52, 210, 11) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (253, 226, 15) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 178, 48) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 25, 252) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 82, 34) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (9, 236, 229) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (143, 12, 104) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (9, 138, 238) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (29, 205, 5) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (252, 244, 6) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 191, 40) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 17, 236) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 87, 21) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (4, 218, 232) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (138, 5, 87) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (4, 114, 234) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (14, 202, 1) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (252, 255, 0) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 200, 35) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 59, 239) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (255, 91, 11) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (0, 202, 229) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (135, 0, 76) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (0, 98, 231) , rbgFloat)};
         //Palette Selection
         public static Dictionary<string,Dictionary<string,Vector3>> paletteSel;
         
@@ -767,14 +897,33 @@ namespace Model_Viewer
             FieldInfo[] fields = t.GetFields(System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
             foreach (FieldInfo f in fields)
             {
+                //Check field type
+                if (f.FieldType != typeof(List<Vector3>))
+                    continue;
                 //Get palette
                 List<Vector3> palette = (List<Vector3>)f.GetValue(null);
+
+                //Add palette to dictionary
+                paletteSel[f.Name] = new Dictionary<string, Vector3>();
+                //Add None option
+                paletteSel[f.Name]["None"] = new Vector3(0.0f, 0.0f, 0.0f);
+
                 int rand;
                 switch (f.Name)
                 {
                     case ("Fur"):
                     case ("Scale"):
-                        
+                    case ("Leaf"):
+                    case ("Sand"):
+                    case ("Wood"):
+                    case ("Feather"):
+                    case ("Plant"):
+                    case ("Rock"):
+                    case ("Crystal"):
+                    case ("Underbelly"):
+                    case ("Paint"):
+                    case ("Stone"):
+
                         //In those palettes colors are organize in group of 4 
                         //So there is a total of 16 color ranges in the palette
                         //Chossing one range
@@ -783,12 +932,17 @@ namespace Model_Viewer
                         paletteSel[f.Name]["Alternative1"] = palette[4 * rand + 1];
                         paletteSel[f.Name]["Alternative2"] = palette[4 * rand + 2];
                         paletteSel[f.Name]["Alternative3"] = palette[4 * rand + 3];
+                        //I have no idea where the fuck the 5th color comes from
+                        paletteSel[f.Name]["Alternative4"] = palette[4 * rand + 3];
+                        //Force None to Primary
+                        paletteSel[f.Name]["None"] = palette[4 * rand];
                         break;
 
                     default:
                         //Chose 1/64 random color
                         rand = Util.randgen.Next(0, 64);
                         paletteSel[f.Name]["Primary"] = palette[rand];
+                        paletteSel[f.Name]["None"] = palette[rand];
                         break;
                 }
             }

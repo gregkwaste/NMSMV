@@ -453,6 +453,7 @@ namespace GMDL
             if (material.samplers.Count > 0)
             {
                 GL.Enable(EnableCap.Blend);
+                GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
                 loc = GL.GetUniformLocation(shader_program, "diffuseFlag");
                 GL.Uniform1(loc, 1.0f);
 
@@ -464,6 +465,9 @@ namespace GMDL
                 loc = GL.GetUniformLocation(shader_program, "diffTexCount");
                 GL.Uniform1(loc, sam.procTextures.Count);
 
+                if (this.name == "_Body_Tri" | this.name == "_Head_Tri")
+                    Debug.WriteLine("Debug");
+
                 for (int i = 0; i < sam.procTextures.Count; i++)
                 {
                     tex = sam.procTextures[i];
@@ -472,9 +476,12 @@ namespace GMDL
                     loc = GL.GetUniformLocation(shader_program, "palColors[" + i.ToString() + "]");
                     GL.Uniform3(loc, tex.procColor);
 
-                    GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + i));
-                    GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
-                    
+                    //Get Texture location
+                    loc = GL.GetUniformLocation(shader_program, "diffuseTex[" + i.ToString() + "]");
+                    GL.Uniform1(loc, tex.bufferID);
+                    //GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + i));
+                    //GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
+
                     GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
                     GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
                     GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
@@ -786,10 +793,6 @@ namespace GMDL
 
                     Debug.WriteLine("Proc Textures");
 
-                    //Get a random number of the palette
-                    //int paletteId = Util.randgen.Next(0, 64); //All palettes are 8x8
-                    int paletteId = 15;
-
                     for (int i = 0; i < texList.Count; i++)
                     {
                         XmlElement node = texList[i];
@@ -797,11 +800,13 @@ namespace GMDL
                         XmlElement paletteNode = (XmlElement) node.SelectSingleNode(".//Property[@name='Palette']");
                         //XmlElement innerPalNode = (XmlElement)paletteNode.SelectSingleNode(".//Property[@name='Palette']");
                         string paletteName = paletteNode.GetAttribute("value");
-                        List<Vector3> pal = Model_Viewer.Palettes.getPalette(paletteName);
-                        //Select a pallete color at random
-                        Vector3 palColor = pal[paletteId];
-                        
-                        //Check if texture already saved
+                        //Get ColourAlt node
+                        XmlElement colorNode = (XmlElement)node.SelectSingleNode(".//Property[@name='ColourAlt']");
+                        string colorName = colorNode.GetAttribute("value");
+
+                        //Select a pallete color
+                        Vector3 palColor = Model_Viewer.Palettes.paletteSel[paletteName][colorName];
+
                         if (!Model_Viewer.ResourceMgmt.GLtextures.ContainsKey(partName))
                         {
                             string path = Path.Combine(Util.dirpath,partName);
