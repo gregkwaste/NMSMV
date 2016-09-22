@@ -21,6 +21,7 @@ namespace GMDL
         public string name = "";
         public GMDL.Material material;
         public List<model> children = new List<model>();
+        public Dictionary<string, Dictionary<string, Vector3>> palette;
         //Transformation Parameters
         //public Matrix4 localMat = Matrix4.Identity;
         //public Matrix4 worldMat = Matrix4.Identity;
@@ -475,13 +476,14 @@ namespace GMDL
 
                     //Upload PaletteColor
                     loc = GL.GetUniformLocation(shader_program, "palColors[" + i.ToString() + "]");
-                    GL.Uniform3(loc, tex.procColor);
+                    //Use Texture paletteOpt and object palette to load the palette color
+                    GL.Uniform3(loc, palette[tex.palOpt.PaletteName][tex.palOpt.ColorName]);
 
                     //Get Texture location
                     string test = "diffuseTex[" + i.ToString() + "]";
                     loc = GL.GetUniformLocation(shader_program, test);
                     GL.Uniform1(loc, i); // I need to upload the texture unit number
-
+                    
                     GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + i));
                     GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
 
@@ -809,6 +811,11 @@ namespace GMDL
 
                         //Select a pallete color
                         Vector3 palColor = Model_Viewer.Palettes.paletteSel[paletteName][colorName];
+                        //Create Palette Option
+                        PaletteOpt palOpt = new PaletteOpt();
+                        palOpt.PaletteName = paletteName;
+                        palOpt.ColorName = colorName;
+                        
 
                         if (!Model_Viewer.ResourceMgmt.GLtextures.ContainsKey(partName))
                         {
@@ -817,6 +824,7 @@ namespace GMDL
                             {
                                 Texture tex = new Texture(path);
                                 tex.bufferID = GL.GenTexture();
+                                tex.palOpt = palOpt;
                                 tex.procColor = palColor;
                                 //store to global dict
                                 Model_Viewer.ResourceMgmt.GLtextures[partName] = tex;
@@ -847,6 +855,7 @@ namespace GMDL
                     {
                         Texture tex = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.path));
                         tex.bufferID = GL.GenTexture();
+                        tex.palOpt = new PaletteOpt(false);
                         tex.procColor = new Vector3(1.0f, 1.0f, 1.0f);
                         Model_Viewer.ResourceMgmt.GLtextures[sam.path] = tex;
                         sam.procTextures.Add(tex);
@@ -861,7 +870,7 @@ namespace GMDL
             }
         }
     }
-
+    
     public class Uniform
     {
         public string name;
@@ -884,6 +893,24 @@ namespace GMDL
         public List<Texture> procTextures = new List<Texture>();
     }
 
+    public class PaletteOpt
+    {
+        public string PaletteName;
+        public string ColorName;
+
+        //Default Empty Constructor
+        public PaletteOpt() { }
+        //Empty Palette Constructor
+        public PaletteOpt(bool flag)
+        {
+            if (!flag)
+            {
+                PaletteName = "Fur";
+                ColorName = "None";
+            }
+        }
+    }
+
     public class Texture
     {
         public int bufferID;
@@ -891,6 +918,7 @@ namespace GMDL
         public int width;
         public int height;
         public PixelInternalFormat pif;
+        public PaletteOpt palOpt;
         public Vector3 procColor;
         public PixelFormat pf;
         public DDSImage ddsImage;

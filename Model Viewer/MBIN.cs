@@ -710,6 +710,9 @@ public static class GEOMMBIN{
             mat.prepTextures();
             ms.Close();
             so.material = mat;
+            //Load default form palette on init
+            so.palette = Model_Viewer.Palettes.paletteSel;
+
             //Decide if its a skinned mesh or not
             if (so.firstskinmat == so.lastskinmat)
                 so.skinned = 0;

@@ -24,6 +24,9 @@ namespace Model_Viewer
         private int mouse_x;
         private int mouse_y;
 
+        //Custom Palette
+        private Dictionary<string,Dictionary<string,Vector3>> palette;
+
         //Constructor
         public CGLControl()
         {
@@ -38,7 +41,18 @@ namespace Model_Viewer
                 cam.Move(0.0f, -0.1f, 0.0f);
             this.rot.Y = 131;
             this.light_angle_y = 190;
-            
+
+            //Assign new palette to GLControl
+            palette = Model_Viewer.Palettes.createPalette();
+        }
+
+        public void SetupItems()
+        {
+            //This function is used to setup all necessary additional parameters on the objects.
+            foreach (GMDL.model m in objects)
+            {
+                m.palette = palette;
+            }
         }
 
         private void render()
@@ -87,6 +101,7 @@ namespace Model_Viewer
                     //Locator Program
                 }
                 GL.ClearColor(System.Drawing.Color.Black);
+                //Render Object
                 m.render();
             }
 
@@ -200,6 +215,19 @@ namespace Model_Viewer
             }
             this.Invalidate();
         }
+
+        private void InitializeComponent()
+        {
+            this.SuspendLayout();
+            // 
+            // CGLControl
+            // 
+            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
+            this.Name = "CGLControl";
+            this.ResumeLayout(false);
+
+        }
+
     }
 
     
