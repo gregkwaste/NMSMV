@@ -906,24 +906,18 @@ namespace Model_Viewer
                 //Add palette to dictionary
                 paletteSel[f.Name] = new Dictionary<string, Vector3>();
                 //Add None option
-                paletteSel[f.Name]["None"] = new Vector3(0.0f, 0.0f, 0.0f);
+                paletteSel[f.Name]["None"] = new Vector3(1.0f, 1.0f, 1.0f);
 
                 int rand;
                 switch (f.Name)
                 {
                     case ("Fur"):
                     case ("Scale"):
-                    case ("Leaf"):
-                    case ("Sand"):
-                    case ("Wood"):
                     case ("Feather"):
                     case ("Plant"):
-                    case ("Rock"):
-                    case ("Crystal"):
                     case ("Underbelly"):
                     case ("Paint"):
-                    case ("Stone"):
-
+                    
                         //In those palettes colors are organize in group of 4 
                         //So there is a total of 16 color ranges in the palette
                         //Chossing one range
@@ -935,14 +929,38 @@ namespace Model_Viewer
                         //I have no idea where the fuck the 5th color comes from
                         paletteSel[f.Name]["Alternative4"] = palette[4 * rand + 3];
                         //Force None to Primary
-                        paletteSel[f.Name]["None"] = palette[4 * rand];
+                        //paletteSel[f.Name]["None"] = palette[4 * rand];
+                        break;
+
+                    //Handle vertical gradient palettes 1/8 options
+                    case ("Crystal"):
+                        rand = Util.randgen.Next(0, 8);
+                        int rand2 = Util.randgen.Next(0, 1);
+                        paletteSel[f.Name]["Primary"] = palette[rand2*32 + rand];
+                        paletteSel[f.Name]["Alternative1"] = palette[rand2 * 32 + rand + 1 * 8];
+                        paletteSel[f.Name]["Alternative2"] = palette[rand2 * 32 + rand + 2 * 8];
+                        paletteSel[f.Name]["Alternative3"] = palette[rand2 * 32 + rand + 3 * 8];
+                        paletteSel[f.Name]["Alternative4"] = palette[rand2 * 32 + rand + 3 * 8];
+                        break;
+                    //Handle vertical palettes 1/16 options
+                    case ("Leaf"):
+                    case ("Rock"):
+                    case ("Sand"):
+                    case ("Stone"):
+                    case ("Wood"):
+                        rand = Util.randgen.Next(0, 16);
+                        paletteSel[f.Name]["Primary"] = palette[(rand / 8) * 32 + rand % 8];
+                        paletteSel[f.Name]["Alternative1"] = palette[(rand / 8) * 32 + rand % 8 + 1 * 8];
+                        paletteSel[f.Name]["Alternative2"] = palette[(rand / 8) * 32 + rand % 8 + 2 * 8];
+                        paletteSel[f.Name]["Alternative3"] = palette[(rand / 8) * 32 + rand % 8 + 3 * 8];
+                        paletteSel[f.Name]["Alternative4"] = palette[(rand / 8) * 32 + rand % 8 + 3 * 8];
                         break;
 
                     default:
                         //Chose 1/64 random color
                         rand = Util.randgen.Next(0, 64);
                         paletteSel[f.Name]["Primary"] = palette[rand];
-                        paletteSel[f.Name]["None"] = palette[rand];
+                        //paletteSel[f.Name]["None"] = palette[rand];
                         break;
                 }
             }

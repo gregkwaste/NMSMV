@@ -452,8 +452,9 @@ namespace GMDL
             //If there are samples defined, there are diffuse textures for sure
             if (material.samplers.Count > 0)
             {
-                GL.Enable(EnableCap.Blend);
-                GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
+                //GL.Enable(EnableCap.Blend);
+                //GL.BlendFunc(BlendingFactorSrc.One, BlendingFactorDest.One);
+                //GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
                 loc = GL.GetUniformLocation(shader_program, "diffuseFlag");
                 GL.Uniform1(loc, 1.0f);
 
@@ -465,10 +466,10 @@ namespace GMDL
                 loc = GL.GetUniformLocation(shader_program, "diffTexCount");
                 GL.Uniform1(loc, sam.procTextures.Count);
 
-                if (this.name == "_Body_Tri" | this.name == "_Head_Tri")
-                    Debug.WriteLine("Debug");
+                //if (this.name == "_Body_Tri" | this.name == "_Head_Tri")
+                //    Debug.WriteLine("Debug");
 
-                for (int i = 0; i < sam.procTextures.Count; i++)
+                for (int i = 0; i <sam.procTextures.Count; i++)
                 {
                     tex = sam.procTextures[i];
 
@@ -477,10 +478,12 @@ namespace GMDL
                     GL.Uniform3(loc, tex.procColor);
 
                     //Get Texture location
-                    loc = GL.GetUniformLocation(shader_program, "diffuseTex[" + i.ToString() + "]");
-                    GL.Uniform1(loc, tex.bufferID);
-                    //GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + i));
-                    //GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
+                    string test = "diffuseTex[" + i.ToString() + "]";
+                    loc = GL.GetUniformLocation(shader_program, test);
+                    GL.Uniform1(loc, i); // I need to upload the texture unit number
+
+                    GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + i));
+                    GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
 
                     GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
                     GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
