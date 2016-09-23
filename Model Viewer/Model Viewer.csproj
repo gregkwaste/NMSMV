@@ -64,6 +64,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Camera.cs" />
+    <Compile Include="Class1.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Class2.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -83,6 +86,9 @@
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <EmbeddedResource Include="Class1.resx">
+      <DependentUpon>Class1.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Class2.resx">
       <DependentUpon>Class2.cs</DependentUpon>
     </EmbeddedResource>

@@ -23,24 +23,44 @@ namespace Model_Viewer
         //Mouse Pos
         private int mouse_x;
         private int mouse_y;
+        //Control Identifier
+        private int index;
 
         //Custom Palette
         private Dictionary<string,Dictionary<string,Vector3>> palette;
 
+        //Animation Stuff
+        
+            //Animation Meta
+        public GMDL.AnimeMetaData meta = new GMDL.AnimeMetaData();
+
+        //Joint Array for shader
+        public float[] JMArray = new float[128 * 16];
+        //public float[] JColors = new float[128 * 3];
+
         //Constructor
-        public CGLControl()
+        public CGLControl(int index)
         {
             this.Load += new System.EventHandler(this.genericLoad);
             this.Paint += new System.Windows.Forms.PaintEventHandler(this.genericPaint);
+            this.Resize += new System.EventHandler(this.genericResize);
             this.MouseHover += new System.EventHandler(this.hover);
             this.MouseMove += new System.Windows.Forms.MouseEventHandler(this.genericMouseMove);
             this.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.generic_KeyDown);
+            //Set properties
+            this.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            this.MinimumSize = new System.Drawing.Size(128, 128);
+            this.MaximumSize = new System.Drawing.Size(640, 480);
+
 
             //Set Camera position
             for (int i = 0; i < 20; i++)
                 cam.Move(0.0f, -0.1f, 0.0f);
             this.rot.Y = 131;
             this.light_angle_y = 190;
+
+            //Set Control Identifiers
+            this.index = index;
 
             //Assign new palette to GLControl
             palette = Model_Viewer.Palettes.createPalette();
@@ -94,6 +114,12 @@ namespace Model_Viewer
                                                  (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
                                                  (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                                 Math.Cos(this.light_angle_y * Math.PI / 180.0))));
+                    
+                    //Upload joint transform data
+                    //Multiply matrices before sending them
+                    //float[] skinmats = Util.mulMatArrays(((GMDL.sharedVBO)m).vbo.invBMats, JMArray, 128);
+                    //loc = GL.GetUniformLocation(m.shader_program, "skinMats");
+                    //GL.UniformMatrix4(loc, 128, false, skinmats);
 
                 }
                 else if (m.shader_program == shader_programs[1])
@@ -110,8 +136,8 @@ namespace Model_Viewer
         private void genericLoad(object sender, EventArgs e)
         {
             
+            this.Size = new System.Drawing.Size(640, 480);
             this.MakeCurrent();
-            this.Size = new System.Drawing.Size(320, 240);
             GL.Viewport(0, 0, this.ClientSize.Width, this.ClientSize.Height);
             GL.ClearColor(System.Drawing.Color.Black);
             GL.Enable(EnableCap.DepthTest);
@@ -216,6 +242,16 @@ namespace Model_Viewer
             this.Invalidate();
         }
 
+        private void genericResize(object sender, EventArgs e)
+        {
+            if (this.ClientSize.Height == 0)
+                this.ClientSize = new System.Drawing.Size(this.ClientSize.Width, 1);
+            //Debug.WriteLine("GLControl {0} Resizing {1}x{2}",this.index, this.ClientSize.Width, this.ClientSize.Height);
+            this.MakeCurrent();
+            GL.Viewport(0, 0, this.ClientSize.Width, this.ClientSize.Height);
+            //GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
+        }
+        
         private void InitializeComponent()
         {
             this.SuspendLayout();

@@ -563,7 +563,7 @@ namespace Model_Viewer
 
                 //Upload joint transform data
                 //Multiply matrices before sending them
-                float[] skinmats = mulMatArrays(((GMDL.sharedVBO) root).vbo.invBMats,JMArray,128);
+                float[] skinmats = Util.mulMatArrays(((GMDL.sharedVBO) root).vbo.invBMats,JMArray,128);
                 loc = GL.GetUniformLocation(root.shader_program, "skinMats");
                 GL.UniformMatrix4(loc, 128, false, skinmats);
 
@@ -631,7 +631,6 @@ namespace Model_Viewer
             return null;
         }
 
-
         private void randgenClickNew(object sender, EventArgs e)
         {
             //Construct Descriptor Path
@@ -683,25 +682,41 @@ namespace Model_Viewer
             }
 
             Form vpwin = new Form();
-            vpwin.AutoSize = true;
-            //vpwin.Size = new System.Drawing.Size(800, 600);
-
+            // no smaller than design time size
+            vpwin.MinimumSize = new System.Drawing.Size(5 * 128, 3 * 128);
+            // no larger than screen size
+            vpwin.MaximumSize = new System.Drawing.Size(1920, 1080);
+            vpwin.FormBorderStyle = FormBorderStyle.Sizable;
+            //vpwin.AutoSize = true;
+            //vpwin.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            
             TableLayoutPanel table = new TableLayoutPanel();
-            table.AutoSize = true;
+            table.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             table.RowCount = 3;
             table.ColumnCount = 5;
             table.Dock = DockStyle.Fill;
+            //table.Anchor= AnchorStyles.Bottom
             //table.Anchor = AnchorStyles.Bottom | AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Left;
 
             List<CGLControl> ctlist = new List<CGLControl>();
 
+            //Fix RowStyles
+            for (int i = 0; i < table.RowCount; i++)
+                table.RowStyles.Add(new RowStyle(SizeType.Percent, 100F / table.RowCount));
+            
+            //Fix ColumnStyles
+            for (int i = 0; i < table.ColumnCount; i++)
+                table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F / table.ColumnCount));
+            
             for (int i = 0; i < table.RowCount; i++)
             {
                 for (int j = 0; j < table.ColumnCount; j++)
                 {
-                    CGLControl n = new CGLControl();
+                    CGLControl n = new CGLControl(i * table.ColumnCount + j);
                     n.objects = allparts[i * table.ColumnCount + j];
                     n.shader_programs = shader_programs;
+
+                    n.SetupItems();
                     table.Controls.Add(n, j, i);
                     ctlist.Add(n);
                 }
@@ -781,7 +796,7 @@ namespace Model_Viewer
             {
                 for (int j = 0; j < table.ColumnCount; j++)
                 {
-                    CGLControl n = new CGLControl();
+                    CGLControl n = new CGLControl(i * table.ColumnCount + j);
                     n.objects = allparts[i * table.ColumnCount + j];
                     n.shader_programs = shader_programs;
                     table.Controls.Add(n, j, i);
@@ -932,22 +947,7 @@ namespace Model_Viewer
             array[offset + 15] = mat.M44;
         }
 
-        private float[] mulMatArrays(float[] lmat1, float[] lmat2, int count)
-        {
-            float[] res = new float[count * 16];
-            for (int i=0;i< count; i++)
-            {
-                int off = 16 * i;
-
-                for (int j = 0; j < 4; j++)
-                    for (int k = 0; k < 4; k++)
-                        for (int m = 0; m < 4; m++)
-                            res[off + 4 * j + k] += lmat1[off + 4 * j + m] * lmat2[off + 4 * m + k];
-            }
-
-            return res;
-        }
-
+        
     }
     
     //Class Which will store all the texture resources for better memory management
