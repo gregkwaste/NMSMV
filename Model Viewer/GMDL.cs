@@ -22,9 +22,8 @@ namespace GMDL
         public GMDL.Material material;
         public List<model> children = new List<model>();
         public Dictionary<string, Dictionary<string, Vector3>> palette;
+        public bool procFlag = false; //This is used to define procgen usage
         //Transformation Parameters
-        //public Matrix4 localMat = Matrix4.Identity;
-        //public Matrix4 worldMat = Matrix4.Identity;
         public Vector3 worldPosition {
             get
             {
@@ -80,6 +79,7 @@ namespace GMDL
         public Matrix3 localRotation = Matrix3.Identity;
 
         public model parent;
+        public int cIndex = 0;
 
         public static void vectofloatArray(float[] flist, List<Vector3> veclist)
         {
@@ -134,26 +134,34 @@ namespace GMDL
             //Matrix4.CreateTranslation(ref this.localPosition, out transM);
             //Calculate local matrix
             this.localRotation = rotz*rotx*roty;
-            
+
             //this.localMat = rotz * rotx * roty * transM;
-            
 
+            //Set paths
+            if (parent!=null)
+                this.cIndex = this.parent.children.Count;
+        }
 
-            //Calculation is done via properties
-            ////Calculate world position
-            //if (this.parent != null)
-            //{
-            //    //this.worldMat = Matrix4.Mult(parent.worldMat, this.localMat);
-            //    this.worldMat = Matrix4.Mult(this.localMat, parent.worldMat);
-            //    Vector3 transformed = Vector3.Transform(this.localPosition, parent.worldMat);
-            //    this.worldPosition = parent.worldPosition + transformed;
-            //}
-            //else
-            //{
-            //    this.worldPosition = this.localPosition;
-            //    this.worldMat = this.localMat;
-            //}
+        public List<int> hpath()
+        {
+            List<int> list = new List<int>();
 
+            list.Insert(0,cIndex); //Add current index
+            GMDL.model recparent = parent;
+
+            while (recparent != null)
+            {
+                list.Insert(0, recparent.cIndex);
+                recparent = recparent.parent;
+            }
+                
+            return list;
+        }
+
+        public void delete()
+        {
+            if (parent != null)
+                parent.children.Remove(this);
         }
     }
 
@@ -293,7 +301,16 @@ namespace GMDL
             copy.type = this.type;
             copy.name = this.name;
             copy.index = this.index;
-
+            copy.cIndex = this.cIndex;
+            //Clone Children as well
+            foreach (GMDL.model child in this.children)
+            {
+                GMDL.model nChild = child.Clone();
+                nChild.parent = copy;
+                copy.children.Add(nChild);
+            }
+                
+            
             return (GMDL.model) copy;
         }
     }
@@ -570,7 +587,15 @@ namespace GMDL
             copy.material = this.material;
             copy.BoneRemap = this.BoneRemap;
             copy.skinned = this.skinned;
-
+            copy.palette = this.palette;
+            copy.cIndex = this.cIndex;
+            //Clone Children as well
+            foreach (GMDL.model child in this.children)
+            {
+                GMDL.model nChild = child.Clone();
+                nChild.parent = copy;
+                copy.children.Add(nChild);
+            }
 
             return (GMDL.model)copy;
         }
@@ -976,7 +1001,22 @@ namespace GMDL
         //Empty stuff
         public override model Clone()
         {
-            throw new ApplicationException("Not Implemented yet");
+            GMDL.Joint copy = new GMDL.Joint();
+            copy.renderable = true; //Override Renderability
+            copy.shader_program = this.shader_program;
+            copy.type = this.type;
+            copy.name = this.name;
+            copy.index = this.index;
+            copy.vertex_buffer_object = this.vertex_buffer_object;
+            copy.element_buffer_object = this.element_buffer_object;
+            copy.jointIndex = this.jointIndex;
+            copy.color = this.color;
+
+            //Clone Children as well
+            foreach (GMDL.model child in this.children)
+                copy.children.Add(child.Clone());
+
+            return copy;
         }
             
         //Render should render Bones from joint to children

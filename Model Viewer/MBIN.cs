@@ -638,7 +638,7 @@ public static class GEOMMBIN{
         //Store sections node
         XmlNode sections = xml.FirstChild.ChildNodes[1];
         foreach (XmlElement node in sections)
-            root.children.Add(parseNode(node, cvbo, shader_programs,null));
+            root.children.Add(parseNode(node, cvbo, shader_programs, root));
         
         return root;
     }

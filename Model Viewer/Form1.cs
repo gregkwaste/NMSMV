@@ -50,7 +50,7 @@ namespace Model_Viewer
 
         private List<GMDL.GeomObject> geomobjects = new List<GMDL.GeomObject>();
         private List<GMDL.model> vboobjects = new List<GMDL.model>();
-        private GMDL.model rootObject;
+        private List<GMDL.model> sceneGraph = new List<GMDL.model>();
         private XmlDocument xmlDoc;
         private Dictionary<string, int> index_dict = new Dictionary<string, int>();
         private Dictionary<string, GMDL.model> joint_dict = new Dictionary<string, GMDL.model>();
@@ -107,8 +107,10 @@ namespace Model_Viewer
             //Store path locally for now
             //string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
 
-            this.rootObject = GEOMMBIN.LoadObjects(Util.dirpath, this.xmlDoc, shader_programs);
-            this.rootObject.index = this.childCounter;
+            GMDL.model scene = GEOMMBIN.LoadObjects(Util.dirpath, this.xmlDoc, shader_programs);
+            scene.index = this.childCounter;
+            this.sceneGraph.Clear();
+            this.sceneGraph.Add(scene);
             this.childCounter++;
 
             //Debug.WriteLine("Objects Returned: {0}",oblist.Count);
@@ -122,7 +124,7 @@ namespace Model_Viewer
             index_dict["ROOT_LOC"] = this.childCounter;
             this.childCounter += 1;
             //Set indices and TreeNodes 
-            traverse_oblist(this.rootObject, node);
+            traverse_oblist(this.sceneGraph[0], node);
             //Add root to treeview
             treeView1.Nodes.Clear();
             treeView1.Nodes.Add(node);
@@ -185,9 +187,11 @@ namespace Model_Viewer
             //Populate shader list
             this.shader_programs = new int[2] { this.shader_program_ob, this.shader_program_loc };
             Debug.WriteLine("Programs {0} {1}", shader_programs[0], shader_programs[1]);
-            this.rootObject = new GMDL.locator();
-            this.rootObject.shader_program = shader_programs[1];
-            this.rootObject.index = this.childCounter;
+            GMDL.model scene;
+            scene = new GMDL.locator();
+            scene.shader_program = shader_programs[1];
+            scene.index = this.childCounter;
+            this.sceneGraph.Add(scene);
             this.childCounter++;
             TreeNode node = new TreeNode("ORIGIN");
             node.Checked = true;
@@ -292,8 +296,9 @@ namespace Model_Viewer
             //Debug.WriteLine("Rendering Scene Cam Position : {0}", this.cam.Position);
             //Debug.WriteLine("Rendering Scene Cam Orientation: {0}", this.cam.Orientation);
 
-            if (this.rootObject != null)
-                traverse_render(this.rootObject);
+            //Render only the first scene for now
+            if (this.sceneGraph[0] != null)
+                traverse_render(this.sceneGraph[0]);
             
             //Render Info
 
@@ -310,31 +315,6 @@ namespace Model_Viewer
         }
 
 
-        //private bool render_object(GMDL.customVBO vbo)
-        //{
-        //    Debug.WriteLine("Rendering VBO Object here");
-
-        //    //Bind vertex buffer
-        //    GL.BindBuffer(BufferTarget.ArrayBuffer, vbo.vertex_buffer_object);
-        //    GL.VertexPointer(3, VertexPointerType.HalfFloat, vbo.vx_size, vbo.vx_stride);
-
-        //    int vpos;
-        //    //Vertex attribute
-        //    vpos = GL.GetAttribLocation(this.shader_program,"vPosition");
-        //    GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.HalfFloat,false, vbo.vx_size, vbo.vx_stride);
-        //    GL.EnableVertexAttribArray(vpos);
-
-        //    //Normal Attribute
-        //    vpos = GL.GetAttribLocation(this.shader_program, "nPosition");
-        //    GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.HalfFloat, false, vbo.vx_size, vbo.n_stride);
-        //    GL.EnableVertexAttribArray(vpos);
-
-        //    //Render Elements
-        //    GL.DrawElements(BeginMode.Triangles, vbo.iCount, DrawElementsType.UnsignedShort, 0);
-
-        //    return true;
-        //}
-        
         private void CreateShaders(string vs,string fs, out int vertexObject, 
             out int fragmentObject, out int program)
         {
@@ -418,7 +398,7 @@ namespace Model_Viewer
         {
             //Debug.WriteLine("{0} {1}", e.Node.Checked, e.Node.Index);
             //Toggle Renderability of node
-            traverse_oblist_rs(this.rootObject, this.index_dict[e.Node.Text], e.Node.Checked);
+            traverse_oblist_rs(this.sceneGraph[0], this.index_dict[e.Node.Text], e.Node.Checked);
             //Handle Children in treeview
             if (this.tvchkstat == treeviewCheckStatus.Children)
             {
@@ -461,7 +441,7 @@ namespace Model_Viewer
                         {
                             GMDL.Joint temp = (GMDL.Joint) child;
                             this.joint_dict.Add(child.name, child);
-                            insertMatToArray(this.JMArray, temp.jointIndex*16, temp.worldMat);
+                            Util.insertMatToArray(this.JMArray, temp.jointIndex*16, temp.worldMat);
                             //Insert color to joint color array
                             JColors[temp.jointIndex * 3 + 0] = temp.color.X;
                             JColors[temp.jointIndex * 3 + 1] = temp.color.Y;
@@ -610,27 +590,6 @@ namespace Model_Viewer
         }
 
 
-        private GMDL.model collectPart(List<GMDL.model> coll, string name)
-        {
-            foreach (GMDL.model child in coll)
-            {
-                if (child.name == name)
-                {
-                    return child;
-                }
-                else
-                {
-                    
-                    GMDL.model ret = collectPart(child.children, name);
-                    if (ret != null)
-                        return ret;
-                    else
-                        continue;
-                } 
-            }
-            return null;
-        }
-
         private void randgenClickNew(object sender, EventArgs e)
         {
             //Construct Descriptor Path
@@ -662,23 +621,21 @@ namespace Model_Viewer
             descrXml.Load(exmlPath);
             XmlElement root = (XmlElement) descrXml.ChildNodes[1].ChildNodes[0];
 
-            List<List<GMDL.model>> allparts = new List<List<GMDL.model>>();
+            List<GMDL.model> allparts = new List<GMDL.model>();
 
             //Create 12 random instances
             for (int k = 0; k < 15; k++)
             {
                 List<string> parts = new List<string>();
                 ModelProcGen.parse_descriptor(ref parts, root);
+                //Explicitly add ROOT_LOC on parts
+                parts.Insert(0, "ROOT_LOC");
 
-                List<GMDL.model> vboparts = new List<GMDL.model>();
-                ModelProcGen.get_procgen_parts(ref vboparts, ref parts, this.rootObject);
+                GMDL.model rootObject;
+                Debug.WriteLine("Run {0}", k);
+                rootObject = ModelProcGen.get_procgen_parts(ref parts, this.sceneGraph[0]);
 
-                Debug.WriteLine("Run {0}",k);
-                foreach (GMDL.model m in vboparts)
-                    Debug.WriteLine(m.name);
-                
-
-                allparts.Add(vboparts);
+                allparts.Add(rootObject);
             }
 
             Form vpwin = new Form();
@@ -713,9 +670,11 @@ namespace Model_Viewer
                 for (int j = 0; j < table.ColumnCount; j++)
                 {
                     CGLControl n = new CGLControl(i * table.ColumnCount + j);
-                    n.objects = allparts[i * table.ColumnCount + j];
+                    n.rootObject = allparts[i * table.ColumnCount + j];
                     n.shader_programs = shader_programs;
-
+                    //Upload Joint Data
+                    n.JMArray = (float[]) JMArray.Clone();
+                    n.joint_dict = joint_dict;
                     n.SetupItems();
                     table.Controls.Add(n, j, i);
                     ctlist.Add(n);
@@ -751,7 +710,7 @@ namespace Model_Viewer
                 List<GMDL.model> vboParts = new List<GMDL.model>();
                 for (int i = 0; i < parts.Count; i++)
                 {
-                    GMDL.model part = collectPart(this.rootObject.children, parts[i]);
+                    GMDL.model part = ModelProcGen.collectPart(this.sceneGraph[0].children, parts[i]);
                     GMDL.model npart = (GMDL.model)part.Clone();
                     npart.children.Clear();
                     vboParts.Add(npart);
@@ -874,7 +833,7 @@ namespace Model_Viewer
             foreach (GMDL.model joint in joint_dict.Values)
             {
                 GMDL.Joint j = (GMDL.Joint) joint;
-                insertMatToArray(JMArray, j.jointIndex * 16, j.worldMat);
+                Util.insertMatToArray(JMArray, j.jointIndex * 16, j.worldMat);
             }
 
             glControl1.Invalidate();
@@ -925,27 +884,7 @@ namespace Model_Viewer
             frameBox.Value = e.ProgressPercentage;
         }
 
-        //Add matrix to JMArray
-        private void insertMatToArray(float[] array, int offset, Matrix4 mat)
-        {
-            //mat.Transpose();//Transpose Matrix Testing
-            array[offset + 0] = mat.M11;
-            array[offset + 1] = mat.M12;
-            array[offset + 2] = mat.M13;
-            array[offset + 3] = mat.M14;
-            array[offset + 4] = mat.M21;
-            array[offset + 5] = mat.M22;
-            array[offset + 6] = mat.M23;
-            array[offset + 7] = mat.M24;
-            array[offset + 8] = mat.M31;
-            array[offset + 9] = mat.M32;
-            array[offset + 10] = mat.M33;
-            array[offset + 11] = mat.M34;
-            array[offset + 12] = mat.M41;
-            array[offset + 13] = mat.M42;
-            array[offset + 14] = mat.M43;
-            array[offset + 15] = mat.M44;
-        }
+        
 
         
     }

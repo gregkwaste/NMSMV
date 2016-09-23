@@ -13,8 +13,8 @@ namespace Model_Viewer
     public static class Util
     {
         public static readonly Random randgen = new Random();
-        public static string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
-        //public static string dirpath = "C:\\Users\\greg\\Source\\Repos\\nms-viewer\\Model Viewer\\Samples";
+        //public static string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
+        public static string dirpath = "C:\\Users\\greg\\Source\\Repos\\nms-viewer\\Model Viewer\\Samples";
 
         public static float[] mulMatArrays(float[] lmat1, float[] lmat2, int count)
         {
@@ -22,7 +22,6 @@ namespace Model_Viewer
             for (int i = 0; i < count; i++)
             {
                 int off = 16 * i;
-
                 for (int j = 0; j < 4; j++)
                     for (int k = 0; k < 4; k++)
                         for (int m = 0; m < 4; m++)
@@ -30,6 +29,28 @@ namespace Model_Viewer
             }
 
             return res;
+        }
+
+        //Add matrix to JMArray
+        public static void insertMatToArray(float[] array, int offset, Matrix4 mat)
+        {
+            //mat.Transpose();//Transpose Matrix Testing
+            array[offset + 0] = mat.M11;
+            array[offset + 1] = mat.M12;
+            array[offset + 2] = mat.M13;
+            array[offset + 3] = mat.M14;
+            array[offset + 4] = mat.M21;
+            array[offset + 5] = mat.M22;
+            array[offset + 6] = mat.M23;
+            array[offset + 7] = mat.M24;
+            array[offset + 8] = mat.M31;
+            array[offset + 9] = mat.M32;
+            array[offset + 10] = mat.M33;
+            array[offset + 11] = mat.M34;
+            array[offset + 12] = mat.M41;
+            array[offset + 13] = mat.M42;
+            array[offset + 14] = mat.M43;
+            array[offset + 15] = mat.M44;
         }
     }
 
@@ -1218,51 +1239,93 @@ namespace Model_Viewer
         }
 
 
-        public static void get_procgen_parts(ref List<GMDL.model> vboparts, ref List<string> descriptors,GMDL.model root)
+        public static GMDL.model get_procgen_parts(ref List<string> descriptors, GMDL.model root)
         {
+            //Make deep copy of root 
+            GMDL.model newRoot = root.Clone();
+
+            //PHASE 1
+            //Flag Procgen parts
+            get_procgen_parts_phase1(ref descriptors, newRoot);
+            //PHASE 2
+            //Save all candidates for removal
+            List<string> childDelList = new List<string>();
+            get_procgen_parts_phase2(ref childDelList, newRoot);
+            //PHASE 3
+            //Remove candidates
+            get_procgen_parts_phase3(childDelList, newRoot);
+            
+
+
+            return newRoot;
+        }
+
+        public static void get_procgen_parts_phase1(ref List<string> descriptors, GMDL.model root)
+        {
+            //During phase one all procgen parts are flagged
             foreach (GMDL.model child in root.children)
             {
                 //Identify Descriptors
-                if (child.name.StartsWith("_")){
-                    //Check if descriptor selected
-                    if (descriptors.Contains(child.name))
+                if (child.name.StartsWith("_"))
+                {
+                    for (int i = 0; i < descriptors.Count; i++)
                     {
-                        GMDL.model vbopart = child.Clone();
-                        vbopart.children.Clear();
-                        vboparts.Add(vbopart);
-
-                        //iterate into Descriptor children
-                        get_procgen_parts(ref vboparts, ref descriptors, child);
-                    }
-                    else //This check is done to catch the case where there is also a Shape object in the scene
-                    {
-                        for (int i=0; i< descriptors.Count; i++)
+                        if (child.name.Contains(descriptors[i]))
                         {
-                            if (child.name.Contains(descriptors[i]))
-                            {
-                                GMDL.model vbopart = child.Clone();
-                                vbopart.children.Clear();
-                                vboparts.Add(vbopart);
-
-                                //iterate into Descriptor children
-                                get_procgen_parts(ref vboparts, ref descriptors, child);
-                            }
+                            child.procFlag = true;
+                            //Debug.WriteLine("Setting Flag on " + child.name);
+                            //iterate into Descriptor children
+                            get_procgen_parts_phase1(ref descriptors, child);
                         }
                     }
-                } 
-                //Standard part
+                }
+                //DO FLAG JOINTS
+                else if (child.type == "JOINT")
+                    continue;
+                //Standard part, Endpoint as well
                 else
                 {
-                    //Add part to partlist if not Joint
-
-                    if (child.type != "JOINT" & child.type !="LIGHT" & child.type != "COLLISION")
+                    //Add part to partlist if not Joint, Light or Collision
+                    if (child.type != "JOINT" & child.type != "LIGHT" & child.type != "COLLISION")
                     {
-                        GMDL.model vbopart = child.Clone();
-                        vbopart.children.Clear();
-                        vboparts.Add(vbopart);
+                        child.procFlag = true;
+                        //Debug.WriteLine("Setting Flag on " + child.name);
                     }
                 }
+            }
+        }
 
+        public static void get_procgen_parts_phase2(ref List<string> dellist, GMDL.model root)
+        {
+            foreach (GMDL.model child in root.children)
+            {
+                //string path = "";
+                //List<int> hpath = child.hpath();
+                //for (int i = 0; i < hpath.Count; i++)
+                //    path += " "+ hpath[i];
+                if (!child.procFlag)
+                {
+                    //Delete candidate
+                    //Save it to the dellist
+                    //Debug.WriteLine("Deleting: \t" + child.name + " PATH: " + path);
+                    dellist.Add(child.name);
+                }
+                else
+                {
+                    get_procgen_parts_phase2(ref dellist, child);
+                }
+            }   
+        }
+        public static void get_procgen_parts_phase3(List<string> dellist, GMDL.model root)
+        {
+            for (int i = 0; i < dellist.Count; i++)
+            {
+                string part_name = dellist[i];
+                GMDL.model child;
+                child = collectPart(root.children, part_name);
+
+                GMDL.model parent = child.parent;
+                parent.children.Remove(child);
             }
         }
 
@@ -1286,6 +1349,27 @@ namespace Model_Viewer
                 
 
             }
+        }
+
+        public static GMDL.model collectPart(List<GMDL.model> coll, string name)
+        {
+            foreach (GMDL.model child in coll)
+            {
+                if (child.name == name)
+                {
+                    return child;
+                }
+                else
+                {
+
+                    GMDL.model ret = collectPart(child.children, name);
+                    if (ret != null)
+                        return ret;
+                    else
+                        continue;
+                }
+            }
+            return null;
         }
     }
 
