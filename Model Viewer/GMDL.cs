@@ -17,7 +17,7 @@ namespace GMDL
         public bool renderable = true;
         public int shader_program = -1;
         public int index;
-        public string type = "";
+        public TYPES type;
         public string name = "";
         public GMDL.Material material;
         public List<model> children = new List<model>();

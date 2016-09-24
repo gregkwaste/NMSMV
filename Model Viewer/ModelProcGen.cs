@@ -1280,13 +1280,13 @@ namespace Model_Viewer
                     }
                 }
                 //DO FLAG JOINTS
-                else if (child.type == "JOINT")
+                else if (child.type == TYPES.JOINT)
                     continue;
                 //Standard part, Endpoint as well
                 else
                 {
                     //Add part to partlist if not Joint, Light or Collision
-                    if (child.type != "JOINT" & child.type != "LIGHT" & child.type != "COLLISION")
+                    if (child.type != TYPES.JOINT & child.type != TYPES.LIGHT & child.type != TYPES.COLLISION)
                     {
                         child.procFlag = true;
                         //Debug.WriteLine("Setting Flag on " + child.name);

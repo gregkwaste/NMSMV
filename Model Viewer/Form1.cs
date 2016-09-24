@@ -31,7 +31,6 @@ namespace Model_Viewer
         private float light_angle_x = 0.0f;
         private float light_distance = 5.0f;
         private float scale = 1.0f;
-        private int[] shader_programs;
         //Mouse Pos
         private int mouse_x;
         private int mouse_y;
@@ -51,7 +50,8 @@ namespace Model_Viewer
 
         private List<GMDL.GeomObject> geomobjects = new List<GMDL.GeomObject>();
         private List<GMDL.model> vboobjects = new List<GMDL.model>();
-        private GMDL.model rootObject;
+        //private GMDL.model rootObject;
+        private List<GMDL.model> scenes = new List<GMDL.model>();
         private XmlDocument xmlDoc;
         private Dictionary<string, int> index_dict = new Dictionary<string, int>();
         private Dictionary<string, GMDL.model> joint_dict = new Dictionary<string, GMDL.model>();
@@ -89,11 +89,11 @@ namespace Model_Viewer
             var ext = split[split.Length - 1].ToUpper();
             Debug.WriteLine(ext);
 
-            //if (ext != "MBIN")
-            //{
-            //    Debug.WriteLine("Not an MBIN file");
-            //    return;
-            //}
+            if (ext != "MBIN")
+            {
+                Debug.WriteLine("Not an MBIN file");
+                return;
+            }
 
             var fs = new FileStream(filename, FileMode.Open);
             //geomobjects.Add(GEOMMBIN.Parse(fs));
@@ -105,26 +105,29 @@ namespace Model_Viewer
             //Parse the Scene XML file
             Debug.WriteLine("Parsing SCENE XML");
             this.xmlDoc = SCENEMBIN.Parse(fs);
-            
+
             //Store path locally for now
             //string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
-
-            this.rootObject = GEOMMBIN.LoadObjects(Util.dirpath, this.xmlDoc, shader_programs);
-            this.rootObject.index = this.childCounter;
+            GMDL.model scene;
+            //scene = GEOMMBIN.LoadObjects(Util.dirpath, this.xmlDoc, ResourceMgmt.shader_programs);
+            scene = GEOMMBIN.LoadObjects(this.xmlDoc);
+            scene.index = this.childCounter;
+            this.scenes.Clear();
+            this.scenes.Add(scene);
             this.childCounter++;
 
             //Debug.WriteLine("Objects Returned: {0}",oblist.Count);
-            TreeNode node = new TreeNode("ROOT_LOC");
+            TreeNode node = new TreeNode(scene.name);
             node.Checked = true;
             //Clear index dictionary
             index_dict.Clear();
             joint_dict.Clear();
             this.childCounter = 0;
             //Add root to dictionary
-            index_dict["ROOT_LOC"] = this.childCounter;
+            index_dict[scene.name] = this.childCounter;
             this.childCounter += 1;
             //Set indices and TreeNodes 
-            traverse_oblist(this.rootObject, node);
+            traverse_oblist(this.scenes[0], node);
             //Add root to treeview
             treeView1.Nodes.Clear();
             treeView1.Nodes.Add(node);
@@ -185,11 +188,13 @@ namespace Model_Viewer
                     out fragment_shader_loc, out shader_program_loc);
 
             //Populate shader list
-            this.shader_programs = new int[2] { this.shader_program_ob, this.shader_program_loc };
-            Debug.WriteLine("Programs {0} {1}", shader_programs[0], shader_programs[1]);
-            this.rootObject = new GMDL.locator();
-            this.rootObject.shader_program = shader_programs[1];
-            this.rootObject.index = this.childCounter;
+            ResourceMgmt.shader_programs = new int[2] { this.shader_program_ob, this.shader_program_loc };
+            Debug.WriteLine("Programs {0} {1}", ResourceMgmt.shader_programs[0], ResourceMgmt.shader_programs[1]);
+            GMDL.model scene = new GMDL.locator();
+            scene.shader_program = ResourceMgmt.shader_programs[1];
+            scene.index = this.childCounter;
+
+            this.scenes.Add(scene);
             this.childCounter++;
             TreeNode node = new TreeNode("ORIGIN");
             node.Checked = true;
@@ -297,8 +302,9 @@ namespace Model_Viewer
             //Debug.WriteLine("Rendering Scene Cam Position : {0}", this.cam.Position);
             //Debug.WriteLine("Rendering Scene Cam Orientation: {0}", this.cam.Orientation);
 
-            if (this.rootObject != null)
-                traverse_render(this.rootObject);
+            //Render only the first scene for now
+            if (this.scenes[0] != null)
+                traverse_render(this.scenes[0]);
             
             //Render Info
 
@@ -423,7 +429,7 @@ namespace Model_Viewer
         {
             //Debug.WriteLine("{0} {1}", e.Node.Checked, e.Node.Index);
             //Toggle Renderability of node
-            traverse_oblist_rs(this.rootObject, this.index_dict[e.Node.Text], e.Node.Checked);
+            traverse_oblist_rs(this.scenes[0], this.index_dict[e.Node.Text], e.Node.Checked);
             //Handle Children in treeview
             if (this.tvchkstat == treeviewCheckStatus.Children)
             {
@@ -448,7 +454,7 @@ namespace Model_Viewer
                 foreach (GMDL.model child in ob.children)
                 {
                     //Keep only Meshes, Locators and Joints
-                    if (child.type != "MESH" & child.type != "LOCATOR" & child.type !="JOINT")
+                    if (child.type != TYPES.MESH & child.type != TYPES.LOCATOR & child.type != TYPES.JOINT)
                         continue;
                     //Check if Shape object
                     //if (child.Name.Contains("Shape"))
@@ -462,7 +468,7 @@ namespace Model_Viewer
                         child.index = this.childCounter;
                         this.index_dict.Add(child.name, child.index);
                         //Add only joints to joint dictionary
-                        if (child.type == "JOINT")
+                        if (child.type == TYPES.JOINT)
                         {
                             GMDL.Joint temp = (GMDL.Joint) child;
                             this.joint_dict.Add(child.name, child);
@@ -547,7 +553,7 @@ namespace Model_Viewer
             loc = GL.GetUniformLocation(root.shader_program, "theta");
             GL.Uniform3(loc, this.rot);
 
-            if (root.shader_program == shader_programs[0])
+            if (root.shader_program == ResourceMgmt.shader_programs[0])
             {
                 //Object program
                 //Local Transformation is the same for all objects 
@@ -580,7 +586,7 @@ namespace Model_Viewer
                 GL.Uniform3(loc, 60, JColors);
 
 
-            } else if (root.shader_program == shader_programs[1])
+            } else if (root.shader_program == ResourceMgmt.shader_programs[1])
             {
                 //Locator Program
             }
@@ -713,11 +719,11 @@ namespace Model_Viewer
                     ModelProcGen.parse_descriptor(ref parts, root);
 
                     GMDL.model m;
-                    m = ModelProcGen.get_procgen_parts(ref parts, this.rootObject);
+                    m = ModelProcGen.get_procgen_parts(ref parts, this.scenes[0]);
                     //----PROC GENERATION----
 
                     n.rootObject = m;
-                    n.shader_programs = shader_programs;
+                    n.shader_programs = ResourceMgmt.shader_programs;
 
                     //Send animation data
                     n.JMArray = (float[])JMArray.Clone();
@@ -761,7 +767,7 @@ namespace Model_Viewer
                 List<GMDL.model> vboParts = new List<GMDL.model>();
                 for (int i = 0; i < parts.Count; i++)
                 {
-                    GMDL.model part = collectPart(this.rootObject.children, parts[i]);
+                    GMDL.model part = collectPart(this.scenes[0].children, parts[i]);
                     GMDL.model npart = (GMDL.model)part.Clone();
                     npart.children.Clear();
                     vboParts.Add(npart);
@@ -808,7 +814,7 @@ namespace Model_Viewer
                 {
                     CGLControl n = new CGLControl(i * table.ColumnCount + j);
                     n.objects = allparts[i * table.ColumnCount + j];
-                    n.shader_programs = shader_programs;
+                    n.shader_programs = ResourceMgmt.shader_programs;
                     table.Controls.Add(n, j, i);
                     ctlist.Add(n);
                 }
@@ -956,5 +962,7 @@ namespace Model_Viewer
     public static class ResourceMgmt
     {
         public static Dictionary<string, GMDL.Texture> GLtextures = new Dictionary<string, GMDL.Texture>();
+
+        public static int[] shader_programs;
     }
 }

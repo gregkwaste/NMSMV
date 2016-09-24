@@ -4,7 +4,7 @@ using System.Xml;
 using System.Collections.Generic;
 using System;
 using OpenTK;
-
+using Model_Viewer;
 
 public static class ANIMMBIN
 {
@@ -19,6 +19,17 @@ public static class ANIMMBIN
 
         return xml;
     }
+}
+
+public enum TYPES
+{
+    MESH=0x0,
+    LOCATOR,
+    JOINT,
+    LIGHT,
+    COLLISION,
+    SCENE,
+    UNKNOWN
 }
 
 public static class SCENEMBIN
@@ -37,6 +48,7 @@ public static class SCENEMBIN
         charbuffer = br.ReadChars(0x48);
         //Read Directory Type
         charbuffer = br.ReadChars(0x80);
+        string scene_name = new string(charbuffer);
         //Read What the file is about
         charbuffer = br.ReadChars(0x10);
         fs.Seek(0x28, SeekOrigin.Current);
@@ -58,6 +70,11 @@ public static class SCENEMBIN
         XmlElement el, root;
         root = xml.CreateElement("ROOT");
         xml.AppendChild(root);
+
+        el = xml.CreateElement("SCENE");
+        el.InnerText = scene_name.Split('\0')[0];
+        root.AppendChild(el);
+
         el = xml.CreateElement("GEOMETRY");
         el.InnerText = geometry_file_name.Split('\0')[0];
         root.AppendChild(el);
@@ -614,15 +631,19 @@ public static class GEOMMBIN{
 
     }
 
-    public static GMDL.model LoadObjects(string dirpath, XmlDocument xml, int[] shader_programs)
+    public static GMDL.model LoadObjects(XmlDocument xml)
     {
         Debug.WriteLine("Loading Objects from XML");
-        List<GMDL.model> objects = new List<GMDL.model>();
+        //Get Scene Name
+        XmlElement SceneName = (XmlElement) xml.SelectSingleNode("ROOT/SCENE");
+        string[] split = SceneName.InnerText.Split('\\');
+        string scnName = split[split.Length - 1];
+        Debug.WriteLine("Importing Scene: " + scnName);
 
-        //Try to load geometry file
-        string geom_file = xml.FirstChild.ChildNodes[0].InnerText;
+        //Get Geometry File
+        XmlElement geom = (XmlElement)xml.SelectSingleNode("ROOT/GEOMETRY"); 
         //Parse geometry once
-        FileStream fs = new FileStream(Path.Combine(dirpath, geom_file) + ".PC", FileMode.Open);
+        FileStream fs = new FileStream(Path.Combine(Util.dirpath, geom.InnerText) + ".PC", FileMode.Open);
         GMDL.customVBO cvbo = new GMDL.customVBO(GEOMMBIN.Parse(fs));
         fs.Close();
 
@@ -631,20 +652,20 @@ public static class GEOMMBIN{
         
         //Create Root
         GMDL.locator root = new GMDL.locator();
-        root.name = "ROOT_LOC";
-        root.type = "LOCATOR";
-        root.shader_program = shader_programs[1];
+        root.name = scnName;
+        root.type = TYPES.SCENE;
+        root.shader_program = ResourceMgmt.shader_programs[1];
 
         //Store sections node
-        XmlNode sections = xml.FirstChild.ChildNodes[1];
+        XmlNode sections = xml.FirstChild.ChildNodes[2];
         foreach (XmlElement node in sections)
-            root.children.Add(parseNode(node, cvbo, shader_programs, root));
+            root.children.Add(parseNode(node, cvbo, root));
         
         return root;
     }
 
        private static GMDL.model parseNode(XmlElement node, 
-           GMDL.customVBO cvbo, int[] shader_programs, GMDL.model parent)
+           GMDL.customVBO cvbo, GMDL.model parent)
         {
         XmlElement info,opts,childs;
         info = (XmlElement)node.SelectSingleNode(".//INFO");
@@ -660,9 +681,11 @@ public static class GEOMMBIN{
         if (name.StartsWith("_"))
             name = "_" + name.TrimStart('_');
 
+        TYPES typeEnum;
         string type = info.ChildNodes[1].InnerText;
+        Enum.TryParse<TYPES>(type, out typeEnum);
 
-        if (type == "MESH")
+        if (typeEnum == TYPES.MESH)
         {
             Debug.WriteLine("Mesh Detected " + name);
 
@@ -671,9 +694,9 @@ public static class GEOMMBIN{
 
             //Set cvbo
             so.vbo = cvbo;
-            so.shader_program = shader_programs[0];
+            so.shader_program = ResourceMgmt.shader_programs[0];
             so.name = name;
-            so.type = type;
+            so.type = typeEnum;
             //Set Random Color
             so.color[0] = Model_Viewer.Util.randgen.Next(255) / 255.0f;
             so.color[1] = Model_Viewer.Util.randgen.Next(255) / 255.0f;
@@ -726,23 +749,23 @@ public static class GEOMMBIN{
                 Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
-                    so.children.Add(parseNode(childnode, cvbo, shader_programs, so));
+                    so.children.Add(parseNode(childnode, cvbo, so));
                 }
             }
             
 
             return so;
         }
-        else if (type == "LOCATOR")
+        else if (typeEnum == TYPES.LOCATOR)
         {
             Debug.WriteLine("Locator Detected");
             GMDL.locator so = new GMDL.locator();
             //Set Properties
             //Testingso.Name = name + "_LOC";
             so.name = name;
-            so.type = type;
+            so.type = typeEnum;
             //Set Shader Program
-            so.shader_program = shader_programs[1];
+            so.shader_program = ResourceMgmt.shader_programs[1];
 
             //Get Transformation
             XmlElement opt = (XmlElement)info.SelectSingleNode(".//TRANSMAT");
@@ -757,20 +780,20 @@ public static class GEOMMBIN{
                 Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
-                    so.children.Add(parseNode(childnode, cvbo, shader_programs, so));
+                    so.children.Add(parseNode(childnode, cvbo, so));
                 }
             }
 
             return so;
         }
-        else if (type == "JOINT")
+        else if (typeEnum == TYPES.JOINT)
         {
             Debug.WriteLine("Joint Detected");
             GMDL.Joint joint = new GMDL.Joint();
             //Set properties
             joint.name = name.ToUpper();
-            joint.type = "JOINT";
-            joint.shader_program = shader_programs[1];
+            joint.type = typeEnum;
+            joint.shader_program = ResourceMgmt.shader_programs[1];
             //Get Transformation
             XmlElement opt = (XmlElement) info.SelectSingleNode(".//TRANSMAT");
             joint.parent = parent;
@@ -788,7 +811,7 @@ public static class GEOMMBIN{
             {
                 Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
-                    joint.children.Add(parseNode(childnode, cvbo, shader_programs, joint));
+                    joint.children.Add(parseNode(childnode, cvbo, joint));
             }
             
             return joint;
@@ -799,9 +822,9 @@ public static class GEOMMBIN{
             GMDL.locator so = new GMDL.locator();
             //Set Properties
             so.name = name + "_UNKNOWN";
-            so.type = type;
+            so.type = TYPES.UNKNOWN;
             //Set Shader Program
-            so.shader_program = shader_programs[1];
+            so.shader_program = ResourceMgmt.shader_programs[1];
 
             //Locator Objects don't have options
 
