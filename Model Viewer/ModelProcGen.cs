@@ -13,8 +13,8 @@ namespace Model_Viewer
     public static class Util
     {
         public static readonly Random randgen = new Random();
-        //public static string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
-        public static string dirpath = "C:\\Users\\greg\\Source\\Repos\\nms-viewer\\Model Viewer\\Samples";
+        public static string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
+        //public static string dirpath = "C:\\Users\\greg\\Source\\Repos\\nms-viewer\\Model Viewer\\Samples";
 
         public static float[] mulMatArrays(float[] lmat1, float[] lmat2, int count)
         {

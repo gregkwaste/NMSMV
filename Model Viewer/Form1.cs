@@ -7,6 +7,7 @@ using OpenTK.Graphics.OpenGL;
 using System.Collections.Generic;
 using System.Xml;
 
+
 namespace Model_Viewer
 {
 
@@ -50,7 +51,7 @@ namespace Model_Viewer
 
         private List<GMDL.GeomObject> geomobjects = new List<GMDL.GeomObject>();
         private List<GMDL.model> vboobjects = new List<GMDL.model>();
-        private List<GMDL.model> sceneGraph = new List<GMDL.model>();
+        private GMDL.model rootObject;
         private XmlDocument xmlDoc;
         private Dictionary<string, int> index_dict = new Dictionary<string, int>();
         private Dictionary<string, GMDL.model> joint_dict = new Dictionary<string, GMDL.model>();
@@ -65,8 +66,9 @@ namespace Model_Viewer
 
         //Path
         private string mainFilePath;
-
-
+        //Private Settings Window
+        private SettingsForm Settings = new SettingsForm(); 
+        
 
         public Form1()
         {
@@ -107,10 +109,8 @@ namespace Model_Viewer
             //Store path locally for now
             //string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
 
-            GMDL.model scene = GEOMMBIN.LoadObjects(Util.dirpath, this.xmlDoc, shader_programs);
-            scene.index = this.childCounter;
-            this.sceneGraph.Clear();
-            this.sceneGraph.Add(scene);
+            this.rootObject = GEOMMBIN.LoadObjects(Util.dirpath, this.xmlDoc, shader_programs);
+            this.rootObject.index = this.childCounter;
             this.childCounter++;
 
             //Debug.WriteLine("Objects Returned: {0}",oblist.Count);
@@ -124,7 +124,7 @@ namespace Model_Viewer
             index_dict["ROOT_LOC"] = this.childCounter;
             this.childCounter += 1;
             //Set indices and TreeNodes 
-            traverse_oblist(this.sceneGraph[0], node);
+            traverse_oblist(this.rootObject, node);
             //Add root to treeview
             treeView1.Nodes.Clear();
             treeView1.Nodes.Add(node);
@@ -187,11 +187,9 @@ namespace Model_Viewer
             //Populate shader list
             this.shader_programs = new int[2] { this.shader_program_ob, this.shader_program_loc };
             Debug.WriteLine("Programs {0} {1}", shader_programs[0], shader_programs[1]);
-            GMDL.model scene;
-            scene = new GMDL.locator();
-            scene.shader_program = shader_programs[1];
-            scene.index = this.childCounter;
-            this.sceneGraph.Add(scene);
+            this.rootObject = new GMDL.locator();
+            this.rootObject.shader_program = shader_programs[1];
+            this.rootObject.index = this.childCounter;
             this.childCounter++;
             TreeNode node = new TreeNode("ORIGIN");
             node.Checked = true;
@@ -207,6 +205,9 @@ namespace Model_Viewer
                 var caps = OpenTK.Input.GamePad.GetCapabilities(i);
                 Debug.WriteLine(caps);
             }
+
+            //Load Settings
+            Settings.loadSettings();
             
         }
 
@@ -296,9 +297,8 @@ namespace Model_Viewer
             //Debug.WriteLine("Rendering Scene Cam Position : {0}", this.cam.Position);
             //Debug.WriteLine("Rendering Scene Cam Orientation: {0}", this.cam.Orientation);
 
-            //Render only the first scene for now
-            if (this.sceneGraph[0] != null)
-                traverse_render(this.sceneGraph[0]);
+            if (this.rootObject != null)
+                traverse_render(this.rootObject);
             
             //Render Info
 
@@ -315,6 +315,31 @@ namespace Model_Viewer
         }
 
 
+        //private bool render_object(GMDL.customVBO vbo)
+        //{
+        //    Debug.WriteLine("Rendering VBO Object here");
+
+        //    //Bind vertex buffer
+        //    GL.BindBuffer(BufferTarget.ArrayBuffer, vbo.vertex_buffer_object);
+        //    GL.VertexPointer(3, VertexPointerType.HalfFloat, vbo.vx_size, vbo.vx_stride);
+
+        //    int vpos;
+        //    //Vertex attribute
+        //    vpos = GL.GetAttribLocation(this.shader_program,"vPosition");
+        //    GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.HalfFloat,false, vbo.vx_size, vbo.vx_stride);
+        //    GL.EnableVertexAttribArray(vpos);
+
+        //    //Normal Attribute
+        //    vpos = GL.GetAttribLocation(this.shader_program, "nPosition");
+        //    GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.HalfFloat, false, vbo.vx_size, vbo.n_stride);
+        //    GL.EnableVertexAttribArray(vpos);
+
+        //    //Render Elements
+        //    GL.DrawElements(BeginMode.Triangles, vbo.iCount, DrawElementsType.UnsignedShort, 0);
+
+        //    return true;
+        //}
+        
         private void CreateShaders(string vs,string fs, out int vertexObject, 
             out int fragmentObject, out int program)
         {
@@ -398,7 +423,7 @@ namespace Model_Viewer
         {
             //Debug.WriteLine("{0} {1}", e.Node.Checked, e.Node.Index);
             //Toggle Renderability of node
-            traverse_oblist_rs(this.sceneGraph[0], this.index_dict[e.Node.Text], e.Node.Checked);
+            traverse_oblist_rs(this.rootObject, this.index_dict[e.Node.Text], e.Node.Checked);
             //Handle Children in treeview
             if (this.tvchkstat == treeviewCheckStatus.Children)
             {
@@ -590,8 +615,31 @@ namespace Model_Viewer
         }
 
 
+        private GMDL.model collectPart(List<GMDL.model> coll, string name)
+        {
+            foreach (GMDL.model child in coll)
+            {
+                if (child.name == name)
+                {
+                    return child;
+                }
+                else
+                {
+                    
+                    GMDL.model ret = collectPart(child.children, name);
+                    if (ret != null)
+                        return ret;
+                    else
+                        continue;
+                } 
+            }
+            return null;
+        }
+
         private void randgenClickNew(object sender, EventArgs e)
         {
+            GC.Collect();
+            
             //Construct Descriptor Path
             string[] split = mainFilePath.Split('.');
             string descrpath = "";
@@ -615,38 +663,26 @@ namespace Model_Viewer
                 proc.WaitForExit();
             }
             
-
             //Parse exml now
             XmlDocument descrXml = new XmlDocument();
             descrXml.Load(exmlPath);
             XmlElement root = (XmlElement) descrXml.ChildNodes[1].ChildNodes[0];
 
-            List<GMDL.model> allparts = new List<GMDL.model>();
+            //List<GMDL.model> allparts = new List<GMDL.model>();
 
-            //Create 12 random instances
-            for (int k = 0; k < 15; k++)
-            {
-                List<string> parts = new List<string>();
-                ModelProcGen.parse_descriptor(ref parts, root);
-                //Explicitly add ROOT_LOC on parts
-                parts.Insert(0, "ROOT_LOC");
+            //Revise Procgen Creation
 
-                GMDL.model rootObject;
-                Debug.WriteLine("Run {0}", k);
-                rootObject = ModelProcGen.get_procgen_parts(ref parts, this.sceneGraph[0]);
-
-                allparts.Add(rootObject);
-            }
-
+            //First Create the form and the table
             Form vpwin = new Form();
+            vpwin.Text = "Procedural Generated Models";
             // no smaller than design time size
-            vpwin.MinimumSize = new System.Drawing.Size(5 * 128, 3 * 128);
+            vpwin.MinimumSize = new System.Drawing.Size(5 * 300, 3 * 256);
             // no larger than screen size
             vpwin.MaximumSize = new System.Drawing.Size(1920, 1080);
             vpwin.FormBorderStyle = FormBorderStyle.Sizable;
             //vpwin.AutoSize = true;
             //vpwin.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            
+
             TableLayoutPanel table = new TableLayoutPanel();
             table.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             table.RowCount = 3;
@@ -655,43 +691,58 @@ namespace Model_Viewer
             //table.Anchor= AnchorStyles.Bottom
             //table.Anchor = AnchorStyles.Bottom | AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Left;
 
-            List<CGLControl> ctlist = new List<CGLControl>();
-
             //Fix RowStyles
             for (int i = 0; i < table.RowCount; i++)
                 table.RowStyles.Add(new RowStyle(SizeType.Percent, 100F / table.RowCount));
-            
+
             //Fix ColumnStyles
             for (int i = 0; i < table.ColumnCount; i++)
                 table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F / table.ColumnCount));
-            
+
+
             for (int i = 0; i < table.RowCount; i++)
             {
                 for (int j = 0; j < table.ColumnCount; j++)
                 {
+                    //Create New GLControl
                     CGLControl n = new CGLControl(i * table.ColumnCount + j);
-                    n.rootObject = allparts[i * table.ColumnCount + j];
+                    n.MakeCurrent(); //Make current
+
+                    //----PROC GENERATION----
+                    List<string> parts = new List<string>();
+                    ModelProcGen.parse_descriptor(ref parts, root);
+
+                    GMDL.model m;
+                    m = ModelProcGen.get_procgen_parts(ref parts, this.rootObject);
+                    //----PROC GENERATION----
+
+                    n.rootObject = m;
                     n.shader_programs = shader_programs;
-                    //Upload Joint Data
-                    n.JMArray = (float[]) JMArray.Clone();
-                    n.joint_dict = joint_dict;
+
+                    //Send animation data
+                    n.JMArray = (float[])JMArray.Clone();
+
+                    Dictionary<string, GMDL.model> clonedDict = new Dictionary<string, GMDL.model>();
+                    cloneJointDict(ref clonedDict, joint_dict["ROOT"].Clone());
+                    n.joint_dict = clonedDict;
+
                     n.SetupItems();
                     table.Controls.Add(n, j, i);
-                    ctlist.Add(n);
+                    n.Invalidate();
                 }
             }
 
             vpwin.Controls.Add(table);
-
             vpwin.Show();
-
-            foreach (GLControl ctl in ctlist)
-            {
-                ctl.Invalidate();
-            }
-
+            
         }
 
+        private void cloneJointDict(ref Dictionary<string,GMDL.model> jointdict, GMDL.model root)
+        {
+            jointdict[root.name] = root;
+            foreach (GMDL.model child in root.children)
+                cloneJointDict(ref jointdict, child);
+        }
 
         private void randomgenerator_Click(object sender, EventArgs e)
         {
@@ -710,7 +761,7 @@ namespace Model_Viewer
                 List<GMDL.model> vboParts = new List<GMDL.model>();
                 for (int i = 0; i < parts.Count; i++)
                 {
-                    GMDL.model part = ModelProcGen.collectPart(this.sceneGraph[0].children, parts[i]);
+                    GMDL.model part = collectPart(this.rootObject.children, parts[i]);
                     GMDL.model npart = (GMDL.model)part.Clone();
                     npart.children.Clear();
                     vboParts.Add(npart);
@@ -884,11 +935,23 @@ namespace Model_Viewer
             frameBox.Value = e.ProgressPercentage;
         }
 
-        
+        private void menuStrip1_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
+        {
 
-        
+        }
+
+        private void settingsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Settings.Show();
+        }
+
+        private void aboutToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Form about = new AboutDialog();
+            about.Show();
+        }
     }
-    
+
     //Class Which will store all the texture resources for better memory management
     public static class ResourceMgmt
     {

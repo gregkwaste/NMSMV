@@ -33,7 +33,7 @@ namespace Model_Viewer
         private Dictionary<string,Dictionary<string,Vector3>> palette;
 
         //Animation Stuff
-        private int currentFrame;
+        private int currentFrame = 0;
         private bool animationStatus = false;
         //Animation Meta
         public GMDL.AnimeMetaData meta = new GMDL.AnimeMetaData();
@@ -345,6 +345,7 @@ namespace Model_Viewer
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.Name = "CGLControl";
+            this.Size = new System.Drawing.Size(314, 213);
             this.contextMenuStrip1.ResumeLayout(false);
             this.ResumeLayout(false);
 

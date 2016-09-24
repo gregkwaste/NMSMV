@@ -10,7 +10,7 @@ using System.Xml;
 
 namespace GMDL
 {
-    public abstract class model
+    public abstract class model: IDisposable
     {
         public abstract bool render();
         public abstract GMDL.model Clone();
@@ -80,6 +80,9 @@ namespace GMDL
 
         public model parent;
         public int cIndex = 0;
+        //Disposable Stuff
+        bool disposed = false;
+        Microsoft.Win32.SafeHandles.SafeFileHandle handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(IntPtr.Zero, true);
 
         public static void vectofloatArray(float[] flist, List<Vector3> veclist)
         {
@@ -158,6 +161,34 @@ namespace GMDL
             return list;
         }
 
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposed)
+                return;
+
+            if (disposing)
+            {
+                handle.Dispose();
+                //Free other resources here
+            }
+
+            //Free unmanaged resources
+
+            disposed = true;
+        }
+
+        ~model()
+        {
+            Dispose(false);
+        }
+
+        
         public void delete()
         {
             if (parent != null)
@@ -248,6 +279,16 @@ namespace GMDL
             ////Upload index buffer
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.element_buffer_object);
             GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr) (sizeof(int) * 6), indices, BufferUsageHint.StaticDraw);
+        }
+
+        //Deconstructor
+        ~locator()
+        {
+            //Debug.WriteLine("Locator Deconstructor"+ this.name);
+            //Cleanup arrays
+            verts = null;
+            indices = null;
+            colors = null;
         }
 
         public override bool render()
@@ -989,13 +1030,21 @@ namespace GMDL
         public int jointIndex;
         public Vector3 color;
 
-
         public Joint()
         {
             //Create Buffers
             GL.GenBuffers(1, out vertex_buffer_object);
             //GL.GenBuffers(1, out color_buffer_object);
             GL.GenBuffers(1, out element_buffer_object);
+        }
+
+        //Deconstructor
+        ~Joint()
+        {
+            //Delete GLBuffers
+            //Debug.WriteLine("Joint Deconstructor");
+            //GL.DeleteBuffer(vertex_buffer_object);
+            //GL.DeleteBuffer(element_buffer_object);
         }
 
         //Empty stuff
@@ -1011,10 +1060,19 @@ namespace GMDL
             copy.element_buffer_object = this.element_buffer_object;
             copy.jointIndex = this.jointIndex;
             copy.color = this.color;
-
+            
+            //Copy Transformations
+            copy.localPosition = this.localPosition;
+            copy.localScale = this.localScale;
+            copy.localRotation = this.localRotation;
+            
             //Clone Children as well
             foreach (GMDL.model child in this.children)
-                copy.children.Add(child.Clone());
+            {
+                GMDL.model nChild = child.Clone();
+                nChild.parent = copy;
+                copy.children.Add(nChild);
+            }
 
             return copy;
         }
