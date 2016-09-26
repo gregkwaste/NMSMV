@@ -33,6 +33,7 @@ namespace Model_Viewer
         private float light_angle_x = 0.0f;
         private float light_distance = 5.0f;
         private float scale = 1.0f;
+        private int movement_speed = 1;
         //Mouse Pos
         private int mouse_x;
         private int mouse_y;
@@ -49,6 +50,10 @@ namespace Model_Viewer
         //int vertex_shader_loc;
         //int fragment_shader_loc;
         //int shader_program_loc;
+
+        //Setup Timer to invalidate the viewport
+        private Timer t;
+        
 
         private List<GMDL.GeomObject> geomobjects = new List<GMDL.GeomObject>();
         private List<GMDL.model> vboobjects = new List<GMDL.model>();
@@ -115,7 +120,15 @@ namespace Model_Viewer
 
             //Initialize Palettes
             Model_Viewer.Palettes.set_palleteColors();
+            
+            splitContainer1.Panel2.Controls.Clear();
+            //Clear opengl
+            ResourceMgmt.GLtextures.Clear();
+            setup_GLControl();
+            splitContainer1.Panel2.Controls.Add(glControl1);
 
+            glControl1.Update();
+            glControl1.MakeCurrent();
             GMDL.model scene;
             scene = GEOMMBIN.LoadObjects(this.xmlDoc);
             scene.index = this.childCounter;
@@ -129,6 +142,7 @@ namespace Model_Viewer
             //Clear index dictionary
             index_dict.Clear();
             joint_dict.Clear();
+            GC.Collect();
             this.childCounter = 0;
             //Add root to dictionary
             index_dict[scene.name] = this.childCounter;
@@ -158,6 +172,25 @@ namespace Model_Viewer
             //Set mouse pos
             mouse_x = 0;
             mouse_y = 0;
+        }
+
+        private void setup_GLControl()
+        {
+            glControl1 = new GLControl();
+            glControl1.Size = new System.Drawing.Size(976, 645);
+            this.glControl1.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+            this.glControl1.BackColor = System.Drawing.Color.Black;
+            this.glControl1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.glControl1.Location = new System.Drawing.Point(0, 0);
+            this.glControl1.MinimumSize = new System.Drawing.Size(256, 256);
+            this.glControl1.VSync = true;
+            this.glControl1.Load += new System.EventHandler(this.glControl_Load);
+            this.glControl1.Paint += new System.Windows.Forms.PaintEventHandler(this.glControl1_Paint);
+            this.glControl1.MouseHover += new System.EventHandler(this.glControl1_MouseHover);
+            this.glControl1.MouseMove += new System.Windows.Forms.MouseEventHandler(this.glControl1_MouseMove);
+            this.glControl1.MouseWheel += new System.Windows.Forms.MouseEventHandler(this.glControl1_Scroll);
+            this.glControl1.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.glControl1_KeyDown);
+            this.glControl1.Resize += new System.EventHandler(this.glControl1_Resize);
         }
 
         private void glControl1_Paint(object sender, PaintEventArgs e)
@@ -229,7 +262,21 @@ namespace Model_Viewer
 
             //Load Settings
             Settings.loadSettings();
+
+            //Setup the timer
+            t = new Timer();
+            t.Enabled = true;
+            t.Interval = 40;
+            t.Tick += new EventHandler(timer_ticker);
+            t.Start();
             
+        }
+
+
+        private void timer_ticker(object sender, EventArgs e)
+        {
+            //SImply invalidate the gl control
+            glControl1.Invalidate();
         }
 
         private void glControl1_Resize(object sender, EventArgs e)
@@ -260,35 +307,45 @@ namespace Model_Viewer
                 //Z Axis
                 //Local Transformation
                 case Keys.Q:
-                    this.rot.Y -= 4.0f;
+                    for (int i = 0; i < movement_speed; i++)
+                        this.rot.Y -= 4.0f;
                     break;
                 case Keys.E:
-                    this.rot.Y += 4.0f;
+                    for (int i = 0; i < movement_speed; i++)
+                        this.rot.Y += 4.0f;
                     break;
                 case Keys.Z:
-                    this.rot.X -= 4.0f;
+                    for (int i = 0; i < movement_speed; i++)
+                        this.rot.X -= 4.0f;
                     break;
                 case Keys.C:
-                    this.rot.X += 4.0f;
+                    for (int i = 0; i < movement_speed; i++)
+                        this.rot.X += 4.0f;
                     break;
                 //Camera Movement
                 case Keys.W:
-                    cam.Move(0.0f, 0.1f, 0.0f);
+                    for (int i=0;i<movement_speed;i++)
+                        cam.Move(0.0f, 0.1f, 0.0f);
                     break;
                 case Keys.S:
-                    cam.Move(0.0f, -0.1f, 0.0f);
+                    for (int i = 0; i < movement_speed; i++)
+                        cam.Move(0.0f, -0.1f, 0.0f);
                     break;
                 case (Keys.D):
-                    cam.Move(+0.1f, 0.0f, 0.0f);
+                    for (int i = 0; i < movement_speed; i++)
+                        cam.Move(+0.1f, 0.0f, 0.0f);
                     break;
                 case Keys.A:
-                    cam.Move(-0.1f, 0.0f, 0.0f);
+                    for (int i = 0; i < movement_speed; i++)
+                        cam.Move(-0.1f, 0.0f, 0.0f);
                     break;
                 case (Keys.R):
-                    cam.Move(0.0f, 0.0f, 0.1f);
+                    for (int i = 0; i < movement_speed; i++)
+                        cam.Move(0.0f, 0.0f, 0.1f);
                     break;
                 case Keys.F:
-                    cam.Move(0.0f, 0.0f, -0.1f);
+                    for (int i = 0; i < movement_speed; i++)
+                        cam.Move(0.0f, 0.0f, -0.1f);
                     break;
                 //Light Rotation
                 case Keys.N:
@@ -303,11 +360,18 @@ namespace Model_Viewer
                 case Keys.OemPeriod:
                     this.light_angle_x += 1;
                     break;
+                //Toggle Wireframe
+                case Keys.I:
+                    if (RenderOptions.RENDERMODE == PolygonMode.Fill)
+                        RenderOptions.RENDERMODE = PolygonMode.Line;
+                    else
+                        RenderOptions.RENDERMODE = PolygonMode.Fill;
+                    break;
                 default:
                     Debug.WriteLine("Not Implemented Yet");
                     break;
             }
-            glControl1.Invalidate();
+            //glControl1.Invalidate();
             
         }
 
@@ -453,7 +517,7 @@ namespace Model_Viewer
                     node.Checked = e.Node.Checked;
             }
             
-            glControl1.Invalidate();
+            //glControl1.Invalidate();
         }
 
         private bool setObjectField<T>(string field, GMDL.model ob, T value)
@@ -476,7 +540,7 @@ namespace Model_Viewer
         private void numericUpDown2_ValueChanged(object sender, EventArgs e)
         {
             light_distance = (float) numericUpDown2.Value;
-            glControl1.Invalidate();
+            //glControl1.Invalidate();
         }
 
         private void traverse_oblist(GMDL.model ob, TreeNode parent)
@@ -664,7 +728,7 @@ namespace Model_Viewer
         private void randgenClickNew(object sender, EventArgs e)
         {
             GC.Collect();
-            
+            t.Stop();
             //Construct Descriptor Path
             string[] split = mainFilePath.Split('.');
             string descrpath = "";
@@ -844,6 +908,7 @@ namespace Model_Viewer
 
             vpwin.Controls.Add(table);
 
+            
             vpwin.Show();
 
             foreach (GLControl ctl in ctlist)
@@ -856,7 +921,7 @@ namespace Model_Viewer
         private void glControl1_MouseHover(object sender, EventArgs e)
         {
             glControl1.Focus();
-            glControl1.Invalidate();
+            //glControl1.Invalidate();
         }
 
         private void openAnimationToolStripMenuItem_Click(object sender, EventArgs e)
@@ -915,7 +980,7 @@ namespace Model_Viewer
                 Util.insertMatToArray(JMArray, j.jointIndex * 16, j.worldMat);
             }
 
-            glControl1.Invalidate();
+            //glControl1.Invalidate();
 
         }
 
@@ -977,6 +1042,12 @@ namespace Model_Viewer
         {
             Form about = new AboutDialog();
             about.Show();
+        }
+
+        private void numericUpDown3_ValueChanged(object sender, EventArgs e)
+        {
+            NumericUpDown s = (NumericUpDown)sender;
+            movement_speed = (int) s.Value;
         }
     }
 

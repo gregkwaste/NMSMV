@@ -518,44 +518,55 @@ namespace GMDL
                 //GL.Enable(EnableCap.Blend);
                 //GL.BlendFunc(BlendingFactorSrc.One, BlendingFactorDest.One);
                 //GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
-                loc = GL.GetUniformLocation(shader_program, "diffuseFlag");
-                GL.Uniform1(loc, 1.0f);
-
+                
+                //Get Diffuse sampler
                 Sampler sam = material.samplers[0];
 
-                int tex0Id = (int)TextureUnit.Texture0;
-
-                //Handle ProcGen Sampler
-                loc = GL.GetUniformLocation(shader_program, "diffTexCount");
-                GL.Uniform1(loc, sam.procTextures.Count);
-
-                //if (this.name == "_Body_Tri" | this.name == "_Head_Tri")
-                //    Debug.WriteLine("Debug");
-
-                for (int i = 0; i <sam.procTextures.Count; i++)
+                if (sam.procTextures.Count > 0)
                 {
-                    tex = sam.procTextures[i];
+                    loc = GL.GetUniformLocation(shader_program, "diffuseFlag");
+                    GL.Uniform1(loc, 1.0f);
 
-                    //Upload PaletteColor
-                    loc = GL.GetUniformLocation(shader_program, "palColors[" + i.ToString() + "]");
-                    //Use Texture paletteOpt and object palette to load the palette color
-                    GL.Uniform3(loc, palette[tex.palOpt.PaletteName][tex.palOpt.ColorName]);
+                    int tex0Id = (int)TextureUnit.Texture0;
 
-                    //Get Texture location
-                    string test = "diffuseTex[" + i.ToString() + "]";
-                    loc = GL.GetUniformLocation(shader_program, test);
-                    GL.Uniform1(loc, i); // I need to upload the texture unit number
-                    
-                    GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + i));
-                    GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
+                    //Handle ProcGen Sampler
+                    loc = GL.GetUniformLocation(shader_program, "diffTexCount");
+                    GL.Uniform1(loc, sam.procTextures.Count);
 
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+                    //if (this.name == "_Body_Tri" | this.name == "_Head_Tri")
+                    //    Debug.WriteLine("Debug");
 
-                    GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, tex.pif,
-                        tex.width, tex.height, 0, tex.ddsImage.header.dwPitchOrLinearSize, tex.ddsImage.bdata);
+                    for (int i = 0; i < sam.procTextures.Count; i++)
+                    {
+                        tex = sam.procTextures[i];
+
+                        //Upload PaletteColor
+                        loc = GL.GetUniformLocation(shader_program, "palColors[" + i.ToString() + "]");
+                        //Use Texture paletteOpt and object palette to load the palette color
+                        GL.Uniform3(loc, palette[tex.palOpt.PaletteName][tex.palOpt.ColorName]);
+
+                        //Get Texture location
+                        string test = "diffuseTex[" + i.ToString() + "]";
+                        loc = GL.GetUniformLocation(shader_program, test);
+                        GL.Uniform1(loc, i); // I need to upload the texture unit number
+
+                        GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + i));
+                        GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
+
+                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+
+                        GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, tex.pif,
+                            tex.width, tex.height, 0, tex.ddsImage.header.dwPitchOrLinearSize, tex.ddsImage.bdata);
+                    }
+                }
+                else
+                {
+                    //Probably textures not found. Render with random color
+                    loc = GL.GetUniformLocation(shader_program, "diffuseFlag");
+                    GL.Uniform1(loc, 0.0f);
                 }
             }
             else
@@ -594,8 +605,8 @@ namespace GMDL
             GL.PointSize(5.0f);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
 
-            GL.PolygonMode(MaterialFace.Front, PolygonMode.Fill);
-            GL.PolygonMode(MaterialFace.Back, PolygonMode.Fill);
+            GL.PolygonMode(MaterialFace.Front, RenderOptions.RENDERMODE);
+            GL.PolygonMode(MaterialFace.Back, RenderOptions.RENDERMODE);
             GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
                 batchcount, vbo.iType, (IntPtr) (batchstart*vbo.iLength));
 
@@ -1026,6 +1037,7 @@ namespace GMDL
                     catch (System.IO.FileNotFoundException e)
                     {
                         Debug.WriteLine("Texture Not Found:" + Path.Combine(Model_Viewer.Util.dirpath, sam.path));
+
                         continue;
                     }
                 }

@@ -41,10 +41,12 @@
             this.splitContainer2 = new System.Windows.Forms.SplitContainer();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
+            this.label4 = new System.Windows.Forms.Label();
             this.label1 = new System.Windows.Forms.Label();
             this.numericUpDown1 = new System.Windows.Forms.NumericUpDown();
             this.label2 = new System.Windows.Forms.Label();
             this.numericUpDown2 = new System.Windows.Forms.NumericUpDown();
+            this.numericUpDown3 = new System.Windows.Forms.NumericUpDown();
             this.splitContainer3 = new System.Windows.Forms.SplitContainer();
             this.sceneGraphGroup = new System.Windows.Forms.GroupBox();
             this.treeView1 = new System.Windows.Forms.TreeView();
@@ -70,6 +72,7 @@
             this.tableLayoutPanel1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown1)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown2)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numericUpDown3)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer3)).BeginInit();
             this.splitContainer3.Panel1.SuspendLayout();
             this.splitContainer3.Panel2.SuspendLayout();
@@ -198,7 +201,7 @@
             // 
             this.splitContainer2.Panel2.Controls.Add(this.splitContainer3);
             this.splitContainer2.Size = new System.Drawing.Size(260, 645);
-            this.splitContainer2.SplitterDistance = 72;
+            this.splitContainer2.SplitterDistance = 96;
             this.splitContainer2.TabIndex = 0;
             // 
             // groupBox1
@@ -207,7 +210,7 @@
             this.groupBox1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBox1.Location = new System.Drawing.Point(0, 0);
             this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(260, 72);
+            this.groupBox1.Size = new System.Drawing.Size(260, 96);
             this.groupBox1.TabIndex = 3;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Camera Options";
@@ -217,22 +220,36 @@
             this.tableLayoutPanel1.ColumnCount = 2;
             this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 47.05882F));
             this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 52.94118F));
+            this.tableLayoutPanel1.Controls.Add(this.label4, 0, 2);
             this.tableLayoutPanel1.Controls.Add(this.label1, 0, 0);
             this.tableLayoutPanel1.Controls.Add(this.numericUpDown1, 1, 0);
             this.tableLayoutPanel1.Controls.Add(this.label2, 0, 1);
             this.tableLayoutPanel1.Controls.Add(this.numericUpDown2, 1, 1);
+            this.tableLayoutPanel1.Controls.Add(this.numericUpDown3, 1, 2);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanel1.Location = new System.Drawing.Point(3, 16);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
-            this.tableLayoutPanel1.RowCount = 2;
+            this.tableLayoutPanel1.RowCount = 3;
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle());
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle());
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle());
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle());
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle());
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(254, 53);
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(254, 77);
             this.tableLayoutPanel1.TabIndex = 0;
+            // 
+            // label4
+            // 
+            this.label4.AutoSize = true;
+            this.label4.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.label4.Location = new System.Drawing.Point(5, 57);
+            this.label4.Margin = new System.Windows.Forms.Padding(5);
+            this.label4.Name = "label4";
+            this.label4.Size = new System.Drawing.Size(109, 16);
+            this.label4.TabIndex = 8;
+            this.label4.Text = "Movement Speed";
+            this.label4.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // label1
             // 
@@ -276,7 +293,7 @@
             this.label2.Location = new System.Drawing.Point(5, 31);
             this.label2.Margin = new System.Windows.Forms.Padding(5);
             this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(109, 17);
+            this.label2.Size = new System.Drawing.Size(109, 16);
             this.label2.TabIndex = 6;
             this.label2.Text = "Light Distance";
             this.label2.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -307,6 +324,32 @@
             0});
             this.numericUpDown2.ValueChanged += new System.EventHandler(this.numericUpDown2_ValueChanged);
             // 
+            // numericUpDown3
+            // 
+            this.numericUpDown3.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.numericUpDown3.Location = new System.Drawing.Point(122, 55);
+            this.numericUpDown3.Maximum = new decimal(new int[] {
+            10,
+            0,
+            0,
+            0});
+            this.numericUpDown3.Minimum = new decimal(new int[] {
+            1,
+            0,
+            0,
+            0});
+            this.numericUpDown3.Name = "numericUpDown3";
+            this.numericUpDown3.Size = new System.Drawing.Size(129, 20);
+            this.numericUpDown3.TabIndex = 9;
+            this.numericUpDown3.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.numericUpDown3.Value = new decimal(new int[] {
+            1,
+            0,
+            0,
+            0});
+            this.numericUpDown3.ValueChanged += new System.EventHandler(this.numericUpDown3_ValueChanged);
+            // 
             // splitContainer3
             // 
             this.splitContainer3.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -321,8 +364,8 @@
             // splitContainer3.Panel2
             // 
             this.splitContainer3.Panel2.Controls.Add(this.splitContainer4);
-            this.splitContainer3.Size = new System.Drawing.Size(260, 569);
-            this.splitContainer3.SplitterDistance = 356;
+            this.splitContainer3.Size = new System.Drawing.Size(260, 545);
+            this.splitContainer3.SplitterDistance = 340;
             this.splitContainer3.TabIndex = 2;
             // 
             // sceneGraphGroup
@@ -331,7 +374,7 @@
             this.sceneGraphGroup.Dock = System.Windows.Forms.DockStyle.Fill;
             this.sceneGraphGroup.Location = new System.Drawing.Point(0, 0);
             this.sceneGraphGroup.Name = "sceneGraphGroup";
-            this.sceneGraphGroup.Size = new System.Drawing.Size(260, 356);
+            this.sceneGraphGroup.Size = new System.Drawing.Size(260, 340);
             this.sceneGraphGroup.TabIndex = 1;
             this.sceneGraphGroup.TabStop = false;
             this.sceneGraphGroup.Text = "SceneGraph";
@@ -342,7 +385,7 @@
             this.treeView1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.treeView1.Location = new System.Drawing.Point(3, 16);
             this.treeView1.Name = "treeView1";
-            this.treeView1.Size = new System.Drawing.Size(254, 337);
+            this.treeView1.Size = new System.Drawing.Size(254, 321);
             this.treeView1.TabIndex = 0;
             this.treeView1.AfterCheck += new System.Windows.Forms.TreeViewEventHandler(this.treeView1_AfterCheck);
             // 
@@ -360,8 +403,8 @@
             // splitContainer4.Panel2
             // 
             this.splitContainer4.Panel2.Controls.Add(this.groupBox2);
-            this.splitContainer4.Size = new System.Drawing.Size(260, 209);
-            this.splitContainer4.SplitterDistance = 116;
+            this.splitContainer4.Size = new System.Drawing.Size(260, 201);
+            this.splitContainer4.SplitterDistance = 111;
             this.splitContainer4.TabIndex = 1;
             // 
             // ProcGenGroup
@@ -370,7 +413,7 @@
             this.ProcGenGroup.Dock = System.Windows.Forms.DockStyle.Fill;
             this.ProcGenGroup.Location = new System.Drawing.Point(0, 0);
             this.ProcGenGroup.Name = "ProcGenGroup";
-            this.ProcGenGroup.Size = new System.Drawing.Size(260, 116);
+            this.ProcGenGroup.Size = new System.Drawing.Size(260, 111);
             this.ProcGenGroup.TabIndex = 0;
             this.ProcGenGroup.TabStop = false;
             this.ProcGenGroup.Text = "ProcGenTools";
@@ -380,7 +423,7 @@
             this.randomgenerator.Dock = System.Windows.Forms.DockStyle.Fill;
             this.randomgenerator.Location = new System.Drawing.Point(3, 16);
             this.randomgenerator.Name = "randomgenerator";
-            this.randomgenerator.Size = new System.Drawing.Size(254, 97);
+            this.randomgenerator.Size = new System.Drawing.Size(254, 92);
             this.randomgenerator.TabIndex = 9;
             this.randomgenerator.Text = "RandGen";
             this.randomgenerator.UseVisualStyleBackColor = true;
@@ -392,7 +435,7 @@
             this.groupBox2.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBox2.Location = new System.Drawing.Point(0, 0);
             this.groupBox2.Name = "groupBox2";
-            this.groupBox2.Size = new System.Drawing.Size(260, 89);
+            this.groupBox2.Size = new System.Drawing.Size(260, 86);
             this.groupBox2.TabIndex = 0;
             this.groupBox2.TabStop = false;
             this.groupBox2.Text = "AnimControls";
@@ -411,16 +454,16 @@
             this.AnimTable.RowCount = 2;
             this.AnimTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.AnimTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.AnimTable.Size = new System.Drawing.Size(254, 70);
+            this.AnimTable.Size = new System.Drawing.Size(254, 67);
             this.AnimTable.TabIndex = 0;
             // 
             // newButton1
             // 
             this.AnimTable.SetColumnSpan(this.newButton1, 2);
             this.newButton1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.newButton1.Location = new System.Drawing.Point(3, 38);
+            this.newButton1.Location = new System.Drawing.Point(3, 36);
             this.newButton1.Name = "newButton1";
-            this.newButton1.Size = new System.Drawing.Size(248, 29);
+            this.newButton1.Size = new System.Drawing.Size(248, 28);
             this.newButton1.TabIndex = 13;
             this.newButton1.Text = "Play";
             this.newButton1.UseVisualStyleBackColor = true;
@@ -433,7 +476,7 @@
             this.label3.Location = new System.Drawing.Point(5, 5);
             this.label3.Margin = new System.Windows.Forms.Padding(5);
             this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(117, 25);
+            this.label3.Size = new System.Drawing.Size(117, 23);
             this.label3.TabIndex = 11;
             this.label3.Text = "Frame";
             this.label3.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -485,6 +528,7 @@
             this.tableLayoutPanel1.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown1)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown2)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numericUpDown3)).EndInit();
             this.splitContainer3.Panel1.ResumeLayout(false);
             this.splitContainer3.Panel2.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer3)).EndInit();
@@ -535,6 +579,8 @@
         private System.Windows.Forms.ToolStripMenuItem optionsToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem settingsToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem aboutToolStripMenuItem;
+        private System.Windows.Forms.Label label4;
+        private System.Windows.Forms.NumericUpDown numericUpDown3;
     }
 }
 

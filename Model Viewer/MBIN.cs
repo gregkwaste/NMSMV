@@ -868,7 +868,7 @@ public static class GEOMMBIN{
             {
                 Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
-                    so.children[1].children.Add(parseNode(childnode, cvbo, so.children[1]));
+                    so.children[0].children.Add(parseNode(childnode, cvbo, so.children[0]));
             }
 
             //Load Objects from new xml

@@ -6,14 +6,22 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.Diagnostics;
 using OpenTK;
+using OpenTK.Graphics.OpenGL;
 using System.Reflection;
 using System.IO;
 
 namespace Model_Viewer
 {
+    public static class RenderOptions
+    {
+        //Set Full rendermode by default
+        public static PolygonMode RENDERMODE = PolygonMode.Fill;
+    }
+
     public static class Util
     {
         public static readonly Random randgen = new Random();
+        
         public static string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
         //public static string dirpath = "C:\\Users\\greg\\Source\\Repos\\nms-viewer\\Model Viewer\\Samples";
 
