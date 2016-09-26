@@ -7,6 +7,7 @@ using System.Xml;
 using System.Diagnostics;
 using OpenTK;
 using System.Reflection;
+using System.IO;
 
 namespace Model_Viewer
 {
@@ -51,6 +52,27 @@ namespace Model_Viewer
             array[offset + 13] = mat.M42;
             array[offset + 14] = mat.M43;
             array[offset + 15] = mat.M44;
+        }
+
+        //Convert Path to EXML
+        public static string getExmlPath(string path)
+        {
+            string[] split = path.Split('.');
+            string newpath = "";
+            for (int i = 0; i < split.Length - 1; i++)
+                newpath += split[i]+ "." ;
+
+            return newpath + "exml";
+        }
+        //MbinCompiler Caller
+        public static void MbinToExml(string path)
+        {
+            Process proc = new System.Diagnostics.Process();
+            proc.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
+            proc.StartInfo.FileName = "MBINCompiler.exe";
+            proc.StartInfo.Arguments = " \" " + path + " \" ";
+            proc.Start();
+            proc.WaitForExit();
         }
     }
 
@@ -1215,9 +1237,43 @@ namespace Model_Viewer
                 XmlElement selNode = (XmlElement) descriptors.ChildNodes[sel];
                 //Add selection to parts
                 string partName = ((XmlElement)selNode.SelectSingleNode(".//Property[@name='Name']")).GetAttribute("value");
-
                 addToStr(ref parts, partName);
 
+                //Check for existing descriptor in the current element
+                XmlElement refNode = (XmlElement) selNode.SelectSingleNode(".//Property[@name='ReferencePaths']");
+                if (refNode.ChildNodes.Count > 0)
+                {
+                    string refPath = ((XmlElement)refNode.SelectSingleNode("Data//Property[@name='Value']")).GetAttribute("value");
+                    //Construct Descriptor Path
+                    string[] split = refPath.Split('.');
+                    string descrpath = "";
+                    for (int i = 0; i < split.Length - 2; i++)
+                        descrpath = Path.Combine(descrpath, split[i]);
+                    descrpath += ".DESCRIPTOR.MBIN";
+                    descrpath = Path.Combine(Util.dirpath, descrpath);
+                    string exmlPath = Util.getExmlPath(descrpath);
+                    
+                    //Check if descriptor exists at all
+                    if (File.Exists(descrpath))
+                    {
+                        //Convert only if file does not exist
+                        if (!File.Exists(exmlPath))
+                        {
+                            Debug.WriteLine("Exml does not exist, Converting...");
+                            //Convert Descriptor MBIN to exml
+                            Util.MbinToExml(descrpath);
+                        }
+
+                        //Parse exml now
+                        XmlDocument descrXml = new XmlDocument();
+                        descrXml.Load(exmlPath);
+                        XmlElement newRoot = (XmlElement)descrXml.ChildNodes[1].ChildNodes[0];
+                        //Parse Descriptors from this object
+                        parse_descriptor(ref parts, newRoot);
+                    }
+
+                }
+                    
                 //Get to children
                 XmlElement children = (XmlElement)selNode.SelectSingleNode(".//Property[@name='Children']");
 
@@ -1243,6 +1299,7 @@ namespace Model_Viewer
         {
             //Make deep copy of root 
             GMDL.model newRoot = root.Clone();
+            root.procFlag = true;
 
             //PHASE 1
             //Flag Procgen parts
@@ -1273,7 +1330,7 @@ namespace Model_Viewer
                         if (child.name.Contains(descriptors[i]))
                         {
                             child.procFlag = true;
-                            //Debug.WriteLine("Setting Flag on " + child.name);
+                            Debug.WriteLine("Setting Flag on " + child.name);
                             //iterate into Descriptor children
                             get_procgen_parts_phase1(ref descriptors, child);
                         }
@@ -1289,7 +1346,9 @@ namespace Model_Viewer
                     if (child.type != TYPES.JOINT & child.type != TYPES.LIGHT & child.type != TYPES.COLLISION)
                     {
                         child.procFlag = true;
-                        //Debug.WriteLine("Setting Flag on " + child.name);
+                        Debug.WriteLine("Setting Flag on " + child.name);
+                        //Cover the case where endpoints have children as well
+                        get_procgen_parts_phase1(ref descriptors, child);
                     }
                 }
             }
@@ -1324,8 +1383,12 @@ namespace Model_Viewer
                 GMDL.model child;
                 child = collectPart(root.children, part_name);
 
-                GMDL.model parent = child.parent;
-                parent.children.Remove(child);
+                if (child != null)
+                {
+                    GMDL.model parent = child.parent;
+                    parent.children.Remove(child);
+                }
+                
             }
         }
 

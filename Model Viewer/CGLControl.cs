@@ -132,6 +132,10 @@ namespace Model_Viewer
             //Send theta to all shaders
             loc = GL.GetUniformLocation(m.shader_program, "theta");
             GL.Uniform3(loc, this.rot);
+            //Send object world Matrix to all shaders
+            loc = GL.GetUniformLocation(m.shader_program, "worldMat");
+            Matrix4 wMat = m.worldMat;
+            GL.UniformMatrix4(loc, false, ref wMat);
 
             if (m.shader_program == shader_programs[0])
             {

@@ -5,7 +5,9 @@ using System.IO;
 using OpenTK;
 using OpenTK.Graphics.OpenGL;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Xml;
+using System.Reflection;
 
 
 namespace Model_Viewer
@@ -44,17 +46,17 @@ namespace Model_Viewer
         int fragment_shader_ob;
         int shader_program_ob;
         //Shader locators
-        int vertex_shader_loc;
-        int fragment_shader_loc;
-        int shader_program_loc;
+        //int vertex_shader_loc;
+        //int fragment_shader_loc;
+        //int shader_program_loc;
 
         private List<GMDL.GeomObject> geomobjects = new List<GMDL.GeomObject>();
         private List<GMDL.model> vboobjects = new List<GMDL.model>();
         //private GMDL.model rootObject;
         private List<GMDL.model> scenes = new List<GMDL.model>();
-        private XmlDocument xmlDoc;
+        private XmlDocument xmlDoc = new XmlDocument();
         private Dictionary<string, int> index_dict = new Dictionary<string, int>();
-        private Dictionary<string, GMDL.model> joint_dict = new Dictionary<string, GMDL.model>();
+        private OrderedDictionary joint_dict = new OrderedDictionary();
         private treeviewCheckStatus tvchkstat = treeviewCheckStatus.Children;
 
         //Animation Meta
@@ -95,21 +97,26 @@ namespace Model_Viewer
                 return;
             }
 
-            var fs = new FileStream(filename, FileMode.Open);
-            //geomobjects.Add(GEOMMBIN.Parse(fs));
-            XmlDocument xml = new XmlDocument();
+            string exmlPath = Util.getExmlPath(filename);
+
+            //Parse the Scene XML file
+            Debug.WriteLine("Parsing SCENE XML");
+            
+            //Convert only if file does not exist
+            if (!File.Exists(exmlPath))
+            {
+                Debug.WriteLine("Exml does not exist");
+                Util.MbinToExml(filename);
+            }
+
+            //Open exml
+            this.xmlDoc.Load(exmlPath);
+            
 
             //Initialize Palettes
             Model_Viewer.Palettes.set_palleteColors();
-            
-            //Parse the Scene XML file
-            Debug.WriteLine("Parsing SCENE XML");
-            this.xmlDoc = SCENEMBIN.Parse(fs);
 
-            //Store path locally for now
-            //string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
             GMDL.model scene;
-            //scene = GEOMMBIN.LoadObjects(Util.dirpath, this.xmlDoc, ResourceMgmt.shader_programs);
             scene = GEOMMBIN.LoadObjects(this.xmlDoc);
             scene.index = this.childCounter;
             this.scenes.Clear();
@@ -134,7 +141,6 @@ namespace Model_Viewer
 
             //vboobjects.Add(new GMDL.customVBO(GEOMMBIN.Parse(fs)));
             glControl1.Invalidate();
-            fs.Close();
         }
 
         private void glControl_Load(object sender, EventArgs e)
@@ -176,20 +182,30 @@ namespace Model_Viewer
         {
             if (!this.glloaded)
                 return;
+
+            //Populate shader list
+            ResourceMgmt.shader_programs = new int[3];
+
             //Compile Object Shaders
             using (StreamReader vs = new StreamReader("Shaders/Simple_VS.glsl"))
             using (StreamReader fs = new StreamReader("Shaders/Simple_FS.glsl"))
                 CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), out vertex_shader_ob,
-                    out fragment_shader_ob, out shader_program_ob);
+                    out fragment_shader_ob, out ResourceMgmt.shader_programs[0]);
             //Compile Locator Shaders
             using (StreamReader vs = new StreamReader("Shaders/locator_VS.glsl"))
             using (StreamReader fs = new StreamReader("Shaders/locator_FS.glsl"))
-                CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), out vertex_shader_loc,
-                    out fragment_shader_loc, out shader_program_loc);
+                CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), out vertex_shader_ob,
+                    out fragment_shader_ob, out ResourceMgmt.shader_programs[1]);
+            //Compile Joint Shaders
+            using (StreamReader vs = new StreamReader("Shaders/joint_VS.glsl"))
+            using (StreamReader fs = new StreamReader("Shaders/joint_FS.glsl"))
+                CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), out vertex_shader_ob,
+                    out fragment_shader_ob, out ResourceMgmt.shader_programs[2]);
 
-            //Populate shader list
-            ResourceMgmt.shader_programs = new int[2] { this.shader_program_ob, this.shader_program_loc };
-            Debug.WriteLine("Programs {0} {1}", ResourceMgmt.shader_programs[0], ResourceMgmt.shader_programs[1]);
+            Debug.WriteLine("Programs {0} {1} {2} ", ResourceMgmt.shader_programs[0],
+                                                     ResourceMgmt.shader_programs[1],
+                                                     ResourceMgmt.shader_programs[2]);
+
             GMDL.model scene = new GMDL.locator();
             scene.shader_program = ResourceMgmt.shader_programs[1];
             scene.index = this.childCounter;
@@ -429,7 +445,7 @@ namespace Model_Viewer
         {
             //Debug.WriteLine("{0} {1}", e.Node.Checked, e.Node.Index);
             //Toggle Renderability of node
-            traverse_oblist_rs(this.scenes[0], this.index_dict[e.Node.Text], e.Node.Checked);
+            traverse_oblist_rs(((MyTreeNode) e.Node).model, e.Node.Text, e.Node.Checked);
             //Handle Children in treeview
             if (this.tvchkstat == treeviewCheckStatus.Children)
             {
@@ -438,6 +454,23 @@ namespace Model_Viewer
             }
             
             glControl1.Invalidate();
+        }
+
+        private bool setObjectField<T>(string field, GMDL.model ob, T value)
+        {
+            Type t = ob.GetType();
+
+            FieldInfo[] fields= t.GetFields();
+            foreach (FieldInfo f in fields)
+            {
+                if (f.Name == field)
+                {
+                    f.SetValue(ob, value);
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void numericUpDown2_ValueChanged(object sender, EventArgs e)
@@ -454,24 +487,25 @@ namespace Model_Viewer
                 foreach (GMDL.model child in ob.children)
                 {
                     //Keep only Meshes, Locators and Joints
-                    if (child.type != TYPES.MESH & child.type != TYPES.LOCATOR & child.type != TYPES.JOINT)
-                        continue;
+                    //if (child.type != TYPES.MESH & child.type != TYPES.LOCATOR & child.type != TYPES.JOINT & child.type != TYPES.SCENE)
+                    //    continue;
                     //Check if Shape object
                     //if (child.Name.Contains("Shape"))
                     //    continue;
                     
 
                     //Don't Save Duplicates
-                    if (!index_dict.ContainsKey(child.name))
-                    {
+                    //if (!index_dict.ContainsKey(child.name))
+                    //{
                         //Set object index
                         child.index = this.childCounter;
-                        this.index_dict.Add(child.name, child.index);
+                        //this.index_dict.Add(child.name, child.index);
                         //Add only joints to joint dictionary
                         if (child.type == TYPES.JOINT)
                         {
                             GMDL.Joint temp = (GMDL.Joint) child;
-                            this.joint_dict.Add(child.name, child);
+                            if (!joint_dict.Contains(child.name))
+                                this.joint_dict.Add(child.name, child);
                             Util.insertMatToArray(this.JMArray, temp.jointIndex*16, temp.worldMat);
                             //Insert color to joint color array
                             JColors[temp.jointIndex * 3 + 0] = temp.color.X;
@@ -480,18 +514,19 @@ namespace Model_Viewer
                         }
                             
                         this.childCounter++;
-                        TreeNode node = new TreeNode(child.name);
+                        MyTreeNode node = new MyTreeNode(child.name);
+                        node.model = child; //Reference model
                         
                         //Debug.WriteLine("Testing Geom {0}  Node {1}", child.Index, node.Index);
                         node.Checked = true;
                         parent.Nodes.Add(node);
                         traverse_oblist(child, node);
-                    }
-                    else
-                    {
-                        Debug.WriteLine("Duplicate {0} {1}", child.name,ob.children.Count);
-                        duplicates.Add(child);
-                    }
+                    //}
+                    //else
+                    //{
+                    //    Debug.WriteLine("Duplicate {0} {1}", child.name,ob.children.Count);
+                    //    //duplicates.Add(child);
+                    //}
                 }
                 //Remove duplicates
                 foreach (GMDL.model dupl in duplicates)
@@ -501,29 +536,11 @@ namespace Model_Viewer
             }
         }
 
-        private void traverse_oblist_rs(GMDL.model root, int index, bool status)
+        private void traverse_oblist_rs(GMDL.model root, string name, bool status)
         {
-            if (root.index == index)
-            {
-                //If you found the index toggle all children
-                //Debug.WriteLine("Toggling Renderability on {0}", root.name);
-                root.renderable = status;
-
-                //foreach (GMDL.model child in root.children)
-                //{
-                //    child.Renderable = !child.Renderable;
-                //    Debug.WriteLine("Toggling Renderability on {0}", child.name);
-                //    traverse_oblist_rs(child, index);
-                //}
-            }
-            else
-            {
-                //If not continue traversing the children
-                foreach (GMDL.model child in root.children)
-                {
-                    traverse_oblist_rs(child, index, status);
-                }
-            }
+            setObjectField<bool>("renderable", (GMDL.model)root, status);
+            foreach (GMDL.model child in root.children)
+                traverse_oblist_rs(child, name, status);
         }
 
         private void traverse_render(GMDL.model root)
@@ -532,6 +549,7 @@ namespace Model_Viewer
             GL.UseProgram(root.shader_program);
             if (root.shader_program == -1)
                 throw new ApplicationException("Shit program");
+
             Matrix4 look = cam.GetViewMatrix();
             float aspect = (float)glControl1.ClientSize.Width / glControl1.ClientSize.Height;
             Matrix4 proj = Matrix4.CreatePerspectiveFieldOfView(cam.fov, aspect,
@@ -589,10 +607,11 @@ namespace Model_Viewer
             } else if (root.shader_program == ResourceMgmt.shader_programs[1])
             {
                 //Locator Program
+                //TESTING
             }
             GL.ClearColor(System.Drawing.Color.Black);
-            if (this.index_dict.ContainsKey(root.name))
-                root.render();
+            //if (this.index_dict.ContainsKey(root.name))
+            root.render();
             //Render children
             foreach (GMDL.model child in root.children){
                 traverse_render(child);
@@ -651,22 +670,17 @@ namespace Model_Viewer
             string descrpath = "";
             for (int i = 0; i< split.Length-2; i++)
                 descrpath = Path.Combine(descrpath, split[i]);
-
-            string exmlPath = descrpath + ".DESCRIPTOR.exml";
             descrpath += ".DESCRIPTOR.MBIN";
+
+            string exmlPath = Util.getExmlPath(descrpath);
             Debug.WriteLine("Opening " + descrpath);
 
             //Convert only if file does not exist
             if (!File.Exists(exmlPath))
             {
-                Debug.WriteLine("Exml does not exist");
+                Debug.WriteLine("Exml does not exist, Converting...");
                 //Convert Descriptor MBIN to exml
-                Process proc = new System.Diagnostics.Process();
-                proc.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
-                proc.StartInfo.FileName = "MBINCompiler.exe";
-                proc.StartInfo.Arguments = " \" " + descrpath + " \" ";
-                proc.Start();
-                proc.WaitForExit();
+                Util.MbinToExml(descrpath);
             }
             
             //Parse exml now
@@ -718,6 +732,7 @@ namespace Model_Viewer
                     List<string> parts = new List<string>();
                     ModelProcGen.parse_descriptor(ref parts, root);
 
+                    Debug.WriteLine(String.Join(" ", parts.ToArray()));
                     GMDL.model m;
                     m = ModelProcGen.get_procgen_parts(ref parts, this.scenes[0]);
                     //----PROC GENERATION----
@@ -729,8 +744,15 @@ namespace Model_Viewer
                     n.JMArray = (float[])JMArray.Clone();
 
                     Dictionary<string, GMDL.model> clonedDict = new Dictionary<string, GMDL.model>();
-                    cloneJointDict(ref clonedDict, joint_dict["ROOT"].Clone());
-                    n.joint_dict = clonedDict;
+                    try
+                    {
+                        cloneJointDict(ref clonedDict, ((GMDL.model) joint_dict[0]).Clone());
+                        n.joint_dict = clonedDict;
+                    }
+                    catch (KeyNotFoundException ex)
+                    {
+                        //Debug.WriteLine("Omitting Joint Dict, There are no joints");
+                    }
 
                     n.SetupItems();
                     table.Controls.Add(n, j, i);
@@ -872,15 +894,15 @@ namespace Model_Viewer
             
             foreach (GMDL.AnimeNode node in meta.nodeData.nodeList)
             {
-                if (joint_dict.ContainsKey(node.name))
+                if (joint_dict.Contains(node.name))
                 {
                     //Check if there is a rotation for that node
                     if (node.rotIndex < frame.rotations.Count - 1)
-                        joint_dict[node.name].localRotation = Matrix3.CreateFromQuaternion(frame.rotations[node.rotIndex]);
+                        ((GMDL.model) joint_dict[node.name]).localRotation = Matrix3.CreateFromQuaternion(frame.rotations[node.rotIndex]);
                     
                     //Matrix4 newrot = Matrix4.CreateFromQuaternion(frame.rotations[node.rotIndex]);
                     if (node.transIndex < frame.translations.Count - 1)
-                        joint_dict[node.name].localPosition = frame.translations[node.transIndex];
+                        ((GMDL.model)joint_dict[node.name]).localPosition = frame.translations[node.transIndex];
 
                 }
                 //Debug.WriteLine("Node " + node.name+ " {0} {1} {2}",node.rotIndex,node.transIndex,node.scaleIndex);

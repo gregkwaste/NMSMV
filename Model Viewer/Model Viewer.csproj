@@ -70,6 +70,7 @@
     <Compile Include="CGLControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Include="TreeStuff.cs" />
     <Compile Include="DDSImage.cs" />
     <Compile Include="AboutForm.cs">
       <SubType>Form</SubType>

@@ -343,6 +343,10 @@ namespace GMDL
             copy.name = this.name;
             copy.index = this.index;
             copy.cIndex = this.cIndex;
+            //Clone transformation
+            copy.localPosition = this.localPosition;
+            copy.localRotation = this.localRotation;
+            copy.localScale = this.localScale;
             //Clone Children as well
             foreach (GMDL.model child in this.children)
             {
@@ -620,6 +624,11 @@ namespace GMDL
             copy.vbo = this.vbo;
             copy.name = this.name;
             copy.index = this.index;
+            //Clone transformation
+            copy.localPosition = this.localPosition;
+            copy.localRotation = this.localRotation;
+            copy.localScale = this.localScale;
+            //Skinning Stuff
             copy.firstskinmat = this.firstskinmat;
             copy.lastskinmat = this.lastskinmat;
             copy.batchcount = this.batchcount;
@@ -639,6 +648,94 @@ namespace GMDL
             }
 
             return (GMDL.model)copy;
+        }
+
+
+
+    }
+
+    public class Collision : sharedVBO
+    {
+        //Custom constructor
+        public Collision()
+        {
+            this.skinned = 0; //Collision objects are not skinned (at least for now)
+            this.color = new Vector3(0.0f, 1.0f, 1.0f); //Set Yellow Color for collision objects
+        }
+        
+        public override bool render()
+        {
+            if (this.renderable == false)
+            {
+                //Debug.WriteLine("Not Renderable");
+                return false;
+            }
+            //Debug.WriteLine(this.name + this);
+            
+            //Bind vertex buffer
+            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
+
+            int vpos, npos, uv0pos, bI, bW, tpos, bpos;
+            //Vertex attribute
+            vpos = GL.GetAttribLocation(this.shader_program, "vPosition");
+            int vstride = vbo.vx_size * vertrstart;
+            GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.vx_stride);
+            GL.EnableVertexAttribArray(vpos);
+
+            //Normal Attribute
+            npos = GL.GetAttribLocation(this.shader_program, "nPosition");
+            int nstride = vbo.vx_size * vertrstart + vbo.n_stride;
+            GL.VertexAttribPointer(npos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.n_stride);
+            GL.EnableVertexAttribArray(npos);
+
+            //Tangent Attribute
+            tpos = GL.GetAttribLocation(this.shader_program, "tPosition");
+            GL.VertexAttribPointer(tpos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.t_stride);
+            GL.EnableVertexAttribArray(tpos);
+
+            //Bitangent Attribute
+            bpos = GL.GetAttribLocation(this.shader_program, "bPosition");
+            GL.VertexAttribPointer(bpos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.b_stride);
+            GL.EnableVertexAttribArray(bpos);
+
+            //InverseBind Matrices
+            int loc;
+            //loc = GL.GetUniformLocation(shader_program, "invBMs");
+            //GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.vbo.invBMats);
+
+            
+            //Upload skinned status
+            loc = GL.GetUniformLocation(shader_program, "skinned");
+            GL.Uniform1(loc, skinned);
+
+
+            
+            loc = GL.GetUniformLocation(shader_program, "diffuseFlag");
+            GL.Uniform1(loc, 0.0f);
+            
+
+            //Upload Default Color
+            loc = GL.GetUniformLocation(this.shader_program, "color");
+            GL.Uniform3(loc, this.color);
+
+            //Render Elements
+            GL.PointSize(5.0f);
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
+
+            GL.PolygonMode(MaterialFace.Front, PolygonMode.Fill);
+            GL.PolygonMode(MaterialFace.Back, PolygonMode.Fill);
+            GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
+                batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
+
+            //Debug.WriteLine("Normal Object {2} vpos {0} cpos {1} prog {3}", vpos, npos, this.name, this.shader_program);
+            //Debug.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vbo.vertex_buffer_object, this.vbo.color_buffer_object);
+
+            GL.DisableVertexAttribArray(vpos);
+            GL.DisableVertexAttribArray(npos);
+            GL.DisableVertexAttribArray(tpos);
+            GL.DisableVertexAttribArray(bpos);
+
+            return true;
         }
 
 

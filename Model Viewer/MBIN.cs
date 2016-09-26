@@ -27,8 +27,10 @@ public enum TYPES
     LOCATOR,
     JOINT,
     LIGHT,
+    EMITTER,
     COLLISION,
     SCENE,
+    REFERENCE,
     UNKNOWN
 }
 
@@ -634,31 +636,40 @@ public static class GEOMMBIN{
     public static GMDL.model LoadObjects(XmlDocument xml)
     {
         Debug.WriteLine("Loading Objects from XML");
-        //Get Scene Name
-        XmlElement SceneName = (XmlElement) xml.SelectSingleNode("ROOT/SCENE");
-        string[] split = SceneName.InnerText.Split('\\');
+        //Get TkSceneNodeData
+        XmlElement sceneNode = (XmlElement)xml.ChildNodes[1];
+        XmlElement sceneName = (XmlElement) sceneNode.SelectSingleNode("Property[@name='Name']");
+
+        string[] split = sceneName.GetAttribute("value").Split('\\');
         string scnName = split[split.Length - 1];
         Debug.WriteLine("Importing Scene: " + scnName);
 
         //Get Geometry File
-        XmlElement geom = (XmlElement)xml.SelectSingleNode("ROOT/GEOMETRY"); 
+        XmlElement sceneNodeData = (XmlElement)sceneNode.SelectSingleNode("Property[@name='Attributes']");
         //Parse geometry once
-        FileStream fs = new FileStream(Path.Combine(Util.dirpath, geom.InnerText) + ".PC", FileMode.Open);
+        string geomfile;
+        XmlElement geom = (XmlElement) sceneNodeData.ChildNodes[0].SelectSingleNode("Property[@name='Value']");
+        geomfile = geom.GetAttribute("value");
+        FileStream fs = new FileStream(Path.Combine(Util.dirpath, geomfile) + ".PC", FileMode.Open);
         GMDL.customVBO cvbo = new GMDL.customVBO(GEOMMBIN.Parse(fs));
         fs.Close();
 
         //Random Generetor for colors
         Random randgen = new Random();
-        
+
         //Create Root
+        if (scnName.Contains("TURBIN"))
+        {
+            Debug.WriteLine("asdasdasd");
+        }
         GMDL.locator root = new GMDL.locator();
         root.name = scnName;
         root.type = TYPES.SCENE;
         root.shader_program = ResourceMgmt.shader_programs[1];
-
+        
         //Store sections node
-        XmlNode sections = xml.FirstChild.ChildNodes[2];
-        foreach (XmlElement node in sections)
+        XmlElement children = (XmlElement)sceneNode.SelectSingleNode("Property[@name='Children']");
+        foreach (XmlElement node in children)
             root.children.Add(parseNode(node, cvbo, root));
         
         return root;
@@ -667,22 +678,34 @@ public static class GEOMMBIN{
        private static GMDL.model parseNode(XmlElement node, 
            GMDL.customVBO cvbo, GMDL.model parent)
         {
-        XmlElement info,opts,childs;
-        info = (XmlElement)node.SelectSingleNode(".//INFO");
-        opts = (XmlElement)node.SelectSingleNode(".//OPTIONS");
-        childs= (XmlElement)node.SelectSingleNode(".//CHILDREN");
-        
+        XmlElement attribs,childs,transform;
+        transform = (XmlElement)node.SelectSingleNode("Data[@name='Transform']");
+        attribs = (XmlElement)node.SelectSingleNode("Property[@name='Attributes']");
+        childs = (XmlElement)node.SelectSingleNode("Property[@name='Children']");
+
+        //Load Transforms
+        //Get Transformation
+        string[] transforms = new string[] { ((XmlElement)transform.SelectSingleNode("Property[@name='TransX']")).GetAttribute("value"),
+                                                 ((XmlElement)transform.SelectSingleNode("Property[@name='TransY']")).GetAttribute("value"),
+                                                 ((XmlElement)transform.SelectSingleNode("Property[@name='TransZ']")).GetAttribute("value"),
+                                                 ((XmlElement)transform.SelectSingleNode("Property[@name='RotX']")).GetAttribute("value"),
+                                                 ((XmlElement)transform.SelectSingleNode("Property[@name='RotY']")).GetAttribute("value"),
+                                                 ((XmlElement)transform.SelectSingleNode("Property[@name='RotZ']")).GetAttribute("value"),
+                                                 ((XmlElement)transform.SelectSingleNode("Property[@name='ScaleX']")).GetAttribute("value"),
+                                                 ((XmlElement)transform.SelectSingleNode("Property[@name='ScaleY']")).GetAttribute("value"),
+                                                 ((XmlElement)transform.SelectSingleNode("Property[@name='ScaleZ']")).GetAttribute("value") };
+
         //XmlElement info = (XmlElement)node.ChildNodes[0];
         //XmlElement opts = (XmlElement)node.ChildNodes[1];
         //XmlElement childs = (XmlElement)node.ChildNodes[2];
 
-        string name = info.FirstChild.InnerText;
+        string name = ((XmlElement)node.SelectSingleNode("Property[@name='Name']")).GetAttribute("value");
         //Fix double underscore names
         if (name.StartsWith("_"))
             name = "_" + name.TrimStart('_');
 
         TYPES typeEnum;
-        string type = info.ChildNodes[1].InnerText;
+        string type = ((XmlElement)node.SelectSingleNode("Property[@name='Type']")).GetAttribute("value");
         Enum.TryParse<TYPES>(type, out typeEnum);
 
         if (typeEnum == TYPES.MESH)
@@ -705,28 +728,31 @@ public static class GEOMMBIN{
             Debug.WriteLine("Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]);
             //Get Options
             XmlElement opt;
-            opt = (XmlElement)opts.SelectSingleNode(".//OPTION[@NAME='FIRSTSKINMAT']");
-            so.firstskinmat = int.Parse(opt.GetAttribute("VALUE"));
-            opt = (XmlElement)opts.SelectSingleNode(".//OPTION[@NAME='LASTSKINMAT']");
-            so.lastskinmat = int.Parse(opt.GetAttribute("VALUE"));
-            opt = (XmlElement)opts.SelectSingleNode(".//OPTION[@NAME='BATCHSTART']");
-            so.batchstart = int.Parse(opt.GetAttribute("VALUE"));
-            opt = (XmlElement)opts.SelectSingleNode(".//OPTION[@NAME='BATCHCOUNT']");
-            so.batchcount = int.Parse(opt.GetAttribute("VALUE"));
-            opt = (XmlElement)opts.SelectSingleNode(".//OPTION[@NAME='VERTRSTART']");
-            so.vertrstart = int.Parse(opt.GetAttribute("VALUE"));
-            opt = (XmlElement)opts.SelectSingleNode(".//OPTION[@NAME='VERTREND']");
-            so.vertrend = int.Parse(opt.GetAttribute("VALUE"));
+            so.batchstart = int.Parse(((XmlElement) attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+            so.batchcount = int.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+            so.vertrstart = int.Parse(((XmlElement)attribs.ChildNodes[2].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+            so.vertrend = int.Parse(((XmlElement)attribs.ChildNodes[3].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+            so.firstskinmat = int.Parse(((XmlElement)attribs.ChildNodes[4].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+            so.lastskinmat = int.Parse(((XmlElement)attribs.ChildNodes[5].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+            //opt = (XmlElement)attribs.SelectSingleNode(".//OPTION[@NAME='FIRSTSKINMAT']");
+            //so.firstskinmat = int.Parse(opt.GetAttribute("VALUE"));
+            //opt = (XmlElement)attribs.SelectSingleNode(".//OPTION[@NAME='LASTSKINMAT']");
+            //so.lastskinmat = int.Parse(opt.GetAttribute("VALUE"));
+            //opt = (XmlElement)attribs.SelectSingleNode(".//OPTION[@NAME='BATCHSTART']");
+            //so.batchstart = int.Parse(opt.GetAttribute("VALUE"));
+            //opt = (XmlElement)attribs.SelectSingleNode(".//OPTION[@NAME='BATCHCOUNT']");
+            //so.batchcount = int.Parse(opt.GetAttribute("VALUE"));
+            //opt = (XmlElement)attribs.SelectSingleNode(".//OPTION[@NAME='VERTRSTART']");
+            //so.vertrstart = int.Parse(opt.GetAttribute("VALUE"));
+            //opt = (XmlElement)attribs.SelectSingleNode(".//OPTION[@NAME='VERTREND']");
+            //so.vertrend = int.Parse(opt.GetAttribute("VALUE"));
             Debug.WriteLine("Batch Start {0} Count {1} ", so.batchstart, so.batchcount);
 
-            //Get Transformation
-            opt = (XmlElement)info.SelectSingleNode(".//TRANSMAT");
             so.parent = parent;
-            so.init(opt.InnerText);
+            so.init(String.Join(",",transforms));
 
             //Get Material
-            opt = (XmlElement)opts.SelectSingleNode(".//OPTION[@NAME='MATERIAL']");
-            string matname = opt.GetAttribute("VALUE");
+            string matname = ((XmlElement)attribs.ChildNodes[6].SelectSingleNode("Property[@name='Value']")).GetAttribute("value");
             //Parse material file
             FileStream ms = new FileStream(Path.Combine(Model_Viewer.Util.dirpath, matname), FileMode.Open);
             GMDL.Material mat = MATERIALMBIN.ParseXml(MATERIALMBIN.Parse(ms));
@@ -768,9 +794,8 @@ public static class GEOMMBIN{
             so.shader_program = ResourceMgmt.shader_programs[1];
 
             //Get Transformation
-            XmlElement opt = (XmlElement)info.SelectSingleNode(".//TRANSMAT");
             so.parent = parent;
-            so.init(opt.InnerText);
+            so.init(String.Join(",", transforms));
             
             //Locator Objects don't have options
 
@@ -793,14 +818,12 @@ public static class GEOMMBIN{
             //Set properties
             joint.name = name.ToUpper();
             joint.type = typeEnum;
-            joint.shader_program = ResourceMgmt.shader_programs[1];
+            joint.shader_program = ResourceMgmt.shader_programs[2];
             //Get Transformation
-            XmlElement opt = (XmlElement) info.SelectSingleNode(".//TRANSMAT");
             joint.parent = parent;
-            joint.init(opt.InnerText);
+            joint.init(String.Join(",", transforms));
             //Get JointIndex
-            opt = (XmlElement)opts.SelectSingleNode(".//OPTION[@NAME='JOINTINDEX']");
-            joint.jointIndex = int.Parse(opt.GetAttribute("VALUE"));
+            joint.jointIndex = int.Parse(((XmlElement)attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
             //Set Random Color
             joint.color[0] = Model_Viewer.Util.randgen.Next(255) / 255.0f;
             joint.color[1] = Model_Viewer.Util.randgen.Next(255) / 255.0f;
@@ -815,6 +838,94 @@ public static class GEOMMBIN{
             }
             
             return joint;
+        }
+        else if (typeEnum == TYPES.REFERENCE)
+        {
+            //Another Scene file referenced
+            Debug.WriteLine("Reference Detected");
+            //Getting Scene MBIN file
+            XmlElement opt = ((XmlElement)attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']"));
+            string path = Path.Combine(Util.dirpath, opt.GetAttribute("value"));
+
+            //Debug.WriteLine("Loading Scene " + path);
+            XmlDocument newXml = new XmlDocument(); 
+            //Parse MBIN to xml
+            if (!File.Exists(Util.getExmlPath(path)))
+                Util.MbinToExml(path);
+            
+            newXml.Load(Util.getExmlPath(path));
+
+            //Read new Scene
+            GMDL.model so = LoadObjects(newXml);
+            so.parent = parent;
+            //Override Name
+            so.name = name;
+            //Override transforms
+            so.init(String.Join(",", transforms));
+            
+            //Handle Children
+            if (childs != null)
+            {
+                Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
+                foreach (XmlElement childnode in childs.ChildNodes)
+                    so.children[1].children.Add(parseNode(childnode, cvbo, so.children[1]));
+            }
+
+            //Load Objects from new xml
+            return so;
+        }
+        else if (typeEnum == TYPES.COLLISION)
+        {
+            Debug.WriteLine("Collision Detected " + name);
+
+            //Create model
+            GMDL.Collision so = new GMDL.Collision();
+
+            //Set cvbo
+            so.vbo = cvbo;
+            so.shader_program = ResourceMgmt.shader_programs[0]; //Use Mesh program for collisions
+            so.name = name + "_COLLISION";
+            so.type = typeEnum;
+
+            //Get Options
+            //In collision objects first child is probably the type
+            string collisionType = ((XmlElement)attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']")).GetAttribute("value");
+
+            if (collisionType == "MESH")
+            {
+                so.batchstart = int.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                so.batchcount = int.Parse(((XmlElement)attribs.ChildNodes[2].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                so.vertrstart = int.Parse(((XmlElement)attribs.ChildNodes[3].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                so.vertrend = int.Parse(((XmlElement)attribs.ChildNodes[4].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                so.firstskinmat = int.Parse(((XmlElement)attribs.ChildNodes[5].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                so.lastskinmat = int.Parse(((XmlElement)attribs.ChildNodes[6].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+            } else if (collisionType == "Cylinder")
+            {
+
+            }
+            else
+            {
+
+            }
+            
+            
+            Debug.WriteLine("Batch Start {0} Count {1} ", so.batchstart, so.batchcount);
+
+            so.parent = parent;
+            so.init(String.Join(",", transforms));
+
+            //Collision probably has no children biut I'm leaving that code here
+            if (childs != null)
+            {
+                Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
+                foreach (XmlElement childnode in childs.ChildNodes)
+                {
+                    so.children.Add(parseNode(childnode, cvbo, so));
+                }
+            }
+            
+            return so;
+
         }
         else
         {
