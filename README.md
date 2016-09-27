@@ -23,6 +23,8 @@ OpenTK is the one and only dependency for building the project. Also make sure t
 
 * Send me an email at gregkwaste@gmail.com
 
+-----------------------
+
 ##USAGE##
 * First of all make sure that you have unpacked all of the game files. The *.SCENE.MBIN files may reference many different files which are needed to load the scene properly. 
 * After loading a scene file you can also load the appropriate animations for the specific models. The animations are located in the ANIMS folder which is located in the same folder with the SCENE file.
