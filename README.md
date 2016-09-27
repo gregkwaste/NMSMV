@@ -22,7 +22,7 @@ No Man's Model Viewer is a model viewer created to preview No Man's Sky 3D Model
 
 * *Summary of set up*: All you need to do is to build the project's solution file.
 * *Configuration*: None
-* *Dependencies*: OpenTK is the one and only dependency for building the project. Also make sure to install the latest NET framework updates and you may also need to update your graphics card drivers.
+* *Dependencies*: OpenTK is the main dependency for building the project. Also make sure to install the latest NET framework updates and you may also need to update your graphics card drivers. The app also uses the MBINCompiler (https://github.com/emoose/MBINCompiler) for best results always keep a latest version of the MbinCompiler together with the project's main executable.
 
 ### Contribution guidelines ###
 * Please Report any Issues or any suggestions you may have.
