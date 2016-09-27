@@ -73,6 +73,7 @@ namespace Model_Viewer
         }
     }
 
+    //Deprecated
     public class ProcGenForm: Form
     {
         public Form1 parentForm;

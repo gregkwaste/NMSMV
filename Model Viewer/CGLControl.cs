@@ -36,7 +36,7 @@ namespace Model_Viewer
         private int currentFrame = 0;
         private bool animationStatus = false;
         //Animation Meta
-        public GMDL.AnimeMetaData meta = new GMDL.AnimeMetaData();
+        public GMDL.AnimeMetaData meta;
 
         //Init-GUI Related
         private ContextMenuStrip contextMenuStrip1;
@@ -152,7 +152,7 @@ namespace Model_Viewer
                                                 (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
                                                 (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                             Math.Cos(this.light_angle_y * Math.PI / 180.0))));
-                    
+
                 //Upload joint transform data
                 //Multiply matrices before sending them
                 float[] skinmats = Util.mulMatArrays(((GMDL.sharedVBO)m).vbo.invBMats, JMArray, 128);
@@ -234,9 +234,11 @@ namespace Model_Viewer
                 //Local Transformation
                 case Keys.Q:
                     this.rot.Y -= 4.0f;
+                    //cam.AddRotation(-4.0f,0.0f);
                     break;
                 case Keys.E:
                     this.rot.Y += 4.0f;
+                    //cam.AddRotation(4.0f, 0.0f);
                     break;
                 case Keys.Z:
                     this.rot.X -= 4.0f;
@@ -278,12 +280,15 @@ namespace Model_Viewer
                     break;
                 //Animation playback (Play/Pause Mode) with Space
                 case Keys.Space:
-                    animationStatus = !animationStatus;
-                    if (animationStatus)
-                        backgroundWorker1.RunWorkerAsync();
-                    else
-                        backgroundWorker1.CancelAsync();
-                    break;
+                    if (!(meta == null))
+                    {
+                        animationStatus = !animationStatus;
+                        if (animationStatus)
+                            backgroundWorker1.RunWorkerAsync();
+                        else
+                            backgroundWorker1.CancelAsync();
+                    }
+                   break;
                 default:
                     Debug.WriteLine("Not Implemented Yet");
                     break;
@@ -359,7 +364,7 @@ namespace Model_Viewer
         {
             if (e.Button == MouseButtons.Right)
             {
-                contextMenuStrip1.Show(System.Windows.Forms.Control.MousePosition);
+                contextMenuStrip1.Show(Control.MousePosition);
             }
         }
 

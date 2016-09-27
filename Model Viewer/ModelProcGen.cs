@@ -22,9 +22,8 @@ namespace Model_Viewer
     {
         public static readonly Random randgen = new Random();
         
-        public static string dirpath = "J:\\Installs\\Steam\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
-        //public static string dirpath = "C:\\Users\\greg\\Source\\Repos\\nms-viewer\\Model Viewer\\Samples";
-
+        public static string dirpath;
+        
         public static float[] mulMatArrays(float[] lmat1, float[] lmat2, int count)
         {
             float[] res = new float[count * 16];
@@ -81,6 +80,13 @@ namespace Model_Viewer
             proc.StartInfo.Arguments = " \" " + path + " \" ";
             proc.Start();
             proc.WaitForExit();
+        }
+        //Update STatus strip
+        public static void setStatus(string status,System.Windows.Forms.ToolStripStatusLabel strip)
+        {
+            strip.Text = status;
+            strip.Invalidate();
+            strip.GetCurrentParent().Refresh();
         }
     }
 
@@ -1253,7 +1259,7 @@ namespace Model_Viewer
                 string partName = ((XmlElement)selNode.SelectSingleNode(".//Property[@name='Name']")).GetAttribute("value");
                 addToStr(ref parts, partName);
 
-                //Check for existing descriptor in the current element
+                //Check for existing descriptors in the current element
                 XmlElement refNode = (XmlElement) selNode.SelectSingleNode(".//Property[@name='ReferencePaths']");
                 if (refNode.ChildNodes.Count > 0)
                 {
@@ -1318,7 +1324,7 @@ namespace Model_Viewer
         {
             //Make deep copy of root 
             GMDL.model newRoot = root.Clone();
-            root.procFlag = true;
+            root.procFlag = true; //Always keep the root node
 
             //PHASE 1
             //Flag Procgen parts
@@ -1377,23 +1383,13 @@ namespace Model_Viewer
         {
             foreach (GMDL.model child in root.children)
             {
-                //string path = "";
-                //List<int> hpath = child.hpath();
-                //for (int i = 0; i < hpath.Count; i++)
-                //    path += " "+ hpath[i];
                 if (!child.procFlag)
-                {
-                    //Delete candidate
-                    //Save it to the dellist
-                    //Debug.WriteLine("Deleting: \t" + child.name + " PATH: " + path);
                     dellist.Add(child.name);
-                }
                 else
-                {
                     get_procgen_parts_phase2(ref dellist, child);
-                }
             }   
         }
+
         public static void get_procgen_parts_phase3(List<string> dellist, GMDL.model root)
         {
             for (int i = 0; i < dellist.Count; i++)

@@ -45,12 +45,7 @@ namespace Model_Viewer
         //Shader objects
         int vertex_shader_ob;
         int fragment_shader_ob;
-        int shader_program_ob;
-        //Shader locators
-        //int vertex_shader_loc;
-        //int fragment_shader_loc;
-        //int shader_program_loc;
-
+        
         //Setup Timer to invalidate the viewport
         private Timer t;
         
@@ -98,7 +93,7 @@ namespace Model_Viewer
 
             if (ext != "MBIN")
             {
-                Debug.WriteLine("Not an MBIN file");
+                MessageBox.Show("Please select an MBIN File", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
@@ -136,6 +131,8 @@ namespace Model_Viewer
             this.scenes.Add(scene);
             this.childCounter++;
 
+            Util.setStatus("Creating Nodes...", this.toolStripStatusLabel1);
+            
             //Debug.WriteLine("Objects Returned: {0}",oblist.Count);
             TreeNode node = new TreeNode(scene.name);
             node.Checked = true;
@@ -155,61 +152,10 @@ namespace Model_Viewer
 
             //vboobjects.Add(new GMDL.customVBO(GEOMMBIN.Parse(fs)));
             glControl1.Invalidate();
+            Util.setStatus("Ready", this.toolStripStatusLabel1);
         }
 
-        private void glControl_Load(object sender, EventArgs e)
-        {
-            GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
-            GL.ClearColor(System.Drawing.Color.Black);
-            GL.Enable(EnableCap.DepthTest);
-            //glControl1.SwapBuffers();
-            //glControl1.Invalidate();
-            Debug.WriteLine("GL Cleared");
-            Debug.WriteLine(GL.GetError());
-
-            this.glloaded = true;
-
-            //Set mouse pos
-            mouse_x = 0;
-            mouse_y = 0;
-        }
-
-        private void setup_GLControl()
-        {
-            glControl1 = new GLControl();
-            glControl1.Size = new System.Drawing.Size(976, 645);
-            this.glControl1.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
-            this.glControl1.BackColor = System.Drawing.Color.Black;
-            this.glControl1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.glControl1.Location = new System.Drawing.Point(0, 0);
-            this.glControl1.MinimumSize = new System.Drawing.Size(256, 256);
-            this.glControl1.VSync = true;
-            this.glControl1.Load += new System.EventHandler(this.glControl_Load);
-            this.glControl1.Paint += new System.Windows.Forms.PaintEventHandler(this.glControl1_Paint);
-            this.glControl1.MouseHover += new System.EventHandler(this.glControl1_MouseHover);
-            this.glControl1.MouseMove += new System.Windows.Forms.MouseEventHandler(this.glControl1_MouseMove);
-            this.glControl1.MouseWheel += new System.Windows.Forms.MouseEventHandler(this.glControl1_Scroll);
-            this.glControl1.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.glControl1_KeyDown);
-            this.glControl1.Resize += new System.EventHandler(this.glControl1_Resize);
-        }
-
-        private void glControl1_Paint(object sender, PaintEventArgs e)
-        {
-            if (!this.glloaded)
-                return;
-            glControl1.MakeCurrent();
-            GL.Clear(ClearBufferMask.ColorBufferBit| ClearBufferMask.DepthBufferBit);
-            render_scene();
-            //GL.ClearColor(System.Drawing.Color.Black);
-            glControl1.SwapBuffers();
-            //translate_View();
-            ////Draw scene
-            //GL.MatrixMode(MatrixMode.Modelview);
-            //Update Joystick 
-            
-            //glControl1.Invalidate();
-            //Debug.WriteLine("Painting Control");
-        }
+        
 
         private void Form1_Load(object sender, EventArgs e)
         {
@@ -268,112 +214,20 @@ namespace Model_Viewer
             t.Interval = 20;
             t.Tick += new EventHandler(timer_ticker);
             t.Start();
-            
+
+            //Set GEOMMBIN statusStrip
+            GEOMMBIN.strip = this.toolStripStatusLabel1;
         }
 
 
+        //glControl Timer
         private void timer_ticker(object sender, EventArgs e)
         {
             //SImply invalidate the gl control
             glControl1.Invalidate();
         }
 
-        private void glControl1_Resize(object sender, EventArgs e)
-        {
-            if (!this.glloaded)
-                return;
-            if (glControl1.ClientSize.Height == 0)
-                glControl1.ClientSize = new System.Drawing.Size(glControl1.ClientSize.Width, 1);
-            Debug.WriteLine("GLControl Resizing");
-            Debug.WriteLine(this.eye_pos.X.ToString() + " "+ this.eye_pos.Y.ToString());
-            GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
-            //GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
-        }
-
-        private void glControl1_KeyDown(object sender, PreviewKeyDownEventArgs e)
-        {
-            //Debug.WriteLine("Key pressed {0}",e.KeyCode);
-            switch (e.KeyCode)
-            {
-                //Translations
-                //X Axis
-                //case (Keys.Right):
-                //    this.eye.X += 0.1f;
-                //    break;
-                //case Keys.Left:
-                //    this.eye.X -= 0.1f;
-                //    break;
-                //Z Axis
-                //Local Transformation
-                case Keys.Q:
-                    for (int i = 0; i < movement_speed; i++)
-                        this.rot.Y -= 4.0f;
-                    break;
-                case Keys.E:
-                    for (int i = 0; i < movement_speed; i++)
-                        this.rot.Y += 4.0f;
-                    break;
-                case Keys.Z:
-                    for (int i = 0; i < movement_speed; i++)
-                        this.rot.X -= 4.0f;
-                    break;
-                case Keys.C:
-                    for (int i = 0; i < movement_speed; i++)
-                        this.rot.X += 4.0f;
-                    break;
-                //Camera Movement
-                case Keys.W:
-                    for (int i=0;i<movement_speed;i++)
-                        cam.Move(0.0f, 0.1f, 0.0f);
-                    break;
-                case Keys.S:
-                    for (int i = 0; i < movement_speed; i++)
-                        cam.Move(0.0f, -0.1f, 0.0f);
-                    break;
-                case (Keys.D):
-                    for (int i = 0; i < movement_speed; i++)
-                        cam.Move(+0.1f, 0.0f, 0.0f);
-                    break;
-                case Keys.A:
-                    for (int i = 0; i < movement_speed; i++)
-                        cam.Move(-0.1f, 0.0f, 0.0f);
-                    break;
-                case (Keys.R):
-                    for (int i = 0; i < movement_speed; i++)
-                        cam.Move(0.0f, 0.0f, 0.1f);
-                    break;
-                case Keys.F:
-                    for (int i = 0; i < movement_speed; i++)
-                        cam.Move(0.0f, 0.0f, -0.1f);
-                    break;
-                //Light Rotation
-                case Keys.N:
-                    this.light_angle_y -= 1;
-                    break;
-                case Keys.M:
-                    this.light_angle_y += 1;
-                    break;
-                case Keys.Oemcomma:
-                    this.light_angle_x -= 1;
-                    break;
-                case Keys.OemPeriod:
-                    this.light_angle_x += 1;
-                    break;
-                //Toggle Wireframe
-                case Keys.I:
-                    if (RenderOptions.RENDERMODE == PolygonMode.Fill)
-                        RenderOptions.RENDERMODE = PolygonMode.Line;
-                    else
-                        RenderOptions.RENDERMODE = PolygonMode.Fill;
-                    break;
-                default:
-                    Debug.WriteLine("Not Implemented Yet");
-                    break;
-            }
-            //glControl1.Invalidate();
-            
-        }
-
+        
         private void render_scene()
         {
             glControl1.MakeCurrent();
@@ -398,7 +252,6 @@ namespace Model_Viewer
             //GL.LoadIdentity();
             //glControl1.SwapBuffers();
         }
-
 
         //private bool render_object(GMDL.customVBO vbo)
         //{
@@ -456,45 +309,6 @@ namespace Model_Viewer
             GL.LinkProgram(program);
             //GL.UseProgram(program);
             
-        }
-
-        private void glControl1_MouseMove(object sender, MouseEventArgs e)
-        {
-            //int delta_x = (int) (Math.Pow(cam.fov, 4) * (e.X - mouse_x));
-            //int delta_y = (int) (Math.Pow(cam.fov, 4) * (e.Y - mouse_y));
-            int delta_x = (e.X - mouse_x);
-            int delta_y = (e.Y - mouse_y);
-
-            delta_x = Math.Min(Math.Max(delta_x, -10), 10);
-            delta_y = Math.Min(Math.Max(delta_y, -10), 10);
-
-            if (e.Button == MouseButtons.Left)
-            {
-                //Debug.WriteLine("Deltas {0} {1} {2}", delta_x, delta_y, e.Button);
-                cam.AddRotation(delta_x, delta_y);
-                glControl1.Invalidate();
-            }
-            
-            mouse_x = e.X;
-            mouse_y = e.Y;
-
-        }
-
-        private void glControl1_Scroll(object sender, MouseEventArgs e)
-        {
-            if (Math.Abs(e.Delta) > 0)
-            {
-                //Debug.WriteLine("Wheel Delta {0}", e.Delta);
-                int sign = e.Delta / Math.Abs(e.Delta);
-                int newval = (int)numericUpDown1.Value + sign;
-                newval = (int) Math.Min(Math.Max(newval, numericUpDown1.Minimum), numericUpDown1.Maximum);
-                cam.setFOV(newval);
-                numericUpDown1.Value = newval;
-                
-                //eye.Z += e.Delta * 0.2f;
-                glControl1.Invalidate();
-            }
-
         }
 
         private void numericUpDown1_ValueChanged(object sender, EventArgs e)
@@ -649,6 +463,10 @@ namespace Model_Viewer
                                              (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
                                              (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                             Math.Cos(this.light_angle_y * Math.PI / 180.0))));
+
+                //Upload camera position as the light
+                //GL.Uniform3(loc, cam.Position);
+                
                 //Upload firstskinmat
                 loc = GL.GetUniformLocation(root.shader_program, "firstskinmat");
                 GL.Uniform1(loc, ((GMDL.sharedVBO)root).firstskinmat);
@@ -701,8 +519,7 @@ namespace Model_Viewer
 
             return null;
         }
-
-
+        
         private GMDL.model collectPart(List<GMDL.model> coll, string name)
         {
             foreach (GMDL.model child in coll)
@@ -726,8 +543,8 @@ namespace Model_Viewer
 
         private void randgenClickNew(object sender, EventArgs e)
         {
+            Util.setStatus("Procedural Generation Init", this.toolStripStatusLabel1);
             GC.Collect();
-            t.Stop();
             //Construct Descriptor Path
             string[] split = mainFilePath.Split('.');
             string descrpath = "";
@@ -737,6 +554,14 @@ namespace Model_Viewer
 
             string exmlPath = Util.getExmlPath(descrpath);
             Debug.WriteLine("Opening " + descrpath);
+
+            //Check if Descriptor exists at all
+            if (!File.Exists(descrpath))
+            {
+                MessageBox.Show("Not a ProcGen Model","Error",MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
 
             //Convert only if file does not exist
             if (!File.Exists(exmlPath))
@@ -756,9 +581,9 @@ namespace Model_Viewer
             //Revise Procgen Creation
 
             //First Create the form and the table
-            ProcGenForm vpwin = new ProcGenForm();
-            vpwin.parentForm = this; //Set parent to this form
-            vpwin.FormClosed += new FormClosedEventHandler(this.resumeTicker);
+            Form vpwin = new Form();
+            //vpwin.parentForm = this; //Set parent to this form
+            //vpwin.FormClosed += new FormClosedEventHandler(this.resumeTicker);
             vpwin.Text = "Procedural Generated Models";
             // no smaller than design time size
             vpwin.MinimumSize = new System.Drawing.Size(5 * 300, 3 * 256);
@@ -793,14 +618,14 @@ namespace Model_Viewer
                     CGLControl n = new CGLControl(i * table.ColumnCount + j);
                     n.MakeCurrent(); //Make current
 
-                    //----PROC GENERATION----
+                    //----PROC GENERATION START----
                     List<string> parts = new List<string>();
                     ModelProcGen.parse_descriptor(ref parts, root);
 
                     Debug.WriteLine(String.Join(" ", parts.ToArray()));
                     GMDL.model m;
                     m = ModelProcGen.get_procgen_parts(ref parts, this.scenes[0]);
-                    //----PROC GENERATION----
+                    //----PROC GENERATION END----
 
                     n.rootObject = m;
                     n.shader_programs = ResourceMgmt.shader_programs;
@@ -826,6 +651,7 @@ namespace Model_Viewer
             }
 
             vpwin.Controls.Add(table);
+            Util.setStatus("Ready", this.toolStripStatusLabel1);
             vpwin.Show();
             
         }
@@ -926,12 +752,6 @@ namespace Model_Viewer
 
         }
 
-        private void glControl1_MouseHover(object sender, EventArgs e)
-        {
-            glControl1.Focus();
-            //glControl1.Invalidate();
-        }
-
         private void openAnimationToolStripMenuItem_Click(object sender, EventArgs e)
         {
             //Opening Animation File
@@ -1004,7 +824,7 @@ namespace Model_Viewer
             {
                 //Reset
                 if (i >= max) i = 0;
-                System.Threading.Thread.Sleep(50);
+                System.Threading.Thread.Sleep(40);
                 i += 1;
 
                 backgroundWorker1.ReportProgress(i);
@@ -1015,11 +835,11 @@ namespace Model_Viewer
                     return;
                 }
             }
-            
         }
         
         private void newButton1_Click(object sender, EventArgs e)
         {
+            //Animation Play/Pause Button
             if (newButton1.status)
             {
                 backgroundWorker1.RunWorkerAsync();
@@ -1036,10 +856,7 @@ namespace Model_Viewer
             frameBox.Value = e.ProgressPercentage;
         }
 
-        private void menuStrip1_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
-        {
-
-        }
+        //MenuBar Stuff
 
         private void settingsToolStripMenuItem_Click(object sender, EventArgs e)
         {
@@ -1057,6 +874,220 @@ namespace Model_Viewer
             NumericUpDown s = (NumericUpDown)sender;
             movement_speed = (int) s.Value;
         }
+
+
+        //GLCONTROL METHODS
+        private void glControl_Load(object sender, EventArgs e)
+        {
+            GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
+            GL.ClearColor(System.Drawing.Color.Black);
+            GL.Enable(EnableCap.DepthTest);
+            //glControl1.SwapBuffers();
+            //glControl1.Invalidate();
+            Debug.WriteLine("GL Cleared");
+            Debug.WriteLine(GL.GetError());
+
+            this.glloaded = true;
+
+            //Set mouse pos
+            mouse_x = 0;
+            mouse_y = 0;
+        }
+
+        private void setup_GLControl()
+        {
+            glControl1 = new GLControl();
+            glControl1.Size = new System.Drawing.Size(976, 645);
+            this.glControl1.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+            this.glControl1.BackColor = System.Drawing.Color.Black;
+            this.glControl1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.glControl1.Location = new System.Drawing.Point(0, 0);
+            this.glControl1.MinimumSize = new System.Drawing.Size(256, 256);
+            this.glControl1.VSync = true;
+            this.glControl1.Load += new System.EventHandler(this.glControl_Load);
+            this.glControl1.Paint += new System.Windows.Forms.PaintEventHandler(this.glControl1_Paint);
+            this.glControl1.MouseHover += new System.EventHandler(this.glControl1_MouseHover);
+            this.glControl1.MouseMove += new System.Windows.Forms.MouseEventHandler(this.glControl1_MouseMove);
+            this.glControl1.MouseWheel += new System.Windows.Forms.MouseEventHandler(this.glControl1_Scroll);
+            this.glControl1.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.glControl1_KeyDown);
+            this.glControl1.Resize += new System.EventHandler(this.glControl1_Resize);
+            this.glControl1.Enter += new System.EventHandler(this.glControl1_Enter);
+            this.glControl1.Leave += new System.EventHandler(this.glControl1_Leave);
+        }
+
+        private void glControl1_Paint(object sender, PaintEventArgs e)
+        {
+            if (!this.glloaded)
+                return;
+            glControl1.MakeCurrent();
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            render_scene();
+            //GL.ClearColor(System.Drawing.Color.Black);
+            glControl1.SwapBuffers();
+            //translate_View();
+            ////Draw scene
+            //GL.MatrixMode(MatrixMode.Modelview);
+            //Update Joystick 
+
+            //glControl1.Invalidate();
+            //Debug.WriteLine("Painting Control");
+        }
+
+        private void glControl1_Resize(object sender, EventArgs e)
+        {
+            if (!this.glloaded)
+                return;
+            if (glControl1.ClientSize.Height == 0)
+                glControl1.ClientSize = new System.Drawing.Size(glControl1.ClientSize.Width, 1);
+            Debug.WriteLine("GLControl Resizing");
+            Debug.WriteLine(this.eye_pos.X.ToString() + " " + this.eye_pos.Y.ToString());
+            GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
+            //GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
+        }
+
+        private void glControl1_KeyDown(object sender, PreviewKeyDownEventArgs e)
+        {
+            //Debug.WriteLine("Key pressed {0}",e.KeyCode);
+            switch (e.KeyCode)
+            {
+                //Translations
+                //X Axis
+                //case (Keys.Right):
+                //    this.eye.X += 0.1f;
+                //    break;
+                //case Keys.Left:
+                //    this.eye.X -= 0.1f;
+                //    break;
+                //Z Axis
+                //Local Transformation
+                case Keys.Q:
+                    for (int i = 0; i < movement_speed; i++)
+                        this.rot.Y -= 4.0f;
+                    break;
+                case Keys.E:
+                    for (int i = 0; i < movement_speed; i++)
+                        this.rot.Y += 4.0f;
+                    break;
+                case Keys.Z:
+                    for (int i = 0; i < movement_speed; i++)
+                        this.rot.X -= 4.0f;
+                    break;
+                case Keys.C:
+                    for (int i = 0; i < movement_speed; i++)
+                        this.rot.X += 4.0f;
+                    break;
+                //Camera Movement
+                case Keys.W:
+                    for (int i = 0; i < movement_speed; i++)
+                        cam.Move(0.0f, 0.1f, 0.0f);
+                    break;
+                case Keys.S:
+                    for (int i = 0; i < movement_speed; i++)
+                        cam.Move(0.0f, -0.1f, 0.0f);
+                    break;
+                case (Keys.D):
+                    for (int i = 0; i < movement_speed; i++)
+                        cam.Move(+0.1f, 0.0f, 0.0f);
+                    break;
+                case Keys.A:
+                    for (int i = 0; i < movement_speed; i++)
+                        cam.Move(-0.1f, 0.0f, 0.0f);
+                    break;
+                case (Keys.R):
+                    for (int i = 0; i < movement_speed; i++)
+                        cam.Move(0.0f, 0.0f, 0.1f);
+                    break;
+                case Keys.F:
+                    for (int i = 0; i < movement_speed; i++)
+                        cam.Move(0.0f, 0.0f, -0.1f);
+                    break;
+                //Light Rotation
+                case Keys.N:
+                    this.light_angle_y -= 1;
+                    break;
+                case Keys.M:
+                    this.light_angle_y += 1;
+                    break;
+                case Keys.Oemcomma:
+                    this.light_angle_x -= 1;
+                    break;
+                case Keys.OemPeriod:
+                    this.light_angle_x += 1;
+                    break;
+                //Toggle Wireframe
+                case Keys.I:
+                    if (RenderOptions.RENDERMODE == PolygonMode.Fill)
+                        RenderOptions.RENDERMODE = PolygonMode.Line;
+                    else
+                        RenderOptions.RENDERMODE = PolygonMode.Fill;
+                    break;
+                default:
+                    Debug.WriteLine("Not Implemented Yet");
+                    break;
+            }
+            //glControl1.Invalidate();
+
+        }
+
+        private void glControl1_MouseMove(object sender, MouseEventArgs e)
+        {
+            //int delta_x = (int) (Math.Pow(cam.fov, 4) * (e.X - mouse_x));
+            //int delta_y = (int) (Math.Pow(cam.fov, 4) * (e.Y - mouse_y));
+            int delta_x = (e.X - mouse_x);
+            int delta_y = (e.Y - mouse_y);
+
+            delta_x = Math.Min(Math.Max(delta_x, -10), 10);
+            delta_y = Math.Min(Math.Max(delta_y, -10), 10);
+
+            if (e.Button == MouseButtons.Left)
+            {
+                //Debug.WriteLine("Deltas {0} {1} {2}", delta_x, delta_y, e.Button);
+                cam.AddRotation(delta_x, delta_y);
+                glControl1.Invalidate();
+            }
+
+            mouse_x = e.X;
+            mouse_y = e.Y;
+
+        }
+
+        private void glControl1_Scroll(object sender, MouseEventArgs e)
+        {
+            if (Math.Abs(e.Delta) > 0)
+            {
+                //Debug.WriteLine("Wheel Delta {0}", e.Delta);
+                int sign = e.Delta / Math.Abs(e.Delta);
+                int newval = (int)numericUpDown1.Value + sign;
+                newval = (int)Math.Min(Math.Max(newval, numericUpDown1.Minimum), numericUpDown1.Maximum);
+                cam.setFOV(newval);
+                numericUpDown1.Value = newval;
+
+                //eye.Z += e.Delta * 0.2f;
+                glControl1.Invalidate();
+            }
+
+        }
+        
+        private void glControl1_MouseHover(object sender, EventArgs e)
+        {
+            glControl1.Focus();
+            //glControl1.Invalidate();
+        }
+
+        private void glControl1_Enter(object sender, EventArgs e)
+        {
+            //Start Timer when the glControl gets focus
+            Debug.WriteLine("ENtered Focus");
+            t.Start();
+        }
+
+        private void glControl1_Leave(object sender, EventArgs e)
+        {
+            //Don't update the control when its not focused
+            Debug.WriteLine("Left Focus");
+            t.Stop();
+        }
+
     }
 
     //Class Which will store all the texture resources for better memory management

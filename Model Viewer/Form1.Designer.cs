@@ -36,8 +36,10 @@
             this.settingsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.aboutToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
+            this.backgroundWorker1 = new System.ComponentModel.BackgroundWorker();
+            this.toolStripStatusLabel1 = new System.Windows.Forms.ToolStripStatusLabel();
+            this.statusStrip1 = new System.Windows.Forms.StatusStrip();
             this.glControl1 = new OpenTK.GLControl();
-            this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.splitContainer2 = new System.Windows.Forms.SplitContainer();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
@@ -58,12 +60,9 @@
             this.newButton1 = new Model_Viewer.NewButton();
             this.label3 = new System.Windows.Forms.Label();
             this.frameBox = new System.Windows.Forms.NumericUpDown();
-            this.backgroundWorker1 = new System.ComponentModel.BackgroundWorker();
+            this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.menuStrip1.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
-            this.splitContainer1.Panel1.SuspendLayout();
-            this.splitContainer1.Panel2.SuspendLayout();
-            this.splitContainer1.SuspendLayout();
+            this.statusStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer2)).BeginInit();
             this.splitContainer2.Panel1.SuspendLayout();
             this.splitContainer2.Panel2.SuspendLayout();
@@ -86,6 +85,10 @@
             this.groupBox2.SuspendLayout();
             this.AnimTable.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.frameBox)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
+            this.splitContainer1.Panel1.SuspendLayout();
+            this.splitContainer1.Panel2.SuspendLayout();
+            this.splitContainer1.SuspendLayout();
             this.SuspendLayout();
             // 
             // menuStrip1
@@ -99,7 +102,6 @@
             this.menuStrip1.Size = new System.Drawing.Size(1240, 24);
             this.menuStrip1.TabIndex = 0;
             this.menuStrip1.Text = "menuStrip1";
-            this.menuStrip1.ItemClicked += new System.Windows.Forms.ToolStripItemClickedEventHandler(this.menuStrip1_ItemClicked);
             // 
             // fileToolStripMenuItem
             // 
@@ -150,6 +152,29 @@
             // 
             this.openFileDialog1.FileName = "openFileDialog1";
             // 
+            // backgroundWorker1
+            // 
+            this.backgroundWorker1.WorkerReportsProgress = true;
+            this.backgroundWorker1.WorkerSupportsCancellation = true;
+            this.backgroundWorker1.DoWork += new System.ComponentModel.DoWorkEventHandler(this.backgroundWorker1_DoWork);
+            this.backgroundWorker1.ProgressChanged += new System.ComponentModel.ProgressChangedEventHandler(this.backgroundWorker1_ProgressChanged);
+            // 
+            // toolStripStatusLabel1
+            // 
+            this.toolStripStatusLabel1.Name = "toolStripStatusLabel1";
+            this.toolStripStatusLabel1.Size = new System.Drawing.Size(39, 17);
+            this.toolStripStatusLabel1.Text = "Ready";
+            // 
+            // statusStrip1
+            // 
+            this.statusStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.toolStripStatusLabel1});
+            this.statusStrip1.Location = new System.Drawing.Point(0, 647);
+            this.statusStrip1.Name = "statusStrip1";
+            this.statusStrip1.Size = new System.Drawing.Size(1240, 22);
+            this.statusStrip1.TabIndex = 3;
+            this.statusStrip1.Text = "status";
+            // 
             // glControl1
             // 
             this.glControl1.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
@@ -158,33 +183,18 @@
             this.glControl1.Location = new System.Drawing.Point(0, 0);
             this.glControl1.MinimumSize = new System.Drawing.Size(256, 256);
             this.glControl1.Name = "glControl1";
-            this.glControl1.Size = new System.Drawing.Size(976, 645);
+            this.glControl1.Size = new System.Drawing.Size(976, 623);
             this.glControl1.TabIndex = 1;
             this.glControl1.VSync = true;
             this.glControl1.Load += new System.EventHandler(this.glControl_Load);
             this.glControl1.Paint += new System.Windows.Forms.PaintEventHandler(this.glControl1_Paint);
+            this.glControl1.Enter += new System.EventHandler(this.glControl1_Enter);
+            this.glControl1.Leave += new System.EventHandler(this.glControl1_Leave);
             this.glControl1.MouseHover += new System.EventHandler(this.glControl1_MouseHover);
             this.glControl1.MouseMove += new System.Windows.Forms.MouseEventHandler(this.glControl1_MouseMove);
             this.glControl1.MouseWheel += new System.Windows.Forms.MouseEventHandler(this.glControl1_Scroll);
             this.glControl1.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.glControl1_KeyDown);
             this.glControl1.Resize += new System.EventHandler(this.glControl1_Resize);
-            // 
-            // splitContainer1
-            // 
-            this.splitContainer1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.splitContainer1.Location = new System.Drawing.Point(0, 24);
-            this.splitContainer1.Name = "splitContainer1";
-            // 
-            // splitContainer1.Panel1
-            // 
-            this.splitContainer1.Panel1.Controls.Add(this.splitContainer2);
-            // 
-            // splitContainer1.Panel2
-            // 
-            this.splitContainer1.Panel2.Controls.Add(this.glControl1);
-            this.splitContainer1.Size = new System.Drawing.Size(1240, 645);
-            this.splitContainer1.SplitterDistance = 260;
-            this.splitContainer1.TabIndex = 2;
             // 
             // splitContainer2
             // 
@@ -200,8 +210,8 @@
             // splitContainer2.Panel2
             // 
             this.splitContainer2.Panel2.Controls.Add(this.splitContainer3);
-            this.splitContainer2.Size = new System.Drawing.Size(260, 645);
-            this.splitContainer2.SplitterDistance = 96;
+            this.splitContainer2.Size = new System.Drawing.Size(260, 623);
+            this.splitContainer2.SplitterDistance = 92;
             this.splitContainer2.TabIndex = 0;
             // 
             // groupBox1
@@ -210,7 +220,7 @@
             this.groupBox1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBox1.Location = new System.Drawing.Point(0, 0);
             this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(260, 96);
+            this.groupBox1.Size = new System.Drawing.Size(260, 92);
             this.groupBox1.TabIndex = 3;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Camera Options";
@@ -236,7 +246,7 @@
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle());
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle());
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(254, 77);
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(254, 73);
             this.tableLayoutPanel1.TabIndex = 0;
             // 
             // label4
@@ -364,8 +374,8 @@
             // splitContainer3.Panel2
             // 
             this.splitContainer3.Panel2.Controls.Add(this.splitContainer4);
-            this.splitContainer3.Size = new System.Drawing.Size(260, 545);
-            this.splitContainer3.SplitterDistance = 340;
+            this.splitContainer3.Size = new System.Drawing.Size(260, 527);
+            this.splitContainer3.SplitterDistance = 328;
             this.splitContainer3.TabIndex = 2;
             // 
             // sceneGraphGroup
@@ -374,7 +384,7 @@
             this.sceneGraphGroup.Dock = System.Windows.Forms.DockStyle.Fill;
             this.sceneGraphGroup.Location = new System.Drawing.Point(0, 0);
             this.sceneGraphGroup.Name = "sceneGraphGroup";
-            this.sceneGraphGroup.Size = new System.Drawing.Size(260, 340);
+            this.sceneGraphGroup.Size = new System.Drawing.Size(260, 328);
             this.sceneGraphGroup.TabIndex = 1;
             this.sceneGraphGroup.TabStop = false;
             this.sceneGraphGroup.Text = "SceneGraph";
@@ -385,7 +395,7 @@
             this.treeView1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.treeView1.Location = new System.Drawing.Point(3, 16);
             this.treeView1.Name = "treeView1";
-            this.treeView1.Size = new System.Drawing.Size(254, 321);
+            this.treeView1.Size = new System.Drawing.Size(254, 309);
             this.treeView1.TabIndex = 0;
             this.treeView1.AfterCheck += new System.Windows.Forms.TreeViewEventHandler(this.treeView1_AfterCheck);
             // 
@@ -403,8 +413,8 @@
             // splitContainer4.Panel2
             // 
             this.splitContainer4.Panel2.Controls.Add(this.groupBox2);
-            this.splitContainer4.Size = new System.Drawing.Size(260, 201);
-            this.splitContainer4.SplitterDistance = 111;
+            this.splitContainer4.Size = new System.Drawing.Size(260, 195);
+            this.splitContainer4.SplitterDistance = 107;
             this.splitContainer4.TabIndex = 1;
             // 
             // ProcGenGroup
@@ -413,7 +423,7 @@
             this.ProcGenGroup.Dock = System.Windows.Forms.DockStyle.Fill;
             this.ProcGenGroup.Location = new System.Drawing.Point(0, 0);
             this.ProcGenGroup.Name = "ProcGenGroup";
-            this.ProcGenGroup.Size = new System.Drawing.Size(260, 111);
+            this.ProcGenGroup.Size = new System.Drawing.Size(260, 107);
             this.ProcGenGroup.TabIndex = 0;
             this.ProcGenGroup.TabStop = false;
             this.ProcGenGroup.Text = "ProcGenTools";
@@ -423,7 +433,7 @@
             this.randomgenerator.Dock = System.Windows.Forms.DockStyle.Fill;
             this.randomgenerator.Location = new System.Drawing.Point(3, 16);
             this.randomgenerator.Name = "randomgenerator";
-            this.randomgenerator.Size = new System.Drawing.Size(254, 92);
+            this.randomgenerator.Size = new System.Drawing.Size(254, 88);
             this.randomgenerator.TabIndex = 9;
             this.randomgenerator.Text = "RandGen";
             this.randomgenerator.UseVisualStyleBackColor = true;
@@ -435,7 +445,7 @@
             this.groupBox2.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBox2.Location = new System.Drawing.Point(0, 0);
             this.groupBox2.Name = "groupBox2";
-            this.groupBox2.Size = new System.Drawing.Size(260, 86);
+            this.groupBox2.Size = new System.Drawing.Size(260, 84);
             this.groupBox2.TabIndex = 0;
             this.groupBox2.TabStop = false;
             this.groupBox2.Text = "AnimControls";
@@ -454,16 +464,16 @@
             this.AnimTable.RowCount = 2;
             this.AnimTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.AnimTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.AnimTable.Size = new System.Drawing.Size(254, 67);
+            this.AnimTable.Size = new System.Drawing.Size(254, 65);
             this.AnimTable.TabIndex = 0;
             // 
             // newButton1
             // 
             this.AnimTable.SetColumnSpan(this.newButton1, 2);
             this.newButton1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.newButton1.Location = new System.Drawing.Point(3, 36);
+            this.newButton1.Location = new System.Drawing.Point(3, 35);
             this.newButton1.Name = "newButton1";
-            this.newButton1.Size = new System.Drawing.Size(248, 28);
+            this.newButton1.Size = new System.Drawing.Size(248, 27);
             this.newButton1.TabIndex = 13;
             this.newButton1.Text = "Play";
             this.newButton1.UseVisualStyleBackColor = true;
@@ -476,7 +486,7 @@
             this.label3.Location = new System.Drawing.Point(5, 5);
             this.label3.Margin = new System.Windows.Forms.Padding(5);
             this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(117, 23);
+            this.label3.Size = new System.Drawing.Size(117, 22);
             this.label3.TabIndex = 11;
             this.label3.Text = "Frame";
             this.label3.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -495,12 +505,22 @@
             this.frameBox.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             this.frameBox.ValueChanged += new System.EventHandler(this.frameBox_ValueChanged);
             // 
-            // backgroundWorker1
+            // splitContainer1
             // 
-            this.backgroundWorker1.WorkerReportsProgress = true;
-            this.backgroundWorker1.WorkerSupportsCancellation = true;
-            this.backgroundWorker1.DoWork += new System.ComponentModel.DoWorkEventHandler(this.backgroundWorker1_DoWork);
-            this.backgroundWorker1.ProgressChanged += new System.ComponentModel.ProgressChangedEventHandler(this.backgroundWorker1_ProgressChanged);
+            this.splitContainer1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.splitContainer1.Location = new System.Drawing.Point(0, 24);
+            this.splitContainer1.Name = "splitContainer1";
+            // 
+            // splitContainer1.Panel1
+            // 
+            this.splitContainer1.Panel1.Controls.Add(this.splitContainer2);
+            // 
+            // splitContainer1.Panel2
+            // 
+            this.splitContainer1.Panel2.Controls.Add(this.glControl1);
+            this.splitContainer1.Size = new System.Drawing.Size(1240, 623);
+            this.splitContainer1.SplitterDistance = 260;
+            this.splitContainer1.TabIndex = 2;
             // 
             // Form1
             // 
@@ -508,6 +528,7 @@
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(1240, 669);
             this.Controls.Add(this.splitContainer1);
+            this.Controls.Add(this.statusStrip1);
             this.Controls.Add(this.menuStrip1);
             this.MainMenuStrip = this.menuStrip1;
             this.Name = "Form1";
@@ -515,10 +536,8 @@
             this.Load += new System.EventHandler(this.Form1_Load);
             this.menuStrip1.ResumeLayout(false);
             this.menuStrip1.PerformLayout();
-            this.splitContainer1.Panel1.ResumeLayout(false);
-            this.splitContainer1.Panel2.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).EndInit();
-            this.splitContainer1.ResumeLayout(false);
+            this.statusStrip1.ResumeLayout(false);
+            this.statusStrip1.PerformLayout();
             this.splitContainer2.Panel1.ResumeLayout(false);
             this.splitContainer2.Panel2.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer2)).EndInit();
@@ -543,6 +562,10 @@
             this.AnimTable.ResumeLayout(false);
             this.AnimTable.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.frameBox)).EndInit();
+            this.splitContainer1.Panel1.ResumeLayout(false);
+            this.splitContainer1.Panel2.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).EndInit();
+            this.splitContainer1.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -554,20 +577,26 @@
         private System.Windows.Forms.ToolStripMenuItem fileToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem openToolStripMenuItem;
         private System.Windows.Forms.OpenFileDialog openFileDialog1;
+        private System.Windows.Forms.ToolStripMenuItem openAnimationToolStripMenuItem;
+        private System.ComponentModel.BackgroundWorker backgroundWorker1;
+        private System.Windows.Forms.ToolStripMenuItem optionsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem settingsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem aboutToolStripMenuItem;
+        private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabel1;
+        private System.Windows.Forms.StatusStrip statusStrip1;
         private OpenTK.GLControl glControl1;
-        private System.Windows.Forms.SplitContainer splitContainer1;
         private System.Windows.Forms.SplitContainer splitContainer2;
         private System.Windows.Forms.GroupBox groupBox1;
-        private System.Windows.Forms.Label label1;
-        private System.Windows.Forms.TreeView treeView1;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel1;
+        private System.Windows.Forms.Label label4;
+        private System.Windows.Forms.Label label1;
         private System.Windows.Forms.NumericUpDown numericUpDown1;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.NumericUpDown numericUpDown2;
-        private System.Windows.Forms.ToolStripMenuItem openAnimationToolStripMenuItem;
-        private System.ComponentModel.BackgroundWorker backgroundWorker1;
-        private System.Windows.Forms.GroupBox sceneGraphGroup;
+        private System.Windows.Forms.NumericUpDown numericUpDown3;
         private System.Windows.Forms.SplitContainer splitContainer3;
+        private System.Windows.Forms.GroupBox sceneGraphGroup;
+        private System.Windows.Forms.TreeView treeView1;
         private System.Windows.Forms.SplitContainer splitContainer4;
         private System.Windows.Forms.GroupBox ProcGenGroup;
         private System.Windows.Forms.Button randomgenerator;
@@ -576,11 +605,7 @@
         private NewButton newButton1;
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.NumericUpDown frameBox;
-        private System.Windows.Forms.ToolStripMenuItem optionsToolStripMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem settingsToolStripMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem aboutToolStripMenuItem;
-        private System.Windows.Forms.Label label4;
-        private System.Windows.Forms.NumericUpDown numericUpDown3;
+        private System.Windows.Forms.SplitContainer splitContainer1;
     }
 }
 

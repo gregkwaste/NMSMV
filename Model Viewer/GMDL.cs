@@ -686,7 +686,7 @@ namespace GMDL
             //Bind vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
 
-            int vpos, npos, uv0pos, bI, bW, tpos, bpos;
+            int vpos, npos, tpos, bpos;
             //Vertex attribute
             vpos = GL.GetAttribLocation(this.shader_program, "vPosition");
             int vstride = vbo.vx_size * vertrstart;

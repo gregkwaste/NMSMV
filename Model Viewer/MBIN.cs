@@ -468,6 +468,7 @@ public static class MATERIALMBIN
 
 public static class GEOMMBIN{
 
+    public static System.Windows.Forms.ToolStripStatusLabel strip;
 
     public static GMDL.GeomObject Parse(FileStream fs)
     {
@@ -642,8 +643,8 @@ public static class GEOMMBIN{
 
         string[] split = sceneName.GetAttribute("value").Split('\\');
         string scnName = split[split.Length - 1];
-        Debug.WriteLine("Importing Scene: " + scnName);
-
+        Util.setStatus("Importing Scene: " + scnName, strip);
+        //Debug.WriteLine("Importing Scene: " + scnName);
         //Get Geometry File
         XmlElement sceneNodeData = (XmlElement)sceneNode.SelectSingleNode("Property[@name='Attributes']");
         //Parse geometry once
@@ -658,10 +659,6 @@ public static class GEOMMBIN{
         Random randgen = new Random();
 
         //Create Root
-        if (scnName.Contains("TURBIN"))
-        {
-            Debug.WriteLine("asdasdasd");
-        }
         GMDL.locator root = new GMDL.locator();
         root.name = scnName;
         root.type = TYPES.SCENE;
@@ -727,7 +724,6 @@ public static class GEOMMBIN{
 
             Debug.WriteLine("Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]);
             //Get Options
-            XmlElement opt;
             so.batchstart = int.Parse(((XmlElement) attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
             so.batchcount = int.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
             so.vertrstart = int.Parse(((XmlElement)attribs.ChildNodes[2].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
