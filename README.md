@@ -3,7 +3,7 @@
 
 No Man's Model Viewer is a model viewer created to preview No Man's Sky 3D Models. It also supports animation playback and also a custom Procedural Generation which tries to emulate the game's behavior during the creation process.
 
-## Repo Version ##
+## **Repo Version** ##
 
 * Latest Version 0.4
 ### Known Issues ###
