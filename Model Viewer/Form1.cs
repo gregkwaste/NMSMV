@@ -265,8 +265,7 @@ namespace Model_Viewer
 
             //Setup the timer
             t = new Timer();
-            t.Enabled = true;
-            t.Interval = 40;
+            t.Interval = 20;
             t.Tick += new EventHandler(timer_ticker);
             t.Start();
             
@@ -757,7 +756,9 @@ namespace Model_Viewer
             //Revise Procgen Creation
 
             //First Create the form and the table
-            Form vpwin = new Form();
+            ProcGenForm vpwin = new ProcGenForm();
+            vpwin.parentForm = this; //Set parent to this form
+            vpwin.FormClosed += new FormClosedEventHandler(this.resumeTicker);
             vpwin.Text = "Procedural Generated Models";
             // no smaller than design time size
             vpwin.MinimumSize = new System.Drawing.Size(5 * 300, 3 * 256);
@@ -813,7 +814,7 @@ namespace Model_Viewer
                         cloneJointDict(ref clonedDict, ((GMDL.model) joint_dict[0]).Clone());
                         n.joint_dict = clonedDict;
                     }
-                    catch (KeyNotFoundException ex)
+                    catch (ArgumentOutOfRangeException ex)
                     {
                         //Debug.WriteLine("Omitting Joint Dict, There are no joints");
                     }
@@ -827,6 +828,13 @@ namespace Model_Viewer
             vpwin.Controls.Add(table);
             vpwin.Show();
             
+        }
+
+        private void resumeTicker(object sender, EventArgs e)
+        {
+            Form1 f = ((ProcGenForm) sender).parentForm;
+            //Start the timer
+            f.t.Start();
         }
 
         private void cloneJointDict(ref Dictionary<string,GMDL.model> jointdict, GMDL.model root)

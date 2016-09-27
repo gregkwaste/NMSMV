@@ -72,4 +72,10 @@ namespace Model_Viewer
             }
         }
     }
+
+    public class ProcGenForm: Form
+    {
+        public Form1 parentForm;
+    }
+
 }

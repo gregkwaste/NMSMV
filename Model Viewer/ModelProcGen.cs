@@ -1061,6 +1061,8 @@ namespace Model_Viewer
                         newPal[f.Name]["Alternative1"] = palette[4 * rand + 1];
                         newPal[f.Name]["Alternative2"] = palette[4 * rand + 2];
                         newPal[f.Name]["Alternative3"] = palette[4 * rand + 3];
+                        //Used By plants
+                        newPal[f.Name]["MatchGround"] = palette[4 * rand + 3];
                         //I have no idea where the fuck the 5th color comes from
                         newPal[f.Name]["Alternative4"] = palette[4 * rand + 3];
 
@@ -1094,6 +1096,8 @@ namespace Model_Viewer
                         newPal[f.Name]["Alternative1"] = palette[(rand / 8) * 32 + rand % 8 + 1 * 8];
                         newPal[f.Name]["Alternative2"] = palette[(rand / 8) * 32 + rand % 8 + 2 * 8];
                         newPal[f.Name]["Alternative3"] = palette[(rand / 8) * 32 + rand % 8 + 3 * 8];
+                        //Used by Wood
+                        newPal[f.Name]["MatchGround"] = palette[4 * rand + 3];
                         newPal[f.Name]["Alternative4"] = palette[(rand / 8) * 32 + rand % 8 + 3 * 8];
                         break;
 
@@ -1121,6 +1125,7 @@ namespace Model_Viewer
     {
         //static Random randgen = new Random();
 
+        //Deprecated
         public static List<Selector> parse_level(XmlNode level)
         {
             List<Selector> sel_list = new List<Selector>();
@@ -1194,6 +1199,7 @@ namespace Model_Viewer
                 parts.Add(entry);
         }
 
+        //Deprecated
         public static void parse_selector(Selector active, ref List<string> parts)
         {
             int v = -1;
@@ -1251,34 +1257,39 @@ namespace Model_Viewer
                 XmlElement refNode = (XmlElement) selNode.SelectSingleNode(".//Property[@name='ReferencePaths']");
                 if (refNode.ChildNodes.Count > 0)
                 {
-                    string refPath = ((XmlElement)refNode.SelectSingleNode("Data//Property[@name='Value']")).GetAttribute("value");
-                    //Construct Descriptor Path
-                    string[] split = refPath.Split('.');
-                    string descrpath = "";
-                    for (int i = 0; i < split.Length - 2; i++)
-                        descrpath = Path.Combine(descrpath, split[i]);
-                    descrpath += ".DESCRIPTOR.MBIN";
-                    descrpath = Path.Combine(Util.dirpath, descrpath);
-                    string exmlPath = Util.getExmlPath(descrpath);
-                    
-                    //Check if descriptor exists at all
-                    if (File.Exists(descrpath))
+                    for (int i = 0; i < refNode.ChildNodes.Count; i++)
                     {
-                        //Convert only if file does not exist
-                        if (!File.Exists(exmlPath))
-                        {
-                            Debug.WriteLine("Exml does not exist, Converting...");
-                            //Convert Descriptor MBIN to exml
-                            Util.MbinToExml(descrpath);
-                        }
+                        XmlElement refChild = (XmlElement) refNode.ChildNodes[i];
+                        string refPath = ((XmlElement)refChild.SelectSingleNode("Property[@name='Value']")).GetAttribute("value");
+                        //Construct Descriptor Path
+                        string[] split = refPath.Split('.');
+                        string descrpath = "";
+                        for (int j = 0; j < split.Length - 2; j++)
+                            descrpath = Path.Combine(descrpath, split[j]);
+                        descrpath += ".DESCRIPTOR.MBIN";
+                        descrpath = Path.Combine(Util.dirpath, descrpath);
+                        string exmlPath = Util.getExmlPath(descrpath);
 
-                        //Parse exml now
-                        XmlDocument descrXml = new XmlDocument();
-                        descrXml.Load(exmlPath);
-                        XmlElement newRoot = (XmlElement)descrXml.ChildNodes[1].ChildNodes[0];
-                        //Parse Descriptors from this object
-                        parse_descriptor(ref parts, newRoot);
+                        //Check if descriptor exists at all
+                        if (File.Exists(descrpath))
+                        {
+                            //Convert only if file does not exist
+                            if (!File.Exists(exmlPath))
+                            {
+                                Debug.WriteLine("Exml does not exist, Converting...");
+                                //Convert Descriptor MBIN to exml
+                                Util.MbinToExml(descrpath);
+                            }
+
+                            //Parse exml now
+                            XmlDocument descrXml = new XmlDocument();
+                            descrXml.Load(exmlPath);
+                            XmlElement newRoot = (XmlElement)descrXml.ChildNodes[1].ChildNodes[0];
+                            //Parse Descriptors from this object
+                            parse_descriptor(ref parts, newRoot);
+                        }
                     }
+                    
 
                 }
                     
