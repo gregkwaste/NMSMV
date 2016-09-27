@@ -19,10 +19,13 @@ No Man's Model Viewer is a model viewer created to preview No Man's Sky 3D Model
 ### How do I get set up? ###
 
 * Summary of set up
+
 All you need to do is to build the project's solution file.
 * Configuration
+
 None
 * Dependencies
+
 OpenTK is the one and only dependency for building the project. Also make sure to install the latest NET framework updates and you may also need to update your graphics card drivers.
 
 ### Contribution guidelines ###
