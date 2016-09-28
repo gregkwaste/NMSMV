@@ -59,9 +59,9 @@ namespace Model_Viewer
             this.randomgenerator = new System.Windows.Forms.Button();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.AnimTable = new System.Windows.Forms.TableLayoutPanel();
-            this.newButton1 = new Model_Viewer.NewButton();
             this.label3 = new System.Windows.Forms.Label();
             this.frameBox = new System.Windows.Forms.NumericUpDown();
+            this.newButton1 = new Model_Viewer.NewButton();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.menuStrip1.SuspendLayout();
             this.statusStrip1.SuspendLayout();
@@ -393,13 +393,11 @@ namespace Model_Viewer
             // 
             // treeView1
             // 
-            this.treeView1.CheckBoxes = true;
             this.treeView1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.treeView1.Location = new System.Drawing.Point(3, 16);
             this.treeView1.Name = "treeView1";
             this.treeView1.Size = new System.Drawing.Size(254, 309);
             this.treeView1.TabIndex = 0;
-            this.treeView1.AfterCheck += new System.Windows.Forms.TreeViewEventHandler(this.treeView1_AfterCheck);
             // 
             // splitContainer4
             // 
@@ -457,9 +455,9 @@ namespace Model_Viewer
             this.AnimTable.ColumnCount = 2;
             this.AnimTable.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.AnimTable.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.AnimTable.Controls.Add(this.newButton1, 0, 1);
             this.AnimTable.Controls.Add(this.label3, 0, 0);
             this.AnimTable.Controls.Add(this.frameBox, 1, 0);
+            this.AnimTable.Controls.Add(this.newButton1, 0, 1);
             this.AnimTable.Dock = System.Windows.Forms.DockStyle.Fill;
             this.AnimTable.Location = new System.Drawing.Point(3, 16);
             this.AnimTable.Name = "AnimTable";
@@ -468,18 +466,6 @@ namespace Model_Viewer
             this.AnimTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.AnimTable.Size = new System.Drawing.Size(254, 65);
             this.AnimTable.TabIndex = 0;
-            // 
-            // newButton1
-            // 
-            this.AnimTable.SetColumnSpan(this.newButton1, 2);
-            this.newButton1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.newButton1.Location = new System.Drawing.Point(3, 35);
-            this.newButton1.Name = "newButton1";
-            this.newButton1.Size = new System.Drawing.Size(248, 27);
-            this.newButton1.TabIndex = 13;
-            this.newButton1.Text = "Play";
-            this.newButton1.UseVisualStyleBackColor = true;
-            this.newButton1.Click += new System.EventHandler(this.newButton1_Click);
             // 
             // label3
             // 
@@ -506,6 +492,17 @@ namespace Model_Viewer
             this.frameBox.TabIndex = 12;
             this.frameBox.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             this.frameBox.ValueChanged += new System.EventHandler(this.frameBox_ValueChanged);
+            // 
+            // newButton1
+            // 
+            this.AnimTable.SetColumnSpan(this.newButton1, 2);
+            this.newButton1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.newButton1.Location = new System.Drawing.Point(3, 35);
+            this.newButton1.Name = "newButton1";
+            this.newButton1.Size = new System.Drawing.Size(248, 27);
+            this.newButton1.TabIndex = 13;
+            this.newButton1.Text = "Play";
+            this.newButton1.UseVisualStyleBackColor = true;
             // 
             // splitContainer1
             // 
@@ -603,11 +600,11 @@ namespace Model_Viewer
         private System.Windows.Forms.Button randomgenerator;
         private System.Windows.Forms.GroupBox groupBox2;
         private System.Windows.Forms.TableLayoutPanel AnimTable;
-        private Model_Viewer.NewButton newButton1;
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.NumericUpDown frameBox;
         private System.Windows.Forms.SplitContainer splitContainer1;
-        private Model_Viewer.NoClickTree treeView1;
+        private Model_Viewer.NewButton newButton1;
+        private NoClickTree treeView1;
     }
 }
 

@@ -23,6 +23,7 @@ namespace Model_Viewer
             status = !status;
             this.Invalidate();
         }
+
         public override string Text
         {
             get

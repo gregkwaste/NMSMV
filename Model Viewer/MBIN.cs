@@ -658,8 +658,8 @@ public static class GEOMMBIN{
         //Random Generetor for colors
         Random randgen = new Random();
 
-        //Create Root
-        GMDL.locator root = new GMDL.locator();
+        //Create Scene Root
+        GMDL.scene root = new GMDL.scene();
         root.name = scnName;
         root.type = TYPES.SCENE;
         root.shader_program = ResourceMgmt.shader_programs[1];
@@ -667,13 +667,20 @@ public static class GEOMMBIN{
         //Store sections node
         XmlElement children = (XmlElement)sceneNode.SelectSingleNode("Property[@name='Children']");
         foreach (XmlElement node in children)
-            root.children.Add(parseNode(node, cvbo, root));
+        {
+            GMDL.model part = parseNode(node, cvbo, root, root);
+            if (part.type == TYPES.JOINT)
+                root.jointModel = part;
+            else
+                root.children.Add(part);
+        }
+            
 
         return root;
     }
 
        private static GMDL.model parseNode(XmlElement node, 
-           GMDL.customVBO cvbo, GMDL.model parent)
+           GMDL.customVBO cvbo, GMDL.model parent, GMDL.model scene)
         {
         XmlElement attribs,childs,transform;
         transform = (XmlElement)node.SelectSingleNode("Property[@name='Transform']");
@@ -744,6 +751,7 @@ public static class GEOMMBIN{
             Debug.WriteLine("Batch Start {0} Count {1} ", so.batchstart, so.batchcount);
 
             so.parent = parent;
+            so.scene = scene;
             so.init(String.Join(",",transforms));
 
             //Get Material
@@ -770,7 +778,7 @@ public static class GEOMMBIN{
                 Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
-                    so.children.Add(parseNode(childnode, cvbo, so));
+                    so.children.Add(parseNode(childnode, cvbo, so, scene));
                 }
             }
             
@@ -790,6 +798,7 @@ public static class GEOMMBIN{
 
             //Get Transformation
             so.parent = parent;
+            so.scene = scene;
             so.init(String.Join(",", transforms));
             
             //Locator Objects don't have options
@@ -800,7 +809,7 @@ public static class GEOMMBIN{
                 Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
-                    so.children.Add(parseNode(childnode, cvbo, so));
+                    so.children.Add(parseNode(childnode, cvbo, so, scene));
                 }
             }
 
@@ -816,6 +825,7 @@ public static class GEOMMBIN{
             joint.shader_program = ResourceMgmt.shader_programs[2];
             //Get Transformation
             joint.parent = parent;
+            joint.scene = scene;
             joint.init(String.Join(",", transforms));
             //Get JointIndex
             joint.jointIndex = int.Parse(((XmlElement)attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
@@ -829,7 +839,7 @@ public static class GEOMMBIN{
             {
                 Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
-                    joint.children.Add(parseNode(childnode, cvbo, joint));
+                    joint.children.Add(parseNode(childnode, cvbo, joint, scene));
             }
             
             return joint;
@@ -853,6 +863,7 @@ public static class GEOMMBIN{
             //Read new Scene
             GMDL.model so = LoadObjects(newXml);
             so.parent = parent;
+            so.scene = null;
             //Override Name
             so.name = name;
             //Override transforms
@@ -863,7 +874,7 @@ public static class GEOMMBIN{
             {
                 Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
-                    so.children.Add(parseNode(childnode, cvbo, so));
+                    so.children.Add(parseNode(childnode, cvbo, so, scene));
             }
 
             //Load Objects from new xml
@@ -915,7 +926,7 @@ public static class GEOMMBIN{
                 Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
-                    so.children.Add(parseNode(childnode, cvbo, so));
+                    so.children.Add(parseNode(childnode, cvbo, so, scene));
                 }
             }
             

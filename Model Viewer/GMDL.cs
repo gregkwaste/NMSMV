@@ -14,6 +14,7 @@ namespace GMDL
     {
         public abstract bool render();
         public abstract GMDL.model Clone();
+        public GMDL.model scene;
         public bool renderable = true;
         public int shader_program = -1;
         public int index;
@@ -216,6 +217,12 @@ namespace GMDL
     //    List<model> Children { set; get; }
     //};
     
+    public class scene : locator
+    {
+        public float[] JMArray = new float[128 * 16];
+        public GMDL.model jointModel = null;
+    }
+
     public class locator: model
     {
         //private Vector3[] verts;
@@ -1059,6 +1066,7 @@ namespace GMDL
         public string name;
         public Vector4 value;
     }
+
     public class MatOpts
     {
         public int transparency;
