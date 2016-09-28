@@ -51,7 +51,7 @@
             this.numericUpDown3 = new System.Windows.Forms.NumericUpDown();
             this.splitContainer3 = new System.Windows.Forms.SplitContainer();
             this.sceneGraphGroup = new System.Windows.Forms.GroupBox();
-            this.treeView1 = new NoClickTree();
+            this.treeView1 = new Model_Viewer.NoClickTree();
             this.splitContainer4 = new System.Windows.Forms.SplitContainer();
             this.ProcGenGroup = new System.Windows.Forms.GroupBox();
             this.randomgenerator = new System.Windows.Forms.Button();
@@ -435,7 +435,7 @@
             this.randomgenerator.Name = "randomgenerator";
             this.randomgenerator.Size = new System.Drawing.Size(254, 88);
             this.randomgenerator.TabIndex = 9;
-            this.randomgenerator.Text = "RandGen";
+            this.randomgenerator.Text = "ProcGen";
             this.randomgenerator.UseVisualStyleBackColor = true;
             this.randomgenerator.Click += new System.EventHandler(this.randgenClickNew);
             // 
@@ -532,7 +532,7 @@
             this.Controls.Add(this.menuStrip1);
             this.MainMenuStrip = this.menuStrip1;
             this.Name = "Form1";
-            this.Text = "No Man\'s Models";
+            this.Text = "No Man\'s Model Viewer";
             this.Load += new System.EventHandler(this.Form1_Load);
             this.menuStrip1.ResumeLayout(false);
             this.menuStrip1.PerformLayout();
@@ -596,7 +596,6 @@
         private System.Windows.Forms.NumericUpDown numericUpDown3;
         private System.Windows.Forms.SplitContainer splitContainer3;
         private System.Windows.Forms.GroupBox sceneGraphGroup;
-        private System.Windows.Forms.TreeView treeView1;
         private System.Windows.Forms.SplitContainer splitContainer4;
         private System.Windows.Forms.GroupBox ProcGenGroup;
         private System.Windows.Forms.Button randomgenerator;
@@ -606,6 +605,7 @@
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.NumericUpDown frameBox;
         private System.Windows.Forms.SplitContainer splitContainer1;
+        private NoClickTree treeView1;
     }
 }
 

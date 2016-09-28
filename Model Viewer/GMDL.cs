@@ -530,7 +530,7 @@ namespace GMDL
                 //Get Diffuse sampler
                 Sampler sam = material.samplers[0];
 
-                if (sam.procTextures.Count > 0)
+                if (sam.procTextures.Count > 0 & RenderOptions.UseTextures)
                 {
                     loc = GL.GetUniformLocation(shader_program, "diffuseFlag");
                     GL.Uniform1(loc, 1.0f);
