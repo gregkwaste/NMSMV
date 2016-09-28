@@ -77,6 +77,10 @@
             this.textBox1.TabIndex = 1;
             this.textBox1.MouseClick += new System.Windows.Forms.MouseEventHandler(this.textBox1_MouseClick);
             // 
+            // folderBrowserDialog1
+            // 
+            this.folderBrowserDialog1.Description = "Select Exported Files Folder";
+            // 
             // SettingsForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);

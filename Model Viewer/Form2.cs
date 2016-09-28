@@ -32,9 +32,18 @@ namespace Model_Viewer
             }
             catch (System.IO.FileNotFoundException e)
             {
-                System.Diagnostics.Debug.WriteLine("Settings File doesn't Exist");
-                textBox1_MouseClick(this, new MouseEventArgs(MouseButtons.Left, 1, 0, 0, 1));
-                return;
+                DialogResult res = MessageBox.Show("Settings File Missing. Please choose your exported files Folder...", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                if (res == DialogResult.OK)
+                {
+                    System.Diagnostics.Debug.WriteLine("Settings File doesn't Exist");
+                    textBox1_MouseClick(this, new MouseEventArgs(MouseButtons.Left, 1, 0, 0, 1));
+                    //Save Settings automatically
+                    if (!(textBox1.Text == ""))
+                        button1_Click(this, new EventArgs());
+
+                    return;
+                }
             }
 
             //If file exists then parse the settings

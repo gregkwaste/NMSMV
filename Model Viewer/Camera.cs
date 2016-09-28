@@ -10,7 +10,7 @@ namespace Model_Viewer
 {
     class Camera
     {
-        public Vector3 Position = Vector3.Zero;
+        public Vector3 Position = new Vector3(0.0f,0.0f,+5.0f);
         public Vector3 Orientation = new Vector3((float)Math.PI, 0f, 0f);
         public float MoveSpeed = 0.2f;
         public float MouseSensitivity = 0.01f;

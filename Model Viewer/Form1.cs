@@ -92,28 +92,33 @@ namespace Model_Viewer
             var ext = split[split.Length - 1].ToUpper();
             Debug.WriteLine(ext);
 
-            if (ext != "MBIN")
+            if (ext != "MBIN" & ext !="EXML")
             {
-                MessageBox.Show("Please select an MBIN File", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Please select a SCENE.MBIN or a SCENE.exml File", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
-            string exmlPath = Util.getExmlPath(filename);
-
-            //Parse the Scene XML file
-            Debug.WriteLine("Parsing SCENE XML");
-            
-            //Convert only if file does not exist
-            if (!File.Exists(exmlPath))
+            //If the file is already an exml there is no need for conversions
+            string exmlPath = filename;
+            if (!(ext == "EXML"))
             {
-                Debug.WriteLine("Exml does not exist");
-                Util.MbinToExml(filename);
+                exmlPath = Util.getExmlPath(filename);
+
+                //Parse the Scene XML file
+                Debug.WriteLine("Parsing SCENE XML");
+
+                //Convert only if file does not exist
+                if (!File.Exists(exmlPath))
+                {
+                    Debug.WriteLine("Exml does not exist");
+                    Util.MbinToExml(filename);
+                }
             }
+            
 
             //Open exml
             this.xmlDoc.Load(exmlPath);
             
-
             //Initialize Palettes
             Model_Viewer.Palettes.set_palleteColors();
             
@@ -135,8 +140,9 @@ namespace Model_Viewer
             Util.setStatus("Creating Nodes...", this.toolStripStatusLabel1);
             
             //Debug.WriteLine("Objects Returned: {0}",oblist.Count);
-            TreeNode node = new TreeNode(scene.name);
+            MyTreeNode node = new MyTreeNode(scene.name);
             node.Checked = true;
+            node.model = this.mainScene;
             //Clear index dictionary
             index_dict.Clear();
             joint_dict.Clear();
@@ -151,6 +157,7 @@ namespace Model_Viewer
             treeView1.Nodes.Clear();
             treeView1.Nodes.Add(node);
 
+#if DEBUG
             //DEBUG write the jmarray to disk
             using (System.IO.StreamWriter file =
             new System.IO.StreamWriter(@"jmarray.txt"))
@@ -164,15 +171,10 @@ namespace Model_Viewer
                 }
             }
 
+#endif
 
-
-            //vboobjects.Add(new GMDL.customVBO(GEOMMBIN.Parse(fs)));
             glControl1.Invalidate();
             Util.setStatus("Ready", this.toolStripStatusLabel1);
-
-
-
-
         }
 
         
@@ -211,7 +213,8 @@ namespace Model_Viewer
 
             this.mainScene = scene;
             this.childCounter++;
-            TreeNode node = new TreeNode("ORIGIN");
+            MyTreeNode node = new MyTreeNode("ORIGIN");
+            node.model = scene;
             node.Checked = true;
             treeView1.Nodes.Add(node);
 
@@ -229,7 +232,7 @@ namespace Model_Viewer
             //Load Settings
             Settings.loadSettings();
 
-            //Setup the timer
+            //Setup the update timer
             t = new Timer();
             t.Interval = 20;
             t.Tick += new EventHandler(timer_ticker);
@@ -238,6 +241,8 @@ namespace Model_Viewer
             //Set GEOMMBIN statusStrip
             GEOMMBIN.strip = this.toolStripStatusLabel1;
         }
+
+        
 
 
         //glControl Timer
@@ -772,6 +777,7 @@ namespace Model_Viewer
 
         }
 
+        //Animation file Open
         private void openAnimationToolStripMenuItem_Click(object sender, EventArgs e)
         {
             //Opening Animation File
@@ -843,7 +849,7 @@ namespace Model_Viewer
             while (true)
             {
                 //Reset
-                if (i >= max) i = 0;
+                if (i == max) i = 0;
                 System.Threading.Thread.Sleep(40);
                 i += 1;
 
@@ -857,6 +863,7 @@ namespace Model_Viewer
             }
         }
         
+        //Play Pause Button
         private void newButton1_Click(object sender, EventArgs e)
         {
             //Animation Play/Pause Button
@@ -869,6 +876,7 @@ namespace Model_Viewer
             }
             newButton1.status = !newButton1.status;
             newButton1.Invalidate();
+            glControl1.Focus();
         }
 
         private void backgroundWorker1_ProgressChanged(object sender, System.ComponentModel.ProgressChangedEventArgs e)
@@ -912,6 +920,8 @@ namespace Model_Viewer
             //Set mouse pos
             mouse_x = 0;
             mouse_y = 0;
+
+            glControl1.Invalidate();
         }
 
         private void setup_GLControl()
@@ -933,6 +943,7 @@ namespace Model_Viewer
             this.glControl1.Resize += new System.EventHandler(this.glControl1_Resize);
             this.glControl1.Enter += new System.EventHandler(this.glControl1_Enter);
             this.glControl1.Leave += new System.EventHandler(this.glControl1_Leave);
+
         }
 
         private void glControl1_Paint(object sender, PaintEventArgs e)
@@ -1107,7 +1118,7 @@ namespace Model_Viewer
             Debug.WriteLine("Left Focus");
             t.Stop();
         }
-
+        
     }
 
     //Class Which will store all the texture resources for better memory management
