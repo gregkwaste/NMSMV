@@ -57,10 +57,10 @@
             this.randomgenerator = new System.Windows.Forms.Button();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.AnimTable = new System.Windows.Forms.TableLayoutPanel();
-            this.newButton1 = new Model_Viewer.NewButton();
             this.label3 = new System.Windows.Forms.Label();
             this.frameBox = new System.Windows.Forms.NumericUpDown();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
+            this.newButton1 = new Model_Viewer.NewButton();
             this.menuStrip1.SuspendLayout();
             this.statusStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer2)).BeginInit();
@@ -435,7 +435,7 @@
             this.randomgenerator.Name = "randomgenerator";
             this.randomgenerator.Size = new System.Drawing.Size(254, 88);
             this.randomgenerator.TabIndex = 9;
-            this.randomgenerator.Text = "RandGen";
+            this.randomgenerator.Text = "ProcGen";
             this.randomgenerator.UseVisualStyleBackColor = true;
             this.randomgenerator.Click += new System.EventHandler(this.randgenClickNew);
             // 
@@ -466,18 +466,6 @@
             this.AnimTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.AnimTable.Size = new System.Drawing.Size(254, 65);
             this.AnimTable.TabIndex = 0;
-            // 
-            // newButton1
-            // 
-            this.AnimTable.SetColumnSpan(this.newButton1, 2);
-            this.newButton1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.newButton1.Location = new System.Drawing.Point(3, 35);
-            this.newButton1.Name = "newButton1";
-            this.newButton1.Size = new System.Drawing.Size(248, 27);
-            this.newButton1.TabIndex = 13;
-            this.newButton1.Text = "Play";
-            this.newButton1.UseVisualStyleBackColor = true;
-            this.newButton1.Click += new System.EventHandler(this.newButton1_Click);
             // 
             // label3
             // 
@@ -522,6 +510,18 @@
             this.splitContainer1.SplitterDistance = 260;
             this.splitContainer1.TabIndex = 2;
             // 
+            // newButton1
+            // 
+            this.AnimTable.SetColumnSpan(this.newButton1, 2);
+            this.newButton1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.newButton1.Location = new System.Drawing.Point(3, 35);
+            this.newButton1.Name = "newButton1";
+            this.newButton1.Size = new System.Drawing.Size(248, 27);
+            this.newButton1.TabIndex = 13;
+            this.newButton1.Text = "Play";
+            this.newButton1.UseVisualStyleBackColor = true;
+            this.newButton1.Click += new System.EventHandler(this.newButton1_Click);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -532,7 +532,7 @@
             this.Controls.Add(this.menuStrip1);
             this.MainMenuStrip = this.menuStrip1;
             this.Name = "Form1";
-            this.Text = "No Man\'s Models";
+            this.Text = "No Man\'s Model Viewer";
             this.Load += new System.EventHandler(this.Form1_Load);
             this.menuStrip1.ResumeLayout(false);
             this.menuStrip1.PerformLayout();

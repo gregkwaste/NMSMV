@@ -16,6 +16,7 @@ namespace Model_Viewer
     {
         //Set Full rendermode by default
         public static PolygonMode RENDERMODE = PolygonMode.Fill;
+        public static bool UseTextures = true;
     }
 
     public static class Util

@@ -217,6 +217,10 @@ namespace Model_Viewer
 
             //Set GEOMMBIN statusStrip
             GEOMMBIN.strip = this.toolStripStatusLabel1;
+
+            int maxfloats;
+            GL.GetInteger(GetPName.MaxVertexUniformVectors,out maxfloats);
+            toolStripStatusLabel1.Text = maxfloats.ToString();
         }
 
 
@@ -330,7 +334,7 @@ namespace Model_Viewer
                     node.Checked = e.Node.Checked;
             }
             
-            //glControl1.Invalidate();
+            glControl1.Invalidate();
         }
 
         private bool setObjectField<T>(string field, GMDL.model ob, T value)
@@ -1021,6 +1025,10 @@ namespace Model_Viewer
                     else
                         RenderOptions.RENDERMODE = PolygonMode.Fill;
                     break;
+                //Toggle Texture Render
+                case Keys.O:
+                    RenderOptions.UseTextures = !RenderOptions.UseTextures;
+                    break;
                 default:
                     Debug.WriteLine("Not Implemented Yet");
                     break;
@@ -1085,7 +1093,8 @@ namespace Model_Viewer
         {
             //Don't update the control when its not focused
             Debug.WriteLine("Left Focus");
-            t.Stop();
+            if (newButton1.status)
+                t.Stop();
         }
 
     }

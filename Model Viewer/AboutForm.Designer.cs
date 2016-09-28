@@ -73,7 +73,7 @@
             this.label6.Name = "label6";
             this.label6.Size = new System.Drawing.Size(343, 31);
             this.label6.TabIndex = 2;
-            this.label6.Text = "Version 0.5";
+            this.label6.Text = "Version 0.4";
             this.label6.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // label3
@@ -96,7 +96,7 @@
             this.label1.Text = "Contact: gregkwaste@gmail.com";
             this.label1.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
-            // About
+            // AboutDialog
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
@@ -108,7 +108,7 @@
             this.Controls.Add(this.label4);
             this.Controls.Add(this.label2);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
-            this.Name = "About";
+            this.Name = "AboutDialog";
             this.Text = "About";
             this.ResumeLayout(false);
 

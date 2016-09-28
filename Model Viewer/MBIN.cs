@@ -501,6 +501,7 @@ public static class GEOMMBIN{
         var skinmatoffset = fs.Position + br.ReadInt32();
         fs.Seek(0x4, SeekOrigin.Current);
         var bc = br.ReadInt32();
+        Debug.WriteLine("SkinRemaps: {0}", bc);
         fs.Seek(0x4, SeekOrigin.Current);
 
 
@@ -667,7 +668,13 @@ public static class GEOMMBIN{
         //Store sections node
         XmlElement children = (XmlElement)sceneNode.SelectSingleNode("Property[@name='Children']");
         foreach (XmlElement node in children)
+        {
+            string name = ((XmlElement)node.SelectSingleNode("Property[@name='Name']")).GetAttribute("value");
+            //Fix double underscore names
+            Util.setStatus("Importing Scene: " + scnName + name, strip);
             root.children.Add(parseNode(node, cvbo, root));
+        }
+            
         
         return root;
     }
@@ -722,7 +729,7 @@ public static class GEOMMBIN{
             so.color[1] = Model_Viewer.Util.randgen.Next(255) / 255.0f;
             so.color[2] = Model_Viewer.Util.randgen.Next(255) / 255.0f;
 
-            Debug.WriteLine("Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]);
+            //Debug.WriteLine("Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]);
             //Get Options
             so.batchstart = int.Parse(((XmlElement) attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
             so.batchcount = int.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
@@ -768,11 +775,9 @@ public static class GEOMMBIN{
             
             if (childs != null)
             {
-                Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
+                //Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
-                {
                     so.children.Add(parseNode(childnode, cvbo, so));
-                }
             }
             
 
@@ -798,11 +803,9 @@ public static class GEOMMBIN{
             //take care of children
             if (childs != null)
             {
-                Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
+                //Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
-                {
                     so.children.Add(parseNode(childnode, cvbo, so));
-                }
             }
 
             return so;
@@ -843,30 +846,45 @@ public static class GEOMMBIN{
             XmlElement opt = ((XmlElement)attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']"));
             string path = Path.Combine(Util.dirpath, opt.GetAttribute("value"));
 
-            //Debug.WriteLine("Loading Scene " + path);
-            XmlDocument newXml = new XmlDocument(); 
-            //Parse MBIN to xml
-            if (!File.Exists(Util.getExmlPath(path)))
-                Util.MbinToExml(path);
+            GMDL.model so;
             
-            newXml.Load(Util.getExmlPath(path));
-
-            //Read new Scene
-            GMDL.model so = LoadObjects(newXml);
-            so.parent = parent;
-            //Override Name
-            so.name = name;
-            //Override transforms
-            so.init(String.Join(",", transforms));
-            
-            //Handle Children
-            if (childs != null)
+            //Check if scene file exists
+            if (!File.Exists(path))
             {
-                Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
-                foreach (XmlElement childnode in childs.ChildNodes)
-                    so.children.Add(parseNode(childnode, cvbo, so));
+                System.Windows.Forms.MessageBox.Show("Missing file :" + path);
+                //Create dummy scene
+                so = new GMDL.locator();
+                so.name = name;
+                so.parent = parent;
+                //Override Name
             }
+            else
+            {
+                //Debug.WriteLine("Loading Scene " + path);
+                XmlDocument newXml = new XmlDocument();
+                //Parse MBIN to xml
+                if (!File.Exists(Util.getExmlPath(path)))
+                    Util.MbinToExml(path);
 
+                newXml.Load(Util.getExmlPath(path));
+
+                //Read new Scene
+                so = LoadObjects(newXml);
+                so.parent = parent;
+                //Override Name
+                so.name = name;
+                //Override transforms
+                so.init(String.Join(",", transforms));
+
+                //Handle Children
+                if (childs != null)
+                {
+                    Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
+                    foreach (XmlElement childnode in childs.ChildNodes)
+                        so.children.Add(parseNode(childnode, cvbo, so));
+                }
+            }
+            
             //Load Objects from new xml
             return so;
         }
