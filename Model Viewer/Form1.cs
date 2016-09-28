@@ -51,9 +51,10 @@ namespace Model_Viewer
         
 
         private List<GMDL.GeomObject> geomobjects = new List<GMDL.GeomObject>();
-        private List<GMDL.model> vboobjects = new List<GMDL.model>();
+        //Deprecated
+        //private List<GMDL.model> vboobjects = new List<GMDL.model>();
         //private GMDL.model rootObject;
-        private List<GMDL.model> scenes = new List<GMDL.model>();
+        private GMDL.model mainScene;
         private XmlDocument xmlDoc = new XmlDocument();
         private Dictionary<string, int> index_dict = new Dictionary<string, int>();
         private OrderedDictionary joint_dict = new OrderedDictionary();
@@ -127,8 +128,8 @@ namespace Model_Viewer
             GMDL.model scene;
             scene = GEOMMBIN.LoadObjects(this.xmlDoc);
             scene.index = this.childCounter;
-            this.scenes.Clear();
-            this.scenes.Add(scene);
+            this.mainScene = null;
+            this.mainScene = scene;
             this.childCounter++;
 
             Util.setStatus("Creating Nodes...", this.toolStripStatusLabel1);
@@ -145,14 +146,33 @@ namespace Model_Viewer
             index_dict[scene.name] = this.childCounter;
             this.childCounter += 1;
             //Set indices and TreeNodes 
-            traverse_oblist(this.scenes[0], node);
+            traverse_oblist(this.mainScene, node);
             //Add root to treeview
             treeView1.Nodes.Clear();
             treeView1.Nodes.Add(node);
 
+            //DEBUG write the jmarray to disk
+            using (System.IO.StreamWriter file =
+            new System.IO.StreamWriter(@"jmarray.txt"))
+            {
+                for (int i = 0; i < JMArray.Length / 4; i++)
+                {
+                    file.WriteLine(String.Join(" ", new string[] { JMArray[4 * i].ToString(),
+                                                                   JMArray[4 * i + 1].ToString(),
+                                                                   JMArray[4 * i + 2].ToString(),
+                                                                   JMArray[4 * i + 3].ToString()}));
+                }
+            }
+
+
+
             //vboobjects.Add(new GMDL.customVBO(GEOMMBIN.Parse(fs)));
             glControl1.Invalidate();
             Util.setStatus("Ready", this.toolStripStatusLabel1);
+
+
+
+
         }
 
         
@@ -189,7 +209,7 @@ namespace Model_Viewer
             scene.shader_program = ResourceMgmt.shader_programs[1];
             scene.index = this.childCounter;
 
-            this.scenes.Add(scene);
+            this.mainScene = scene;
             this.childCounter++;
             TreeNode node = new TreeNode("ORIGIN");
             node.Checked = true;
@@ -236,8 +256,8 @@ namespace Model_Viewer
             //Debug.WriteLine("Rendering Scene Cam Orientation: {0}", this.cam.Orientation);
 
             //Render only the first scene for now
-            if (this.scenes[0] != null)
-                traverse_render(this.scenes[0]);
+            if (this.mainScene != null)
+                traverse_render(this.mainScene);
             
             //Render Info
 
@@ -330,7 +350,7 @@ namespace Model_Viewer
                     node.Checked = e.Node.Checked;
             }
             
-            //glControl1.Invalidate();
+            glControl1.Invalidate();
         }
 
         private bool setObjectField<T>(string field, GMDL.model ob, T value)
@@ -353,7 +373,7 @@ namespace Model_Viewer
         private void numericUpDown2_ValueChanged(object sender, EventArgs e)
         {
             light_distance = (float) numericUpDown2.Value;
-            //glControl1.Invalidate();
+            glControl1.Invalidate();
         }
 
         private void traverse_oblist(GMDL.model ob, TreeNode parent)
@@ -624,7 +644,7 @@ namespace Model_Viewer
 
                     Debug.WriteLine(String.Join(" ", parts.ToArray()));
                     GMDL.model m;
-                    m = ModelProcGen.get_procgen_parts(ref parts, this.scenes[0]);
+                    m = ModelProcGen.get_procgen_parts(ref parts, this.mainScene);
                     //----PROC GENERATION END----
 
                     n.rootObject = m;
@@ -687,7 +707,7 @@ namespace Model_Viewer
                 List<GMDL.model> vboParts = new List<GMDL.model>();
                 for (int i = 0; i < parts.Count; i++)
                 {
-                    GMDL.model part = collectPart(this.scenes[0].children, parts[i]);
+                    GMDL.model part = collectPart(this.mainScene.children, parts[i]);
                     GMDL.model npart = (GMDL.model)part.Clone();
                     npart.children.Clear();
                     vboParts.Add(npart);

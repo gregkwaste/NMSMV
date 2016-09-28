@@ -438,10 +438,10 @@ public static class MATERIALMBIN
             GMDL.Uniform un = new GMDL.Uniform();
             un.name = n.GetAttribute("NAME");
             Vector4 vec = new Vector4();
-            vec.X = float.Parse(n.GetAttribute("VALUE").Split(',')[0]);
-            vec.Y = float.Parse(n.GetAttribute("VALUE").Split(',')[1]);
-            vec.Z = float.Parse(n.GetAttribute("VALUE").Split(',')[2]);
-            vec.W = float.Parse(n.GetAttribute("VALUE").Split(',')[3]);
+            vec.X = float.Parse(n.GetAttribute("VALUE").Split(',')[0], System.Globalization.CultureInfo.InvariantCulture);
+            vec.Y = float.Parse(n.GetAttribute("VALUE").Split(',')[1], System.Globalization.CultureInfo.InvariantCulture);
+            vec.Z = float.Parse(n.GetAttribute("VALUE").Split(',')[2], System.Globalization.CultureInfo.InvariantCulture);
+            vec.W = float.Parse(n.GetAttribute("VALUE").Split(',')[3], System.Globalization.CultureInfo.InvariantCulture);
             un.value = vec;
             mat.uniforms.Add(un);
         }
@@ -668,7 +668,7 @@ public static class GEOMMBIN{
         XmlElement children = (XmlElement)sceneNode.SelectSingleNode("Property[@name='Children']");
         foreach (XmlElement node in children)
             root.children.Add(parseNode(node, cvbo, root));
-        
+
         return root;
     }
 
@@ -691,7 +691,6 @@ public static class GEOMMBIN{
                                                  ((XmlElement)transform.SelectSingleNode("Property[@name='ScaleX']")).GetAttribute("value"),
                                                  ((XmlElement)transform.SelectSingleNode("Property[@name='ScaleY']")).GetAttribute("value"),
                                                  ((XmlElement)transform.SelectSingleNode("Property[@name='ScaleZ']")).GetAttribute("value") };
-
         //XmlElement info = (XmlElement)node.ChildNodes[0];
         //XmlElement opts = (XmlElement)node.ChildNodes[1];
         //XmlElement childs = (XmlElement)node.ChildNodes[2];

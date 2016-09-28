@@ -100,9 +100,17 @@ namespace GMDL
             //Get Local Position
             string[] split = trans.Split(',');
             Vector3 rotation;
-            this.localPosition.X = float.Parse(split[0]);
-            this.localPosition.Y = float.Parse(split[1]);
-            this.localPosition.Z = float.Parse(split[2]);
+            this.localPosition.X = float.Parse(split[0], System.Globalization.CultureInfo.InvariantCulture);
+            this.localPosition.Y = float.Parse(split[1], System.Globalization.CultureInfo.InvariantCulture);
+            this.localPosition.Z = float.Parse(split[2], System.Globalization.CultureInfo.InvariantCulture);
+
+
+            //using (System.IO.StreamWriter file =
+            //new System.IO.StreamWriter(@"readtransformsGMDL.txt", true))
+            //{
+            //    file.WriteLine(String.Join(" ", new string[] { this.localPosition.X.ToString(),this.localPosition.Y.ToString(),this.localPosition.Z.ToString(),"INPUTS:",split[0],split[1],split[2]}));
+            //}
+
             //Get Local Rotation
             //Quaternion qx = Quaternion.FromAxisAngle(new Vector3(1.0f, 0.0f, 0.0f),
             //    (float)Math.PI * float.Parse(split[3]) / 180.0f);
@@ -112,21 +120,21 @@ namespace GMDL
             //    (float)Math.PI * float.Parse(split[5]) / 180.0f);
 
             Quaternion qx = Quaternion.FromAxisAngle(new Vector3(1.0f, 0.0f, 0.0f),
-                float.Parse(split[3]));
+                float.Parse(split[3], System.Globalization.CultureInfo.InvariantCulture));
             Quaternion qy = Quaternion.FromAxisAngle(new Vector3(0.0f, 1.0f, 0.0f),
-                float.Parse(split[4]));
+                float.Parse(split[4], System.Globalization.CultureInfo.InvariantCulture));
             Quaternion qz = Quaternion.FromAxisAngle(new Vector3(0.0f, 0.0f, 1.0f),
-                float.Parse(split[5]));
+                float.Parse(split[5], System.Globalization.CultureInfo.InvariantCulture));
 
             //this.localRotation = qz * qx * qy;
-            rotation.X = float.Parse(split[3]);
-            rotation.Y = float.Parse(split[4]);
-            rotation.Z = float.Parse(split[5]);
+            rotation.X = float.Parse(split[3], System.Globalization.CultureInfo.InvariantCulture);
+            rotation.Y = float.Parse(split[4], System.Globalization.CultureInfo.InvariantCulture);
+            rotation.Z = float.Parse(split[5], System.Globalization.CultureInfo.InvariantCulture);
 
             //Get Local Scale
-            this.localScale.X = float.Parse(split[6]);
-            this.localScale.Y = float.Parse(split[7]);
-            this.localScale.Z = float.Parse(split[8]);
+            this.localScale.X = float.Parse(split[6], System.Globalization.CultureInfo.InvariantCulture);
+            this.localScale.Y = float.Parse(split[7], System.Globalization.CultureInfo.InvariantCulture);
+            this.localScale.Z = float.Parse(split[8], System.Globalization.CultureInfo.InvariantCulture);
 
             //Now Calculate the joint matrix;
 
