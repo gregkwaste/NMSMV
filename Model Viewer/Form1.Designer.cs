@@ -1,4 +1,6 @@
-﻿namespace Model_Viewer
+﻿using System.Windows.Forms;
+
+namespace Model_Viewer
 {
     partial class Form1
     {
@@ -601,11 +603,11 @@
         private System.Windows.Forms.Button randomgenerator;
         private System.Windows.Forms.GroupBox groupBox2;
         private System.Windows.Forms.TableLayoutPanel AnimTable;
-        private NewButton newButton1;
+        private Model_Viewer.NewButton newButton1;
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.NumericUpDown frameBox;
         private System.Windows.Forms.SplitContainer splitContainer1;
-        private NoClickTree treeView1;
+        private Model_Viewer.NoClickTree treeView1;
     }
 }
 

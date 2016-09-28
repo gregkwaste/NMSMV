@@ -676,7 +676,7 @@ public static class GEOMMBIN{
            GMDL.customVBO cvbo, GMDL.model parent)
         {
         XmlElement attribs,childs,transform;
-        transform = (XmlElement)node.SelectSingleNode("Data[@name='Transform']");
+        transform = (XmlElement)node.SelectSingleNode("Property[@name='Transform']");
         attribs = (XmlElement)node.SelectSingleNode("Property[@name='Attributes']");
         childs = (XmlElement)node.SelectSingleNode("Property[@name='Children']");
 
