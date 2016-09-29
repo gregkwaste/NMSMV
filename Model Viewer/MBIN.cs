@@ -669,13 +669,11 @@ public static class GEOMMBIN{
         foreach (XmlElement node in children)
         {
             GMDL.model part = parseNode(node, cvbo, root, root);
-            //If joint save it also as the jointModel of the scene
+            //If joint save it also to the jointmodels of the scene
             if (part.type == TYPES.JOINT)
-                root.jointModel = (GMDL.Joint) part;
+                root.jointModel.Add((GMDL.Joint) part);
             root.children.Add(part);
         }
-            
-
         return root;
     }
 
@@ -777,9 +775,7 @@ public static class GEOMMBIN{
             {
                 Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
-                {
                     so.children.Add(parseNode(childnode, cvbo, so, scene));
-                }
             }
             
 
@@ -808,9 +804,7 @@ public static class GEOMMBIN{
             {
                 Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
-                {
                     so.children.Add(parseNode(childnode, cvbo, so, scene));
-                }
             }
 
             return so;
@@ -861,7 +855,7 @@ public static class GEOMMBIN{
             newXml.Load(Util.getExmlPath(path));
 
             //Read new Scene
-            GMDL.model so = LoadObjects(newXml);
+            GMDL.scene so = LoadObjects(newXml);
             so.parent = parent;
             so.scene = null;
             //Override Name
@@ -872,9 +866,14 @@ public static class GEOMMBIN{
             //Handle Children
             if (childs != null)
             {
-                Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
-                    so.children.Add(parseNode(childnode, cvbo, so, scene));
+                {
+                    GMDL.model part = parseNode(childnode, cvbo, so, scene);
+                    //If joint save it also to the jointmodels of the scene
+                    if (part.type == TYPES.JOINT)
+                        so.jointModel.Add((GMDL.Joint)part);
+                    so.children.Add(part);
+                }
             }
 
             //Load Objects from new xml

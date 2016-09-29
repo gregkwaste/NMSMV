@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Collections.Generic;
 using System.Windows.Forms;
+using System.IO;
 
 namespace Model_Viewer
 {
@@ -18,11 +19,8 @@ namespace Model_Viewer
 
         private void AnimationSelectForm_Load(object sender, EventArgs e)
         {
-            //This should fetch the available scenes
-            
-            fetchScenes(ref scenes, pform.mainScene);
             //Set up droplist
-            foreach (GMDL.scene s in scenes)
+            foreach (GMDL.scene s in this.pform.animScenes)
                 this.listBox1.Items.Add(s.name);
         }
 
@@ -55,7 +53,13 @@ namespace Model_Viewer
             }
 
             //Proceed to import
+            //Select Scene
+            GMDL.scene activeScene = this.pform.animScenes[this.listBox1.SelectedIndex];
+            FileStream fs = new FileStream(animpath, FileMode.Open);
+            activeScene.animMeta = new GMDL.AnimeMetaData();
+            activeScene.animMeta.Load(fs);
 
+            this.Close();
 
         }
 
@@ -69,6 +73,7 @@ namespace Model_Viewer
 
             animpath = openFileDialog1.FileName;
             this.textBox1.Text = animpath;
+            
         }
     }
 }

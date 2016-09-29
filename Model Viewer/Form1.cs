@@ -50,11 +50,11 @@ namespace Model_Viewer
         private Timer t;
         
 
-        private List<GMDL.GeomObject> geomobjects = new List<GMDL.GeomObject>();
+        public List<GMDL.scene> animScenes = new List<GMDL.scene>();
         //Deprecated
         //private List<GMDL.model> vboobjects = new List<GMDL.model>();
         //private GMDL.model rootObject;
-        public GMDL.model mainScene;
+        private GMDL.scene mainScene;
         private XmlDocument xmlDoc = new XmlDocument();
         private Dictionary<string, int> index_dict = new Dictionary<string, int>();
         private OrderedDictionary joint_dict = new OrderedDictionary();
@@ -207,7 +207,7 @@ namespace Model_Viewer
                                                      ResourceMgmt.shader_programs[1],
                                                      ResourceMgmt.shader_programs[2]);
 
-            GMDL.model scene = new GMDL.locator();
+            GMDL.scene scene = new GMDL.scene();
             scene.shader_program = ResourceMgmt.shader_programs[1];
             scene.index = this.childCounter;
 
@@ -395,7 +395,12 @@ namespace Model_Viewer
                 //At this point LoadObjects should have properly parsed the skeleton if any
                 //I can init the joint matrix array 
                 GMDL.scene s = (GMDL.scene) ob;
-                s.traverse_joints(s.jointModel);
+                if (s.jointModel.Count > 0)
+                {
+                    s.traverse_joints(s.jointModel);
+                    this.animScenes.Add(s); //Add scene to animscenes
+                }
+                
             }
 
             if (ob.children.Count > 0)
@@ -762,7 +767,7 @@ namespace Model_Viewer
             if (res == DialogResult.Cancel)
                 return;
             
-            FileStream fs = new FileStream(filename,FileMode.Open);
+            FileStream fs = new FileStream(filename, FileMode.Open);
             meta = new GMDL.AnimeMetaData();
             meta.Load(fs);
 
@@ -816,17 +821,11 @@ namespace Model_Viewer
         //Animation Playback
         private void backgroundWorker1_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
         {
-            int val = (int) frameBox.Value;
-            int max = (int) frameBox.Maximum;
-            int i = val;
             while (true)
             {
-                //Reset
-                if (i == max) i = 0;
-                System.Threading.Thread.Sleep(40);
-                i += 1;
-
-                backgroundWorker1.ReportProgress(i);
+                double pause = (1000.0d/(double) RenderOptions.animFPS);
+                System.Threading.Thread.Sleep((int) (Math.Round(pause, 1)));
+                backgroundWorker1.ReportProgress(0);
 
                 if (backgroundWorker1.CancellationPending)
                 {
@@ -854,7 +853,9 @@ namespace Model_Viewer
 
         private void backgroundWorker1_ProgressChanged(object sender, System.ComponentModel.ProgressChangedEventArgs e)
         {
-            frameBox.Value = e.ProgressPercentage;
+            foreach (GMDL.scene s in animScenes)
+                s.animate();
+            
         }
 
         //MenuBar Stuff

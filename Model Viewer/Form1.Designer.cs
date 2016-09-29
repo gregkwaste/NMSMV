@@ -393,11 +393,13 @@ namespace Model_Viewer
             // 
             // treeView1
             // 
+            this.treeView1.CheckBoxes = true;
             this.treeView1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.treeView1.Location = new System.Drawing.Point(3, 16);
             this.treeView1.Name = "treeView1";
             this.treeView1.Size = new System.Drawing.Size(254, 309);
             this.treeView1.TabIndex = 0;
+            this.treeView1.AfterCheck += new System.Windows.Forms.TreeViewEventHandler(this.treeView1_AfterCheck);
             // 
             // splitContainer4
             // 
@@ -503,6 +505,7 @@ namespace Model_Viewer
             this.newButton1.TabIndex = 13;
             this.newButton1.Text = "Play";
             this.newButton1.UseVisualStyleBackColor = true;
+            this.newButton1.Click += new System.EventHandler(this.newButton1_Click);
             // 
             // splitContainer1
             // 

@@ -220,16 +220,57 @@ namespace GMDL
     public class scene : locator
     {
         public float[] JMArray = new float[128 * 16];
-        public Joint jointModel = null;
+        public List<GMDL.Joint> jointModel = new List<GMDL.Joint>();
         public Dictionary<string, model> jointDict = new Dictionary<string, model>();
+        public AnimeMetaData animMeta = null;
+        public int frameCounter = 0;
 
-        public void traverse_joints(Joint m)
+        public void traverse_joints(List<GMDL.Joint> jlist)
         {
-            jointDict[m.name] = m;
-            Util.insertMatToArray(JMArray, m.jointIndex * 16, m.worldMat);
-            foreach (model c in m.children)
-                if (c.type==TYPES.JOINT)
-                    traverse_joints((Joint) c);
+            foreach (GMDL.Joint j in jlist)
+                traverse_joint(j);
+        }
+
+        private void traverse_joint(GMDL.Joint j)
+        {
+            jointDict[j.name] = j;
+            Util.insertMatToArray(JMArray, j.jointIndex * 16, j.worldMat);
+            foreach (model c in j.children)
+                if (c.type == TYPES.JOINT)
+                    traverse_joint((GMDL.Joint) c);
+        }
+
+        public void animate()
+        {
+            //Debug.WriteLine("Setting Frame Index {0}", frameIndex);
+            GMDL.AnimNodeFrameData frame = new GMDL.AnimNodeFrameData();
+            frame = animMeta.frameData.frames[frameCounter];
+
+            foreach (GMDL.AnimeNode node in animMeta.nodeData.nodeList)
+            {
+                if (jointDict.ContainsKey(node.name))
+                {
+                    //Check if there is a rotation for that node
+                    if (node.rotIndex < frame.rotations.Count - 1)
+                        ((GMDL.model)jointDict[node.name]).localRotation = Matrix3.CreateFromQuaternion(frame.rotations[node.rotIndex]);
+
+                    //Matrix4 newrot = Matrix4.CreateFromQuaternion(frame.rotations[node.rotIndex]);
+                    if (node.transIndex < frame.translations.Count - 1)
+                        ((GMDL.model)jointDict[node.name]).localPosition = frame.translations[node.transIndex];
+                }
+                //Debug.WriteLine("Node " + node.name+ " {0} {1} {2}",node.rotIndex,node.transIndex,node.scaleIndex);
+            }
+
+            //Update JMArrays
+            foreach (GMDL.model joint in jointDict.Values)
+            {
+                GMDL.Joint j = (GMDL.Joint)joint;
+                Util.insertMatToArray(JMArray, j.jointIndex * 16, j.worldMat);
+            }
+
+            frameCounter += 1;
+            if (frameCounter >= animMeta.frameCount - 1)
+                frameCounter = 0;
         }
 
     }
