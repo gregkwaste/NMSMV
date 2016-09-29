@@ -54,7 +54,7 @@ namespace Model_Viewer
         //Deprecated
         //private List<GMDL.model> vboobjects = new List<GMDL.model>();
         //private GMDL.model rootObject;
-        private GMDL.model mainScene;
+        public GMDL.model mainScene;
         private XmlDocument xmlDoc = new XmlDocument();
         private Dictionary<string, int> index_dict = new Dictionary<string, int>();
         private OrderedDictionary joint_dict = new OrderedDictionary();
@@ -130,7 +130,7 @@ namespace Model_Viewer
 
             glControl1.Update();
             glControl1.MakeCurrent();
-            GMDL.model scene;
+            GMDL.scene scene;
             scene = GEOMMBIN.LoadObjects(this.xmlDoc);
             scene.index = this.childCounter;
             this.mainScene = null;
@@ -387,39 +387,23 @@ namespace Model_Viewer
 
         private void traverse_oblist(GMDL.model ob, TreeNode parent)
         {
+            ob.index = this.childCounter;
+            this.childCounter++;
+
+            if (ob.type == TYPES.SCENE)
+            {
+                //At this point LoadObjects should have properly parsed the skeleton if any
+                //I can init the joint matrix array 
+                GMDL.scene s = (GMDL.scene) ob;
+                s.traverse_joints(s.jointModel);
+            }
+
             if (ob.children.Count > 0)
             {
-                List<GMDL.model> duplicates = new List<GMDL.model>();
                 foreach (GMDL.model child in ob.children)
                 {
-                    //Keep only Meshes, Locators and Joints
-                    //if (child.type != TYPES.MESH & child.type != TYPES.LOCATOR & child.type != TYPES.JOINT & child.type != TYPES.SCENE)
-                    //    continue;
-                    //Check if Shape object
-                    //if (child.Name.Contains("Shape"))
-                    //    continue;
-                    
-
-                    //Don't Save Duplicates
-                    //if (!index_dict.ContainsKey(child.name))
-                    //{
                         //Set object index
-                        child.index = this.childCounter;
-                        //this.index_dict.Add(child.name, child.index);
-                        //Add only joints to joint dictionary
-                        if (child.type == TYPES.JOINT)
-                        {
-                            GMDL.Joint temp = (GMDL.Joint) child;
-                            if (!joint_dict.Contains(child.name))
-                                this.joint_dict.Add(child.name, child);
-                            Util.insertMatToArray(this.JMArray, temp.jointIndex*16, temp.worldMat);
-                            //Insert color to joint color array
-                            JColors[temp.jointIndex * 3 + 0] = temp.color.X;
-                            JColors[temp.jointIndex * 3 + 1] = temp.color.Y;
-                            JColors[temp.jointIndex * 3 + 2] = temp.color.Z;
-                        }
-                            
-                        this.childCounter++;
+                        //Check if child is a scene
                         MyTreeNode node = new MyTreeNode(child.name);
                         node.model = child; //Reference model
                         
@@ -427,17 +411,6 @@ namespace Model_Viewer
                         node.Checked = true;
                         parent.Nodes.Add(node);
                         traverse_oblist(child, node);
-                    //}
-                    //else
-                    //{
-                    //    Debug.WriteLine("Duplicate {0} {1}", child.name,ob.children.Count);
-                    //    //duplicates.Add(child);
-                    //}
-                }
-                //Remove duplicates
-                foreach (GMDL.model dupl in duplicates)
-                {
-                    ob.children.Remove(dupl);
                 }
             }
         }
@@ -500,18 +473,12 @@ namespace Model_Viewer
                 loc = GL.GetUniformLocation(root.shader_program, "firstskinmat");
                 GL.Uniform1(loc, ((GMDL.sharedVBO)root).firstskinmat);
 
-                //Upload joint transform data
-                //Multiply matrices before sending them
-                float[] skinmats = Util.mulMatArrays(((GMDL.sharedVBO) root).vbo.invBMats,JMArray,128);
-                loc = GL.GetUniformLocation(root.shader_program, "skinMats");
-                GL.UniformMatrix4(loc, 128, false, skinmats);
-
                 //loc = GL.GetUniformLocation(root.shader_program, "jMs");
                 //GL.UniformMatrix4(loc, 60, false, JMArray);
                 
                 //Upload joint colors
-                loc = GL.GetUniformLocation(root.shader_program, "jColors");
-                GL.Uniform3(loc, 60, JColors);
+                //loc = GL.GetUniformLocation(root.shader_program, "jColors");
+                //GL.Uniform3(loc, 60, JColors);
 
 
             } else if (root.shader_program == ResourceMgmt.shader_programs[1])
@@ -775,10 +742,7 @@ namespace Model_Viewer
             vpwin.Show();
 
             foreach (GLControl ctl in ctlist)
-            {
                 ctl.Invalidate();
-            }
-
         }
 
         //Animation file Open
@@ -787,6 +751,11 @@ namespace Model_Viewer
             //Opening Animation File
             Debug.WriteLine("Opening File");
 
+            AnimationSelectForm aform = new AnimationSelectForm(this);
+            aform.Show();
+
+
+            return;
             DialogResult res = openFileDialog1.ShowDialog();
             var filename = openFileDialog1.FileName;
 

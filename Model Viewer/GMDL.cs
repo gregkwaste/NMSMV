@@ -14,7 +14,7 @@ namespace GMDL
     {
         public abstract bool render();
         public abstract GMDL.model Clone();
-        public GMDL.model scene;
+        public GMDL.scene scene;
         public bool renderable = true;
         public int shader_program = -1;
         public int index;
@@ -220,7 +220,18 @@ namespace GMDL
     public class scene : locator
     {
         public float[] JMArray = new float[128 * 16];
-        public GMDL.model jointModel = null;
+        public Joint jointModel = null;
+        public Dictionary<string, model> jointDict = new Dictionary<string, model>();
+
+        public void traverse_joints(Joint m)
+        {
+            jointDict[m.name] = m;
+            Util.insertMatToArray(JMArray, m.jointIndex * 16, m.worldMat);
+            foreach (model c in m.children)
+                if (c.type==TYPES.JOINT)
+                    traverse_joints((Joint) c);
+        }
+
     }
 
     public class locator: model
@@ -513,12 +524,19 @@ namespace GMDL
             //Upload skinned status
             loc = GL.GetUniformLocation(shader_program, "skinned");
             GL.Uniform1(loc, skinned);
-            
-            
+
+
+            //Upload joint transform data
+            //Multiply matrices before sending them
+
+            float[] skinmats = Util.mulMatArrays(vbo.invBMats, scene.JMArray, 128);
+            loc = GL.GetUniformLocation(shader_program, "skinMats");
+            GL.UniformMatrix4(loc, 128, false, skinmats);
+
             //Bind Matrices
             //loc = GL.GetUniformLocation(shader_program, "BMs");
             //GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.getBindRotMats);
-            
+
             //Bind Translations
             //loc = GL.GetUniformLocation(shader_program, "BTs");
             //GL.Uniform3(loc, this.vbo.jointData.Count, this.getBindTransMats);

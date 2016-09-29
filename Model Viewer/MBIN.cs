@@ -634,7 +634,7 @@ public static class GEOMMBIN{
 
     }
 
-    public static GMDL.model LoadObjects(XmlDocument xml)
+    public static GMDL.scene LoadObjects(XmlDocument xml)
     {
         Debug.WriteLine("Loading Objects from XML");
         //Get TkSceneNodeData
@@ -669,10 +669,10 @@ public static class GEOMMBIN{
         foreach (XmlElement node in children)
         {
             GMDL.model part = parseNode(node, cvbo, root, root);
+            //If joint save it also as the jointModel of the scene
             if (part.type == TYPES.JOINT)
-                root.jointModel = part;
-            else
-                root.children.Add(part);
+                root.jointModel = (GMDL.Joint) part;
+            root.children.Add(part);
         }
             
 
@@ -680,7 +680,7 @@ public static class GEOMMBIN{
     }
 
        private static GMDL.model parseNode(XmlElement node, 
-           GMDL.customVBO cvbo, GMDL.model parent, GMDL.model scene)
+           GMDL.customVBO cvbo, GMDL.model parent, GMDL.scene scene)
         {
         XmlElement attribs,childs,transform;
         transform = (XmlElement)node.SelectSingleNode("Property[@name='Transform']");
