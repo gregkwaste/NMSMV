@@ -26,7 +26,8 @@ namespace Model_Viewer
         public static float[] JMarray = new float[128 * 16];
 
         public static string dirpath;
-        
+        public static int procGenNum;
+
         public static float[] mulMatArrays(float[] lmat1, float[] lmat2, int count)
         {
             float[] res = new float[count * 16];

@@ -16,10 +16,18 @@ namespace Model_Viewer
             //Save Settings
             XmlDocument xml = new XmlDocument();
             XmlElement settings = xml.CreateElement("SETTINGS");
-            XmlElement elem = xml.CreateElement("GAMEPATH");
+            XmlElement elem;
+            //Gamepath
+            elem = xml.CreateElement("GAMEPATH");
             elem.InnerText = textBox1.Text;
             settings.AppendChild(elem);
+            //ProcGenNum
+            elem = xml.CreateElement("PROCGENNUM");
+            elem.InnerText = procGenNum.Value.ToString();
+            settings.AppendChild(elem);
             xml.AppendChild(settings);
+
+            //Save
             xml.Save("settings.xml");
         }
 
@@ -51,10 +59,15 @@ namespace Model_Viewer
             
             XmlElement settings = (XmlElement) xml.SelectSingleNode("SETTINGS");
             XmlElement gamepath = (XmlElement) settings.SelectSingleNode("GAMEPATH");
+            XmlElement pGenNum = (XmlElement)settings.SelectSingleNode("PROCGENNUM");
 
             //Set Gamepath
             textBox1.Text = gamepath.InnerText;
             Util.dirpath = gamepath.InnerText;
+            //Set ProcGenNum
+            procGenNum.Value = int.Parse(pGenNum.InnerText);
+            Util.procGenNum = int.Parse(pGenNum.InnerText);
+
             System.Diagnostics.Debug.WriteLine(gamepath.InnerText);
 
 
@@ -79,6 +92,11 @@ namespace Model_Viewer
                 e.Cancel = true;
                 Hide();
             }
+        }
+
+        private void procGenNum_ValueChanged(object sender, EventArgs e)
+        {
+            Util.procGenNum = (int) procGenNum.Value;
         }
     }
 

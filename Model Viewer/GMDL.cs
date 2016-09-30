@@ -817,7 +817,94 @@ namespace GMDL
             return (GMDL.model)copy;
         }
 
+        public void writeGeomToStream(StreamWriter s, ref uint index)
+        {
+            int vertcount = this.vertrend - this.vertrstart + 1;
+            MemoryStream vms = new MemoryStream(this.vbo.geomVbuf);
+            MemoryStream ims = new MemoryStream(this.vbo.geomIbuf);
+            BinaryReader vbr = new BinaryReader(vms);
+            BinaryReader ibr = new BinaryReader(ims);
+            //Start Writing
+            //Object name
+            s.WriteLine("o " + this.name);
+            //Get Verts
 
+            vbr.BaseStream.Seek(vbo.vx_size * vertrstart, SeekOrigin.Begin);
+            for (int i = 0; i < vertcount; i++)
+            {
+                uint v1 = vbr.ReadUInt16();
+                uint v2 = vbr.ReadUInt16();
+                uint v3 = vbr.ReadUInt16();
+                //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
+
+                s.WriteLine("v " + Half.decompress(v1).ToString() + " "+ Half.decompress(v2).ToString() + " " + Half.decompress(v3).ToString());
+                vbr.BaseStream.Seek(this.vbo.vx_size - 0x6, SeekOrigin.Current);
+            }
+            //Get Normals
+
+            vbr.BaseStream.Seek(vbo.n_stride + vbo.vx_size * vertrstart, SeekOrigin.Begin);
+            for (int i = 0; i < vertcount; i++)
+            {
+                uint v1 = vbr.ReadUInt16();
+                uint v2 = vbr.ReadUInt16();
+                uint v3 = vbr.ReadUInt16();
+                //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
+
+                s.WriteLine("vn " + Half.decompress(v1).ToString() + " " + Half.decompress(v2).ToString() + " " + Half.decompress(v3).ToString());
+                vbr.BaseStream.Seek(this.vbo.vx_size - 0x6, SeekOrigin.Current);
+            }
+            //Get UVs
+
+            vbr.BaseStream.Seek(vbo.uv0_stride + vbo.vx_size * vertrstart, SeekOrigin.Begin);
+            for (int i = 0; i < vertcount; i++)
+            {
+                uint v1 = vbr.ReadUInt16();
+                uint v2 = vbr.ReadUInt16();
+                uint v3 = vbr.ReadUInt16();
+                //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
+
+                s.WriteLine("vt " + Half.decompress(v1).ToString() + " " + Half.decompress(v2).ToString());
+                vbr.BaseStream.Seek(this.vbo.vx_size - 0x6, SeekOrigin.Current);
+            }
+
+            //Some Options
+            s.WriteLine("usemtl(null)");
+            s.WriteLine("s off");
+
+            //Get indices
+            ibr.BaseStream.Seek(this.vbo.iLength * this.batchstart, SeekOrigin.Begin);
+            bool start = false;
+            uint fstart = 0;
+            for (int i = 0; i < batchcount/3; i++)
+            {
+                uint f1, f2, f3;
+                if (this.vbo.iLength == 2)
+                {
+                    f1 = ibr.ReadUInt16();
+                    f2 = ibr.ReadUInt16();
+                    f3 = ibr.ReadUInt16();
+                }
+                else
+                {
+                    f1 = ibr.ReadUInt32();
+                    f2 = ibr.ReadUInt32();
+                    f3 = ibr.ReadUInt32();
+                }
+
+                if (!start)
+                    fstart = f1; start = true;
+
+                uint f11, f22, f33;
+                f11 = f1 - fstart + index;
+                f22 = f2 - fstart + index;
+                f33 = f3 - fstart + index;
+
+                s.WriteLine("f " + f11.ToString() + "/" + f11.ToString() + "/" + f11.ToString() + " "
+                                 + f22.ToString() + "/" + f22.ToString() + "/" + f22.ToString() + " "
+                                 + f33.ToString() + "/" + f33.ToString() + "/" + f33.ToString() + " ");
+            }
+            index += (uint) vertcount;
+        }
 
     }
 
@@ -933,9 +1020,11 @@ namespace GMDL
         public int iLength;
         public int[] boneRemap = new int[512];
         public DrawElementsType iType;
+        public byte[] geomVbuf;
+        public byte[] geomIbuf;
 
-        
-        
+
+
         public customVBO()
         {
         }
@@ -961,6 +1050,9 @@ namespace GMDL
             this.trisCount = (int) geom.indicesCount / 3;
             this.iLength = (int)geom.indicesLength;
             this.boneRemap = geom.boneRemap;
+            this.geomVbuf = geom.vbuffer;
+            this.geomIbuf = geom.ibuffer;
+
             if (geom.indicesLength == 0x2)
                 this.iType = DrawElementsType.UnsignedShort;
             else
@@ -1134,10 +1226,9 @@ namespace GMDL
                         string partName = ((XmlElement)node.SelectSingleNode(".//Property[@name='Diffuse']")).GetAttribute("value");
                         XmlElement paletteNode = (XmlElement) node.SelectSingleNode(".//Property[@name='Palette']");
                         //XmlElement innerPalNode = (XmlElement)paletteNode.SelectSingleNode(".//Property[@name='Palette']");
-                        string paletteName = paletteNode.GetAttribute("value");
+                        string paletteName = ((XmlElement) paletteNode.SelectSingleNode(".//Property[@name='Palette']")).GetAttribute("value");
                         //Get ColourAlt node
-                        XmlElement colorNode = (XmlElement)node.SelectSingleNode(".//Property[@name='ColourAlt']");
-                        string colorName = colorNode.GetAttribute("value");
+                        string colorName = ((XmlElement)paletteNode.SelectSingleNode(".//Property[@name='ColourAlt']")).GetAttribute("value");
 
                         //Select a pallete color
                         Vector3 palColor = Model_Viewer.Palettes.paletteSel[paletteName][colorName];

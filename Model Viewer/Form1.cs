@@ -588,21 +588,24 @@ namespace Model_Viewer
             //vpwin.parentForm = this; //Set parent to this form
             //vpwin.FormClosed += new FormClosedEventHandler(this.resumeTicker);
             vpwin.Text = "Procedural Generated Models";
-            // no smaller than design time size
-            vpwin.MinimumSize = new System.Drawing.Size(5 * 300, 3 * 256);
-            // no larger than screen size
-            vpwin.MaximumSize = new System.Drawing.Size(1920, 1080);
             vpwin.FormBorderStyle = FormBorderStyle.Sizable;
-            //vpwin.AutoSize = true;
-            //vpwin.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-
+            
             TableLayoutPanel table = new TableLayoutPanel();
             table.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            table.RowCount = 3;
-            table.ColumnCount = 5;
+            //Calculate TableRowCount and ColumnCount from the procGenNumSetting
+            int rowspan = 5;
+
+            table.RowCount = (Util.procGenNum-1) / 5 + 1;
+            table.ColumnCount = rowspan;
             table.Dock = DockStyle.Fill;
             //table.Anchor= AnchorStyles.Bottom
             //table.Anchor = AnchorStyles.Bottom | AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Left;
+            //Set form minmaxsizes after the row,columncount are decided
+            // no smaller than design time size
+            vpwin.MinimumSize = new System.Drawing.Size(table.ColumnCount * 300, table.RowCount * 256);
+            // no larger than screen size
+            vpwin.MaximumSize = new System.Drawing.Size(1920, 1080);
+
 
             //Fix RowStyles
             for (int i = 0; i < table.RowCount; i++)
@@ -613,31 +616,54 @@ namespace Model_Viewer
                 table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F / table.ColumnCount));
 
 
-            for (int i = 0; i < table.RowCount; i++)
+
+            for (int i = 0; i < Util.procGenNum; i++)
             {
-                for (int j = 0; j < table.ColumnCount; j++)
-                {
-                    //Create New GLControl
-                    CGLControl n = new CGLControl(i * table.ColumnCount + j, vpwin);
-                    n.MakeCurrent(); //Make current
+                //Create New GLControl
+                CGLControl n = new CGLControl(i, vpwin);
+                n.MakeCurrent(); //Make current
 
-                    //----PROC GENERATION START----
-                    List<string> parts = new List<string>();
-                    ModelProcGen.parse_descriptor(ref parts, root);
+                //----PROC GENERATION START----
+                List<string> parts = new List<string>();
+                ModelProcGen.parse_descriptor(ref parts, root);
 
-                    Debug.WriteLine(String.Join(" ", parts.ToArray()));
-                    GMDL.model m;
-                    m = ModelProcGen.get_procgen_parts(ref parts, this.mainScene);
-                    //----PROC GENERATION END----
+                Debug.WriteLine(String.Join(" ", parts.ToArray()));
+                GMDL.model m;
+                m = ModelProcGen.get_procgen_parts(ref parts, this.mainScene);
+                //----PROC GENERATION END----
 
-                    n.rootObject = m;
-                    n.shader_programs = ResourceMgmt.shader_programs;
+                n.rootObject = m;
+                n.shader_programs = ResourceMgmt.shader_programs;
 
-                    n.SetupItems();
-                    table.Controls.Add(n, j, i);
-                    n.Invalidate();
-                }
+                n.SetupItems();
+                table.Controls.Add(n, i%rowspan, i/rowspan);
+                n.Invalidate();
             }
+            //for (int i = 0; i < table.RowCount; i++)
+            //{
+            //    for (int j = 0; j < table.ColumnCount; j++)
+            //    {
+            //        //Create New GLControl
+            //        CGLControl n = new CGLControl(i * table.ColumnCount + j, vpwin);
+            //        n.MakeCurrent(); //Make current
+
+            //        //----PROC GENERATION START----
+            //        List<string> parts = new List<string>();
+            //        ModelProcGen.parse_descriptor(ref parts, root);
+
+            //        Debug.WriteLine(String.Join(" ", parts.ToArray()));
+            //        GMDL.model m;
+            //        m = ModelProcGen.get_procgen_parts(ref parts, this.mainScene);
+            //        //----PROC GENERATION END----
+
+            //        n.rootObject = m;
+            //        n.shader_programs = ResourceMgmt.shader_programs;
+
+            //        n.SetupItems();
+            //        table.Controls.Add(n, j, i);
+            //        n.Invalidate();
+            //    }
+            //}
 
             vpwin.Controls.Add(table);
             Util.setStatus("Ready", this.toolStripStatusLabel1);
