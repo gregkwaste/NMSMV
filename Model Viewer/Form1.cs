@@ -50,7 +50,7 @@ namespace Model_Viewer
         private Timer t;
         
 
-        public List<GMDL.scene> animScenes = new List<GMDL.scene>();
+        public List<GMDL.model> animScenes = new List<GMDL.model>();
         //Deprecated
         //private List<GMDL.model> vboobjects = new List<GMDL.model>();
         //private GMDL.model rootObject;
@@ -390,18 +390,16 @@ namespace Model_Viewer
             ob.index = this.childCounter;
             this.childCounter++;
 
-            if (ob.type == TYPES.SCENE)
+            
+            //At this point LoadObjects should have properly parsed the skeleton if any
+            //I can init the joint matrix array 
+            if (ob.jointModel.Count > 0)
             {
-                //At this point LoadObjects should have properly parsed the skeleton if any
-                //I can init the joint matrix array 
-                GMDL.scene s = (GMDL.scene) ob;
-                if (s.jointModel.Count > 0)
-                {
-                    s.traverse_joints(s.jointModel);
-                    this.animScenes.Add(s); //Add scene to animscenes
-                }
-                
+                ob.traverse_joints(ob.jointModel);
+                this.animScenes.Add(ob); //Add scene to animscenes
             }
+                
+            
 
             if (ob.children.Count > 0)
             {
@@ -631,20 +629,6 @@ namespace Model_Viewer
                     n.rootObject = m;
                     n.shader_programs = ResourceMgmt.shader_programs;
 
-                    //Send animation data
-                    n.JMArray = (float[])JMArray.Clone();
-
-                    Dictionary<string, GMDL.model> clonedDict = new Dictionary<string, GMDL.model>();
-                    try
-                    {
-                        cloneJointDict(ref clonedDict, ((GMDL.model) joint_dict[0]).Clone());
-                        n.joint_dict = clonedDict;
-                    }
-                    catch (ArgumentOutOfRangeException ex)
-                    {
-                        //Debug.WriteLine("Omitting Joint Dict, There are no joints");
-                    }
-
                     n.SetupItems();
                     table.Controls.Add(n, j, i);
                     n.Invalidate();
@@ -662,13 +646,6 @@ namespace Model_Viewer
             Form1 f = ((ProcGenForm) sender).parentForm;
             //Start the timer
             f.t.Start();
-        }
-
-        private void cloneJointDict(ref Dictionary<string,GMDL.model> jointdict, GMDL.model root)
-        {
-            jointdict[root.name] = root;
-            foreach (GMDL.model child in root.children)
-                cloneJointDict(ref jointdict, child);
         }
 
         private void randomgenerator_Click(object sender, EventArgs e)
@@ -853,9 +830,12 @@ namespace Model_Viewer
 
         private void backgroundWorker1_ProgressChanged(object sender, System.ComponentModel.ProgressChangedEventArgs e)
         {
-            foreach (GMDL.scene s in animScenes)
-                s.animate();
-            
+            foreach (GMDL.model s in animScenes)
+            {
+                Debug.WriteLine(s.name);
+                if (s.animMeta != null)
+                    s.animate();
+            }
         }
 
         //MenuBar Stuff

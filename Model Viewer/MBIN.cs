@@ -773,10 +773,15 @@ public static class GEOMMBIN{
             
             if (childs != null)
             {
-                Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
+                //Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
-                    so.children.Add(parseNode(childnode, cvbo, so, scene));
-            }
+                {
+                    GMDL.model part = parseNode(childnode, cvbo, so, scene);
+                    if (part.type == TYPES.JOINT)
+                        so.jointModel.Add((GMDL.Joint) part);
+                    so.children.Add(part);
+                }
+            }   
             
 
             return so;
@@ -802,9 +807,14 @@ public static class GEOMMBIN{
             //take care of children
             if (childs != null)
             {
-                Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
+                //Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
-                    so.children.Add(parseNode(childnode, cvbo, so, scene));
+                {
+                    GMDL.model part = parseNode(childnode, cvbo, so, scene);
+                    if (part.type == TYPES.JOINT)
+                        so.jointModel.Add((GMDL.Joint)part);
+                    so.children.Add(part);
+                }
             }
 
             return so;
@@ -831,9 +841,12 @@ public static class GEOMMBIN{
             //Handle Children
             if (childs != null)
             {
-                Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
+                //Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
-                    joint.children.Add(parseNode(childnode, cvbo, joint, scene));
+                {
+                    GMDL.model part = parseNode(childnode, cvbo, joint, scene);
+                    joint.children.Add(part);
+                }
             }
             
             return joint;

@@ -9,7 +9,6 @@ namespace Model_Viewer
     public partial class AnimationSelectForm : Form
     {
         private Form1 pform;
-        private List<GMDL.scene> scenes = new List<GMDL.scene>();
         private string animpath;
         public AnimationSelectForm(Form1 parent)
         {
@@ -20,20 +19,8 @@ namespace Model_Viewer
         private void AnimationSelectForm_Load(object sender, EventArgs e)
         {
             //Set up droplist
-            foreach (GMDL.scene s in this.pform.animScenes)
+            foreach (GMDL.model s in this.pform.animScenes)
                 this.listBox1.Items.Add(s.name);
-        }
-
-        private void fetchScenes(ref List<GMDL.scene> scenes, GMDL.model root)
-        {
-            if (root.type == TYPES.SCENE)
-                if (((GMDL.scene) root).jointModel != null)
-                    scenes.Add((GMDL.scene) root);
-
-            foreach (GMDL.model c in root.children)
-            {
-                fetchScenes(ref scenes, c);
-            }
         }
 
         private void button2_Click(object sender, EventArgs e)
@@ -54,7 +41,7 @@ namespace Model_Viewer
 
             //Proceed to import
             //Select Scene
-            GMDL.scene activeScene = this.pform.animScenes[this.listBox1.SelectedIndex];
+            GMDL.model activeScene = this.pform.animScenes[this.listBox1.SelectedIndex];
             FileStream fs = new FileStream(animpath, FileMode.Open);
             activeScene.animMeta = new GMDL.AnimeMetaData();
             activeScene.animMeta.Load(fs);

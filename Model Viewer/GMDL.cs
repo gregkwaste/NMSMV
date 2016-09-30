@@ -24,6 +24,14 @@ namespace GMDL
         public List<model> children = new List<model>();
         public Dictionary<string, Dictionary<string, Vector3>> palette;
         public bool procFlag = false; //This is used to define procgen usage
+
+        //Animation Stuff
+        public float[] JMArray = new float[128 * 16];
+        public List<GMDL.Joint> jointModel = new List<GMDL.Joint>();
+        public Dictionary<string, model> jointDict = new Dictionary<string, model>();
+        public AnimeMetaData animMeta = null;
+        public int frameCounter = 0;
+        
         //Transformation Parameters
         public Vector3 worldPosition {
             get
@@ -203,28 +211,8 @@ namespace GMDL
             if (parent != null)
                 parent.children.Remove(this);
         }
-    }
 
-    //public interface model{
-    //    bool render();
-    //    GMDL.model Clone();
-    //    bool Renderable { get; set; }
-    //    int ShaderProgram { set; get; }
-    //    int Index { set; get; }
-    //    string Type { set; get; }
-    //    string Name { set; get; }
-    //    GMDL.Material material { set; get; }
-    //    List<model> Children { set; get; }
-    //};
-    
-    public class scene : locator
-    {
-        public float[] JMArray = new float[128 * 16];
-        public List<GMDL.Joint> jointModel = new List<GMDL.Joint>();
-        public Dictionary<string, model> jointDict = new Dictionary<string, model>();
-        public AnimeMetaData animMeta = null;
-        public int frameCounter = 0;
-
+        //Animation Methods
         public void traverse_joints(List<GMDL.Joint> jlist)
         {
             foreach (GMDL.Joint j in jlist)
@@ -237,7 +225,7 @@ namespace GMDL
             Util.insertMatToArray(JMArray, j.jointIndex * 16, j.worldMat);
             foreach (model c in j.children)
                 if (c.type == TYPES.JOINT)
-                    traverse_joint((GMDL.Joint) c);
+                    traverse_joint((GMDL.Joint)c);
         }
 
         public void animate()
@@ -273,6 +261,39 @@ namespace GMDL
                 frameCounter = 0;
         }
 
+        public void cloneJointDict(ref Dictionary<string, GMDL.model> jointdict, List<GMDL.Joint> jointlist)
+        {
+            foreach (GMDL.Joint j in jointlist)
+                cloneJointPart(ref jointdict, j);
+        }
+
+        private void cloneJointPart(ref Dictionary<string,model> jointdict, GMDL.model joint)
+        {
+            jointdict[joint.name] = joint;
+            foreach (GMDL.model child in joint.children)
+                cloneJointPart(ref jointdict, child);
+        }
+
+        
+        
+
+    }
+
+    //public interface model{
+    //    bool render();
+    //    GMDL.model Clone();
+    //    bool Renderable { get; set; }
+    //    int ShaderProgram { set; get; }
+    //    int Index { set; get; }
+    //    string Type { set; get; }
+    //    string Name { set; get; }
+    //    GMDL.Material material { set; get; }
+    //    List<model> Children { set; get; }
+    //};
+    
+    public class scene : locator
+    {
+        
     }
 
     public class locator: model
@@ -724,6 +745,17 @@ namespace GMDL
             copy.skinned = this.skinned;
             copy.palette = this.palette;
             copy.cIndex = this.cIndex;
+            //animation data
+            copy.jointDict = new Dictionary<string, model>();
+            copy.cloneJointDict(ref copy.jointDict, this.jointModel);
+            copy.jointModel = new List<GMDL.Joint>();
+            foreach (GMDL.model child in this.jointModel)
+            {
+                GMDL.model nChild = child.Clone();
+                nChild.parent = copy;
+                copy.jointModel.Add((GMDL.Joint) nChild);
+            }
+                
             //Clone Children as well
             foreach (GMDL.model child in this.children)
             {
