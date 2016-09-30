@@ -23,7 +23,8 @@ namespace Model_Viewer
     public static class Util
     {
         public static readonly Random randgen = new Random();
-        
+        public static float[] JMarray = new float[128 * 16];
+
         public static string dirpath;
         
         public static float[] mulMatArrays(float[] lmat1, float[] lmat2, int count)
@@ -1325,7 +1326,7 @@ namespace Model_Viewer
         public static GMDL.model get_procgen_parts(ref List<string> descriptors, GMDL.model root)
         {
             //Make deep copy of root 
-            GMDL.model newRoot = root.Clone();
+            GMDL.model newRoot = root.Clone(null);
             root.procFlag = true; //Always keep the root node
 
             //PHASE 1

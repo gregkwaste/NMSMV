@@ -65,7 +65,7 @@ namespace Model_Viewer
 
         //Joint Array for shader
         public float[] JMArray = new float[128 * 16];
-        public float[] JColors = new float[128 * 3];
+        //public float[] JColors = new float[128 * 3];
 
         //Path
         private string mainFilePath;
@@ -240,6 +240,10 @@ namespace Model_Viewer
 
             //Set GEOMMBIN statusStrip
             GEOMMBIN.strip = this.toolStripStatusLabel1;
+
+            //Set Default JMarray
+            for (int i = 0; i < 128; i++)
+                Util.insertMatToArray(Util.JMarray, i * 16, Matrix4.Identity);
 
             int maxfloats;
             GL.GetInteger(GetPName.MaxVertexUniformVectors,out maxfloats);
@@ -614,7 +618,7 @@ namespace Model_Viewer
                 for (int j = 0; j < table.ColumnCount; j++)
                 {
                     //Create New GLControl
-                    CGLControl n = new CGLControl(i * table.ColumnCount + j);
+                    CGLControl n = new CGLControl(i * table.ColumnCount + j, vpwin);
                     n.MakeCurrent(); //Make current
 
                     //----PROC GENERATION START----
@@ -637,6 +641,7 @@ namespace Model_Viewer
 
             vpwin.Controls.Add(table);
             Util.setStatus("Ready", this.toolStripStatusLabel1);
+            GC.Collect();
             vpwin.Show();
             
         }
@@ -648,84 +653,85 @@ namespace Model_Viewer
             f.t.Start();
         }
 
-        private void randomgenerator_Click(object sender, EventArgs e)
-        {
-            XmlNode level0 = this.xmlDoc.SelectSingleNode("./ROOT/SECTIONS");
-            List<Selector> sellist = ModelProcGen.parse_level(level0);
-            List<List<GMDL.model>> allparts = new List<List<GMDL.model>>();
-            //Create 12 random instances
-            for (int k = 0; k < 15; k++)
-            {
-                List<string> parts = new List<string>();
-                for (int i = 0; i < sellist.Count; i++)
-                    ModelProcGen.parse_selector(sellist[i], ref parts);
+        //Deprecated
+        //private void randomgenerator_Click(object sender, EventArgs e)
+        //{
+        //    XmlNode level0 = this.xmlDoc.SelectSingleNode("./ROOT/SECTIONS");
+        //    List<Selector> sellist = ModelProcGen.parse_level(level0);
+        //    List<List<GMDL.model>> allparts = new List<List<GMDL.model>>();
+        //    //Create 12 random instances
+        //    for (int k = 0; k < 15; k++)
+        //    {
+        //        List<string> parts = new List<string>();
+        //        for (int i = 0; i < sellist.Count; i++)
+        //            ModelProcGen.parse_selector(sellist[i], ref parts);
 
-                Debug.WriteLine(String.Join(" ", parts.ToArray()));
-                //Make list of active parts
-                List<GMDL.model> vboParts = new List<GMDL.model>();
-                for (int i = 0; i < parts.Count; i++)
-                {
-                    GMDL.model part = collectPart(this.mainScene.children, parts[i]);
-                    GMDL.model npart = (GMDL.model)part.Clone();
-                    npart.children.Clear();
-                    vboParts.Add(npart);
-                }
+        //        Debug.WriteLine(String.Join(" ", parts.ToArray()));
+        //        //Make list of active parts
+        //        List<GMDL.model> vboParts = new List<GMDL.model>();
+        //        for (int i = 0; i < parts.Count; i++)
+        //        {
+        //            GMDL.model part = collectPart(this.mainScene.children, parts[i]);
+        //            GMDL.model npart = (GMDL.model)part.Clone();
+        //            npart.children.Clear();
+        //            vboParts.Add(npart);
+        //        }
 
-                allparts.Add(vboParts);
-            }
+        //        allparts.Add(vboParts);
+        //    }
             
-            /* This code renders changes to the main viewport
-            //Reset all nodes
-            foreach (TreeNode node in treeView1.Nodes[0].Nodes)
-                node.Checked = false;
+        //    /* This code renders changes to the main viewport
+        //    //Reset all nodes
+        //    foreach (TreeNode node in treeView1.Nodes[0].Nodes)
+        //        node.Checked = false;
             
-            //Temporarity swap tvscheckstatus
-            this.tvchkstat = treeviewCheckStatus.Single;
-            for (int i = 0; i < parts.Count; i++)
-            {
-                TreeNode node = findNodeFromText(treeView1.Nodes, parts[i]);
-                if (node !=null)
-                    node.Checked = true;
-            }
+        //    //Temporarity swap tvscheckstatus
+        //    this.tvchkstat = treeviewCheckStatus.Single;
+        //    for (int i = 0; i < parts.Count; i++)
+        //    {
+        //        TreeNode node = findNodeFromText(treeView1.Nodes, parts[i]);
+        //        if (node !=null)
+        //            node.Checked = true;
+        //    }
 
-            //Bring it back
-            this.tvchkstat = treeviewCheckStatus.children;
+        //    //Bring it back
+        //    this.tvchkstat = treeviewCheckStatus.children;
 
-            */
+        //    */
             
-            Form vpwin = new Form();
-            vpwin.AutoSize = true;
-            //vpwin.Size = new System.Drawing.Size(800, 600);
+        //    Form vpwin = new Form();
+        //    vpwin.AutoSize = true;
+        //    //vpwin.Size = new System.Drawing.Size(800, 600);
 
-            TableLayoutPanel table = new TableLayoutPanel();
-            table.AutoSize = true;
-            table.RowCount = 3;
-            table.ColumnCount = 5;
-            table.Dock = DockStyle.Fill;
-            //table.Anchor = AnchorStyles.Bottom | AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Left;
+        //    TableLayoutPanel table = new TableLayoutPanel();
+        //    table.AutoSize = true;
+        //    table.RowCount = 3;
+        //    table.ColumnCount = 5;
+        //    table.Dock = DockStyle.Fill;
+        //    //table.Anchor = AnchorStyles.Bottom | AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Left;
 
-            List<CGLControl> ctlist = new List<CGLControl>();
+        //    List<CGLControl> ctlist = new List<CGLControl>();
 
-            for (int i = 0; i < table.RowCount; i++)
-            {
-                for (int j = 0; j < table.ColumnCount; j++)
-                {
-                    CGLControl n = new CGLControl(i * table.ColumnCount + j);
-                    n.objects = allparts[i * table.ColumnCount + j];
-                    n.shader_programs = ResourceMgmt.shader_programs;
-                    table.Controls.Add(n, j, i);
-                    ctlist.Add(n);
-                }
-            }
+        //    for (int i = 0; i < table.RowCount; i++)
+        //    {
+        //        for (int j = 0; j < table.ColumnCount; j++)
+        //        {
+        //            CGLControl n = new CGLControl(i * table.ColumnCount + j);
+        //            n.objects = allparts[i * table.ColumnCount + j];
+        //            n.shader_programs = ResourceMgmt.shader_programs;
+        //            table.Controls.Add(n, j, i);
+        //            ctlist.Add(n);
+        //        }
+        //    }
 
-            vpwin.Controls.Add(table);
+        //    vpwin.Controls.Add(table);
 
             
-            vpwin.Show();
+        //    vpwin.Show();
 
-            foreach (GLControl ctl in ctlist)
-                ctl.Invalidate();
-        }
+        //    foreach (GLControl ctl in ctlist)
+        //        ctl.Invalidate();
+        //}
 
         //Animation file Open
         private void openAnimationToolStripMenuItem_Click(object sender, EventArgs e)
@@ -738,62 +744,7 @@ namespace Model_Viewer
 
 
             return;
-            DialogResult res = openFileDialog1.ShowDialog();
-            var filename = openFileDialog1.FileName;
-
-            if (res == DialogResult.Cancel)
-                return;
-            
-            FileStream fs = new FileStream(filename, FileMode.Open);
-            meta = new GMDL.AnimeMetaData();
-            meta.Load(fs);
-
-            //Update GUI
-            frameBox.Enabled = true;
-            frameBox.Minimum = 0;
-            frameBox.Maximum = meta.frameCount - 1;
-
-
-            fs.Close();
-
         }
-
-        private void frameBox_ValueChanged(object sender, EventArgs e)
-        {
-            //Get FrameIndex
-            int frameIndex = (int) frameBox.Value;
-            //Debug.WriteLine("Setting Frame Index {0}", frameIndex);
-            GMDL.AnimNodeFrameData frame = new GMDL.AnimNodeFrameData();
-            frame = meta.frameData.frames[frameIndex];
-            
-            foreach (GMDL.AnimeNode node in meta.nodeData.nodeList)
-            {
-                if (joint_dict.Contains(node.name))
-                {
-                    //Check if there is a rotation for that node
-                    if (node.rotIndex < frame.rotations.Count - 1)
-                        ((GMDL.model) joint_dict[node.name]).localRotation = Matrix3.CreateFromQuaternion(frame.rotations[node.rotIndex]);
-                    
-                    //Matrix4 newrot = Matrix4.CreateFromQuaternion(frame.rotations[node.rotIndex]);
-                    if (node.transIndex < frame.translations.Count - 1)
-                        ((GMDL.model)joint_dict[node.name]).localPosition = frame.translations[node.transIndex];
-
-                }
-                //Debug.WriteLine("Node " + node.name+ " {0} {1} {2}",node.rotIndex,node.transIndex,node.scaleIndex);
-            }
-
-            //Update JMArrays
-            foreach (GMDL.model joint in joint_dict.Values)
-            {
-                GMDL.Joint j = (GMDL.Joint) joint;
-                Util.insertMatToArray(JMArray, j.jointIndex * 16, j.worldMat);
-            }
-
-            //glControl1.Invalidate();
-
-        }
-
-
 
         //Animation Playback
         private void backgroundWorker1_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
@@ -831,11 +782,7 @@ namespace Model_Viewer
         private void backgroundWorker1_ProgressChanged(object sender, System.ComponentModel.ProgressChangedEventArgs e)
         {
             foreach (GMDL.model s in animScenes)
-            {
-                Debug.WriteLine(s.name);
-                if (s.animMeta != null)
-                    s.animate();
-            }
+                if (s.animMeta != null) s.animate();
         }
 
         //MenuBar Stuff

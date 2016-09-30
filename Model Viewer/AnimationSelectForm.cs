@@ -1,25 +1,37 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Windows.Forms;
 using System.IO;
 
 namespace Model_Viewer
 {
-    public partial class AnimationSelectForm : Form
-    {
-        private Form1 pform;
+    public partial class AnimationSelectForm : Form { 
         private string animpath;
-        public AnimationSelectForm(Form1 parent)
+        private List<GMDL.model> animScenes;
+
+        public AnimationSelectForm(object parent)
         {
             InitializeComponent();
-            pform = parent;
+            //Get type of parent
+            Type typ = parent.GetType();
+            Debug.WriteLine(typ);
+            FieldInfo[] fields = typ.GetFields();
+            foreach (FieldInfo f in fields)
+            {
+                if (f.Name == "animScenes"){
+                    animScenes = (List<GMDL.model>) f.GetValue(parent);
+                }
+            }
         }
 
         private void AnimationSelectForm_Load(object sender, EventArgs e)
         {
+            
             //Set up droplist
-            foreach (GMDL.model s in this.pform.animScenes)
+            
+            foreach (GMDL.model s in this.animScenes)
                 this.listBox1.Items.Add(s.name);
         }
 
@@ -41,7 +53,7 @@ namespace Model_Viewer
 
             //Proceed to import
             //Select Scene
-            GMDL.model activeScene = this.pform.animScenes[this.listBox1.SelectedIndex];
+            GMDL.model activeScene = this.animScenes[this.listBox1.SelectedIndex];
             FileStream fs = new FileStream(animpath, FileMode.Open);
             activeScene.animMeta = new GMDL.AnimeMetaData();
             activeScene.animMeta.Load(fs);
@@ -60,7 +72,8 @@ namespace Model_Viewer
 
             animpath = openFileDialog1.FileName;
             this.textBox1.Text = animpath;
-            
+
         }
+
     }
 }

@@ -493,7 +493,7 @@ namespace Model_Viewer
             this.frameBox.Size = new System.Drawing.Size(121, 20);
             this.frameBox.TabIndex = 12;
             this.frameBox.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.frameBox.ValueChanged += new System.EventHandler(this.frameBox_ValueChanged);
+            //this.frameBox.ValueChanged += new System.EventHandler(this.frameBox_ValueChanged);
             // 
             // newButton1
             // 

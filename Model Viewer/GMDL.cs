@@ -13,7 +13,7 @@ namespace GMDL
     public abstract class model: IDisposable
     {
         public abstract bool render();
-        public abstract GMDL.model Clone();
+        public abstract GMDL.model Clone(GMDL.scene scn);
         public GMDL.scene scene;
         public bool renderable = true;
         public int shader_program = -1;
@@ -192,6 +192,9 @@ namespace GMDL
             if (disposing)
             {
                 handle.Dispose();
+                JMArray = null;
+                jointDict = null;
+                children = null;
                 //Free other resources here
             }
 
@@ -252,10 +255,11 @@ namespace GMDL
             //Update JMArrays
             foreach (GMDL.model joint in jointDict.Values)
             {
-                GMDL.Joint j = (GMDL.Joint)joint;
+                GMDL.Joint j = (GMDL.Joint) joint;
                 Util.insertMatToArray(JMArray, j.jointIndex * 16, j.worldMat);
             }
-
+                
+            
             frameCounter += 1;
             if (frameCounter >= animMeta.frameCount - 1)
                 frameCounter = 0;
@@ -269,7 +273,7 @@ namespace GMDL
 
         private void cloneJointPart(ref Dictionary<string,model> jointdict, GMDL.model joint)
         {
-            jointdict[joint.name] = joint;
+            if (joint.type==TYPES.JOINT) jointdict[joint.name] = joint;
             foreach (GMDL.model child in joint.children)
                 cloneJointPart(ref jointdict, child);
         }
@@ -293,7 +297,47 @@ namespace GMDL
     
     public class scene : locator
     {
-        
+        public override model Clone(scene scn)
+        {
+            GMDL.scene copy = new GMDL.scene();
+            copy.renderable = true; //Override Renderability
+            copy.shader_program = this.shader_program;
+            copy.type = this.type;
+            copy.name = this.name;
+            copy.index = this.index;
+            copy.cIndex = this.cIndex;
+            //Clone transformation
+            copy.localPosition = this.localPosition;
+            copy.localRotation = this.localRotation;
+            copy.localScale = this.localScale;
+            copy.scene = scn;
+
+            //ANIMATION DATA
+            copy.jointDict = new Dictionary<string, model>();
+            copy.jointModel = new List<Joint>();
+            copy.JMArray = (float[]) this.JMArray.Clone();
+            foreach (GMDL.Joint j in this.jointModel)
+                copy.jointModel.Add((GMDL.Joint) j.Clone(copy));
+
+            copy.cloneJointDict(ref copy.jointDict, copy.jointModel);
+            //When cloning scene objects the scene has the scn arguments as its parent scene
+            //BUT children will have this copy as their scene
+            //Clone Children as well
+            foreach (GMDL.model child in this.children)
+            {
+                GMDL.model nChild = child.Clone(copy);
+                nChild.parent = copy;
+                copy.children.Add(nChild);
+            }
+
+
+            return (GMDL.model) copy;
+        }
+        public override bool render()
+        {
+            //Don't render shit here
+            return true;
+        }
     }
 
     public class locator: model
@@ -377,6 +421,7 @@ namespace GMDL
             verts = null;
             indices = null;
             colors = null;
+            base.Dispose();
         }
 
         public override bool render()
@@ -422,7 +467,7 @@ namespace GMDL
             return true;
         }
 
-        public override GMDL.model Clone()
+        public override GMDL.model Clone(GMDL.scene scn)
         {
             GMDL.locator copy = new GMDL.locator();
             copy.renderable = true; //Override Renderability
@@ -435,10 +480,12 @@ namespace GMDL
             copy.localPosition = this.localPosition;
             copy.localRotation = this.localRotation;
             copy.localScale = this.localScale;
+            copy.scene = scn;
+            //Simple Locator cloning is handled exactly the same way with sharedvbo
             //Clone Children as well
             foreach (GMDL.model child in this.children)
             {
-                GMDL.model nChild = child.Clone();
+                GMDL.model nChild = child.Clone(scn);
                 nChild.parent = copy;
                 copy.children.Add(nChild);
             }
@@ -590,8 +637,9 @@ namespace GMDL
 
             //Upload joint transform data
             //Multiply matrices before sending them
-
+            //Check if scene has the jointModel
             float[] skinmats = Util.mulMatArrays(vbo.invBMats, scene.JMArray, 128);
+
             loc = GL.GetUniformLocation(shader_program, "skinMats");
             GL.UniformMatrix4(loc, 128, false, skinmats);
 
@@ -719,7 +767,7 @@ namespace GMDL
             return true;
         }
 
-        public override GMDL.model Clone()
+        public override GMDL.model Clone(GMDL.scene scn)
         {
             GMDL.sharedVBO copy = new GMDL.sharedVBO();
             copy.vertrend = this.vertrend;
@@ -749,9 +797,11 @@ namespace GMDL
             copy.jointDict = new Dictionary<string, model>();
             copy.cloneJointDict(ref copy.jointDict, this.jointModel);
             copy.jointModel = new List<GMDL.Joint>();
+            //In sharedVBO objects, both this and all the children have the same scene
+            copy.scene = scn;
             foreach (GMDL.model child in this.jointModel)
             {
-                GMDL.model nChild = child.Clone();
+                GMDL.model nChild = child.Clone(scn);
                 nChild.parent = copy;
                 copy.jointModel.Add((GMDL.Joint) nChild);
             }
@@ -759,7 +809,7 @@ namespace GMDL
             //Clone Children as well
             foreach (GMDL.model child in this.children)
             {
-                GMDL.model nChild = child.Clone();
+                GMDL.model nChild = child.Clone(scn);
                 nChild.parent = copy;
                 copy.children.Add(nChild);
             }
@@ -1264,7 +1314,7 @@ namespace GMDL
         }
 
         //Empty stuff
-        public override model Clone()
+        public override model Clone(scene scn)
         {
             GMDL.Joint copy = new GMDL.Joint();
             copy.renderable = true; //Override Renderability
@@ -1281,11 +1331,12 @@ namespace GMDL
             copy.localPosition = this.localPosition;
             copy.localScale = this.localScale;
             copy.localRotation = this.localRotation;
-            
+            copy.scene = scn;
+
             //Clone Children as well
             foreach (GMDL.model child in this.children)
             {
-                GMDL.model nChild = child.Clone();
+                GMDL.model nChild = child.Clone(scn);
                 nChild.parent = copy;
                 copy.children.Add(nChild);
             }
@@ -1367,8 +1418,6 @@ namespace GMDL
             GL.DrawArrays(PrimitiveType.Lines, 0, indices.Length);
             GL.DrawArrays(PrimitiveType.Points, 0, vertsf.Length);
             //Draw only Joint Point
-            //GL.DrawArrays(PrimitiveType.Points, 0, 1);
-
             GL.DisableVertexAttribArray(vpos);
             GL.DisableVertexAttribArray(cpos);
             

@@ -778,7 +778,7 @@ public static class GEOMMBIN{
                 {
                     GMDL.model part = parseNode(childnode, cvbo, so, scene);
                     if (part.type == TYPES.JOINT)
-                        so.jointModel.Add((GMDL.Joint) part);
+                        so.scene.jointModel.Add((GMDL.Joint) part);
                     so.children.Add(part);
                 }
             }   
@@ -812,7 +812,7 @@ public static class GEOMMBIN{
                 {
                     GMDL.model part = parseNode(childnode, cvbo, so, scene);
                     if (part.type == TYPES.JOINT)
-                        so.jointModel.Add((GMDL.Joint)part);
+                        so.scene.jointModel.Add((GMDL.Joint)part);
                     so.children.Add(part);
                 }
             }

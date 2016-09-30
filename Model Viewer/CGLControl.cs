@@ -33,10 +33,9 @@ namespace Model_Viewer
         private Dictionary<string,Dictionary<string,Vector3>> palette;
 
         //Animation Stuff
-        private int currentFrame = 0;
         private bool animationStatus = false;
-        //Animation Meta
-        public GMDL.AnimeMetaData meta;
+        public List<GMDL.model> animScenes = new List<GMDL.model>();
+        
 
         //Init-GUI Related
         private ContextMenuStrip contextMenuStrip1;
@@ -45,14 +44,15 @@ namespace Model_Viewer
         private ToolStripMenuItem loadAnimationToolStripMenuItem;
         private OpenFileDialog openFileDialog1;
         private System.ComponentModel.BackgroundWorker backgroundWorker1;
+        private Form pform;
 
         //Joint Array for shader
-        public float[] JMArray = new float[128 * 16];
-        public Dictionary<string,GMDL.model> joint_dict = new Dictionary<string,GMDL.model>();
+        //public float[] JMArray = new float[128 * 16];
+        //public Dictionary<string,GMDL.model> joint_dict = new Dictionary<string,GMDL.model>();
         //public float[] JColors = new float[128 * 3];
 
         //Constructor
-        public CGLControl(int index)
+        public CGLControl(int index,Form parent)
         {
             this.Load += new System.EventHandler(this.genericLoad);
             this.Paint += new System.Windows.Forms.PaintEventHandler(this.genericPaint);
@@ -78,12 +78,37 @@ namespace Model_Viewer
 
             //Assign new palette to GLControl
             palette = Model_Viewer.Palettes.createPalette();
+
+            //Set parent form
+            pform = parent;
         }
 
         public void SetupItems()
         {
             //This function is used to setup all necessary additional parameters on the objects.
+            
+            //Set new palettes
             traverse_oblistPalette(rootObject, palette);
+            //Find animScenes
+            traverse_oblistAnimScenes(rootObject);
+            GC.Collect();
+
+        }
+
+        private void traverse_oblistAnimScenes(GMDL.model root)
+        {
+            if (root.jointModel.Count > 0)
+                this.animScenes.Add(root);
+            else
+            {
+                //Otherwise there won't be any animation based on that model. CLean it up
+                root.JMArray = Util.JMarray;
+                root.jointDict = null;
+                root.jointModel = null;
+            }
+                
+            foreach (GMDL.model c in root.children)
+                traverse_oblistAnimScenes(c);
         }
 
         public void traverse_oblistPalette(GMDL.model root,Dictionary<string,Dictionary<string,Vector3>> palette)
@@ -155,9 +180,9 @@ namespace Model_Viewer
 
                 //Upload joint transform data
                 //Multiply matrices before sending them
-                float[] skinmats = Util.mulMatArrays(((GMDL.sharedVBO)m).vbo.invBMats, JMArray, 128);
-                loc = GL.GetUniformLocation(m.shader_program, "skinMats");
-                GL.UniformMatrix4(loc, 128, false, skinmats);
+                //float[] skinmats = Util.mulMatArrays(((GMDL.sharedVBO)m).vbo.invBMats, JMArray, 128);
+                //loc = GL.GetUniformLocation(m.shader_program, "skinMats");
+                //GL.UniformMatrix4(loc, 128, false, skinmats);
 
             }
             else if (m.shader_program == shader_programs[1])
@@ -280,15 +305,12 @@ namespace Model_Viewer
                     break;
                 //Animation playback (Play/Pause Mode) with Space
                 case Keys.Space:
-                    if (!(meta == null))
-                    {
-                        animationStatus = !animationStatus;
-                        if (animationStatus)
-                            backgroundWorker1.RunWorkerAsync();
-                        else
-                            backgroundWorker1.CancelAsync();
-                    }
-                   break;
+                    animationStatus = !animationStatus;
+                    if (animationStatus)
+                        backgroundWorker1.RunWorkerAsync();
+                    else
+                        backgroundWorker1.CancelAsync();
+                    break;
                 default:
                     Debug.WriteLine("Not Implemented Yet");
                     break;
@@ -380,36 +402,22 @@ namespace Model_Viewer
             //Opening Animation File
             Debug.WriteLine("Opening Animation File");
 
-            DialogResult res = openFileDialog1.ShowDialog();
-            var filename = openFileDialog1.FileName;
+            //Opening Animation File
+            Debug.WriteLine("Opening File");
 
-            if (res == DialogResult.Cancel)
-                return;
-
-            FileStream fs = new FileStream(filename, FileMode.Open);
-            meta = new GMDL.AnimeMetaData();
-            meta.Load(fs);
-
-            fs.Close();
-
-
-
+            AnimationSelectForm aform = new AnimationSelectForm(this);
+            aform.Show();
         }
 
 
         //Animation Playback
         private void backgroundWorker1_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
         {
-            int val = currentFrame;
-            int max = meta.frameCount;
-            int i = val;
             while (true)
             {
-                //Reset
-                if (i == max) i = 0;
-                System.Threading.Thread.Sleep(50);
-                backgroundWorker1.ReportProgress(i);
-                i += 1;
+                double pause = (1000.0d / (double)RenderOptions.animFPS);
+                System.Threading.Thread.Sleep((int)(Math.Round(pause, 1)));
+                backgroundWorker1.ReportProgress(0);
 
                 if (backgroundWorker1.CancellationPending)
                 {
@@ -422,42 +430,11 @@ namespace Model_Viewer
 
         private void backgroundWorker1_ProgressChanged(object sender, System.ComponentModel.ProgressChangedEventArgs e)
         {
-            updateAnim(e.ProgressPercentage);
-        }
-
-        private void updateAnim(int frameIndex)
-        {
-            //Debug.WriteLine("Setting Frame Index {0}", frameIndex);
-            GMDL.AnimNodeFrameData frame = new GMDL.AnimNodeFrameData();
-            frame = meta.frameData.frames[frameIndex];
-
-            foreach (GMDL.AnimeNode node in meta.nodeData.nodeList)
-            {
-                if (joint_dict.ContainsKey(node.name))
-                {
-                    //Check if there is a rotation for that node
-                    if (node.rotIndex < frame.rotations.Count - 1)
-                        joint_dict[node.name].localRotation = Matrix3.CreateFromQuaternion(frame.rotations[node.rotIndex]);
-
-                    //Matrix4 newrot = Matrix4.CreateFromQuaternion(frame.rotations[node.rotIndex]);
-                    if (node.transIndex < frame.translations.Count - 1)
-                        joint_dict[node.name].localPosition = frame.translations[node.transIndex];
-
-                }
-                //Debug.WriteLine("Node " + node.name+ " {0} {1} {2}",node.rotIndex,node.transIndex,node.scaleIndex);
-            }
-
-            //Update JMArrays
-            foreach (GMDL.model joint in joint_dict.Values)
-            {
-                GMDL.Joint j = (GMDL.Joint)joint;
-                Util.insertMatToArray(JMArray, j.jointIndex * 16, j.worldMat);
-            }
+            foreach (GMDL.model s in animScenes)
+                if (s.animMeta != null) s.animate();
 
             this.Invalidate();
-
         }
-
 
     }
 
