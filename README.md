@@ -5,7 +5,7 @@ No Man's Model Viewer is a model viewer created to preview No Man's Sky 3D Model
 
 ## **Repo Version** ##
 
-* Latest Version 0.4
+* Latest Version 0.5
 * [Get latest version](https://bitbucket.org/gregkwaste/nms-viewer/downloads)
 * [Wiki Page](https://bitbucket.org/gregkwaste/nms-viewer/wiki/Home)
 ### Known Issues ###
