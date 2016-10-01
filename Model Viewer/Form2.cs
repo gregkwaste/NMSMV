@@ -40,7 +40,7 @@ namespace Model_Viewer
             }
             catch (System.IO.FileNotFoundException e)
             {
-                DialogResult res = MessageBox.Show("Settings File Missing. Please choose your exported files Folder...", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                DialogResult res = MessageBox.Show("Settings File Missing. Please choose your unpacked files folder...", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 if (res == DialogResult.OK)
                 {

@@ -34,6 +34,11 @@ void main()
             0.0,  0.0, 1.0, 0.0,
             0.0,  0.0, 0.0, 1.0 );
     
+    //mat4 worldTransMat = mat4(1.0, 0.0, 0.0 , 0.0,
+    //      0.0, 1.0, 0.0, 0.0,
+    //      0.0, 0.0, 1.0, 0.0,
+    //      worldTrans.x, worldTrans.y, worldTrans.z, 1.0);
+
     mat4 rotMat = rx*ry*rz;
-    gl_Position = proj * look * rotMat * worldMat * vPosition;
+    gl_Position = proj * look * rotMat * vPosition;
 }

@@ -705,6 +705,9 @@ public static class GEOMMBIN{
         if (name.StartsWith("_"))
             name = "_" + name.TrimStart('_');
 
+        //Notify
+        Util.setStatus("Importing Scene: " + scene.name + " Part: " + name, strip);
+
         TYPES typeEnum;
         string type = ((XmlElement)node.SelectSingleNode("Property[@name='Type']")).GetAttribute("value");
         Enum.TryParse<TYPES>(type, out typeEnum);

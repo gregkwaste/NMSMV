@@ -247,7 +247,7 @@ namespace Model_Viewer
 
             int maxfloats;
             GL.GetInteger(GetPName.MaxVertexUniformVectors,out maxfloats);
-            toolStripStatusLabel1.Text = maxfloats.ToString();
+            toolStripStatusLabel1.Text = "Ready";
         }
 
         
@@ -257,6 +257,7 @@ namespace Model_Viewer
         private void timer_ticker(object sender, EventArgs e)
         {
             //SImply invalidate the gl control
+            glControl1.MakeCurrent();
             glControl1.Invalidate();
         }
 
@@ -445,10 +446,10 @@ namespace Model_Viewer
             loc = GL.GetUniformLocation(root.shader_program, "look");
             GL.UniformMatrix4(loc, false, ref look);
             //Send object world Matrix to all shaders
+
             loc = GL.GetUniformLocation(root.shader_program, "worldMat");
             Matrix4 wMat = root.worldMat;
             GL.UniformMatrix4(loc, false, ref wMat);
-
 
             //Send projection matrix to all shaders
             loc = GL.GetUniformLocation(root.shader_program, "proj");
@@ -592,16 +593,47 @@ namespace Model_Viewer
             
             TableLayoutPanel table = new TableLayoutPanel();
             table.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            table.Dock = DockStyle.Fill;
             //Calculate TableRowCount and ColumnCount from the procGenNumSetting
             int rowspan = 5;
-
-            table.RowCount = (Util.procGenNum-1) / 5 + 1;
-            table.ColumnCount = rowspan;
-            table.Dock = DockStyle.Fill;
             //table.Anchor= AnchorStyles.Bottom
             //table.Anchor = AnchorStyles.Bottom | AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Left;
             //Set form minmaxsizes after the row,columncount are decided
             // no smaller than design time size
+
+            //Try to factorize
+            int fact = 1;
+            for (int i = (rowspan-1)/2 + 1; i > 0; i--)
+                if (Util.procGenNum % i == 0) fact = Math.Max(fact,i);
+            
+            if (fact == 1)
+            {
+                //Factorization failed
+                int rc = 1, cc = 2;
+                bool flag = true;
+                while (true)
+                {
+                    if (rc * cc >= Util.procGenNum) break;
+                    else
+                    {
+                        if (flag) rc += 1;
+                        else cc += 1;
+                        flag = !flag;
+                    }
+                }
+                table.RowCount = rc;
+                table.ColumnCount = cc;
+            }
+            else
+            {
+                //Use Factorization values
+                table.ColumnCount = Math.Max(fact, Util.procGenNum / fact);
+                table.RowCount = Util.procGenNum / table.ColumnCount;
+            }
+            
+
+            
+
             vpwin.MinimumSize = new System.Drawing.Size(table.ColumnCount * 300, table.RowCount * 256);
             // no larger than screen size
             vpwin.MaximumSize = new System.Drawing.Size(1920, 1080);

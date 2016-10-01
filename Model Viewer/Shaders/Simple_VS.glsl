@@ -1,7 +1,6 @@
 /* Copies incoming vertex color without change.
  * Applies the transformation matrix to vertex position.
  */
-
 attribute vec4 vPosition;
 attribute vec4 nPosition; //normals
 attribute vec4 tPosition; //tangents
@@ -11,15 +10,16 @@ attribute vec4 blendWeights;
 attribute vec4 blendIndices;
 uniform vec3 theta, pan, light;
 uniform int firstskinmat;
-uniform int boneRemap[512];
+uniform int boneRemap[256];
 uniform mat4 worldMat;
-uniform mat4 skinMats[96];
+uniform mat4 skinMats[128];
 uniform int skinned;
 uniform float scale;
 uniform mat4 look, proj, worldRot;
-out vec3 E,N;
-out vec2 uv0;
-out float bColor;
+//Outputs
+varying vec3 E,N;
+varying vec2 uv0;
+varying float bColor;
 
 void main()
 {

@@ -117,7 +117,7 @@
             // 
             // folderBrowserDialog1
             // 
-            this.folderBrowserDialog1.Description = "Select Exported Files Folder";
+            this.folderBrowserDialog1.Description = "Select Unpacked Files Folder";
             // 
             // SettingsForm
             // 

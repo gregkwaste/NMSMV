@@ -26,7 +26,7 @@ namespace GMDL
         public bool procFlag = false; //This is used to define procgen usage
 
         //Animation Stuff
-        public float[] JMArray = new float[128 * 16];
+        public float[] JMArray = (float[]) Util.JMarray.Clone();
         public List<GMDL.Joint> jointModel = new List<GMDL.Joint>();
         public Dictionary<string, model> jointDict = new Dictionary<string, model>();
         public AnimeMetaData animMeta = null;
@@ -837,7 +837,13 @@ namespace GMDL
                 uint v3 = vbr.ReadUInt16();
                 //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
 
-                s.WriteLine("v " + Half.decompress(v1).ToString() + " "+ Half.decompress(v2).ToString() + " " + Half.decompress(v3).ToString());
+                //Transform vector with worldMatrix
+                Vector3 v = new Vector3(Half.decompress(v1), Half.decompress(v2), Half.decompress(v3));
+                v = Vector3.Transform(v, this.worldMat);
+
+
+                //s.WriteLine("v " + Half.decompress(v1).ToString() + " "+ Half.decompress(v2).ToString() + " " + Half.decompress(v3).ToString());
+                s.WriteLine("v " + v.X.ToString() + " " + v.Y.ToString() + " " + v.Z.ToString());
                 vbr.BaseStream.Seek(this.vbo.vx_size - 0x6, SeekOrigin.Current);
             }
             //Get Normals

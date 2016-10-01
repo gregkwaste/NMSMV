@@ -59,10 +59,10 @@ namespace Model_Viewer
             this.randomgenerator = new System.Windows.Forms.Button();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.AnimTable = new System.Windows.Forms.TableLayoutPanel();
-            this.label3 = new System.Windows.Forms.Label();
-            this.frameBox = new System.Windows.Forms.NumericUpDown();
             this.newButton1 = new Model_Viewer.NewButton();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
+            this.toolStripStatusLabel2 = new System.Windows.Forms.ToolStripStatusLabel();
+            this.toolStripStatusLabel3 = new System.Windows.Forms.ToolStripStatusLabel();
             this.menuStrip1.SuspendLayout();
             this.statusStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer2)).BeginInit();
@@ -86,7 +86,6 @@ namespace Model_Viewer
             this.ProcGenGroup.SuspendLayout();
             this.groupBox2.SuspendLayout();
             this.AnimTable.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.frameBox)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
             this.splitContainer1.Panel2.SuspendLayout();
@@ -170,7 +169,9 @@ namespace Model_Viewer
             // statusStrip1
             // 
             this.statusStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.toolStripStatusLabel1});
+            this.toolStripStatusLabel1,
+            this.toolStripStatusLabel3,
+            this.toolStripStatusLabel2});
             this.statusStrip1.Location = new System.Drawing.Point(0, 647);
             this.statusStrip1.Name = "statusStrip1";
             this.statusStrip1.Size = new System.Drawing.Size(1240, 22);
@@ -457,51 +458,24 @@ namespace Model_Viewer
             this.AnimTable.ColumnCount = 2;
             this.AnimTable.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.AnimTable.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.AnimTable.Controls.Add(this.label3, 0, 0);
-            this.AnimTable.Controls.Add(this.frameBox, 1, 0);
-            this.AnimTable.Controls.Add(this.newButton1, 0, 1);
+            this.AnimTable.Controls.Add(this.newButton1, 0, 0);
             this.AnimTable.Dock = System.Windows.Forms.DockStyle.Fill;
             this.AnimTable.Location = new System.Drawing.Point(3, 16);
             this.AnimTable.Name = "AnimTable";
-            this.AnimTable.RowCount = 2;
+            this.AnimTable.RowCount = 1;
             this.AnimTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.AnimTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.AnimTable.Size = new System.Drawing.Size(254, 65);
             this.AnimTable.TabIndex = 0;
             // 
-            // label3
-            // 
-            this.label3.AutoSize = true;
-            this.label3.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.label3.Location = new System.Drawing.Point(5, 5);
-            this.label3.Margin = new System.Windows.Forms.Padding(5);
-            this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(117, 22);
-            this.label3.TabIndex = 11;
-            this.label3.Text = "Frame";
-            this.label3.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
-            // frameBox
-            // 
-            this.frameBox.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-            this.frameBox.AutoSize = true;
-            this.frameBox.Enabled = false;
-            this.frameBox.Location = new System.Drawing.Point(130, 3);
-            this.frameBox.Name = "frameBox";
-            this.frameBox.Size = new System.Drawing.Size(121, 20);
-            this.frameBox.TabIndex = 12;
-            this.frameBox.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            // 
             // newButton1
             // 
             this.AnimTable.SetColumnSpan(this.newButton1, 2);
             this.newButton1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.newButton1.Location = new System.Drawing.Point(3, 35);
+            this.newButton1.Location = new System.Drawing.Point(3, 3);
             this.newButton1.Name = "newButton1";
-            this.newButton1.Size = new System.Drawing.Size(248, 27);
-            this.newButton1.TabIndex = 13;
+            this.newButton1.Size = new System.Drawing.Size(248, 59);
+            this.newButton1.TabIndex = 14;
             this.newButton1.Text = "Play";
             this.newButton1.UseVisualStyleBackColor = true;
             this.newButton1.Click += new System.EventHandler(this.newButton1_Click);
@@ -523,6 +497,19 @@ namespace Model_Viewer
             this.splitContainer1.SplitterDistance = 260;
             this.splitContainer1.TabIndex = 2;
             // 
+            // toolStripStatusLabel2
+            // 
+            this.toolStripStatusLabel2.Name = "toolStripStatusLabel2";
+            this.toolStripStatusLabel2.RightToLeft = System.Windows.Forms.RightToLeft.No;
+            this.toolStripStatusLabel2.Size = new System.Drawing.Size(127, 17);
+            this.toolStripStatusLabel2.Text = "Created by gregkwaste";
+            // 
+            // toolStripStatusLabel3
+            // 
+            this.toolStripStatusLabel3.Name = "toolStripStatusLabel3";
+            this.toolStripStatusLabel3.Size = new System.Drawing.Size(1028, 17);
+            this.toolStripStatusLabel3.Spring = true;
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -533,7 +520,7 @@ namespace Model_Viewer
             this.Controls.Add(this.menuStrip1);
             this.MainMenuStrip = this.menuStrip1;
             this.Name = "Form1";
-            this.Text = "No Man\'s Model Viewer";
+            this.Text = "No Man\'s Model Viewer v0.5";
             this.Load += new System.EventHandler(this.Form1_Load);
             this.menuStrip1.ResumeLayout(false);
             this.menuStrip1.PerformLayout();
@@ -561,8 +548,6 @@ namespace Model_Viewer
             this.ProcGenGroup.ResumeLayout(false);
             this.groupBox2.ResumeLayout(false);
             this.AnimTable.ResumeLayout(false);
-            this.AnimTable.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.frameBox)).EndInit();
             this.splitContainer1.Panel1.ResumeLayout(false);
             this.splitContainer1.Panel2.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).EndInit();
@@ -602,11 +587,11 @@ namespace Model_Viewer
         private System.Windows.Forms.Button randomgenerator;
         private System.Windows.Forms.GroupBox groupBox2;
         private System.Windows.Forms.TableLayoutPanel AnimTable;
-        private System.Windows.Forms.Label label3;
-        private System.Windows.Forms.NumericUpDown frameBox;
         private System.Windows.Forms.SplitContainer splitContainer1;
-        private Model_Viewer.NewButton newButton1;
         private NoClickTree treeView1;
+        private NewButton newButton1;
+        private ToolStripStatusLabel toolStripStatusLabel3;
+        private ToolStripStatusLabel toolStripStatusLabel2;
     }
 }
 

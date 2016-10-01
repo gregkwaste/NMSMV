@@ -46,11 +46,6 @@ namespace Model_Viewer
         private System.ComponentModel.BackgroundWorker backgroundWorker1;
         private Form pform;
 
-        //Joint Array for shader
-        //public float[] JMArray = new float[128 * 16];
-        //public Dictionary<string,GMDL.model> joint_dict = new Dictionary<string,GMDL.model>();
-        //public float[] JColors = new float[128 * 3];
-
         //Constructor
         public CGLControl(int index,Form parent)
         {
@@ -243,11 +238,11 @@ namespace Model_Viewer
             {
                 //Debug.WriteLine("Deltas {0} {1} {2}", delta_x, delta_y, e.Button);
                 cam.AddRotation(delta_x, delta_y);
-                this.Invalidate();
             }
 
             mouse_x = e.X;
             mouse_y = e.Y;
+            this.Invalidate();
 
         }
 
@@ -462,10 +457,13 @@ namespace Model_Viewer
 
         private void backgroundWorker1_ProgressChanged(object sender, System.ComponentModel.ProgressChangedEventArgs e)
         {
+            //this.MakeCurrent();
             foreach (GMDL.model s in animScenes)
                 if (s.animMeta != null) s.animate();
-
             this.Invalidate();
+
+            //if (animScenes[0] != null) animScenes[0].animate();
+            //this.Invalidate();
         }
 
     }
