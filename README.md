@@ -10,13 +10,11 @@ No Man's Model Viewer is a model viewer created to preview No Man's Sky 3D Model
 * [Wiki Page](https://bitbucket.org/gregkwaste/nms-viewer/wiki/Home)
 ### Known Issues ###
 * So far only diffuse textures are loaded in the viewport from the game files. This is not enough though for many of the models which require also the appropriate mask textures to load the correct alpha channels. I'll be adding support for them in upcoming versions, but for now this may lead to models render in white color in the viewports.
-* On very rare occasions (the Spider models for example) there is an issue with the joint matrices. This leads to corrupt positions of the vertices in the viewport and you'll notice that by a heavily distorted part in the viewport. Again I'll be working on that to find out how to fix that.
 * Especially on ship models, you are going to see small square objects around the ship. These are decals which are supposed to be projected to the main model. Honestly i have no idea how to apply them now, but again I'm definitely interested to find out how they work and hopefully I'll add support for them in the future.
 
 ### TODO List ###
 * Add support for Mask/Normal Maps
-* Fix corrupt joint matrices issue
-* Add export functionality on ProcGen models (obj format)
+* Add support for custom seeds during the procGen
 
 ### How do I get set up? ###
 
