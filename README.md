@@ -16,6 +16,7 @@ No Man's Model Viewer is a model viewer created to preview No Man's Sky 3D Model
 * Add support for Mask/Normal Maps
 * Add support for custom seeds during the procGen
 * Add support for collision objects
+* Keep converted exmls into a temp folder
 
 ### How do I get set up? ###
 
