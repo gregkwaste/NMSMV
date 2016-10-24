@@ -66,6 +66,7 @@ namespace Model_Viewer
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.mainglcontrolContext = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.getAltIDToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.exportToObjToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.menuStrip1.SuspendLayout();
             this.statusStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer2)).BeginInit();
@@ -207,10 +208,10 @@ namespace Model_Viewer
             this.glControl1.TabIndex = 1;
             this.glControl1.VSync = true;
             this.glControl1.Load += new System.EventHandler(this.glControl_Load);
-            this.glControl1.MouseClick += new System.Windows.Forms.MouseEventHandler(this.glControl1_MouseClick);
             this.glControl1.Paint += new System.Windows.Forms.PaintEventHandler(this.glControl1_Paint);
             this.glControl1.Enter += new System.EventHandler(this.glControl1_Enter);
             this.glControl1.Leave += new System.EventHandler(this.glControl1_Leave);
+            this.glControl1.MouseClick += new System.Windows.Forms.MouseEventHandler(this.glControl1_MouseClick);
             this.glControl1.MouseHover += new System.EventHandler(this.glControl1_MouseHover);
             this.glControl1.MouseMove += new System.Windows.Forms.MouseEventHandler(this.glControl1_MouseMove);
             this.glControl1.MouseWheel += new System.Windows.Forms.MouseEventHandler(this.glControl1_Scroll);
@@ -518,16 +519,24 @@ namespace Model_Viewer
             // mainglcontrolContext
             // 
             this.mainglcontrolContext.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.getAltIDToolStripMenuItem});
+            this.getAltIDToolStripMenuItem,
+            this.exportToObjToolStripMenuItem});
             this.mainglcontrolContext.Name = "mainglcontrolContext";
-            this.mainglcontrolContext.Size = new System.Drawing.Size(122, 26);
+            this.mainglcontrolContext.Size = new System.Drawing.Size(153, 70);
             // 
             // getAltIDToolStripMenuItem
             // 
             this.getAltIDToolStripMenuItem.Name = "getAltIDToolStripMenuItem";
-            this.getAltIDToolStripMenuItem.Size = new System.Drawing.Size(121, 22);
+            this.getAltIDToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
             this.getAltIDToolStripMenuItem.Text = "Get AltID";
             this.getAltIDToolStripMenuItem.Click += new System.EventHandler(this.getAltIDToolStripMenuItem_Click);
+            // 
+            // exportToObjToolStripMenuItem
+            // 
+            this.exportToObjToolStripMenuItem.Name = "exportToObjToolStripMenuItem";
+            this.exportToObjToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
+            this.exportToObjToolStripMenuItem.Text = "Export to Obj";
+            this.exportToObjToolStripMenuItem.Click += new System.EventHandler(this.exportToObjToolStripMenuItem_Click);
             // 
             // Form1
             // 
@@ -614,6 +623,7 @@ namespace Model_Viewer
         private ToolStripStatusLabel toolStripStatusLabel2;
         private ContextMenuStrip mainglcontrolContext;
         private ToolStripMenuItem getAltIDToolStripMenuItem;
+        private ToolStripMenuItem exportToObjToolStripMenuItem;
     }
 }
 

@@ -403,7 +403,7 @@ namespace Model_Viewer
 
             //Iterate in objects
             uint index = 1;
-            findGeoms(rootObject, obj,ref index);
+            findGeoms(rootObject, obj, ref index);
             
             obj.Close();
             
@@ -419,7 +419,7 @@ namespace Model_Viewer
 
             }
             foreach (GMDL.model c in m.children)
-                findGeoms(c, s, ref index);
+                if (c.renderable) findGeoms(c, s, ref index);
         }
 
 

@@ -1131,6 +1131,43 @@ namespace Model_Viewer
             Util.setStatus("AltID Copied to clipboard.", toolStripStatusLabel1);
         }
 
+        private void exportToObjToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Debug.WriteLine("Exporting to obj");
+            SaveFileDialog sv = new SaveFileDialog();
+            sv.Filter = "OBJ Files | *.obj";
+            sv.DefaultExt = "obj";
+            DialogResult res = sv.ShowDialog();
+
+            if (res != DialogResult.OK)
+                return;
+
+            StreamWriter obj = new StreamWriter(sv.FileName);
+
+            obj.WriteLine("# No Mans Model Viewer OBJ File:");
+            obj.WriteLine("# www.3dgamedevblog.com");
+
+            //Iterate in objects
+            uint index = 1;
+            findGeoms(mainScene, obj, ref index);
+
+            obj.Close();
+
+        }
+
+        private void findGeoms(GMDL.model m, StreamWriter s, ref uint index)
+        {
+            if (m.type == TYPES.MESH)
+            {
+                //Get converted text
+                GMDL.sharedVBO me = (GMDL.sharedVBO)m;
+                me.writeGeomToStream(s, ref index);
+
+            }
+            foreach (GMDL.model c in m.children)
+                if (c.renderable) findGeoms(c, s, ref index);
+        }
+
     }
 
     //Class Which will store all the texture resources for better memory management
