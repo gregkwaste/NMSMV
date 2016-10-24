@@ -30,6 +30,7 @@ namespace Model_Viewer
         /// </summary>
         private void InitializeComponent()
         {
+            this.components = new System.ComponentModel.Container();
             this.menuStrip1 = new System.Windows.Forms.MenuStrip();
             this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.openToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -41,6 +42,8 @@ namespace Model_Viewer
             this.backgroundWorker1 = new System.ComponentModel.BackgroundWorker();
             this.toolStripStatusLabel1 = new System.Windows.Forms.ToolStripStatusLabel();
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
+            this.toolStripStatusLabel3 = new System.Windows.Forms.ToolStripStatusLabel();
+            this.toolStripStatusLabel2 = new System.Windows.Forms.ToolStripStatusLabel();
             this.glControl1 = new OpenTK.GLControl();
             this.splitContainer2 = new System.Windows.Forms.SplitContainer();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
@@ -61,8 +64,8 @@ namespace Model_Viewer
             this.AnimTable = new System.Windows.Forms.TableLayoutPanel();
             this.newButton1 = new Model_Viewer.NewButton();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
-            this.toolStripStatusLabel2 = new System.Windows.Forms.ToolStripStatusLabel();
-            this.toolStripStatusLabel3 = new System.Windows.Forms.ToolStripStatusLabel();
+            this.mainglcontrolContext = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.getAltIDToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.menuStrip1.SuspendLayout();
             this.statusStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer2)).BeginInit();
@@ -90,6 +93,7 @@ namespace Model_Viewer
             this.splitContainer1.Panel1.SuspendLayout();
             this.splitContainer1.Panel2.SuspendLayout();
             this.splitContainer1.SuspendLayout();
+            this.mainglcontrolContext.SuspendLayout();
             this.SuspendLayout();
             // 
             // menuStrip1
@@ -178,6 +182,19 @@ namespace Model_Viewer
             this.statusStrip1.TabIndex = 3;
             this.statusStrip1.Text = "status";
             // 
+            // toolStripStatusLabel3
+            // 
+            this.toolStripStatusLabel3.Name = "toolStripStatusLabel3";
+            this.toolStripStatusLabel3.Size = new System.Drawing.Size(1059, 17);
+            this.toolStripStatusLabel3.Spring = true;
+            // 
+            // toolStripStatusLabel2
+            // 
+            this.toolStripStatusLabel2.Name = "toolStripStatusLabel2";
+            this.toolStripStatusLabel2.RightToLeft = System.Windows.Forms.RightToLeft.No;
+            this.toolStripStatusLabel2.Size = new System.Drawing.Size(127, 17);
+            this.toolStripStatusLabel2.Text = "Created by gregkwaste";
+            // 
             // glControl1
             // 
             this.glControl1.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
@@ -190,6 +207,7 @@ namespace Model_Viewer
             this.glControl1.TabIndex = 1;
             this.glControl1.VSync = true;
             this.glControl1.Load += new System.EventHandler(this.glControl_Load);
+            this.glControl1.MouseClick += new System.Windows.Forms.MouseEventHandler(this.glControl1_MouseClick);
             this.glControl1.Paint += new System.Windows.Forms.PaintEventHandler(this.glControl1_Paint);
             this.glControl1.Enter += new System.EventHandler(this.glControl1_Enter);
             this.glControl1.Leave += new System.EventHandler(this.glControl1_Leave);
@@ -497,18 +515,19 @@ namespace Model_Viewer
             this.splitContainer1.SplitterDistance = 260;
             this.splitContainer1.TabIndex = 2;
             // 
-            // toolStripStatusLabel2
+            // mainglcontrolContext
             // 
-            this.toolStripStatusLabel2.Name = "toolStripStatusLabel2";
-            this.toolStripStatusLabel2.RightToLeft = System.Windows.Forms.RightToLeft.No;
-            this.toolStripStatusLabel2.Size = new System.Drawing.Size(127, 17);
-            this.toolStripStatusLabel2.Text = "Created by gregkwaste";
+            this.mainglcontrolContext.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.getAltIDToolStripMenuItem});
+            this.mainglcontrolContext.Name = "mainglcontrolContext";
+            this.mainglcontrolContext.Size = new System.Drawing.Size(122, 26);
             // 
-            // toolStripStatusLabel3
+            // getAltIDToolStripMenuItem
             // 
-            this.toolStripStatusLabel3.Name = "toolStripStatusLabel3";
-            this.toolStripStatusLabel3.Size = new System.Drawing.Size(1028, 17);
-            this.toolStripStatusLabel3.Spring = true;
+            this.getAltIDToolStripMenuItem.Name = "getAltIDToolStripMenuItem";
+            this.getAltIDToolStripMenuItem.Size = new System.Drawing.Size(121, 22);
+            this.getAltIDToolStripMenuItem.Text = "Get AltID";
+            this.getAltIDToolStripMenuItem.Click += new System.EventHandler(this.getAltIDToolStripMenuItem_Click);
             // 
             // Form1
             // 
@@ -552,6 +571,7 @@ namespace Model_Viewer
             this.splitContainer1.Panel2.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).EndInit();
             this.splitContainer1.ResumeLayout(false);
+            this.mainglcontrolContext.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -592,6 +612,8 @@ namespace Model_Viewer
         private NewButton newButton1;
         private ToolStripStatusLabel toolStripStatusLabel3;
         private ToolStripStatusLabel toolStripStatusLabel2;
+        private ContextMenuStrip mainglcontrolContext;
+        private ToolStripMenuItem getAltIDToolStripMenuItem;
     }
 }
 

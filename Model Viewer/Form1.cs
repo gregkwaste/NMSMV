@@ -146,6 +146,7 @@ namespace Model_Viewer
             //Clear index dictionary
             index_dict.Clear();
             joint_dict.Clear();
+            animScenes.Clear();
             GC.Collect();
             this.childCounter = 0;
             //Add root to dictionary
@@ -390,6 +391,21 @@ namespace Model_Viewer
             glControl1.Invalidate();
         }
 
+
+        private void traverse_oblist_altid(ref List<string> alt , TreeNode parent)
+        {
+            //Detect Checked Descriptor
+
+            if (parent.Checked)
+            {
+                if (parent.Text.StartsWith("_"))
+                    if (!alt.Contains(parent.Text)) alt.Add(parent.Text);
+                
+                foreach (TreeNode child in parent.Nodes)
+                    traverse_oblist_altid(ref alt, child);
+            }
+        }
+
         private void traverse_oblist(GMDL.model ob, TreeNode parent)
         {
             ob.index = this.childCounter;
@@ -549,6 +565,14 @@ namespace Model_Viewer
         {
             Util.setStatus("Procedural Generation Init", this.toolStripStatusLabel1);
             GC.Collect();
+            //Check if any file has been loaded exists at all
+            if (mainFilePath == null)
+            {
+                MessageBox.Show("No File Loaded", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Util.setStatus("Error on ProcGen", this.toolStripStatusLabel1);
+                return;
+            }
+
             //Construct Descriptor Path
             string[] split = mainFilePath.Split('.');
             string descrpath = "";
@@ -563,6 +587,7 @@ namespace Model_Viewer
             if (!File.Exists(descrpath))
             {
                 MessageBox.Show("Not a ProcGen Model","Error",MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Util.setStatus("Error on ProcGen", this.toolStripStatusLabel1);
                 return;
             }
 
@@ -897,6 +922,7 @@ namespace Model_Viewer
             this.glControl1.Paint += new System.Windows.Forms.PaintEventHandler(this.glControl1_Paint);
             this.glControl1.MouseHover += new System.EventHandler(this.glControl1_MouseHover);
             this.glControl1.MouseMove += new System.Windows.Forms.MouseEventHandler(this.glControl1_MouseMove);
+            this.glControl1.MouseClick += new System.Windows.Forms.MouseEventHandler(this.glControl1_MouseClick);
             this.glControl1.MouseWheel += new System.Windows.Forms.MouseEventHandler(this.glControl1_Scroll);
             this.glControl1.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.glControl1_KeyDown);
             this.glControl1.Resize += new System.EventHandler(this.glControl1_Resize);
@@ -1083,6 +1109,28 @@ namespace Model_Viewer
                 t.Stop();
         }
         
+        //GLCONTROL Context Menu
+        private void glControl1_MouseClick(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Right)
+            {
+                mainglcontrolContext.Show(Control.MousePosition);
+            }
+        }
+
+        private void getAltIDToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            List<string> altId = new List<string>();
+            Debug.WriteLine(this.treeView1.Nodes[0].Text);
+            traverse_oblist_altid(ref altId, this.treeView1.Nodes[0]);
+            string finalalt = "";
+            for (int i = 0; i < altId.Count; i++)
+                finalalt += altId[i] + " ";
+            //Debug.WriteLine(finalalt);
+            Clipboard.SetText(finalalt);
+            Util.setStatus("AltID Copied to clipboard.", toolStripStatusLabel1);
+        }
+
     }
 
     //Class Which will store all the texture resources for better memory management

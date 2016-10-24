@@ -46,10 +46,12 @@ namespace Model_Viewer
                 {
                     System.Diagnostics.Debug.WriteLine("Settings File doesn't Exist");
                     textBox1_MouseClick(this, new MouseEventArgs(MouseButtons.Left, 1, 0, 0, 1));
+                    //Set procGen Num explicitly
+                    Util.procGenNum = 15;
                     //Save Settings automatically
                     if (!(textBox1.Text == ""))
                         button1_Click(this, new EventArgs());
-
+                    
                     return;
                 }
             }
