@@ -8,7 +8,7 @@ using System.IO;
 
 namespace Model_Viewer
 {
-    class CGLControl : GLControl
+    public class CGLControl : GLControl
     {
         public List<GMDL.model> objects = new List<GMDL.model>();
         public GMDL.model rootObject;

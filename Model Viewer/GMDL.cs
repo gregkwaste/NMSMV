@@ -15,6 +15,7 @@ namespace GMDL
         public abstract bool render();
         public abstract GMDL.model Clone(GMDL.scene scn);
         public GMDL.scene scene;
+        public GLControl pcontrol;
         public bool renderable = true;
         public int shader_program = -1;
         public int index;
@@ -363,7 +364,7 @@ namespace GMDL
             //this.type = "LOCATOR";
             //Assemble geometry in the constructor
             //X
-            float vlen = 0.5f;
+            float vlen = 0.1f;
             verts = new float[6 * 3] { vlen, 0.0f, 0.0f,
                    -vlen, 0.0f, 0.0f,
                     0.0f, vlen, 0.0f,
@@ -571,8 +572,13 @@ namespace GMDL
                 //Debug.WriteLine("Not Renderable");
                 return false;
             }
+
+            //Prepare Textures
+            renderTextures();
+            return true;
+
             //Debug.WriteLine(this.name + this);
-            //GL.UseProgram(this.shader_program);
+            GL.UseProgram(this.shader_program);
 
             //Bind vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
@@ -665,6 +671,11 @@ namespace GMDL
                 //Get Diffuse sampler
                 Sampler sam = material.samplers[0];
 
+                //Upload procedural sampler flag
+                loc = GL.GetUniformLocation(shader_program, "procFlag");
+                if (sam.proc) GL.Uniform1(loc, 1);
+                else GL.Uniform1(loc, 0);
+
                 if (sam.procTextures.Count > 0 & RenderOptions.UseTextures)
                 {
                     loc = GL.GetUniformLocation(shader_program, "diffuseFlag");
@@ -703,7 +714,128 @@ namespace GMDL
 
                         GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, tex.pif,
                             tex.width, tex.height, 0, tex.ddsImage.header.dwPitchOrLinearSize, tex.ddsImage.bdata);
+
+                        //Check if there is a masked texture bound
+                        if (tex.mask !=null) {
+                            //Set mask flag
+                            test = "maskFlags[" + i.ToString() + "]";
+                            loc = GL.GetUniformLocation(shader_program, test);
+                            GL.Uniform1(loc, 1);
+
+                            test = "maskTex[" + i.ToString() + "]";
+                            loc = GL.GetUniformLocation(shader_program, test);
+                            GL.Uniform1(loc, 8 + i); // I need to upload the texture unit number
+
+                            GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 8 + i));
+                            GL.BindTexture(TextureTarget.Texture2D, tex.mask.bufferID);
+
+                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+
+                            GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, tex.mask.pif,
+                                tex.mask.width, tex.mask.height, 0, tex.mask.ddsImage.header.dwPitchOrLinearSize, tex.mask.ddsImage.bdata);
+
+
+                        } 
+                        else
+                        {
+                            //Set mask flag to false
+                            test = "maskFlags[" + i.ToString() + "]";
+                            loc = GL.GetUniformLocation(shader_program, test);
+                            GL.Uniform1(loc, 0);
+                        }
+
+                        //Check if there is a normal texture bound
+                        if (tex.normal != null)
+                        {
+                            //Set mask flag
+                            test = "normalFlags[" + i.ToString() + "]";
+                            loc = GL.GetUniformLocation(shader_program, test);
+                            GL.Uniform1(loc, 1);
+
+                            test = "normalTex[" + i.ToString() + "]";
+                            loc = GL.GetUniformLocation(shader_program, test);
+                            GL.Uniform1(loc, 8 + i); // I need to upload the texture unit number
+
+                            GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 8 + i));
+                            GL.BindTexture(TextureTarget.Texture2D, tex.normal.bufferID);
+
+                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+
+                            GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, tex.normal.pif,
+                                tex.normal.width, tex.normal.height, 0, tex.normal.ddsImage.header.dwPitchOrLinearSize, tex.normal.ddsImage.bdata);
+
+
+                        }
+                        else
+                        {
+                            //Set mask flag to false
+                            test = "normalFlags[" + i.ToString() + "]";
+                            loc = GL.GetUniformLocation(shader_program, test);
+                            GL.Uniform1(loc, 0);
+                        }
+
                     }
+
+                    //Load global material mask
+                    if (sam.pathMask != null && !sam.proc)
+                    {
+                        //Set mask flag
+                        string test = "maskFlags[0]";
+                        loc = GL.GetUniformLocation(shader_program, test);
+                        GL.Uniform1(loc, 1);
+
+                        test = "maskTex[0]";
+                        loc = GL.GetUniformLocation(shader_program, test);
+                        GL.Uniform1(loc, 8); // I need to upload the texture unit number
+
+                        GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 8));
+                        GL.BindTexture(TextureTarget.Texture2D, sam.procTextures[0].mask.bufferID);
+
+                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+
+                        GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, sam.procTextures[0].mask.pif,
+                            sam.procTextures[0].mask.width, sam.procTextures[0].mask.height, 0, sam.procTextures[0].mask.ddsImage.header.dwPitchOrLinearSize,
+                            sam.procTextures[0].mask.ddsImage.bdata);
+                    }
+
+                    //Load global material normal
+                    if (sam.pathNormal != null && !sam.proc)
+                    {
+                        //Set mask flag
+                        string test = "normalFlags[0]";
+                        loc = GL.GetUniformLocation(shader_program, test);
+                        GL.Uniform1(loc, 1);
+
+                        test = "normalTex[0]";
+                        loc = GL.GetUniformLocation(shader_program, test);
+                        GL.Uniform1(loc, 16); // I need to upload the texture unit number
+
+                        GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 16));
+                        GL.BindTexture(TextureTarget.Texture2D, sam.procTextures[0].normal.bufferID);
+
+                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+
+                        GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, sam.procTextures[0].normal.pif,
+                            sam.procTextures[0].normal.width, sam.procTextures[0].normal.height, 0, sam.procTextures[0].normal.ddsImage.header.dwPitchOrLinearSize,
+                            sam.procTextures[0].normal.ddsImage.bdata);
+                    }
+
+
+
+
+
                 }
                 else
                 {
@@ -765,6 +897,136 @@ namespace GMDL
             GL.DisableVertexAttribArray(bW);
 
             return true;
+        }
+
+        private void renderTextures()
+        {
+            //Activate Pass Shader
+            ResourceMgmt.DebugWin.cgl.MakeCurrent();
+            GL.UseProgram(ResourceMgmt.shader_programs[3]);
+
+            int quad_vbo;
+            int quad_ebo;
+            
+            //Define Quad
+            float[] quad = new float[6*3] {
+                -1.0f, -1.0f, 0.0f,
+                1.0f, -1.0f, 0.0f,
+                -1.0f,  1.0f, 0.0f,
+                -1.0f,  1.0f, 0.0f,
+                1.0f, -1.0f, 0.0f,
+                1.0f,  1.0f, 0.0f };
+
+            float[] quadcolors = new float[6 * 3]
+            {
+                1.0f, 0.0f, 0.0f,
+                0.0f, 1.0f, 0.0f,
+                1.0f,  1.0f, 0.0f,
+                1.0f,  1.0f, 0.0f,
+                0.0f, 1.0f, 0.0f,
+                0.0f,  0.0f, 1.0f
+            };
+
+            //Indices
+            int[] indices = new Int32[2 * 3] { 0, 1, 2, 3, 4, 5 };
+
+            //Generate OpenGL buffers
+            int arraysize = sizeof(float) * 6 * 3;
+            GL.GenBuffers(1, out quad_vbo);
+            GL.GenBuffers(1, out quad_ebo);
+
+            //Upload vertex buffer
+            GL.BindBuffer(BufferTarget.ArrayBuffer, quad_vbo);
+            //Allocate to NULL
+            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)(2*arraysize), (IntPtr)null, BufferUsageHint.StaticDraw);
+            //Add verts data
+            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, quad);
+            //Add color data
+            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr) arraysize, (IntPtr)arraysize, quadcolors);
+
+            //Upload index buffer
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, quad_ebo);
+            GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr)(sizeof(int) * 6), indices, BufferUsageHint.StaticDraw);
+
+
+            // Attach to Shaders
+            int vpos, cpos;
+            
+            //Vertex attribute
+            //Bind vertex buffer
+            GL.BindBuffer(BufferTarget.ArrayBuffer, quad_vbo);
+            vpos = GL.GetAttribLocation(ResourceMgmt.shader_programs[3], "vPosition");
+            GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.Float, false, 0, 0);
+            GL.EnableVertexAttribArray(vpos);
+
+            cpos = GL.GetAttribLocation(ResourceMgmt.shader_programs[3], "vColor");
+            GL.VertexAttribPointer(cpos, 3, VertexAttribPointerType.Float, false, 0, (IntPtr)arraysize);
+            GL.EnableVertexAttribArray(cpos);
+
+            //Bind elem buffer
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, quad_ebo);
+            
+
+            //Create Texture to save to
+            int out_tex = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, out_tex);
+            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            //NULL means reserve texture memory, but texels are undefined
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgb, 512, 512, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+
+
+            /*
+            //Create New RenderBuffer
+            int fb = GL.GenFramebuffer();
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, fb);
+            //Attach Texture to this FBO
+            GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, out_tex, 0);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+
+            //Check
+            if (GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer) != FramebufferErrorCode.FramebufferComplete)
+                Debug.WriteLine("MALAKIES STO FRAMEBUFFER");
+
+            */
+            //Render to the FBO
+            //GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+
+            GL.Viewport(0, 0, 128, 128);
+            GL.ClearColor(System.Drawing.Color.Blue);
+
+            //GL.ClearColor(1.0f, 0.0f, 1.0f, 1.0f);
+
+            //GL.Clear(ClearBufferMask.DepthBufferBit);
+            GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
+
+            //ResourceMgmt.DebugWin.cgl.SwapBuffers();
+            ResourceMgmt.DebugWin.cgl.Update();
+            ResourceMgmt.DebugWin.cgl.Draw;
+            ResourceMgmt.DebugWin.cgl.Invalidate();
+            
+
+            GL.DisableVertexAttribArray(vpos);
+            GL.DisableVertexAttribArray(cpos);
+            GL.DeleteBuffer(quad_vbo);
+            GL.DeleteBuffer(quad_ebo);
+
+
+            //Store Framebuffer to Disk
+            byte[] pixels = new byte[3*512*512];
+            GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
+            GL.ReadPixels(0, 0, 512, 512, PixelFormat.Rgb, PixelType.UnsignedByte, pixels);
+
+            FileStream fs = new FileStream("framebuffer_raw", FileMode.Create);
+            BinaryWriter bw = new BinaryWriter(fs);
+            bw.Write(pixels);
+            fs.Flush();
+            fs.Close();
+            
+            //Bring Back framebuffer
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         }
 
         public override GMDL.model Clone(GMDL.scene scn)
@@ -1193,7 +1455,7 @@ namespace GMDL
         {
             foreach (Sampler sam in samplers){
 
-                string[] split = sam.path.Split('.');
+                string[] split = sam.pathDiff.Split('.');
                 string texMbin = split[0] + ".TEXTURE.MBIN";
                 string texMbinexml = split[0] + ".TEXTURE.exml";
                 texMbin = Path.Combine(Util.dirpath, texMbin);
@@ -1229,7 +1491,11 @@ namespace GMDL
                     for (int i = 0; i < texList.Count; i++)
                     {
                         XmlElement node = texList[i];
-                        string partName = ((XmlElement)node.SelectSingleNode(".//Property[@name='Diffuse']")).GetAttribute("value");
+
+                        string partNameDiff = ((XmlElement)node.SelectSingleNode(".//Property[@name='Diffuse']")).GetAttribute("value");
+                        string partNameMask = ((XmlElement)node.SelectSingleNode(".//Property[@name='Mask']")).GetAttribute("value");
+                        string partNameNormal = ((XmlElement)node.SelectSingleNode(".//Property[@name='Normal']")).GetAttribute("value");
+
                         XmlElement paletteNode = (XmlElement) node.SelectSingleNode(".//Property[@name='Palette']");
                         //XmlElement innerPalNode = (XmlElement)paletteNode.SelectSingleNode(".//Property[@name='Palette']");
                         string paletteName = ((XmlElement) paletteNode.SelectSingleNode(".//Property[@name='Palette']")).GetAttribute("value");
@@ -1244,17 +1510,51 @@ namespace GMDL
                         palOpt.ColorName = colorName;
                         
 
-                        if (!Model_Viewer.ResourceMgmt.GLtextures.ContainsKey(partName))
+                        if (!Model_Viewer.ResourceMgmt.GLtextures.ContainsKey(partNameDiff))
                         {
-                            string path = Path.Combine(Util.dirpath,partName);
+                            //Construct Texture paths
+                            string pathDiff = Path.Combine(Util.dirpath,partNameDiff);
+                            string pathMask = Path.Combine(Util.dirpath, partNameMask);
+                            string pathNormal = Path.Combine(Util.dirpath, partNameNormal);
+
+                            //Configure the Diffuse Texture
                             try
                             {
-                                Texture tex = new Texture(path);
+                                Texture tex = new Texture(pathDiff);
                                 tex.bufferID = GL.GenTexture();
                                 tex.palOpt = palOpt;
                                 tex.procColor = palColor;
                                 //store to global dict
-                                Model_Viewer.ResourceMgmt.GLtextures[partName] = tex;
+                                Model_Viewer.ResourceMgmt.GLtextures[partNameDiff] = tex;
+
+                                //Configure Mask
+                                try {
+                                    Texture texmask = new Texture(pathMask);
+                                    texmask.bufferID = GL.GenTexture();
+                                    tex.mask = texmask;
+                                    //store to global dict
+                                    Model_Viewer.ResourceMgmt.GLtextures[partNameMask] = tex;
+                                } catch (System.IO.FileNotFoundException e)
+                                {
+                                    //Mask Texture not found
+                                    tex.mask = null;
+                                }
+
+                                //Configure Normal
+                                try
+                                {
+                                    Texture texnormal = new Texture(pathNormal);
+                                    texnormal.bufferID = GL.GenTexture();
+                                    tex.normal = texnormal;
+                                    //store to global dict
+                                    Model_Viewer.ResourceMgmt.GLtextures[partNameNormal] = tex;
+                                }
+                                catch (System.IO.FileNotFoundException e)
+                                {
+                                    //Normal Texture not found
+                                    tex.normal = null;
+                                }
+                                
                                 //Save Texture to sample
                                 sam.procTextures.Add(tex);
                             }
@@ -1268,7 +1568,7 @@ namespace GMDL
                         //Load texture from dict
                         else
                         {
-                            Texture tex = Model_Viewer.ResourceMgmt.GLtextures[partName];
+                            Texture tex = Model_Viewer.ResourceMgmt.GLtextures[partNameDiff];
                             //Save Texture to sample
                             sam.procTextures.Add(tex);
                         }
@@ -1280,16 +1580,59 @@ namespace GMDL
                 {
                     try
                     {
-                        Texture tex = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.path));
+                        Texture tex = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.pathDiff));
                         tex.bufferID = GL.GenTexture();
                         tex.palOpt = new PaletteOpt(false);
                         tex.procColor = new Vector3(1.0f, 1.0f, 1.0f);
-                        Model_Viewer.ResourceMgmt.GLtextures[sam.path] = tex;
+                        Model_Viewer.ResourceMgmt.GLtextures[sam.pathDiff] = tex;
+
+                        //Configure Mask
+                        if (sam.pathMask !=null)
+                        {
+                            try
+                            {
+                                Texture texmask = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.pathMask));
+                                texmask.bufferID = GL.GenTexture();
+                                tex.mask = texmask;
+                                //store to global dict
+                                //Model_Viewer.ResourceMgmt.GLtextures[sam.pat] = tex;
+                            }
+                            catch (System.IO.FileNotFoundException e)
+                            {
+                                //Mask Texture not found
+                                tex.mask = null;
+                            }
+                        }
+
+                        //Configure Normal
+                        if (sam.pathNormal != null)
+                        {
+                            try
+                            {
+                                Texture texnormal = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.pathNormal));
+                                texnormal.bufferID = GL.GenTexture();
+                                tex.normal = texnormal;
+                                //store to global dict
+                                //Model_Viewer.ResourceMgmt.GLtextures[sam.pat] = tex;
+                            }
+                            catch (System.IO.FileNotFoundException e)
+                            {
+                                //Mask Texture not found
+                                tex.normal = null;
+                            }
+                        }
+
+
+
+
+                        
+
+
                         sam.procTextures.Add(tex);
                     }
                     catch (System.IO.FileNotFoundException e)
                     {
-                        Debug.WriteLine("Texture Not Found:" + Path.Combine(Model_Viewer.Util.dirpath, sam.path));
+                        Debug.WriteLine("Texture Not Found:" + Path.Combine(Model_Viewer.Util.dirpath, sam.pathDiff));
 
                         continue;
                     }
@@ -1317,7 +1660,9 @@ namespace GMDL
     public class Sampler
     {
         public string name;
-        public string path;
+        public string pathDiff;
+        public string pathMask = null;
+        public string pathNormal = null;
         public bool proc = false;
         public List<Texture> procTextures = new List<Texture>();
     }
@@ -1351,6 +1696,9 @@ namespace GMDL
         public Vector3 procColor;
         public PixelFormat pf;
         public DDSImage ddsImage;
+        //Attach mask and normal textures to the diffuse
+        public Texture mask;
+        public Texture normal;
 
         //Empty Initializer
         public Texture() {}

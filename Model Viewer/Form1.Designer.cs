@@ -47,26 +47,28 @@ namespace Model_Viewer
             this.glControl1 = new OpenTK.GLControl();
             this.splitContainer2 = new System.Windows.Forms.SplitContainer();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
-            this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
+            this.camSettings = new System.Windows.Forms.TableLayoutPanel();
+            this.label3 = new System.Windows.Forms.Label();
             this.label4 = new System.Windows.Forms.Label();
             this.label1 = new System.Windows.Forms.Label();
             this.numericUpDown1 = new System.Windows.Forms.NumericUpDown();
             this.label2 = new System.Windows.Forms.Label();
             this.numericUpDown2 = new System.Windows.Forms.NumericUpDown();
             this.numericUpDown3 = new System.Windows.Forms.NumericUpDown();
+            this.l_intensity_nud = new System.Windows.Forms.NumericUpDown();
             this.splitContainer3 = new System.Windows.Forms.SplitContainer();
             this.sceneGraphGroup = new System.Windows.Forms.GroupBox();
-            this.treeView1 = new Model_Viewer.NoClickTree();
             this.splitContainer4 = new System.Windows.Forms.SplitContainer();
             this.ProcGenGroup = new System.Windows.Forms.GroupBox();
             this.randomgenerator = new System.Windows.Forms.Button();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.AnimTable = new System.Windows.Forms.TableLayoutPanel();
-            this.newButton1 = new Model_Viewer.NewButton();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.mainglcontrolContext = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.getAltIDToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.exportToObjToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.treeView1 = new Model_Viewer.NoClickTree();
+            this.newButton1 = new Model_Viewer.NewButton();
             this.menuStrip1.SuspendLayout();
             this.statusStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer2)).BeginInit();
@@ -74,10 +76,11 @@ namespace Model_Viewer
             this.splitContainer2.Panel2.SuspendLayout();
             this.splitContainer2.SuspendLayout();
             this.groupBox1.SuspendLayout();
-            this.tableLayoutPanel1.SuspendLayout();
+            this.camSettings.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown1)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown2)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown3)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.l_intensity_nud)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer3)).BeginInit();
             this.splitContainer3.Panel1.SuspendLayout();
             this.splitContainer3.Panel2.SuspendLayout();
@@ -221,6 +224,7 @@ namespace Model_Viewer
             // splitContainer2
             // 
             this.splitContainer2.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.splitContainer2.FixedPanel = System.Windows.Forms.FixedPanel.Panel1;
             this.splitContainer2.Location = new System.Drawing.Point(0, 0);
             this.splitContainer2.Name = "splitContainer2";
             this.splitContainer2.Orientation = System.Windows.Forms.Orientation.Horizontal;
@@ -233,43 +237,58 @@ namespace Model_Viewer
             // 
             this.splitContainer2.Panel2.Controls.Add(this.splitContainer3);
             this.splitContainer2.Size = new System.Drawing.Size(260, 623);
-            this.splitContainer2.SplitterDistance = 92;
+            this.splitContainer2.SplitterDistance = 125;
             this.splitContainer2.TabIndex = 0;
             // 
             // groupBox1
             // 
-            this.groupBox1.Controls.Add(this.tableLayoutPanel1);
+            this.groupBox1.Controls.Add(this.camSettings);
             this.groupBox1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBox1.Location = new System.Drawing.Point(0, 0);
             this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(260, 92);
+            this.groupBox1.Size = new System.Drawing.Size(260, 125);
             this.groupBox1.TabIndex = 3;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Camera Options";
             // 
-            // tableLayoutPanel1
+            // camSettings
             // 
-            this.tableLayoutPanel1.ColumnCount = 2;
-            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 47.05882F));
-            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 52.94118F));
-            this.tableLayoutPanel1.Controls.Add(this.label4, 0, 2);
-            this.tableLayoutPanel1.Controls.Add(this.label1, 0, 0);
-            this.tableLayoutPanel1.Controls.Add(this.numericUpDown1, 1, 0);
-            this.tableLayoutPanel1.Controls.Add(this.label2, 0, 1);
-            this.tableLayoutPanel1.Controls.Add(this.numericUpDown2, 1, 1);
-            this.tableLayoutPanel1.Controls.Add(this.numericUpDown3, 1, 2);
-            this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.tableLayoutPanel1.Location = new System.Drawing.Point(3, 16);
-            this.tableLayoutPanel1.Name = "tableLayoutPanel1";
-            this.tableLayoutPanel1.RowCount = 3;
-            this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle());
-            this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle());
-            this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle());
-            this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle());
-            this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle());
-            this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(254, 73);
-            this.tableLayoutPanel1.TabIndex = 0;
+            this.camSettings.ColumnCount = 2;
+            this.camSettings.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 47.05882F));
+            this.camSettings.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 52.94118F));
+            this.camSettings.Controls.Add(this.label3, 0, 3);
+            this.camSettings.Controls.Add(this.label4, 0, 2);
+            this.camSettings.Controls.Add(this.label1, 0, 0);
+            this.camSettings.Controls.Add(this.numericUpDown1, 1, 0);
+            this.camSettings.Controls.Add(this.label2, 0, 1);
+            this.camSettings.Controls.Add(this.numericUpDown2, 1, 1);
+            this.camSettings.Controls.Add(this.numericUpDown3, 1, 2);
+            this.camSettings.Controls.Add(this.l_intensity_nud, 1, 3);
+            this.camSettings.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.camSettings.GrowStyle = System.Windows.Forms.TableLayoutPanelGrowStyle.FixedSize;
+            this.camSettings.Location = new System.Drawing.Point(3, 16);
+            this.camSettings.Name = "camSettings";
+            this.camSettings.RowCount = 4;
+            this.camSettings.RowStyles.Add(new System.Windows.Forms.RowStyle());
+            this.camSettings.RowStyles.Add(new System.Windows.Forms.RowStyle());
+            this.camSettings.RowStyles.Add(new System.Windows.Forms.RowStyle());
+            this.camSettings.RowStyles.Add(new System.Windows.Forms.RowStyle());
+            this.camSettings.RowStyles.Add(new System.Windows.Forms.RowStyle());
+            this.camSettings.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
+            this.camSettings.Size = new System.Drawing.Size(254, 106);
+            this.camSettings.TabIndex = 0;
+            // 
+            // label3
+            // 
+            this.label3.AutoSize = true;
+            this.label3.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.label3.Location = new System.Drawing.Point(5, 83);
+            this.label3.Margin = new System.Windows.Forms.Padding(5);
+            this.label3.Name = "label3";
+            this.label3.Size = new System.Drawing.Size(109, 18);
+            this.label3.TabIndex = 10;
+            this.label3.Text = "Light Intensity";
+            this.label3.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // label4
             // 
@@ -294,7 +313,7 @@ namespace Model_Viewer
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(109, 16);
             this.label1.TabIndex = 3;
-            this.label1.Text = "Camera Settings";
+            this.label1.Text = "FOV";
             this.label1.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // numericUpDown1
@@ -334,17 +353,17 @@ namespace Model_Viewer
             // 
             this.numericUpDown2.DecimalPlaces = 1;
             this.numericUpDown2.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.numericUpDown2.Increment = new decimal(new int[] {
+            1,
+            0,
+            0,
+            65536});
             this.numericUpDown2.Location = new System.Drawing.Point(122, 29);
             this.numericUpDown2.Maximum = new decimal(new int[] {
             50,
             0,
             0,
             0});
-            this.numericUpDown2.Minimum = new decimal(new int[] {
-            50,
-            0,
-            0,
-            -2147483648});
             this.numericUpDown2.Name = "numericUpDown2";
             this.numericUpDown2.Size = new System.Drawing.Size(129, 20);
             this.numericUpDown2.TabIndex = 7;
@@ -382,6 +401,38 @@ namespace Model_Viewer
             0});
             this.numericUpDown3.ValueChanged += new System.EventHandler(this.numericUpDown3_ValueChanged);
             // 
+            // l_intensity_nud
+            // 
+            this.l_intensity_nud.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.l_intensity_nud.DecimalPlaces = 1;
+            this.l_intensity_nud.Increment = new decimal(new int[] {
+            1,
+            0,
+            0,
+            65536});
+            this.l_intensity_nud.Location = new System.Drawing.Point(122, 81);
+            this.l_intensity_nud.Maximum = new decimal(new int[] {
+            10,
+            0,
+            0,
+            0});
+            this.l_intensity_nud.Minimum = new decimal(new int[] {
+            1,
+            0,
+            0,
+            0});
+            this.l_intensity_nud.Name = "l_intensity_nud";
+            this.l_intensity_nud.Size = new System.Drawing.Size(129, 20);
+            this.l_intensity_nud.TabIndex = 11;
+            this.l_intensity_nud.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.l_intensity_nud.Value = new decimal(new int[] {
+            20,
+            0,
+            0,
+            65536});
+            this.l_intensity_nud.ValueChanged += new System.EventHandler(this.l_intensity_nud_ValueChanged);
+            // 
             // splitContainer3
             // 
             this.splitContainer3.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -396,8 +447,8 @@ namespace Model_Viewer
             // splitContainer3.Panel2
             // 
             this.splitContainer3.Panel2.Controls.Add(this.splitContainer4);
-            this.splitContainer3.Size = new System.Drawing.Size(260, 527);
-            this.splitContainer3.SplitterDistance = 328;
+            this.splitContainer3.Size = new System.Drawing.Size(260, 494);
+            this.splitContainer3.SplitterDistance = 307;
             this.splitContainer3.TabIndex = 2;
             // 
             // sceneGraphGroup
@@ -406,20 +457,10 @@ namespace Model_Viewer
             this.sceneGraphGroup.Dock = System.Windows.Forms.DockStyle.Fill;
             this.sceneGraphGroup.Location = new System.Drawing.Point(0, 0);
             this.sceneGraphGroup.Name = "sceneGraphGroup";
-            this.sceneGraphGroup.Size = new System.Drawing.Size(260, 328);
+            this.sceneGraphGroup.Size = new System.Drawing.Size(260, 307);
             this.sceneGraphGroup.TabIndex = 1;
             this.sceneGraphGroup.TabStop = false;
             this.sceneGraphGroup.Text = "SceneGraph";
-            // 
-            // treeView1
-            // 
-            this.treeView1.CheckBoxes = true;
-            this.treeView1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.treeView1.Location = new System.Drawing.Point(3, 16);
-            this.treeView1.Name = "treeView1";
-            this.treeView1.Size = new System.Drawing.Size(254, 309);
-            this.treeView1.TabIndex = 0;
-            this.treeView1.AfterCheck += new System.Windows.Forms.TreeViewEventHandler(this.treeView1_AfterCheck);
             // 
             // splitContainer4
             // 
@@ -435,8 +476,8 @@ namespace Model_Viewer
             // splitContainer4.Panel2
             // 
             this.splitContainer4.Panel2.Controls.Add(this.groupBox2);
-            this.splitContainer4.Size = new System.Drawing.Size(260, 195);
-            this.splitContainer4.SplitterDistance = 107;
+            this.splitContainer4.Size = new System.Drawing.Size(260, 183);
+            this.splitContainer4.SplitterDistance = 99;
             this.splitContainer4.TabIndex = 1;
             // 
             // ProcGenGroup
@@ -445,7 +486,7 @@ namespace Model_Viewer
             this.ProcGenGroup.Dock = System.Windows.Forms.DockStyle.Fill;
             this.ProcGenGroup.Location = new System.Drawing.Point(0, 0);
             this.ProcGenGroup.Name = "ProcGenGroup";
-            this.ProcGenGroup.Size = new System.Drawing.Size(260, 107);
+            this.ProcGenGroup.Size = new System.Drawing.Size(260, 99);
             this.ProcGenGroup.TabIndex = 0;
             this.ProcGenGroup.TabStop = false;
             this.ProcGenGroup.Text = "ProcGenTools";
@@ -455,7 +496,7 @@ namespace Model_Viewer
             this.randomgenerator.Dock = System.Windows.Forms.DockStyle.Fill;
             this.randomgenerator.Location = new System.Drawing.Point(3, 16);
             this.randomgenerator.Name = "randomgenerator";
-            this.randomgenerator.Size = new System.Drawing.Size(254, 88);
+            this.randomgenerator.Size = new System.Drawing.Size(254, 80);
             this.randomgenerator.TabIndex = 9;
             this.randomgenerator.Text = "ProcGen";
             this.randomgenerator.UseVisualStyleBackColor = true;
@@ -467,7 +508,7 @@ namespace Model_Viewer
             this.groupBox2.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBox2.Location = new System.Drawing.Point(0, 0);
             this.groupBox2.Name = "groupBox2";
-            this.groupBox2.Size = new System.Drawing.Size(260, 84);
+            this.groupBox2.Size = new System.Drawing.Size(260, 80);
             this.groupBox2.TabIndex = 0;
             this.groupBox2.TabStop = false;
             this.groupBox2.Text = "AnimControls";
@@ -484,20 +525,8 @@ namespace Model_Viewer
             this.AnimTable.RowCount = 1;
             this.AnimTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.AnimTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.AnimTable.Size = new System.Drawing.Size(254, 65);
+            this.AnimTable.Size = new System.Drawing.Size(254, 61);
             this.AnimTable.TabIndex = 0;
-            // 
-            // newButton1
-            // 
-            this.AnimTable.SetColumnSpan(this.newButton1, 2);
-            this.newButton1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.newButton1.Location = new System.Drawing.Point(3, 3);
-            this.newButton1.Name = "newButton1";
-            this.newButton1.Size = new System.Drawing.Size(248, 59);
-            this.newButton1.TabIndex = 14;
-            this.newButton1.Text = "Play";
-            this.newButton1.UseVisualStyleBackColor = true;
-            this.newButton1.Click += new System.EventHandler(this.newButton1_Click);
             // 
             // splitContainer1
             // 
@@ -522,21 +551,43 @@ namespace Model_Viewer
             this.getAltIDToolStripMenuItem,
             this.exportToObjToolStripMenuItem});
             this.mainglcontrolContext.Name = "mainglcontrolContext";
-            this.mainglcontrolContext.Size = new System.Drawing.Size(153, 70);
+            this.mainglcontrolContext.Size = new System.Drawing.Size(144, 48);
             // 
             // getAltIDToolStripMenuItem
             // 
             this.getAltIDToolStripMenuItem.Name = "getAltIDToolStripMenuItem";
-            this.getAltIDToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
+            this.getAltIDToolStripMenuItem.Size = new System.Drawing.Size(143, 22);
             this.getAltIDToolStripMenuItem.Text = "Get AltID";
             this.getAltIDToolStripMenuItem.Click += new System.EventHandler(this.getAltIDToolStripMenuItem_Click);
             // 
             // exportToObjToolStripMenuItem
             // 
             this.exportToObjToolStripMenuItem.Name = "exportToObjToolStripMenuItem";
-            this.exportToObjToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
+            this.exportToObjToolStripMenuItem.Size = new System.Drawing.Size(143, 22);
             this.exportToObjToolStripMenuItem.Text = "Export to Obj";
             this.exportToObjToolStripMenuItem.Click += new System.EventHandler(this.exportToObjToolStripMenuItem_Click);
+            // 
+            // treeView1
+            // 
+            this.treeView1.CheckBoxes = true;
+            this.treeView1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.treeView1.Location = new System.Drawing.Point(3, 16);
+            this.treeView1.Name = "treeView1";
+            this.treeView1.Size = new System.Drawing.Size(254, 288);
+            this.treeView1.TabIndex = 0;
+            this.treeView1.AfterCheck += new System.Windows.Forms.TreeViewEventHandler(this.treeView1_AfterCheck);
+            // 
+            // newButton1
+            // 
+            this.AnimTable.SetColumnSpan(this.newButton1, 2);
+            this.newButton1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.newButton1.Location = new System.Drawing.Point(3, 3);
+            this.newButton1.Name = "newButton1";
+            this.newButton1.Size = new System.Drawing.Size(248, 55);
+            this.newButton1.TabIndex = 14;
+            this.newButton1.Text = "Play";
+            this.newButton1.UseVisualStyleBackColor = true;
+            this.newButton1.Click += new System.EventHandler(this.newButton1_Click);
             // 
             // Form1
             // 
@@ -548,7 +599,7 @@ namespace Model_Viewer
             this.Controls.Add(this.menuStrip1);
             this.MainMenuStrip = this.menuStrip1;
             this.Name = "Form1";
-            this.Text = "No Man\'s Model Viewer v0.5";
+            this.Text = "No Man\'s Model Viewer v0.55";
             this.Load += new System.EventHandler(this.Form1_Load);
             this.menuStrip1.ResumeLayout(false);
             this.menuStrip1.PerformLayout();
@@ -559,11 +610,12 @@ namespace Model_Viewer
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer2)).EndInit();
             this.splitContainer2.ResumeLayout(false);
             this.groupBox1.ResumeLayout(false);
-            this.tableLayoutPanel1.ResumeLayout(false);
-            this.tableLayoutPanel1.PerformLayout();
+            this.camSettings.ResumeLayout(false);
+            this.camSettings.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown1)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown2)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown3)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.l_intensity_nud)).EndInit();
             this.splitContainer3.Panel1.ResumeLayout(false);
             this.splitContainer3.Panel2.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer3)).EndInit();
@@ -602,7 +654,7 @@ namespace Model_Viewer
         private OpenTK.GLControl glControl1;
         private System.Windows.Forms.SplitContainer splitContainer2;
         private System.Windows.Forms.GroupBox groupBox1;
-        private System.Windows.Forms.TableLayoutPanel tableLayoutPanel1;
+        private System.Windows.Forms.TableLayoutPanel camSettings;
         private System.Windows.Forms.Label label4;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.NumericUpDown numericUpDown1;
@@ -624,6 +676,8 @@ namespace Model_Viewer
         private ContextMenuStrip mainglcontrolContext;
         private ToolStripMenuItem getAltIDToolStripMenuItem;
         private ToolStripMenuItem exportToObjToolStripMenuItem;
+        private Label label3;
+        private NumericUpDown l_intensity_nud;
     }
 }
 

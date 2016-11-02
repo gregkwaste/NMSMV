@@ -447,18 +447,35 @@ public static class MATERIALMBIN
         }
         //Get Samplers
         opt = (XmlElement)node.SelectSingleNode(".//SAMPLERS");
+        //Find Diffuse Sampler
+        GMDL.Sampler sampl = null;
+
         foreach (XmlElement n in opt.ChildNodes)
         {
             XmlElement sn;
-            GMDL.Sampler sampl = new GMDL.Sampler();
             sn = (XmlElement)n.SelectSingleNode(".//PROPERTY[@NAME='CLASS']");
-            sampl.name = sn.GetAttribute("VALUE");
+            string name = sn.GetAttribute("VALUE");
             sn = (XmlElement)n.SelectSingleNode(".//PROPERTY[@NAME='TEXPATH']");
-            sampl.path = sn.GetAttribute("VALUE");
-
-            mat.samplers.Add(sampl);
+            string path = sn.GetAttribute("VALUE");
+            switch (name)
+            {
+                case "gDiffuseMap":
+                    sampl = new GMDL.Sampler();
+                    sampl.name = name;
+                    sampl.pathDiff = path;
+                    break;
+                case "gMasksMap":
+                    sampl.pathMask = path;
+                    break;
+                case "gNormalMap":
+                    sampl.pathNormal = path;
+                    break;
+            }
+            
         }
-        
+
+        if (sampl !=null) mat.samplers.Add(sampl);
+
 
         return mat;
     }
@@ -608,7 +625,7 @@ public static class GEOMMBIN{
                     mesh_desc += "t";
                     break;
                 case 4:
-                    mesh_desc += "p";
+                    mesh_desc += "p"; //Vertex Color
                     break;
                 case 5:
                     mesh_desc += "b";

@@ -32,6 +32,8 @@ namespace Model_Viewer
         private float light_angle_y = 0.0f;
         private float light_angle_x = 0.0f;
         private float light_distance = 5.0f;
+        private float light_intensity = 2.0f;
+
         private float scale = 1.0f;
         private int movement_speed = 1;
         //Mouse Pos
@@ -186,7 +188,7 @@ namespace Model_Viewer
                 return;
 
             //Populate shader list
-            ResourceMgmt.shader_programs = new int[3];
+            ResourceMgmt.shader_programs = new int[4];
 
             //Compile Object Shaders
             using (StreamReader vs = new StreamReader("Shaders/Simple_VS.glsl"))
@@ -203,10 +205,16 @@ namespace Model_Viewer
             using (StreamReader fs = new StreamReader("Shaders/joint_FS.glsl"))
                 CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), out vertex_shader_ob,
                     out fragment_shader_ob, out ResourceMgmt.shader_programs[2]);
+            //Compile Texture Shaders
+            using (StreamReader vs = new StreamReader("Shaders/pass_VS.glsl"))
+            using (StreamReader fs = new StreamReader("Shaders/pass_FS.glsl"))
+                CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), out vertex_shader_ob,
+                    out fragment_shader_ob, out ResourceMgmt.shader_programs[3]);
 
-            Debug.WriteLine("Programs {0} {1} {2} ", ResourceMgmt.shader_programs[0],
+            Debug.WriteLine("Programs {0} {1} {2} {3} ", ResourceMgmt.shader_programs[0],
                                                      ResourceMgmt.shader_programs[1],
-                                                     ResourceMgmt.shader_programs[2]);
+                                                     ResourceMgmt.shader_programs[2],
+                                                     ResourceMgmt.shader_programs[3]);
 
             GMDL.scene scene = new GMDL.scene();
             scene.shader_program = ResourceMgmt.shader_programs[1];
@@ -249,6 +257,15 @@ namespace Model_Viewer
             int maxfloats;
             GL.GetInteger(GetPName.MaxVertexUniformVectors,out maxfloats);
             toolStripStatusLabel1.Text = "Ready";
+
+            //Query GL Extensions
+            Debug.WriteLine("OPENGL AVAILABLE EXTENSIONS:");
+            string[] ext = GL.GetString(StringName.Extensions).Split(' ');
+            foreach (string s in ext)
+                Debug.WriteLine(s);
+            
+            
+
         }
 
         
@@ -332,7 +349,18 @@ namespace Model_Viewer
 
             //Compile fragment Shader
             GL.ShaderSource(fragmentObject, fs);
-            GL.CompileShader(fragmentObject);
+
+            //HANDLE INCLUDES
+            string commonCode;
+            using (StreamReader cs = new StreamReader("Shaders/common.glsl"))
+                commonCode = cs.ReadToEnd();
+            string[] common = { "/common.glsl" };
+            int[] length = null;
+            GL.Arb.NamedString(ArbShadingLanguageInclude.ShaderIncludeArb, common[0].Length, common[0], commonCode.Length, commonCode);
+            Debug.WriteLine(GL.Arb.IsNamedString(common[0].Length, common[0]));
+            GL.Arb.CompileShaderInclude(fragmentObject, 1, common, length);
+
+            //GL.CompileShader(fragmentObject);
             GL.GetShaderInfoLog(fragmentObject, out info);
             GL.GetShader(fragmentObject, ShaderParameter.CompileStatus, out status_code);
             if (status_code != 1)
@@ -490,9 +518,13 @@ namespace Model_Viewer
                                              (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                             Math.Cos(this.light_angle_y * Math.PI / 180.0))));
 
+                //Upload Light Intensity
+                loc = GL.GetUniformLocation(root.shader_program, "intensity");
+                GL.Uniform1(loc, light_intensity);
+                
                 //Upload camera position as the light
                 //GL.Uniform3(loc, cam.Position);
-                
+
                 //Upload firstskinmat
                 loc = GL.GetUniformLocation(root.shader_program, "firstskinmat");
                 GL.Uniform1(loc, ((GMDL.sharedVBO)root).firstskinmat);
@@ -515,6 +547,7 @@ namespace Model_Viewer
             root.render();
             //Render children
             foreach (GMDL.model child in root.children){
+                this.glControl1.MakeCurrent();
                 traverse_render(child);
             }
         }
@@ -1168,6 +1201,11 @@ namespace Model_Viewer
                 if (c.renderable) findGeoms(c, s, ref index);
         }
 
+        private void l_intensity_nud_ValueChanged(object sender, EventArgs e)
+        {
+            light_intensity = (float) this.l_intensity_nud.Value;
+            glControl1.Invalidate();
+        }
     }
 
     //Class Which will store all the texture resources for better memory management
@@ -1176,5 +1214,7 @@ namespace Model_Viewer
         public static Dictionary<string, GMDL.Texture> GLtextures = new Dictionary<string, GMDL.Texture>();
 
         public static int[] shader_programs;
+
+        public static DebugForm DebugWin = new DebugForm();
     }
 }

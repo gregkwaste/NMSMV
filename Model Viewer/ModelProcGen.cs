@@ -1425,11 +1425,10 @@ namespace Model_Viewer
                     XmlElement selNode = (XmlElement)descriptors.ChildNodes[sel];
                     //Add selection to parts
                     string partName = ((XmlElement)selNode.SelectSingleNode(".//Property[@name='Diffuse']")).GetAttribute("value");
+                    //string partName = ((XmlElement)selNode.SelectSingleNode(".//Property[@name='Diffuse']")).GetAttribute("value");
                     parts.Add(selNode);
                     //addToStr(ref parts, partName);
                 }
-                
-
             }
         }
 

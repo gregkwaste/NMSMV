@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Windows.Forms;
 using System.Xml;
+using OpenTK.Graphics.OpenGL;
+using OpenTK;
 
 namespace Model_Viewer
 {
@@ -106,6 +108,53 @@ namespace Model_Viewer
     public class ProcGenForm: Form
     {
         public Form1 parentForm;
+    }
+
+    public class DebugForm: Form
+    {
+        public GLControl cgl;
+        
+        
+        public DebugForm()
+        {
+            this.cgl = new GLControl();
+            setupCgl();
+            this.Controls.Add(cgl);
+            this.Show();
+        }
+
+        private void setupCgl()
+        {
+            this.Load += new System.EventHandler(this.genericLoad);
+            this.Paint += new System.Windows.Forms.PaintEventHandler(this.genericPaint);
+            //this.Resize += new System.EventHandler(this.genericResize);
+        }
+
+        private void genericLoad(object sender, EventArgs e)
+        {
+
+            this.cgl.Size = new System.Drawing.Size(640, 480);
+            this.cgl.MakeCurrent();
+            GL.Viewport(0, 0, this.cgl.ClientSize.Width, this.cgl.ClientSize.Height);
+            GL.ClearColor(System.Drawing.Color.Red);
+            GL.Enable(EnableCap.DepthTest);
+            
+            //glControl1.SwapBuffers();
+            //glControl1.Invalidate();
+            //Debug.WriteLine("GL Cleared");
+            //Debug.WriteLine(GL.GetError());
+        }
+
+        private void genericPaint(object sender, EventArgs e)
+        {
+            this.cgl.MakeCurrent();
+            //GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            System.Diagnostics.Debug.WriteLine("----Painting Debug");
+            this.cgl.SwapBuffers();
+        }
+
+
+
     }
 
     
