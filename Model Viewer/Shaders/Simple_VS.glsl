@@ -18,6 +18,9 @@ uniform float scale;
 uniform mat4 look, proj, worldRot;
 //Outputs
 varying vec3 E,N;
+varying float l_distance;
+varying mat3 TBN;
+varying vec3 nvectors[3];
 varying vec2 uv0;
 varying float bColor;
 
@@ -30,6 +33,10 @@ void main()
 
     //Pass uv
     uv0 = uvPosition0;
+    //Pas normal mapping related vectors
+    //nvectors[0] = tPosition.xyz;
+    //nvectors[1] = cross(tPosition.xyz, nPosition.xyz);
+    //nvectors[2] = nPosition.xyz;
 	// Remeber: thse matrices are column-major
     mat4 rx = mat4( 1.0,  0.0,  0.0, 0.0,
             		0.0,  c.x,  s.x, 0.0,
@@ -55,10 +62,29 @@ void main()
     mat4 rotMat = rx*ry*rz;
     mat4 mviewMat = rotMat;
     mat4 nMat = transpose(inverse(rotMat));
-    //gl_FrontColor = gl_Color;
-    E = - (rotMat * (vPosition-light4)).xyz;
     vec4 nPos = vec4(nPosition.xyz, 0.0);
     N = normalize(nMat * nPos).xyz;
+    //gl_FrontColor = gl_Color;
+    E = - (mviewMat * (vPosition-light4)).xyz; //Light vector
+    l_distance = distance(vPosition, light);
+    //E = - ((vPosition-light4)).xyz; //Light vector
+    E = normalize(E);
+    //E = - rotMat(vPosition-light4).xyz; //Light vector
+    
+    //Construct TBN matrix
+    //Nullify w components
+    vec4 lLocalTangentVec4 = vec4(tPosition.xyz, 0.0);
+    vec4 lLocalBitangentVec4 = vec4(bPosition.xyz, 0.0);
+    vec4 lLocalNormalVec4 = vec4(nPosition.xyz, 0.0);
+    
+    vec4 lWorldTangentVec4 = nMat * lLocalTangentVec4;
+    vec4 lWorldNormalVec4 = nMat * lLocalNormalVec4;
+    vec4 lWorldBitangentVec4 = vec4( cross(lWorldNormalVec4.xyz, lWorldTangentVec4.xyz),0.0);
+    
+
+    TBN = mat3( normalize(lWorldTangentVec4.xyz),
+                normalize(lWorldBitangentVec4.xyz),
+                normalize(lWorldNormalVec4.xyz) );
 
     if (skinned==1){
     	vec4 wPos=vec4(0.0, 0.0, 0.0, 0.0);
