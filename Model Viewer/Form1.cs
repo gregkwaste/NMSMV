@@ -1074,6 +1074,10 @@ namespace Model_Viewer
                 case Keys.O:
                     RenderOptions.UseTextures = !RenderOptions.UseTextures;
                     break;
+                //Toggle Small Render
+                case Keys.P:
+                    RenderOptions.RenderSmall = !RenderOptions.RenderSmall;
+                    break;
                 default:
                     Debug.WriteLine("Not Implemented Yet");
                     break;

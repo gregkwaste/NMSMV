@@ -17,6 +17,7 @@ namespace Model_Viewer
         //Set Full rendermode by default
         public static PolygonMode RENDERMODE = PolygonMode.Fill;
         public static bool UseTextures = true;
+        public static bool RenderSmall = false;
         public static int animFPS = 60;
     }
 

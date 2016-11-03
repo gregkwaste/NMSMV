@@ -573,11 +573,19 @@ namespace GMDL
                 return false;
             }
 
+            if (RenderOptions.RenderSmall)
+            {
+                this.rendersmall();
+                return true;
+            }
+            
+
+
             //Prepare Textures
             //Debug.WriteLine("Rendering " + this.name);
-            ResourceMgmt.DebugWin.setPart(this);
-            ResourceMgmt.DebugWin.cgl.Update(); //Force Window Invalidation
-            ResourceMgmt.DebugWin.cgl.Refresh(); //Force Window Invalidation
+            //ResourceMgmt.DebugWin.setPart(this);
+            //ResourceMgmt.DebugWin.cgl.Update(); //Force Window Invalidation
+            //ResourceMgmt.DebugWin.cgl.Refresh(); //Force Window Invalidation
             //return true;
 
             //Debug.WriteLine(this.name + this);
@@ -902,6 +910,88 @@ namespace GMDL
             return true;
         }
 
+        private void rendersmall()
+        {
+            //Bind vertex buffer
+            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.small_vertex_buffer_object);
+
+            int vpos, bI, bW;
+            //Vertex attribute
+            vpos = GL.GetAttribLocation(this.shader_program, "vPosition");
+            int vstride = vbo.vx_size * vertrstart;
+            GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.small_vx_size, vbo.small_vx_stride);
+            GL.EnableVertexAttribArray(vpos);
+
+            //If there are BlendIndices there are obviously blendWeights as well
+            //Max Indices count found so far is 4. I'm hardcoding it unless i find something else in the files.
+            bI = GL.GetAttribLocation(this.shader_program, "blendIndices");
+            GL.VertexAttribPointer(bI, 4, VertexAttribPointerType.UnsignedByte, false, vbo.small_vx_size, vbo.small_blendI_stride);
+            GL.EnableVertexAttribArray(bI);
+
+            bW = GL.GetAttribLocation(this.shader_program, "blendWeights");
+            GL.VertexAttribPointer(bW, 4, VertexAttribPointerType.HalfFloat, false, vbo.small_vx_size, vbo.small_blendW_stride);
+            GL.EnableVertexAttribArray(bW);
+
+            //Testing Upload full bIndices array
+            //GL.BindBuffer(BufferTarget.ArrayBuffer, vbo.bIndices_buffer_object);
+            //bI = GL.GetAttribLocation(this.shader_program, "blendIndices");
+            //GL.VertexAttribPointer(bI, 4, VertexAttribPointerType.Int, false, 0, 0);
+            //GL.EnableVertexAttribArray(bI);
+
+            //InverseBind Matrices
+            int loc;
+            //loc = GL.GetUniformLocation(shader_program, "invBMs");
+            //GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.vbo.invBMats);
+
+            //Upload BoneRemap Information
+            loc = GL.GetUniformLocation(shader_program, "boneRemap");
+            GL.Uniform1(loc, BoneRemap.Length, BoneRemap);
+
+            //Upload skinned status
+            loc = GL.GetUniformLocation(shader_program, "skinned");
+            GL.Uniform1(loc, skinned);
+
+            //Upload joint transform data
+            //Multiply matrices before sending them
+            //Check if scene has the jointModel
+            float[] skinmats = Util.mulMatArrays(vbo.invBMats, scene.JMArray, 128);
+
+            loc = GL.GetUniformLocation(shader_program, "skinMats");
+            GL.UniformMatrix4(loc, 128, false, skinmats);
+
+            //Upload procedural sampler flag
+            loc = GL.GetUniformLocation(shader_program, "procFlag");
+            GL.Uniform1(loc, 0);
+
+            //Disable Diffuse Maps
+            loc = GL.GetUniformLocation(shader_program, "diffTexCount");
+            GL.Uniform1(loc, 0);
+
+            loc = GL.GetUniformLocation(shader_program, "diffuseFlag");
+            GL.Uniform1(loc, 0.0f);
+
+            //Upload Default Color
+            loc = GL.GetUniformLocation(this.shader_program, "color");
+            GL.Uniform3(loc, 1.0, 0.0, 0.0); //Render Small Red
+
+            //Render Elements
+            GL.PointSize(5.0f);
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
+
+            GL.PolygonMode(MaterialFace.Front, RenderOptions.RENDERMODE);
+            GL.PolygonMode(MaterialFace.Back, RenderOptions.RENDERMODE);
+            GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
+                batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
+
+            //Debug.WriteLine("Normal Object {2} vpos {0} cpos {1} prog {3}", vpos, npos, this.name, this.shader_program);
+            //Debug.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vbo.vertex_buffer_object, this.vbo.color_buffer_object);
+
+            GL.DisableVertexAttribArray(vpos);
+            GL.DisableVertexAttribArray(bI);
+            GL.DisableVertexAttribArray(bW);
+
+        }
+
         public override GMDL.model Clone(GMDL.scene scn)
         {
             GMDL.sharedVBO copy = new GMDL.sharedVBO();
@@ -1133,6 +1223,7 @@ namespace GMDL
             return true;
         }
 
+        
 
 
     }
@@ -1140,6 +1231,7 @@ namespace GMDL
     public class customVBO
     {
         public int vertex_buffer_object;
+        public int small_vertex_buffer_object;
         public int normal_buffer_object;
         public int element_buffer_object;
         public int color_buffer_object;
@@ -1156,6 +1248,13 @@ namespace GMDL
         public int uv0_stride;
         public int blendI_stride;
         public int blendW_stride;
+
+        //Small Stuff
+        public int small_vx_size;
+        public int small_vx_stride;
+        public int small_blendI_stride;
+        public int small_blendW_stride;
+
         public int trisCount;
         public int iCount;
         public int iLength;
@@ -1177,16 +1276,19 @@ namespace GMDL
 
         public void LoadFromGeom(GeomObject geom)
         {
-            int size;
             //Set essential parameters
             this.vx_size = geom.vx_size;
+            this.small_vx_size = geom.small_vx_size;
             this.vx_stride = geom.offsets[0];
+            this.small_vx_stride = geom.small_offsets[0];
             this.uv0_stride = geom.offsets[1];
             this.n_stride = geom.offsets[2];
             this.t_stride = geom.offsets[3];
             this.b_stride = geom.offsets[4];
             this.blendI_stride = geom.offsets[5];
+            this.small_blendI_stride = geom.small_offsets[5];
             this.blendW_stride = geom.offsets[6];
+            this.small_blendW_stride = geom.small_offsets[6];
             this.iCount = (int) geom.indicesCount;
             this.trisCount = (int) geom.indicesCount / 3;
             this.iLength = (int)geom.indicesLength;
@@ -1206,14 +1308,12 @@ namespace GMDL
                 Array.Copy(jointData[i].convertMat(), 0, invBMats, 16 * i, 16);
             
             GL.GenBuffers(1, out vertex_buffer_object);
-            //Create normal buffer if normals exist
-            if (geom.mesh_descr.Contains("n"))
-                GL.GenBuffers(1, out normal_buffer_object);
-
+            GL.GenBuffers(1, out small_vertex_buffer_object);
             GL.GenBuffers(1, out color_buffer_object);
             GL.GenBuffers(1, out element_buffer_object);
             GL.GenBuffers(1, out bIndices_buffer_object);
 
+            int size;
             //Upload vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, vertex_buffer_object);
             GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr) (geom.vx_size * geom.vertCount),
@@ -1222,7 +1322,17 @@ namespace GMDL
                 out size);
             if (size != geom.vx_size * geom.vertCount)
                 throw new ApplicationException(String.Format("Problem with vertex buffer"));
-            
+
+            //Upload small vertex buffer
+            GL.BindBuffer(BufferTarget.ArrayBuffer, small_vertex_buffer_object);
+            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)(geom.small_vx_size * geom.vertCount),
+                geom.small_vbuffer, BufferUsageHint.StaticDraw);
+            GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize,
+                out size);
+            if (size != geom.small_vx_size * geom.vertCount)
+                throw new ApplicationException(String.Format("Problem with small vertex buffer"));
+
+
             //Upload index buffer
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, element_buffer_object);
             GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr)(geom.indicesLength * geom.indicesCount), geom.ibuffer, BufferUsageHint.StaticDraw);
@@ -1262,8 +1372,11 @@ namespace GMDL
         //public List<Vector3> tangents = new List<Vector3>();
         //public List<List<Vector2>> uvs = new List<List<Vector2>>();
         public string mesh_descr;
+        public string small_mesh_descr;
+
         public bool interleaved;
         public int vx_size;
+        public int small_vx_size;
 
         //Counters
         public int indicesCount=0;
@@ -1273,6 +1386,7 @@ namespace GMDL
         //make sure there are enough buffers for non interleaved formats
         public byte[] ibuffer;
         public byte[] vbuffer;
+        public byte[] small_vbuffer;
         public byte[] cbuffer;
         public byte[] nbuffer;
         public byte[] ubuffer;
@@ -1280,6 +1394,7 @@ namespace GMDL
         public List<int[]> bIndices;
         public List<float[]> bWeights;
         public int[] offsets; //List to save strides according to meshdescr
+        public int[] small_offsets; //Same thing for the small description
         public int[] boneRemap;
 
         //Joint info

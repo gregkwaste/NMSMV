@@ -536,19 +536,32 @@ public static class GEOMMBIN{
         fs.Seek(0x4, SeekOrigin.Current);
         var buf_count = br.ReadInt32();
         fs.Seek(0x4, SeekOrigin.Current);
-        fs.Seek(0x20, SeekOrigin.Current); //Second lod offsets
+
+        //Parse Small Vertex Layout Info
+        var small_bufcount = br.ReadInt32();
+        var small_vx_type = br.ReadInt32();
+        Debug.WriteLine("Small Buffer Count: {0} VxType {1}", small_bufcount, small_vx_type);
+        fs.Seek(0x8, SeekOrigin.Current);
+        var small_mesh_descr_offset = fs.Position + br.ReadInt32();
+        fs.Seek(0x4, SeekOrigin.Current);
+        br.ReadInt32(); //Skip second buf count
+        fs.Seek(0x4, SeekOrigin.Current);
+
+        //fs.Seek(0x20, SeekOrigin.Current); //Second lod offsets
 
         //Get primary geom offsets
         var indices_offset = fs.Position + br.ReadInt32();
         fs.Seek(0xC, SeekOrigin.Current);
         var verts_offset = fs.Position + br.ReadInt32();
         fs.Seek(0xC, SeekOrigin.Current);
+        var small_verts_offset = fs.Position + br.ReadInt32();
+        fs.Seek(0xC, SeekOrigin.Current);
 
-        fs.Seek(0x10, SeekOrigin.Current);
+        //fs.Seek(0x10, SeekOrigin.Current);
+        
         /*
-         * I need to get the vertex starts-ends
-         * 
-         * I need to get the bound starts-ends
+         * No Need to get any vx starts and ends since they 
+         * are passed through the scene files
          * 
          * 
          * */
@@ -565,6 +578,7 @@ public static class GEOMMBIN{
         
         geom.vertCount = vert_num;
         geom.vx_size = vx_type;
+        geom.small_vx_size = small_vx_type;
 
         //Get Bone Remapping Information
         fs.Seek(skinmatoffset, SeekOrigin.Begin);
@@ -591,8 +605,13 @@ public static class GEOMMBIN{
         geom.vbuffer = new byte[vert_num * vx_type];
         fs.Read(geom.vbuffer, 0, vert_num * vx_type);
 
+        //Get small_vx buffer
+        fs.Seek(small_verts_offset, SeekOrigin.Begin);
+        geom.small_vbuffer = new byte[vert_num * small_vx_type];
+        fs.Read(geom.small_vbuffer, 0, vert_num * small_vx_type);
 
-        //Get mesh description
+
+        //Get main mesh description
         fs.Seek(mesh_descr_offset, SeekOrigin.Begin);
         var mesh_desc = "";
         //int[] mesh_offsets = new int[buf_count];
@@ -611,44 +630,94 @@ public static class GEOMMBIN{
             var buf_localoffset = br.ReadInt32();
             mesh_offsets[buf_id] = buf_localoffset;
             fs.Seek(0x10, SeekOrigin.Current);
-            switch (buf_id) {
-                case 0:
-                    mesh_desc += "v";
-                    break;
-                case 1:
-                    mesh_desc += "u";
-                    break;
-                case 2:
-                    mesh_desc += "n";
-                    break;
-                case 3:
-                    mesh_desc += "t";
-                    break;
-                case 4:
-                    mesh_desc += "p"; //Vertex Color
-                    break;
-                case 5:
-                    mesh_desc += "b";
-                    break;
-                case 6:
-                    mesh_desc += "w";
-                    break;
-                default:
-                    mesh_desc += "x";
-                    break;
-            }
         }
+        //Get Descr
+        mesh_desc = getDescr(ref mesh_offsets, buf_count);
+
         Debug.WriteLine("Mesh Description: " + mesh_desc);
 
         //Store description
         geom.mesh_descr = mesh_desc;
         geom.offsets = mesh_offsets;
 
+        //Get small description
+        fs.Seek(small_mesh_descr_offset, SeekOrigin.Begin);
+        var small_mesh_desc = "";
+        //int[] mesh_offsets = new int[buf_count];
+        //Set size excplicitly to 7
+        int[] small_mesh_offsets = new int[7];
+        //Set all offsets to -1
+        for (int i = 0; i < 7; i++)
+            small_mesh_offsets[i] = -1;
+
+
+        for (int i = 0; i < small_bufcount; i++)
+        {
+            var buf_id = br.ReadInt32();
+            fs.Seek(0x4, SeekOrigin.Current);
+            var buf_type = br.ReadInt32();
+            var buf_localoffset = br.ReadInt32();
+            small_mesh_offsets[buf_id] = buf_localoffset;
+            fs.Seek(0x10, SeekOrigin.Current);
+        }
+        //Get Descr
+        small_mesh_desc = getDescr(ref small_mesh_offsets, small_bufcount);
+
+        Debug.WriteLine("Small Mesh Description: " + small_mesh_desc);
+
+        //Store description
+        geom.small_mesh_descr = small_mesh_desc;
+        geom.small_offsets = small_mesh_offsets;
+
         //Set geom interleaved
         geom.interleaved = true;
 
         return geom;
 
+    }
+
+    private static string getDescr(ref int[] offsets, int count)
+    {
+        string mesh_desc = "";
+
+
+        for (int i = 0; i < count; i++)
+        {
+            if (offsets[i] != -1)
+            {
+                switch (i)
+                {
+                    case 0:
+                        mesh_desc += "v"; //Verts
+                        break;
+                    case 1:
+                        mesh_desc += "u"; //UVs
+                        break;
+                    case 2:
+                        mesh_desc += "n"; //Normals
+                        break;
+                    case 3:
+                        mesh_desc += "t"; //Tangents
+                        break;
+                    case 4:
+                        mesh_desc += "p"; //Vertex Color
+                        break;
+                    case 5:
+                        mesh_desc += "b"; //BlendIndices
+                        break;
+                    case 6:
+                        mesh_desc += "w"; //BlendWeights
+                        break;
+                    default:
+                        mesh_desc += "x"; //Default
+                        break;
+                }
+            }
+        }
+
+
+
+        return mesh_desc;
     }
 
     public static GMDL.scene LoadObjects(XmlDocument xml)
