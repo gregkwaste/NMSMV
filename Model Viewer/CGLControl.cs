@@ -118,8 +118,8 @@ namespace Model_Viewer
 
         private void render_scene()
         {
-            this.MakeCurrent();
-            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            //this.MakeCurrent();
+            //GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             
             if (this.rootObject != null)
                 traverse_render(this.rootObject);

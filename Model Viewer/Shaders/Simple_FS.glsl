@@ -24,29 +24,6 @@ varying vec3 nvectors[3];
 varying vec2 uv0;
 varying float bColor;
 
-//Diffuse Color Mixing
-vec4 MixDiffuseMaps(){
-	//Storage Arrays
-	vec4 lLayerXVec4[8];
-	float lfAlpha[8];
-
-	//Output Color
-	vec4 lFinalDiffColor;
-
-	//Fetch Diffuse Colors
-	for (int i=0; i<= diffTexCount; i++){
-		lLayerXVec4[i] = texture2DLod(diffuseTex[i], uv0, 0.0);
-		if (!maskFlags[i]) lfAlpha[i] = lLayerXVec4[i].a;
-		else lfAlpha[i] = texture2DLod(maskTex[i], uv0, 0.0).a;
-	}
-
-
-	return vec4(0.0, 0.0, 0.0, 0.0);
-}
-
-
-
-
 //Normal Decode Function
 vec3 DecodeNormalMap(vec4 lNormalTexVec4){
 	lNormalTexVec4 = (lNormalTexVec4 * 2.0) - 1.0;
@@ -71,7 +48,7 @@ void main()
 	float bshininess;
 	//vec4 diffTexColor=vec4(color, 1.0);
 	bool init = false;
-	MixDiffuseMaps();
+	
 	for (int i=diffTexCount-1;i>=0;i--){
 		vec4 texColor = texture2D(diffuseTex[i], uv0);
 		vec4 palColor = vec4(palColors[i], 1.0);
