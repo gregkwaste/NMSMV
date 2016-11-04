@@ -34,6 +34,15 @@ public enum TYPES
     UNKNOWN
 }
 
+public enum COLLISIONTYPES
+{
+    MESH = 0x0,
+    SPHERE,
+    CYLINDER,
+    BOX,
+    CAPSULE    
+}
+
 public static class SCENEMBIN
 {
     public static XmlDocument Parse(FileStream fs)
@@ -465,10 +474,10 @@ public static class MATERIALMBIN
                     sampl.pathDiff = path;
                     break;
                 case "gMasksMap":
-                    sampl.pathMask = path;
+                    if (sampl != null) sampl.pathMask = path;
                     break;
                 case "gNormalMap":
-                    sampl.pathNormal = path;
+                    if (sampl != null) sampl.pathNormal = path;
                     break;
             }
             
@@ -1053,8 +1062,6 @@ public static class GEOMMBIN {
         }
         else if (typeEnum == TYPES.COLLISION)
         {
-            Debug.WriteLine("Collision Detected " + name);
-
             //Create model
             GMDL.Collision so = new GMDL.Collision();
 
@@ -1066,11 +1073,15 @@ public static class GEOMMBIN {
             //Get Options
             //In collision objects first child is probably the type
             string collisionType = ((XmlElement)attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']")).GetAttribute("value").ToUpper();
+            
 
+            Debug.WriteLine("Collision Detected " + name + "TYPE: " + collisionType);
             if (collisionType == "MESH")
             {
+
                 //Set cvbo
                 so.vbo = cvbo;
+                so.collisionType = (int)COLLISIONTYPES.MESH;
                 //Set Program
                 so.shader_program = ResourceMgmt.shader_programs[0]; //Use Mesh program for collisions
                 so.batchstart = int.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
@@ -1081,11 +1092,26 @@ public static class GEOMMBIN {
                 so.lastskinmat = int.Parse(((XmlElement)attribs.ChildNodes[6].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
             } else if (collisionType == "CYLINDER")
             {
-                Debug.WriteLine("CYLINDER NODE PARSING NOT IMPLEMENTED");
+                //Debug.WriteLine("CYLINDER NODE PARSING NOT IMPLEMENTED");
+                //Set cvbo
+                float radius = float.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                float height = float.Parse(((XmlElement)attribs.ChildNodes[2].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                //Set Program
+                so.shader_program = ResourceMgmt.shader_programs[0]; //Use Mesh program for collisions
+                so.vbo = (new Cylinder(radius,height)).getVBO();
+                so.collisionType = (int)COLLISIONTYPES.CYLINDER;
+
             }
             else if (collisionType == "BOX")
             {
-                Debug.WriteLine("BOX NODE PARSING NOT IMPLEMENTED");
+                //Debug.WriteLine("BOX NODE PARSING NOT IMPLEMENTED");
+                //Set cvbo
+                float width  = float.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                float height = float.Parse(((XmlElement)attribs.ChildNodes[2].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                float depth  = float.Parse(((XmlElement)attribs.ChildNodes[3].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                //Set Program
+                so.shader_program = ResourceMgmt.shader_programs[0]; //Use Mesh program for collisions
+                so.vbo = (new Box(width, height, depth)).getVBO();
             }
             else if (collisionType == "CAPSULE")
             {
@@ -1095,10 +1121,9 @@ public static class GEOMMBIN {
             {
                 //Set cvbo
                 float radius = float.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                //Set Program
                 so.shader_program = ResourceMgmt.shader_programs[0]; //Use Mesh program for collisions
                 so.vbo = (new Sphere(radius)).getVBO();
-                //Set Program
-                
             }
             else
             {
@@ -1116,9 +1141,7 @@ public static class GEOMMBIN {
             {
                 Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
-                {
                     so.children.Add(parseNode(childnode, cvbo, so, scene));
-                }
             }
             
             return so;

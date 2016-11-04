@@ -18,6 +18,7 @@ namespace Model_Viewer
         public static PolygonMode RENDERMODE = PolygonMode.Fill;
         public static bool UseTextures = true;
         public static bool RenderSmall = false;
+        public static bool RenderCollisions = false;
         public static int animFPS = 60;
     }
 

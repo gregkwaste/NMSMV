@@ -190,10 +190,20 @@ namespace Model_Viewer
             //Populate shader list
             ResourceMgmt.shader_programs = new int[4];
 
+            //Create Preprocessor object
+
             //Compile Object Shaders
-            using (StreamReader vs = new StreamReader("Shaders/Simple_VS.glsl"))
-            using (StreamReader fs = new StreamReader("Shaders/Simple_FS.glsl"))
-                CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), out vertex_shader_ob,
+            //using (StreamReader vs = new StreamReader("Shaders/Simple_VS.glsl"))
+            //using (StreamReader fs = new StreamReader("Shaders/Simple_FS.glsl"))
+            string vvs = GLSL_Preprocessor.Parser("Shaders/Simple_VS.glsl");
+            string ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FS.glsl");
+
+            FileStream test = new FileStream("preproc_out", FileMode.Create);
+            StreamWriter sw = new StreamWriter(test);
+            sw.Write(ffs);
+            test.Close();
+
+            CreateShaders(vvs, ffs, out vertex_shader_ob,
                     out fragment_shader_ob, out ResourceMgmt.shader_programs[0]);
             //Compile Locator Shaders
             using (StreamReader vs = new StreamReader("Shaders/locator_VS.glsl"))
@@ -351,16 +361,21 @@ namespace Model_Viewer
             GL.ShaderSource(fragmentObject, fs);
 
             //HANDLE INCLUDES
-            string commonCode;
-            using (StreamReader cs = new StreamReader("Shaders/common.glsl"))
-                commonCode = cs.ReadToEnd();
-            string[] common = { "/common.glsl" };
-            int[] length = null;
-            GL.Arb.NamedString(ArbShadingLanguageInclude.ShaderIncludeArb, common[0].Length, common[0], commonCode.Length, commonCode);
-            Debug.WriteLine(GL.Arb.IsNamedString(common[0].Length, common[0]));
-            GL.Arb.CompileShaderInclude(fragmentObject, 1, common, length);
+            /*
 
-            //GL.CompileShader(fragmentObject);
+            DEPRECATED SECTION BECAUSE OF THE PREPROCESSOR IMPLEMENTATION
+            
+            //string commonCode;
+            //using (StreamReader cs = new StreamReader("Shaders/common.glsl"))
+            //    commonCode = cs.ReadToEnd();
+            //string[] common = { "/common.glsl" };
+            //int[] length = null;
+            //GL.Arb.NamedString(ArbShadingLanguageInclude.ShaderIncludeArb, common[0].Length, common[0], commonCode.Length, commonCode);
+            //Debug.WriteLine(GL.Arb.IsNamedString(common[0].Length, common[0]));
+            //GL.Arb.CompileShaderInclude(fragmentObject, 1, common, length);
+
+            */
+            GL.CompileShader(fragmentObject);
             GL.GetShaderInfoLog(fragmentObject, out info);
             GL.GetShader(fragmentObject, ShaderParameter.CompileStatus, out status_code);
             if (status_code != 1)
@@ -1077,6 +1092,10 @@ namespace Model_Viewer
                 //Toggle Small Render
                 case Keys.P:
                     RenderOptions.RenderSmall = !RenderOptions.RenderSmall;
+                    break;
+                //Toggle Collisions Render
+                case Keys.OemOpenBrackets:
+                    RenderOptions.RenderCollisions = !RenderOptions.RenderCollisions;
                     break;
                 default:
                     Debug.WriteLine("Not Implemented Yet");

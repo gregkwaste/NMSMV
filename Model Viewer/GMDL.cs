@@ -686,6 +686,10 @@ namespace GMDL
             loc = GL.GetUniformLocation(shader_program, "skinMats");
             GL.UniformMatrix4(loc, 128, false, skinmats);
 
+            //Upload Light Flag
+            loc = GL.GetUniformLocation(shader_program, "useLighting");
+            GL.Uniform1(loc, 1.0f);
+
             //Bind Matrices
             //loc = GL.GetUniformLocation(shader_program, "BMs");
             //GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.getBindRotMats);
@@ -1173,6 +1177,8 @@ namespace GMDL
 
     public class Collision : sharedVBO
     {
+        public int collisionType = -1;
+
         //Custom constructor
         public Collision()
         {
@@ -1182,7 +1188,7 @@ namespace GMDL
         
         public override bool render()
         {
-            if (this.renderable == false || this.vbo == null)
+            if (this.renderable == false || this.vbo == null || RenderOptions.RenderCollisions == false)
             {
                 //Debug.WriteLine("Not Renderable");
                 return false;
@@ -1213,8 +1219,8 @@ namespace GMDL
             loc = GL.GetUniformLocation(shader_program, "skinned");
             GL.Uniform1(loc, 0);
 
-            //loc = GL.GetUniformLocation(shader_program, "diffTexCount");
-            //GL.Uniform1(loc, 0.0f);
+            loc = GL.GetUniformLocation(shader_program, "diffTexCount");
+            GL.Uniform1(loc, 0.0f);
 
             loc = GL.GetUniformLocation(shader_program, "diffuseFlag");
             GL.Uniform1(loc, 0.0f);
@@ -1232,10 +1238,25 @@ namespace GMDL
             GL.PointSize(5.0f);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
 
-            GL.PolygonMode(MaterialFace.Front, PolygonMode.Fill);
-            GL.PolygonMode(MaterialFace.Back, PolygonMode.Fill);
-            GL.DrawRangeElements(PrimitiveType.Lines, vertrstart, vertrend,
+            GL.PolygonMode(MaterialFace.Front, PolygonMode.Line);
+            GL.PolygonMode(MaterialFace.Back, PolygonMode.Line);
+
+            if (collisionType == (int) COLLISIONTYPES.MESH)
+            {
+                GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
                 batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
+            } else if (collisionType == (int) COLLISIONTYPES.BOX)
+            {
+                GL.DrawRangeElements(PrimitiveType.Points, 0, vbo.vCount,
+                vbo.iCount, vbo.iType, IntPtr.Zero);
+            }
+            else
+            {
+                GL.DrawRangeElements(PrimitiveType.Triangles, 0, vbo.vCount,
+                vbo.iCount, vbo.iType, IntPtr.Zero);
+            }
+
+                
 
             //Debug.WriteLine("Normal Object {2} vpos {0} cpos {1} prog {3}", vpos, npos, this.name, this.shader_program);
             //Debug.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vbo.vertex_buffer_object, this.vbo.color_buffer_object);
@@ -1281,6 +1302,7 @@ namespace GMDL
 
         public int trisCount;
         public int iCount;
+        public int vCount;
         public int iLength;
         public int[] boneRemap = new int[512];
         public DrawElementsType iType;
@@ -1314,6 +1336,7 @@ namespace GMDL
             this.small_blendI_stride = geom.small_offsets[5];
             this.blendW_stride = geom.offsets[6];
             this.small_blendW_stride = geom.small_offsets[6];
+            this.vCount = (int)geom.vertCount;
             this.iCount = (int) geom.indicesCount;
             this.trisCount = (int) geom.indicesCount / 3;
             this.iLength = (int)geom.indicesLength;
