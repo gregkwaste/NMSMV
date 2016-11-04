@@ -84,6 +84,7 @@
     <Compile Include="DebugForm.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="GLPrimitives.cs" />
     <Compile Include="TreeStuff.cs" />
     <Compile Include="DDSImage.cs" />
     <Compile Include="AboutForm.cs">

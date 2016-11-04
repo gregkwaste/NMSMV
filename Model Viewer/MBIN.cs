@@ -483,7 +483,7 @@ public static class MATERIALMBIN
 }
 
 
-public static class GEOMMBIN{
+public static class GEOMMBIN {
 
     public static System.Windows.Forms.ToolStripStatusLabel strip;
 
@@ -558,7 +558,7 @@ public static class GEOMMBIN{
         fs.Seek(0xC, SeekOrigin.Current);
 
         //fs.Seek(0x10, SeekOrigin.Current);
-        
+
         /*
          * No Need to get any vx starts and ends since they 
          * are passed through the scene files
@@ -575,7 +575,7 @@ public static class GEOMMBIN{
             geom.indicesLength = 0x2;
         else
             geom.indicesLength = 0x4;
-        
+
         geom.vertCount = vert_num;
         geom.vx_size = vx_type;
         geom.small_vx_size = small_vx_type;
@@ -584,8 +584,8 @@ public static class GEOMMBIN{
         fs.Seek(skinmatoffset, SeekOrigin.Begin);
         geom.boneRemap = new int[bc];
         for (int i = 0; i < bc; i++)
-           geom.boneRemap[i] = br.ReadInt32();
-        
+            geom.boneRemap[i] = br.ReadInt32();
+
         //Store Joint Data
         fs.Seek(jointbindingOffset, SeekOrigin.Begin);
         for (int i = 0; i < jointCount; i++)
@@ -617,17 +617,22 @@ public static class GEOMMBIN{
         //int[] mesh_offsets = new int[buf_count];
         //Set size excplicitly to 7
         int[] mesh_offsets = new int[7];
+        geom.bufInfo = new List<GMDL.bufInfo>();
         //Set all offsets to -1
         for (int i = 0; i < 7; i++)
+        {
             mesh_offsets[i] = -1;
-        
+            geom.bufInfo.Add(null);
+        }
+
         
         for (int i = 0; i < buf_count; i++)
         {
             var buf_id = br.ReadInt32();
-            fs.Seek(0x4, SeekOrigin.Current);
+            var buf_elem_count = br.ReadInt32();
             var buf_type = br.ReadInt32();
             var buf_localoffset = br.ReadInt32();
+            geom.bufInfo[buf_id]= get_bufInfo_item(buf_id, buf_localoffset, buf_elem_count, buf_type);
             mesh_offsets[buf_id] = buf_localoffset;
             fs.Seek(0x10, SeekOrigin.Current);
         }
@@ -639,7 +644,6 @@ public static class GEOMMBIN{
         //Store description
         geom.mesh_descr = mesh_desc;
         geom.offsets = mesh_offsets;
-
         //Get small description
         fs.Seek(small_mesh_descr_offset, SeekOrigin.Begin);
         var small_mesh_desc = "";
@@ -654,13 +658,14 @@ public static class GEOMMBIN{
         for (int i = 0; i < small_bufcount; i++)
         {
             var buf_id = br.ReadInt32();
-            fs.Seek(0x4, SeekOrigin.Current);
+            var buf_elem_count = br.ReadInt32();
             var buf_type = br.ReadInt32();
             var buf_localoffset = br.ReadInt32();
             small_mesh_offsets[buf_id] = buf_localoffset;
             fs.Seek(0x10, SeekOrigin.Current);
         }
-        //Get Descr
+
+        //Get Small Descr
         small_mesh_desc = getDescr(ref small_mesh_offsets, small_bufcount);
 
         Debug.WriteLine("Small Mesh Description: " + small_mesh_desc);
@@ -674,6 +679,71 @@ public static class GEOMMBIN{
 
         return geom;
 
+    }
+
+
+    private static GMDL.bufInfo get_bufInfo_item(int buf_id, int buf_localoffset, int count, int buf_type)
+    {
+        int sem = buf_id;
+        int off = buf_localoffset;
+        OpenTK.Graphics.OpenGL.VertexAttribPointerType typ = get_type(buf_type);
+        string text = get_shader_sem(buf_id);
+        return new GMDL.bufInfo(sem, typ, count, off, text);
+    }
+
+
+    private static string get_shader_sem(int buf_id)
+    {
+        switch (buf_id)
+        {
+            case 0:
+                return "vPosition"; //Verts
+            case 1:
+                return "uvPosition0"; //Verts
+            case 2:
+                return "nPosition"; //Verts
+            case 3:
+                return "tPosition"; //Verts
+            case 4:
+                return "bPosition"; //Verts
+            case 5:
+                return "blendIndices"; //Verts
+            case 6:
+                return "blendWeights"; //Verts
+            default:
+                return "shit"; //Default
+        }
+
+        
+    }
+
+    private static OpenTK.Graphics.OpenGL.VertexAttribPointerType get_type(int val){
+
+        switch (val)
+        {
+            case (0x140B):
+                return OpenTK.Graphics.OpenGL.VertexAttribPointerType.HalfFloat;
+            case (0x1401):
+                return OpenTK.Graphics.OpenGL.VertexAttribPointerType.UnsignedByte;
+            default:
+                Debug.WriteLine("Unknown VERTEX SECTION TYPE-----------------------------------");
+                return OpenTK.Graphics.OpenGL.VertexAttribPointerType.UnsignedByte;
+        }
+    }
+
+    private static int get_type_count(int val)
+    {
+
+        switch (val)
+        {
+            case (0x140B):
+                return 4;
+            case (0x1401):
+                return 1;
+            default:
+                Debug.WriteLine("Unknown VERTEX SECTION TYPE-----------------------------------");
+                return 1;
+        }
     }
 
     private static string getDescr(ref int[] offsets, int count)
@@ -988,34 +1058,54 @@ public static class GEOMMBIN{
             //Create model
             GMDL.Collision so = new GMDL.Collision();
 
-            //Set cvbo
-            so.vbo = cvbo;
+            //Remove that after implemented all the different collision types
             so.shader_program = ResourceMgmt.shader_programs[0]; //Use Mesh program for collisions
             so.name = name + "_COLLISION";
             so.type = typeEnum;
 
             //Get Options
             //In collision objects first child is probably the type
-            string collisionType = ((XmlElement)attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']")).GetAttribute("value");
+            string collisionType = ((XmlElement)attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']")).GetAttribute("value").ToUpper();
 
             if (collisionType == "MESH")
             {
+                //Set cvbo
+                so.vbo = cvbo;
+                //Set Program
+                so.shader_program = ResourceMgmt.shader_programs[0]; //Use Mesh program for collisions
                 so.batchstart = int.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 so.batchcount = int.Parse(((XmlElement)attribs.ChildNodes[2].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 so.vertrstart = int.Parse(((XmlElement)attribs.ChildNodes[3].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 so.vertrend = int.Parse(((XmlElement)attribs.ChildNodes[4].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 so.firstskinmat = int.Parse(((XmlElement)attribs.ChildNodes[5].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 so.lastskinmat = int.Parse(((XmlElement)attribs.ChildNodes[6].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-            } else if (collisionType == "Cylinder")
+            } else if (collisionType == "CYLINDER")
             {
-
+                Debug.WriteLine("CYLINDER NODE PARSING NOT IMPLEMENTED");
+            }
+            else if (collisionType == "BOX")
+            {
+                Debug.WriteLine("BOX NODE PARSING NOT IMPLEMENTED");
+            }
+            else if (collisionType == "CAPSULE")
+            {
+                Debug.WriteLine("CAPSULE NODE PARSING NOT IMPLEMENTED");
+            }
+            else if (collisionType == "SPHERE")
+            {
+                //Set cvbo
+                float radius = float.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                so.shader_program = ResourceMgmt.shader_programs[0]; //Use Mesh program for collisions
+                so.vbo = (new Sphere(radius)).getVBO();
+                //Set Program
+                
             }
             else
             {
-
+                Debug.WriteLine("NEW COLLISION TYPE: " + collisionType);
             }
-            
-            
+
+
             Debug.WriteLine("Batch Start {0} Count {1} ", so.batchstart, so.batchcount);
 
             so.parent = parent;

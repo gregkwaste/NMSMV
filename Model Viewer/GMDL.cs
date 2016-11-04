@@ -590,46 +590,70 @@ namespace GMDL
 
             //Debug.WriteLine(this.name + this);
             GL.UseProgram(this.shader_program);
-
             //Bind vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
-
-            int vpos,npos,uv0pos,bI,bW,tpos,bpos;
+            
+            List<int> vxattriblocs = new List<int>();
+            for (int i = 0; i < 7; i++)
+            {
+                if (vbo.bufInfo[i] == null) continue;
+                bufInfo buf = vbo.bufInfo[i];
+                int pos;
+                pos = GL.GetAttribLocation(this.shader_program, buf.sem_text);
+                GL.VertexAttribPointer(pos, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
+                GL.EnableVertexAttribArray(pos);
+                vxattriblocs.Add(pos);
+            }
+            
+            //int vpos, npos, uv0pos, bI, bW, tpos, bpos;
+            
+            /*
             //Vertex attribute
             vpos = GL.GetAttribLocation(this.shader_program, "vPosition");
             int vstride = vbo.vx_size * vertrstart;
-            GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.vx_stride);
+            //GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.vx_stride);
+            GL.VertexAttribPointer(vpos, vbo.bufInfo[0].count, vbo.bufInfo[0].type, false, this.vbo.vx_size, vbo.bufInfo[0].stride);
             GL.EnableVertexAttribArray(vpos);
 
             //Normal Attribute
             npos = GL.GetAttribLocation(this.shader_program, "nPosition");
             int nstride = vbo.vx_size * vertrstart + vbo.n_stride;
-            GL.VertexAttribPointer(npos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.n_stride);
+            //GL.VertexAttribPointer(npos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.n_stride);
+            GL.VertexAttribPointer(npos, vbo.bufInfo[2].count, vbo.bufInfo[2].type, false, this.vbo.vx_size, vbo.bufInfo[2].stride);
             GL.EnableVertexAttribArray(npos);
 
             //Tangent Attribute
             tpos = GL.GetAttribLocation(this.shader_program, "tPosition");
-            GL.VertexAttribPointer(tpos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.t_stride);
-            GL.EnableVertexAttribArray(tpos);
+            //GL.VertexAttribPointer(tpos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.t_stride);
+            if (vbo.bufInfo[3] != null)
+            {
+                GL.VertexAttribPointer(tpos, vbo.bufInfo[3].count, vbo.bufInfo[3].type, false, this.vbo.vx_size, vbo.bufInfo[3].stride);
+                GL.EnableVertexAttribArray(tpos);
+            }
+            
             
             //Bitangent Attribute
-            bpos = GL.GetAttribLocation(this.shader_program, "bPosition");
-            GL.VertexAttribPointer(bpos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.b_stride);
-            GL.EnableVertexAttribArray(bpos);
+            //bpos = GL.GetAttribLocation(this.shader_program, "bPosition");
+            //GL.VertexAttribPointer(bpos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.b_stride);
+            //GL.VertexAttribPointer(tpos, vbo.bufInfo[3].count, vbo.bufInfo[3].type, false, this.vbo.vx_size, vbo.bufInfo[3].stride);
+            //GL.EnableVertexAttribArray(bpos);
 
             //UV0
             uv0pos = GL.GetAttribLocation(this.shader_program, "uvPosition0");
-            GL.VertexAttribPointer(uv0pos, 2, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.uv0_stride);
+            //GL.VertexAttribPointer(uv0pos, 2, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.uv0_stride);
+            GL.VertexAttribPointer(uv0pos, vbo.bufInfo[1].count, vbo.bufInfo[1].type, false, this.vbo.vx_size, vbo.bufInfo[1].stride);
             GL.EnableVertexAttribArray(uv0pos);
 
             //If there are BlendIndices there are obviously blendWeights as well
             //Max Indices count found so far is 4. I'm hardcoding it unless i find something else in the files.
             bI = GL.GetAttribLocation(this.shader_program, "blendIndices");
-            GL.VertexAttribPointer(bI, 4, VertexAttribPointerType.UnsignedByte , false, vbo.vx_size, vbo.blendI_stride);
+            //GL.VertexAttribPointer(bI, 4, VertexAttribPointerType.UnsignedByte , false, vbo.vx_size, vbo.blendI_stride);
+            GL.VertexAttribPointer(bI, vbo.bufInfo[5].count, vbo.bufInfo[5].type, false, this.vbo.vx_size, vbo.bufInfo[5].stride);
             GL.EnableVertexAttribArray(bI);
 
             bW = GL.GetAttribLocation(this.shader_program, "blendWeights");
-            GL.VertexAttribPointer(bW, 4, VertexAttribPointerType.HalfFloat, false, vbo.vx_size, vbo.blendW_stride);
+            //GL.VertexAttribPointer(bW, 4, VertexAttribPointerType.HalfFloat, false, vbo.vx_size, vbo.blendW_stride);
+            GL.VertexAttribPointer(bW, vbo.bufInfo[6].count, vbo.bufInfo[6].type, false, this.vbo.vx_size, vbo.bufInfo[6].stride);
             GL.EnableVertexAttribArray(bW);
 
             //Testing Upload full bIndices array
@@ -637,6 +661,8 @@ namespace GMDL
             //bI = GL.GetAttribLocation(this.shader_program, "blendIndices");
             //GL.VertexAttribPointer(bI, 4, VertexAttribPointerType.Int, false, 0, 0);
             //GL.EnableVertexAttribArray(bI);
+
+            */
 
             //InverseBind Matrices
             int loc;
@@ -898,14 +924,20 @@ namespace GMDL
 
             //Debug.WriteLine("Normal Object {2} vpos {0} cpos {1} prog {3}", vpos, npos, this.name, this.shader_program);
             //Debug.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vbo.vertex_buffer_object, this.vbo.color_buffer_object);
-            
+
+            /*
             GL.DisableVertexAttribArray(vpos);
             GL.DisableVertexAttribArray(npos);
             GL.DisableVertexAttribArray(tpos);
-            GL.DisableVertexAttribArray(bpos);
+            //GL.DisableVertexAttribArray(bpos);
             GL.DisableVertexAttribArray(uv0pos);
             GL.DisableVertexAttribArray(bI);
             GL.DisableVertexAttribArray(bW);
+
+            */
+
+            foreach (int pos in vxattriblocs)
+                GL.DisableVertexAttribArray(pos);
 
             return true;
         }
@@ -1145,12 +1177,12 @@ namespace GMDL
         public Collision()
         {
             this.skinned = 0; //Collision objects are not skinned (at least for now)
-            this.color = new Vector3(0.0f, 1.0f, 1.0f); //Set Yellow Color for collision objects
+            this.color = new Vector3(1.0f, 1.0f, 0.0f); //Set Yellow Color for collision objects
         }
         
         public override bool render()
         {
-            if (this.renderable == false)
+            if (this.renderable == false || this.vbo == null)
             {
                 //Debug.WriteLine("Not Renderable");
                 return false;
@@ -1160,48 +1192,41 @@ namespace GMDL
             //Bind vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
 
-            int vpos, npos, tpos, bpos;
-            //Vertex attribute
-            vpos = GL.GetAttribLocation(this.shader_program, "vPosition");
-            int vstride = vbo.vx_size * vertrstart;
-            GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.vx_stride);
-            GL.EnableVertexAttribArray(vpos);
-
-            //Normal Attribute
-            npos = GL.GetAttribLocation(this.shader_program, "nPosition");
-            int nstride = vbo.vx_size * vertrstart + vbo.n_stride;
-            GL.VertexAttribPointer(npos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.n_stride);
-            GL.EnableVertexAttribArray(npos);
-
-            //Tangent Attribute
-            tpos = GL.GetAttribLocation(this.shader_program, "tPosition");
-            GL.VertexAttribPointer(tpos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.t_stride);
-            GL.EnableVertexAttribArray(tpos);
-
-            //Bitangent Attribute
-            bpos = GL.GetAttribLocation(this.shader_program, "bPosition");
-            GL.VertexAttribPointer(bpos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.vx_size, vbo.b_stride);
-            GL.EnableVertexAttribArray(bpos);
+            List<int> vxattriblocs = new List<int>();
+            for (int i = 0; i < 7; i++)
+            {
+                if (vbo.bufInfo[i] == null) continue;
+                bufInfo buf = vbo.bufInfo[i];
+                int pos;
+                pos = GL.GetAttribLocation(this.shader_program, buf.sem_text);
+                GL.VertexAttribPointer(pos, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
+                GL.EnableVertexAttribArray(pos);
+                vxattriblocs.Add(pos);
+            }
 
             //InverseBind Matrices
             int loc;
             //loc = GL.GetUniformLocation(shader_program, "invBMs");
             //GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.vbo.invBMats);
-
             
             //Upload skinned status
             loc = GL.GetUniformLocation(shader_program, "skinned");
-            GL.Uniform1(loc, skinned);
+            GL.Uniform1(loc, 0);
 
+            //loc = GL.GetUniformLocation(shader_program, "diffTexCount");
+            //GL.Uniform1(loc, 0.0f);
 
-            
             loc = GL.GetUniformLocation(shader_program, "diffuseFlag");
             GL.Uniform1(loc, 0.0f);
             
-
             //Upload Default Color
-            loc = GL.GetUniformLocation(this.shader_program, "color");
+            loc = GL.GetUniformLocation(shader_program, "color");
+            //GL.Uniform3(loc, this.color);
             GL.Uniform3(loc, this.color);
+
+            //Upload Light Flag
+            loc = GL.GetUniformLocation(shader_program, "useLighting");
+            GL.Uniform1(loc, 0.0f);
 
             //Render Elements
             GL.PointSize(5.0f);
@@ -1209,16 +1234,14 @@ namespace GMDL
 
             GL.PolygonMode(MaterialFace.Front, PolygonMode.Fill);
             GL.PolygonMode(MaterialFace.Back, PolygonMode.Fill);
-            GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
+            GL.DrawRangeElements(PrimitiveType.Lines, vertrstart, vertrend,
                 batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
 
             //Debug.WriteLine("Normal Object {2} vpos {0} cpos {1} prog {3}", vpos, npos, this.name, this.shader_program);
             //Debug.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vbo.vertex_buffer_object, this.vbo.color_buffer_object);
 
-            GL.DisableVertexAttribArray(vpos);
-            GL.DisableVertexAttribArray(npos);
-            GL.DisableVertexAttribArray(tpos);
-            GL.DisableVertexAttribArray(bpos);
+            foreach (int pos in vxattriblocs)
+                GL.DisableVertexAttribArray(pos);
 
             return true;
         }
@@ -1239,6 +1262,7 @@ namespace GMDL
         public int bIndices_buffer_object;
 
         public List<JointBindingData> jointData;
+        public List<GMDL.bufInfo> bufInfo;
         public float[] invBMats;
         public int vx_size;
         public int vx_stride;
@@ -1280,6 +1304,7 @@ namespace GMDL
             this.vx_size = geom.vx_size;
             this.small_vx_size = geom.small_vx_size;
             this.vx_stride = geom.offsets[0];
+            this.bufInfo = geom.bufInfo;
             this.small_vx_stride = geom.small_offsets[0];
             this.uv0_stride = geom.offsets[1];
             this.n_stride = geom.offsets[2];
@@ -1324,14 +1349,16 @@ namespace GMDL
                 throw new ApplicationException(String.Format("Problem with vertex buffer"));
 
             //Upload small vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, small_vertex_buffer_object);
-            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)(geom.small_vx_size * geom.vertCount),
-                geom.small_vbuffer, BufferUsageHint.StaticDraw);
-            GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize,
-                out size);
-            if (size != geom.small_vx_size * geom.vertCount)
-                throw new ApplicationException(String.Format("Problem with small vertex buffer"));
-
+            if (geom.small_vx_size != -1)
+            {
+                GL.BindBuffer(BufferTarget.ArrayBuffer, small_vertex_buffer_object);
+                GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)(geom.small_vx_size * geom.vertCount),
+                    geom.small_vbuffer, BufferUsageHint.StaticDraw);
+                GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize,
+                    out size);
+                if (size != geom.small_vx_size * geom.vertCount)
+                    throw new ApplicationException(String.Format("Problem with small vertex buffer"));
+            }
 
             //Upload index buffer
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, element_buffer_object);
@@ -1393,6 +1420,7 @@ namespace GMDL
         public byte[] tbuffer;
         public List<int[]> bIndices;
         public List<float[]> bWeights;
+        public List<bufInfo> bufInfo;
         public int[] offsets; //List to save strides according to meshdescr
         public int[] small_offsets; //Same thing for the small description
         public int[] boneRemap;
@@ -1429,6 +1457,24 @@ namespace GMDL
 
     }
     
+    public class bufInfo
+    {
+        public int semantic;
+        public VertexAttribPointerType type;
+        public int count;
+        public int stride;
+        public string sem_text;
+
+        public bufInfo(int sem,VertexAttribPointerType typ, int c, int s, string t)
+        {
+            semantic = sem;
+            type = typ;
+            count = c;
+            stride = s;
+            sem_text = t;
+        }
+    }
+
     public class Material
     {
         public string name;
