@@ -1124,6 +1124,115 @@ namespace Model_Viewer
             return newPal;
         }
 
+        public static Vector3 get_color(string palName, string colourOpt)
+        {
+            //Fetch palette
+            Type t = typeof(Palettes);
+            FieldInfo[] fields = t.GetFields(System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
+
+            //Excplicit handling of None
+            if (colourOpt == "None")
+                return new Vector3(1.0f, 1.0f, 1.0f);
+
+            List<Vector3> palette;
+            foreach (FieldInfo f in fields)
+            {
+                //Check field type
+                if (f.FieldType != typeof(List<Vector3>))
+                    continue;
+                //Get specified palette
+                if (f.Name == palName)
+                {
+                    palette = (List<Vector3>)f.GetValue(null);
+
+                    //Select Color at random
+                    int rand;
+                    
+                    switch (f.Name)
+                    {
+                        case ("Fur"):
+                        case ("Scale"):
+                        case ("Feather"):
+                        case ("Plant"):
+                        case ("Underbelly"):
+                        case ("Paint"):
+                            //In those palettes colors are organize in group of 4 
+                            //So there is a total of 16 color ranges in the palette
+                            //Chossing one range
+                            rand = Util.randgen.Next(0, 16);
+                            switch (colourOpt)
+                            {
+                                case ("Primary"):
+                                    return palette[4 * rand];
+                                case ("Alternative1"):
+                                    return palette[4 * rand + 1];
+                                case ("Alternative2"):
+                                    return palette[4 * rand + 2];
+                                case ("MatchGround"):
+                                case ("Alternative3"):
+                                case ("Alternative4"):
+                                    return palette[4 * rand + 3];
+                                case ("Unique"):
+                                    rand = Util.randgen.Next(0, 64);
+                                    return palette[rand];
+                            }
+                            break;
+                        //Handle vertical gradient palettes 1/8 options
+                        case ("Crystal"):
+                        case ("Rock"):
+                        case ("Undercoat"):
+                            rand = Util.randgen.Next(0, 8);
+                            int rand2 = Util.randgen.Next(0, 1);
+                            switch (colourOpt)
+                            {
+                                case ("Primary"):
+                                    return palette[rand2 * 32 + rand];
+                                case ("Alternative1"):
+                                    return palette[rand2 * 32 + rand + 1 * 8];
+                                case ("Alternative2"):
+                                    return palette[rand2 * 32 + rand + 2 * 8];
+                                case ("Alternative3"):
+                                    return palette[rand2 * 32 + rand + 3 * 8];
+                                case ("Alternative4"):
+                                   return palette[rand2 * 32 + rand + 3 * 8];
+                            }
+                            break;
+                        //Handle vertical palettes 1/16 options (Vertical parts of 4)
+                        case ("Leaf"):
+                        case ("Sand"):
+                        case ("Stone"):
+                        case ("Wood"):
+                            rand = Util.randgen.Next(0, 16);
+                            switch (colourOpt)
+                            {
+                                case ("Primary"):
+                                    return palette[(rand / 8) * 32 + rand % 8];
+                                case ("Alternative1"):
+                                    return palette[(rand / 8) * 32 + rand % 8 + 1 * 8];
+                                case ("Alternative2"):
+                                    return palette[(rand / 8) * 32 + rand % 8 + 2 * 8];
+                                case ("MatchGround"):
+                                    return palette[4 * rand + 3];
+                                case ("Alternative3"):
+                                    return palette[(rand / 8) * 32 + rand % 8 + 3 * 8];
+                                case ("Alternative4"):
+                                    return palette[(rand / 8) * 32 + rand % 8 + 3 * 8];
+                            }
+                            break;
+                            
+                        default:
+                            //Chose 1/64 random color
+                            rand = Util.randgen.Next(0, 64);
+                            return palette[rand];
+                            //newPal[f.Name]["None"] = palette[rand];
+                    }
+                }
+            }
+
+            throw new ApplicationException("New Palette " + palName);
+            //return new Vector3(1.0f, 1.0f, 1.0f);
+    }
+
         public static void set_palleteColors()
         {
             //Initialize the palette everytime this is called
@@ -1415,8 +1524,15 @@ namespace Model_Viewer
 
         public static void parse_procTexture(ref List<XmlElement> parts, XmlElement root)
         {
+            
             foreach (XmlElement el in root.ChildNodes)
             {
+                string layername = el.GetAttribute("name");
+                int layerid = int.Parse(layername.Split(new string[] { "Layer" }, StringSplitOptions.None)[1]) - 1;
+                //Debug.WriteLine("Texture Layer: " + layerid.ToString());
+
+                parts[layerid] = null; //Init to null
+
                 //Select descriptors
                 XmlElement descriptors = (XmlElement)el.SelectSingleNode(".//Property[@name='Textures']");
 
@@ -1428,7 +1544,7 @@ namespace Model_Viewer
                     //Add selection to parts
                     string partName = ((XmlElement)selNode.SelectSingleNode(".//Property[@name='Diffuse']")).GetAttribute("value");
                     //string partName = ((XmlElement)selNode.SelectSingleNode(".//Property[@name='Diffuse']")).GetAttribute("value");
-                    parts.Add(selNode);
+                    parts[layerid] = selNode;
                     //addToStr(ref parts, partName);
                 }
             }

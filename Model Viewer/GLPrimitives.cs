@@ -25,6 +25,10 @@ namespace Model_Viewer
             normals = new float[arraysize];
             indices = new int[2 * indarraysize];
 
+            List<float> vlist = new List<float>();
+            List<int> ilist = new List<int>();
+
+
 
             for (int lat = 0; lat <= latBands; lat++)
             {
@@ -42,15 +46,14 @@ namespace Model_Viewer
                     float y = costheta;
                     float z = sinphi * sintheta;
 
-                    verts[lat * latBands * 3 + 3 * lng + 0] = radius * x;
-                    verts[lat * latBands * 3 + 3 * lng + 1] = radius * y;
-                    verts[lat * latBands * 3 + 3 * lng + 2] = radius * z;
-
+                    verts[lat * (longBands + 1) * 3 + 3 * lng + 0] = radius * x;
+                    verts[lat * (longBands + 1) * 3 + 3 * lng + 1] = radius * y;
+                    verts[lat * (longBands + 1) * 3 + 3 * lng + 2] = radius * z;
+                    
                     normals[lat * latBands * 3 + 3 * lng + 0] = x;
                     normals[lat * latBands * 3 + 3 * lng + 1] = y;
                     normals[lat * latBands * 3 + 3 * lng + 2] = z;
                 }
-
             }
 
 
@@ -62,18 +65,16 @@ namespace Model_Viewer
                     int first = lat * (longBands + 1) + lng;
                     int second = first + longBands + 1;
 
-                    indices[lat * latBands * 6 + 6 * lng + 0] = second;
-                    indices[lat * latBands * 6 + 6 * lng + 1] = first;
-                    indices[lat * latBands * 6 + 6 * lng + 2] = first + 1;
+                    indices[lat * longBands * 6 + 6 * lng + 0] = second;
+                    indices[lat * longBands * 6 + 6 * lng + 1] = first;
+                    indices[lat * longBands * 6 + 6 * lng + 2] = first + 1;
+                    
 
-                    indices[lat * latBands * 6 + 6 * lng + 3] = second+1;
-                    indices[lat * latBands * 6 + 6 * lng + 4] = second;
-                    indices[lat * latBands * 6 + 6 * lng + 5] = first + 1;
+                    indices[lat * longBands * 6 + 6 * lng + 3] = second + 1;
+                    indices[lat * longBands * 6 + 6 * lng + 4] = second;
+                    indices[lat * longBands * 6 + 6 * lng + 5] = first + 1;
                 }
             }
-
-
-
 
         }
 

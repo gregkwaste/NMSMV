@@ -125,8 +125,12 @@ namespace Model_Viewer
             Model_Viewer.Palettes.set_palleteColors();
             
             splitContainer1.Panel2.Controls.Clear();
-            //Clear opengl
+            //Clear Resources
             ResourceMgmt.GLtextures.Clear();
+            ResourceMgmt.GLmaterials.Clear();
+            //Add Defaults
+            addDefaultTextures();
+
             setup_GLControl();
             splitContainer1.Panel2.Controls.Add(glControl1);
 
@@ -149,7 +153,7 @@ namespace Model_Viewer
             index_dict.Clear();
             joint_dict.Clear();
             animScenes.Clear();
-            GC.Collect();
+            
             this.childCounter = 0;
             //Add root to dictionary
             index_dict[scene.name] = this.childCounter;
@@ -159,6 +163,7 @@ namespace Model_Viewer
             //Add root to treeview
             treeView1.Nodes.Clear();
             treeView1.Nodes.Add(node);
+            GC.Collect();
 
 #if DEBUG
             //DEBUG write the jmarray to disk
@@ -198,10 +203,10 @@ namespace Model_Viewer
             string vvs = GLSL_Preprocessor.Parser("Shaders/Simple_VS.glsl");
             string ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FS.glsl");
 
-            FileStream test = new FileStream("preproc_out", FileMode.Create);
-            StreamWriter sw = new StreamWriter(test);
-            sw.Write(ffs);
-            test.Close();
+            //FileStream test = new FileStream("preproc_out", FileMode.Create);
+            //StreamWriter sw = new StreamWriter(test);
+            //sw.Write(ffs);
+            //test.Close();
 
             CreateShaders(vvs, ffs, out vertex_shader_ob,
                     out fragment_shader_ob, out ResourceMgmt.shader_programs[0]);
@@ -215,10 +220,11 @@ namespace Model_Viewer
             using (StreamReader fs = new StreamReader("Shaders/joint_FS.glsl"))
                 CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), out vertex_shader_ob,
                     out fragment_shader_ob, out ResourceMgmt.shader_programs[2]);
+
+            vvs = GLSL_Preprocessor.Parser("Shaders/pass_VS.glsl");
+            ffs = GLSL_Preprocessor.Parser("Shaders/pass_FS.glsl");
             //Compile Texture Shaders
-            using (StreamReader vs = new StreamReader("Shaders/pass_VS.glsl"))
-            using (StreamReader fs = new StreamReader("Shaders/pass_FS.glsl"))
-                CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), out vertex_shader_ob,
+            CreateShaders(vvs, ffs, out vertex_shader_ob,
                     out fragment_shader_ob, out ResourceMgmt.shader_programs[3]);
 
             Debug.WriteLine("Programs {0} {1} {2} {3} ", ResourceMgmt.shader_programs[0],
@@ -273,12 +279,25 @@ namespace Model_Viewer
             string[] ext = GL.GetString(StringName.Extensions).Split(' ');
             foreach (string s in ext)
                 Debug.WriteLine(s);
-            
-            
 
+            addDefaultTextures();
+            
         }
 
-        
+        private void addDefaultTextures()
+        {
+            string execpath = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
+            //Add Default textures
+            //White tex
+            string texpath = Path.Combine(execpath, "default.dds");
+            GMDL.Texture tex = new GMDL.Texture(texpath);
+            Model_Viewer.ResourceMgmt.GLtextures["default.dds"] = tex;
+            //Transparent Mask
+            texpath = Path.Combine(execpath, "default_mask.dds");
+            tex = new GMDL.Texture(texpath);
+            Model_Viewer.ResourceMgmt.GLtextures["default_mask.dds"] = tex;
+
+        }
 
 
         //glControl Timer
@@ -386,7 +405,7 @@ namespace Model_Viewer
             GL.AttachShader(program, vertexObject);
             GL.LinkProgram(program);
             //GL.UseProgram(program);
-            
+
         }
 
         private void numericUpDown1_ValueChanged(object sender, EventArgs e)
@@ -1235,9 +1254,8 @@ namespace Model_Viewer
     public static class ResourceMgmt
     {
         public static Dictionary<string, GMDL.Texture> GLtextures = new Dictionary<string, GMDL.Texture>();
-
+        public static Dictionary<string, GMDL.Material> GLmaterials = new Dictionary<string, GMDL.Material>();
         public static int[] shader_programs;
-
         public static DebugForm DebugWin = new DebugForm();
     }
 }

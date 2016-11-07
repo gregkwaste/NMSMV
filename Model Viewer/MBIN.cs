@@ -922,18 +922,29 @@ public static class GEOMMBIN {
 
             //Get Material
             string matname = ((XmlElement)attribs.ChildNodes[6].SelectSingleNode("Property[@name='Value']")).GetAttribute("value");
-            //Parse material file
-            FileStream ms = new FileStream(Path.Combine(Model_Viewer.Util.dirpath, matname), FileMode.Open);
-            GMDL.Material mat = MATERIALMBIN.ParseXml(MATERIALMBIN.Parse(ms));
-            mat.prepTextures();
-            ms.Close();
-            so.material = mat;
+            //Check if material already in Resources
+            if (ResourceMgmt.GLmaterials.ContainsKey(matname))
+                so.material = ResourceMgmt.GLmaterials[matname];
+            else
+            {
+                //Parse material file
+                FileStream ms = new FileStream(Path.Combine(Model_Viewer.Util.dirpath, matname), FileMode.Open);
+                GMDL.Material mat = MATERIALMBIN.ParseXml(MATERIALMBIN.Parse(ms));
+                mat.prepTextures();
+                mat.mixTextures();
+                ms.Close();
+                so.material = mat;
+                //Store the material to the Resources
+                //ResourceMgmt.GLmaterials[matname] = mat;
+            }
+            
             //Load default form palette on init
             so.palette = Model_Viewer.Palettes.paletteSel;
 
             //Decide if its a skinned mesh or not
-            if (so.firstskinmat == so.lastskinmat)
-                so.skinned = 0;
+            //if (so.firstskinmat == so.lastskinmat)
+            //    so.skinned = 0;
+            
             //Configure boneRemap properly
             so.BoneRemap = new int[so.lastskinmat - so.firstskinmat];
             for (int i = 0; i < so.lastskinmat - so.firstskinmat; i++)
@@ -949,9 +960,8 @@ public static class GEOMMBIN {
                         so.scene.jointModel.Add((GMDL.Joint) part);
                     so.children.Add(part);
                 }
-            }   
+            }
             
-
             return so;
         }
         else if (typeEnum == TYPES.LOCATOR)

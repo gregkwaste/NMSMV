@@ -148,7 +148,7 @@ namespace Model_Viewer
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
             //NULL means reserve texture memory, but texels are undefined
-            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgb, 512, 512, 0, PixelFormat.Rgb, PixelType.UnsignedByte, IntPtr.Zero);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, 512, 512, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             
             
             //Create New RenderBuffer
@@ -171,13 +171,13 @@ namespace Model_Viewer
             GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
 
             //Store Framebuffer to Disk
-            byte[] pixels = new byte[3 * 512 * 512];
+            byte[] pixels = new byte[4 * 512 * 512];
             //GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
-            GL.ReadPixels(0, 0, 512, 512, PixelFormat.Rgb, PixelType.UnsignedByte, pixels);
+            GL.ReadPixels(0, 0, 512, 512, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
 
             if (part != null)
             {
-                FileStream fs = new FileStream("framebuffer_raw_" + part.name, FileMode.Create);
+                FileStream fs = new FileStream("framebuffer_raw_" + part.material.name, FileMode.Create);
                 BinaryWriter bw = new BinaryWriter(fs);
                 bw.Write(pixels);
                 fs.Flush();
@@ -214,7 +214,7 @@ namespace Model_Viewer
 
         private void renderTextures()
         {
-            
+
             int pass_program = ResourceMgmt.shader_programs[3];
 
             //BIND TEXTURES
@@ -224,196 +224,94 @@ namespace Model_Viewer
 
             Debug.WriteLine("Rendering Textures of : " + part.name);
             //If there are samples defined, there are diffuse textures for sure
-            if (material.samplers.Count > 0)
+
+            //GL.Enable(EnableCap.Blend);
+            //GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
+
+            //NEW WAY OF TEXTURE BINDING
+            
+            //DIFFUSE TEXTURES
+
+            //Upload base Layers Used
+            for (int i = 0; i < 8; i++)
             {
-                //GL.Enable(EnableCap.Blend);
-                //GL.BlendFunc(BlendingFactorSrc.One, BlendingFactorDest.One);
-                //GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
+                loc = GL.GetUniformLocation(pass_program, "lbaseLayersUsed[" + i.ToString() + "]");
+                GL.Uniform1(loc, material.baseLayersUsed[i]);
+            }
 
-                //Get Diffuse sampler
-                GMDL.Sampler sam = material.samplers[0];
-
-                //Upload procedural sampler flag
-                loc = GL.GetUniformLocation(pass_program, "procFlag");
-                if (sam.proc) GL.Uniform1(loc, 1);
-                else GL.Uniform1(loc, 0);
-
-                if (sam.procTextures.Count > 0 & RenderOptions.UseTextures)
+            for (int i = 0; i < 8; i++)
+            {
+                if (material.difftextures[i] != null)
                 {
-                    loc = GL.GetUniformLocation(pass_program, "diffuseFlag");
-                    GL.Uniform1(loc, 1.0f);
+                    tex = material.difftextures[i];
+
+                    //Upload diffuse Texture
+                    string sem = "diffuseTex[" + i.ToString() + "]";
+                    //Get Texture location
+                    loc = GL.GetUniformLocation(pass_program, sem);
+                    GL.Uniform1(loc, i); // I need to upload the texture unit number
 
                     int tex0Id = (int)TextureUnit.Texture0;
 
-                    //Handle ProcGen Sampler
-                    loc = GL.GetUniformLocation(pass_program, "diffTexCount");
-                    GL.Uniform1(loc, sam.procTextures.Count);
+                    //Upload PaletteColor
+                    //loc = GL.GetUniformLocation(pass_program, "palColors[" + i.ToString() + "]");
+                    //Use Texture paletteOpt and object palette to load the palette color
+                    //GL.Uniform3(loc, palette[tex.palOpt.PaletteName][tex.palOpt.ColorName]);
 
-                    //if (this.name == "_Body_Tri" | this.name == "_Head_Tri")
-                    //    Debug.WriteLine("Debug");
-
-                    for (int i = 0; i < sam.procTextures.Count; i++)
-                    {
-                        tex = sam.procTextures[i];
-
-                        //Upload PaletteColor
-                        loc = GL.GetUniformLocation(pass_program, "palColors[" + i.ToString() + "]");
-                        //Use Texture paletteOpt and object palette to load the palette color
-                        GL.Uniform3(loc, part.palette[tex.palOpt.PaletteName][tex.palOpt.ColorName]);
-
-                        //Get Texture location
-                        string test = "diffuseTex[" + i.ToString() + "]";
-                        loc = GL.GetUniformLocation(pass_program, test);
-                        GL.Uniform1(loc, i); // I need to upload the texture unit number
-
-                        GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + i));
-                        GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
-
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-
-                        GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, tex.pif,
-                            tex.width, tex.height, 0, tex.ddsImage.header.dwPitchOrLinearSize, tex.ddsImage.bdata);
-
-                        //Check if there is a masked texture bound
-                        if (tex.mask != null)
-                        {
-                            //Set mask flag
-                            test = "maskFlags[" + i.ToString() + "]";
-                            loc = GL.GetUniformLocation(pass_program, test);
-                            GL.Uniform1(loc, 1);
-
-                            test = "maskTex[" + i.ToString() + "]";
-                            loc = GL.GetUniformLocation(pass_program, test);
-                            GL.Uniform1(loc, 8 + i); // I need to upload the texture unit number
-
-                            GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 8 + i));
-                            GL.BindTexture(TextureTarget.Texture2D, tex.mask.bufferID);
-
-                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
-                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
-                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-
-                            GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, tex.mask.pif,
-                                tex.mask.width, tex.mask.height, 0, tex.mask.ddsImage.header.dwPitchOrLinearSize, tex.mask.ddsImage.bdata);
-
-
-                        }
-                        else
-                        {
-                            //Set mask flag to false
-                            test = "maskFlags[" + i.ToString() + "]";
-                            loc = GL.GetUniformLocation(pass_program, test);
-                            GL.Uniform1(loc, 0);
-                        }
-
-                        //Check if there is a normal texture bound
-                        if (tex.normal != null)
-                        {
-                            //Set mask flag
-                            test = "normalFlags[" + i.ToString() + "]";
-                            loc = GL.GetUniformLocation(pass_program, test);
-                            GL.Uniform1(loc, 1);
-
-                            test = "normalTex[" + i.ToString() + "]";
-                            loc = GL.GetUniformLocation(pass_program, test);
-                            GL.Uniform1(loc, 8 + i); // I need to upload the texture unit number
-
-                            GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 8 + i));
-                            GL.BindTexture(TextureTarget.Texture2D, tex.normal.bufferID);
-
-                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
-                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
-                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-
-                            GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, tex.normal.pif,
-                                tex.normal.width, tex.normal.height, 0, tex.normal.ddsImage.header.dwPitchOrLinearSize, tex.normal.ddsImage.bdata);
-
-
-                        }
-                        else
-                        {
-                            //Set mask flag to false
-                            test = "normalFlags[" + i.ToString() + "]";
-                            loc = GL.GetUniformLocation(pass_program, test);
-                            GL.Uniform1(loc, 0);
-                        }
-
-                    }
-
-                    //Load global material mask
-                    if (sam.pathMask != null && !sam.proc)
-                    {
-                        //Set mask flag
-                        string test = "maskFlags[0]";
-                        loc = GL.GetUniformLocation(pass_program, test);
-                        GL.Uniform1(loc, 1);
-
-                        test = "maskTex[0]";
-                        loc = GL.GetUniformLocation(pass_program, test);
-                        GL.Uniform1(loc, 8); // I need to upload the texture unit number
-
-                        GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 8));
-                        GL.BindTexture(TextureTarget.Texture2D, sam.procTextures[0].mask.bufferID);
-
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-
-                        GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, sam.procTextures[0].mask.pif,
-                            sam.procTextures[0].mask.width, sam.procTextures[0].mask.height, 0, sam.procTextures[0].mask.ddsImage.header.dwPitchOrLinearSize,
-                            sam.procTextures[0].mask.ddsImage.bdata);
-                    }
-
-                    //Load global material normal
-                    if (sam.pathNormal != null && !sam.proc)
-                    {
-                        //Set mask flag
-                        string test = "normalFlags[0]";
-                        loc = GL.GetUniformLocation(pass_program, test);
-                        GL.Uniform1(loc, 1);
-
-                        test = "normalTex[0]";
-                        loc = GL.GetUniformLocation(pass_program, test);
-                        GL.Uniform1(loc, 16); // I need to upload the texture unit number
-
-                        GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 16));
-                        GL.BindTexture(TextureTarget.Texture2D, sam.procTextures[0].normal.bufferID);
-
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-
-                        GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, sam.procTextures[0].normal.pif,
-                            sam.procTextures[0].normal.width, sam.procTextures[0].normal.height, 0, sam.procTextures[0].normal.ddsImage.header.dwPitchOrLinearSize,
-                            sam.procTextures[0].normal.ddsImage.bdata);
-                    }
-                
-                }
-                else
-                {
-                    //Probably textures not found. Render with random color
-                    loc = GL.GetUniformLocation(pass_program, "diffuseFlag");
-                    GL.Uniform1(loc, 0.0f);
+                    GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + i));
+                    GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
                 }
             }
-            else
+
+            //TESTING MASKS
+            //SETTING HASALPHACHANNEL FLAG TO FALSE
+            loc = GL.GetUniformLocation(pass_program, "hasAlphaChannel");
+            GL.Uniform1(loc, 0.0f);
+
+
+            //MASKS
+            //Upload alpha Layers Used
+            for (int i = 0; i < 8; i++)
             {
-                loc = GL.GetUniformLocation(pass_program, "diffuseFlag");
-                GL.Uniform1(loc, 0.0f);
+                loc = GL.GetUniformLocation(pass_program, "lalphaLayersUsed[" + i.ToString() + "]");
+                GL.Uniform1(loc, material.alphaLayersUsed[i]);
             }
 
-            //Upload Default Color
-            loc = GL.GetUniformLocation(pass_program, "color");
-            GL.Uniform3(loc, ((GMDL.sharedVBO) part).color);
+            //Upload Mask Textures -- Alpha Masks???
+            for (int i = 0; i < 8; i++)
+            {
+                if (material.masktextures[i] == null) continue;
+                    
+                tex = material.masktextures[i];
+
+                //Upload diffuse Texture
+                string sem = "maskTex[" + i.ToString() + "]";
+                //Get Texture location
+                loc = GL.GetUniformLocation(pass_program, sem);
+                GL.Uniform1(loc, 8 + i); // I need to upload the texture unit number
+
+                int tex0Id = (int)TextureUnit.Texture0;
+
+                //Upload PaletteColor
+                //loc = GL.GetUniformLocation(pass_program, "palColors[" + i.ToString() + "]");
+                //Use Texture paletteOpt and object palette to load the palette color
+                //GL.Uniform3(loc, palette[tex.palOpt.PaletteName][tex.palOpt.ColorName]);
+
+                GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 8 + i));
+                GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
+                
+            }
+
+            //Upload Recolouring Information
+            for (int i = 0; i < 8; i++)
+            {
+                loc = GL.GetUniformLocation(pass_program, "lRecolours[" + i.ToString() + "]");
+                GL.Uniform4(loc, material.reColourings[i][0], material.reColourings[i][1], material.reColourings[i][2], 1.0f);
+            }
 
         }
 
+            
+        
     }
 }
