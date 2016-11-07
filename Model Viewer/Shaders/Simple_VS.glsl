@@ -14,6 +14,7 @@ uniform int boneRemap[256];
 uniform mat4 worldMat;
 uniform mat4 skinMats[128];
 uniform int skinned;
+uniform bool matflags[64];
 uniform float scale;
 uniform mat4 look, proj, worldRot;
 //Outputs
@@ -86,7 +87,8 @@ void main()
                 normalize(lWorldBitangentVec4.xyz),
                 normalize(lWorldNormalVec4.xyz) );
 
-    if (skinned==1){
+    //Check F02_SKINNED
+    if (matflags[1]){
     	vec4 wPos=vec4(0.0, 0.0, 0.0, 0.0);
 	    ivec4 index;
 
