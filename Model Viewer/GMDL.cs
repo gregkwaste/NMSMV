@@ -1497,8 +1497,12 @@ namespace GMDL
             foreach (Sampler sam in samplers){
 
                 string[] split = sam.pathDiff.Split('.');
-                string texMbin = split[0] + ".TEXTURE.MBIN";
-                string texMbinexml = split[0] + ".TEXTURE.exml";
+                //Construct main filename
+                string temp = "";
+                for (int i = 0; i < split.Length - 1; i++)
+                    temp += split[i] + ".";
+                string texMbin = temp + "TEXTURE.MBIN";
+                string texMbinexml = temp + "TEXTURE.exml";
                 texMbin = Path.Combine(Util.dirpath, texMbin);
                 texMbinexml = Path.Combine(Util.dirpath, texMbinexml);
                 //Detect Procedural Texture
@@ -2052,6 +2056,7 @@ namespace GMDL
         public int width;
         public int height;
         public PixelInternalFormat pif;
+        public bool containsAlphaMap;
         public PaletteOpt palOpt;
         public Vector3 procColor;
         public PixelFormat pf;
@@ -2079,9 +2084,11 @@ namespace GMDL
                 //DXT1
                 case (0x31545844):
                     pif = PixelInternalFormat.CompressedRgbaS3tcDxt1Ext;
+                    containsAlphaMap = false;
                     break;
                 case (0x35545844):
                     pif = PixelInternalFormat.CompressedRgbaS3tcDxt5Ext;
+                    containsAlphaMap = true;
                     break;
                 default:
                     throw new ApplicationException("Unimplemented Pixel format");
