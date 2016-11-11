@@ -1015,7 +1015,8 @@ namespace GMDL
             copy.batchcount = this.batchcount;
             copy.batchstart = this.batchstart;
             copy.color = this.color;
-            copy.material = this.material;
+            if (this.material != null)
+                copy.material = this.material.Clone();
             copy.BoneRemap = this.BoneRemap;
             copy.skinned = this.skinned;
             copy.palette = this.palette;
@@ -1467,8 +1468,10 @@ namespace GMDL
         public string type;
         public MatOpts opts;
         public List<int> materialflags = new List<int>();
+        public Dictionary<string, Dictionary<string, Vector3>> palette = new Dictionary<string, Dictionary<string, Vector3>>();
         public List<Uniform> uniforms = new List<Uniform>();
         public List<Sampler> samplers = new List<Sampler>();
+        public List<PaletteOpt> palOpts = new List<PaletteOpt>();
         public List<Texture> difftextures = new List<Texture>(8);
         public List<Texture> masktextures = new List<Texture>(8);
         public List<Texture> normaltextures = new List<Texture>(8);
@@ -1488,8 +1491,32 @@ namespace GMDL
                 masktextures.Add(null);
                 normaltextures.Add(null);
                 reColourings.Add(new float[] { 1.0f, 1.0f, 1.0f });
+                palOpts.Add(null);
             }
 
+        }
+
+        public GMDL.Material Clone()
+        {
+            GMDL.Material newmat = new GMDL.Material();
+            
+            //Copy arrays
+            for (int i = 0; i < 8; i++)
+            {
+                newmat.samplers = this.samplers;
+                newmat.materialflags = this.materialflags;
+                //newmat.alphaLayersUsed = this.alphaLayersUsed;
+                //newmat.baseLayersUsed = this.baseLayersUsed;
+                //newmat.difftextures[i] = this.difftextures[i];
+                //newmat.masktextures[i] = this.masktextures[i];
+                //newmat.normaltextures[i] = this.normaltextures[i];
+                //newmat.reColourings[i] = this.reColourings[i];
+                //newmat.palOpts[i] = this.palOpts[i];
+            }
+
+            //Remix textures
+            
+            return newmat;
         }
 
         public void prepTextures()
@@ -1560,7 +1587,7 @@ namespace GMDL
                         string colorName = ((XmlElement)paletteNode.SelectSingleNode(".//Property[@name='ColourAlt']")).GetAttribute("value");
 
                         //Select a pallete color
-                        Vector3 palColor = Model_Viewer.Palettes.paletteSel[paletteName][colorName];
+                        Vector3 palColor = palette[paletteName][colorName];
                         //Randomize palette Color every single time
                         //Vector3 palColor = Model_Viewer.Palettes.get_color(paletteName, colorName);
                         
@@ -1570,6 +1597,7 @@ namespace GMDL
                         PaletteOpt palOpt = new PaletteOpt();
                         palOpt.PaletteName = paletteName;
                         palOpt.ColorName = colorName;
+                        palOpts[i] = palOpt;
 
                         //DIFFUSE
                         if (partNameDiff == "")
@@ -1683,68 +1711,66 @@ namespace GMDL
                     }
 
                 }
-                //Store Normal Texture
+                //Store Non Proc Texture
                 else
                 {
                     Debug.WriteLine("Proper Texture, Bullshiting for now");
-                    try
-                    {
-                        Texture tex = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.pathDiff));
-                        tex.bufferID = GL.GenTexture();
-                        tex.palOpt = new PaletteOpt(false);
-                        tex.procColor = new Vector3(1.0f, 1.0f, 1.0f);
-                        Model_Viewer.ResourceMgmt.GLtextures[sam.pathDiff] = tex;
-
-                        //Configure Mask
-                        if (sam.pathMask !=null)
+                    //Handle Diffuse
+                    if (sam.pathDiff != null)
+                        if (ResourceMgmt.GLtextures.ContainsKey(sam.pathDiff))
                         {
-                            try
-                            {
-                                Texture texmask = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.pathMask));
-                                texmask.bufferID = GL.GenTexture();
-                                tex.mask = texmask;
-                                //store to global dict
-                                //Model_Viewer.ResourceMgmt.GLtextures[sam.pat] = tex;
-                            }
-                            catch (System.IO.FileNotFoundException e)
-                            {
-                                //Mask Texture not found
-                                tex.mask = null;
-                            }
+                            Texture tex = ResourceMgmt.GLtextures[sam.pathDiff];
+                            difftextures[0] = tex;
+                            baseLayersUsed[0] = 1.0f;
                         }
-
-                        //Configure Normal
-                        if (sam.pathNormal != null)
+                        else
                         {
-                            try
-                            {
-                                Texture texnormal = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.pathNormal));
-                                texnormal.bufferID = GL.GenTexture();
-                                tex.normal = texnormal;
-                                //store to global dict
-                                //Model_Viewer.ResourceMgmt.GLtextures[sam.pat] = tex;
-                            }
-                            catch (System.IO.FileNotFoundException e)
-                            {
-                                //Mask Texture not found
-                                tex.normal = null;
-                            }
+                            Texture tex = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.pathDiff));
+                            tex.palOpt = new PaletteOpt(false);
+                            tex.procColor = new Vector3(1.0f, 1.0f, 1.0f);
+                            difftextures[0] = tex;
+                            baseLayersUsed[0] = 1.0f;
+                            //Store to resource
+                            ResourceMgmt.GLtextures[sam.pathDiff] = tex;
                         }
 
 
+                    //Handle Mask
+                    if (sam.pathMask != null)
+                        if (ResourceMgmt.GLtextures.ContainsKey(sam.pathMask))
+                        {
+                            Texture tex = ResourceMgmt.GLtextures[sam.pathMask];
+                            masktextures[0] = tex;
+                            alphaLayersUsed[0] = 1.0f;
+                        }
+                        else
+                        {
+                            Texture tex = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.pathMask));
+                            tex.palOpt = new PaletteOpt(false);
+                            tex.procColor = new Vector3(1.0f, 1.0f, 1.0f);
+                            masktextures[0] = tex;
+                            alphaLayersUsed[0] = 1.0f;
+                            //Store to resource
+                            ResourceMgmt.GLtextures[sam.pathMask] = tex;
+                        }
 
-
-                        
-
-
-                        sam.procTextures.Add(tex);
-                    }
-                    catch (System.IO.FileNotFoundException e)
-                    {
-                        Debug.WriteLine("Texture Not Found:" + Path.Combine(Model_Viewer.Util.dirpath, sam.pathDiff));
-
-                        continue;
-                    }
+                    //Handle Normal
+                    if (sam.pathNormal != null)
+                        if (ResourceMgmt.GLtextures.ContainsKey(sam.pathNormal))
+                        {
+                            Texture tex = ResourceMgmt.GLtextures[sam.pathNormal];
+                            normaltextures[0] = tex;
+                        }
+                        else
+                        {
+                            Texture tex = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.pathNormal));
+                            tex.palOpt = new PaletteOpt(false);
+                            tex.procColor = new Vector3(1.0f, 1.0f, 1.0f);
+                            normaltextures[0] = tex;
+                            //Store to resource
+                            ResourceMgmt.GLtextures[sam.pathNormal] = tex;
+                        }
+                    
                 }
                     
             }
@@ -1752,8 +1778,8 @@ namespace GMDL
 
         public void mixTextures() {
             //Set Viewport
-            GL.Viewport(0, 0, 512, 512);
-            GL.ClearColor(System.Drawing.Color.Red);
+            GL.Viewport(0, 0, 1024, 1024);
+            GL.ClearColor(System.Drawing.Color.Black);
             GL.Enable(EnableCap.DepthTest);
             
 
@@ -1822,6 +1848,7 @@ namespace GMDL
 
 
             //Create Textures to save to
+            int texsize = 1024;
             //Diffuse Output
             int out_tex_diffuse = GL.GenTexture();
             GL.BindTexture(TextureTarget.Texture2D, out_tex_diffuse);
@@ -1830,7 +1857,7 @@ namespace GMDL
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
             //NULL means reserve texture memory, but texels are undefined
-            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, 512, 512, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, texsize, texsize, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
 
             //Create New RenderBuffer for the diffuse
             int fb_diffuse = GL.GenFramebuffer();
@@ -1850,7 +1877,7 @@ namespace GMDL
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
             //NULL means reserve texture memory, but texels are undefined
-            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, 512, 512, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, texsize, texsize, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
 
             //Create New RenderBuffer for the diffuse
             //Attach Texture to this FBO
@@ -1969,25 +1996,25 @@ namespace GMDL
 
             //GL.Disable(EnableCap.Blend);
             //Store Framebuffer to Disk
-            byte[] pixels = new byte[4 * 512 * 512];
+            byte[] pixels = new byte[4 * texsize * texsize];
             //GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-            GL.ReadPixels(0, 0, 512, 512, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
+            GL.ReadPixels(0, 0, texsize, texsize, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
 
-                
+
             FileStream fs = new FileStream("framebuffer_raw_diffuse_" + name, FileMode.Create);
             BinaryWriter bw = new BinaryWriter(fs);
             bw.Write(pixels);
             fs.Flush();
             fs.Close();
-            
-            
+
+
             //Store Texture to material
             fDiffuseMap.bufferID = out_tex_diffuse;
 
             GL.ReadBuffer(ReadBufferMode.ColorAttachment1);
-            GL.ReadPixels(0, 0, 512, 512, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
-            
+            GL.ReadPixels(0, 0, texsize, texsize, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
+
             fs = new FileStream("framebuffer_raw_mask_" + name, FileMode.Create);
             bw = new BinaryWriter(fs);
             bw.Write(pixels);

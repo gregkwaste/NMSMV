@@ -724,8 +724,6 @@ namespace Model_Viewer
             }
             
 
-            
-
             vpwin.MinimumSize = new System.Drawing.Size(table.ColumnCount * 300, table.RowCount * 256);
             // no larger than screen size
             vpwin.MaximumSize = new System.Drawing.Size(1920, 1080);

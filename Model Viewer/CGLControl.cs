@@ -110,7 +110,29 @@ namespace Model_Viewer
         {
             foreach (GMDL.model m in root.children)
             {
-                m.palette = palette;
+                
+                //Fix New Recoulors
+                if (m.material != null)
+                {
+                    m.material.palette = palette;
+                    for (int i = 0; i < 8; i++)
+                    {
+                        GMDL.PaletteOpt palOpt = m.material.palOpts[i];
+                        if (palOpt != null)
+                            m.material.reColourings[i] = new float[] { palette[palOpt.PaletteName][palOpt.ColorName][0],
+                                                                       palette[palOpt.PaletteName][palOpt.ColorName][1],
+                                                                       palette[palOpt.PaletteName][palOpt.ColorName][2] };
+                        else
+                            m.material.reColourings[i] = new float[] { 1.0f, 1.0f, 1.0f};
+                    }
+
+                    //Recalculate Textures
+                    GL.DeleteTexture(m.material.fDiffuseMap.bufferID);
+                    GL.DeleteTexture(m.material.fMaskMap.bufferID);
+                    
+                    m.material.prepTextures();
+                    m.material.mixTextures();
+                }
                 if (m.children.Count != 0)
                     traverse_oblistPalette(m, palette);
             }

@@ -1053,7 +1053,7 @@ namespace Model_Viewer
                 //Add palette to dictionary
                 newPal[f.Name] = new Dictionary<string, Vector3>();
                 //Add None option
-                newPal[f.Name]["None"] = new Vector3(1.0f, 1.0f, 1.0f);
+                newPal[f.Name]["None"] = new Vector3(0.0f, 0.0f, 0.0f);
 
                 int rand;
                 switch (f.Name)
@@ -1080,7 +1080,7 @@ namespace Model_Viewer
 
                         //Explicitly Set unique to completely random color
                         rand = Util.randgen.Next(0, 64);
-                        newPal[f.Name]["Unique"] = palette[rand];
+                        newPal[f.Name]["Unique"] = newPal[f.Name]["Primary"];
 
                         //Force None to Primary
                         //newPal[f.Name]["None"] = palette[4 * rand];
@@ -1112,8 +1112,12 @@ namespace Model_Viewer
                         newPal[f.Name]["MatchGround"] = palette[4 * rand + 3];
                         newPal[f.Name]["Alternative4"] = palette[(rand / 8) * 32 + rand % 8 + 3 * 8];
                         break;
-
+                    case ("Metal"):
+                        rand = Util.randgen.Next(0, 4);
+                        newPal[f.Name]["Primary"] = palette[(rand % 2) * 8 + (rand/2) ];
+                        break;
                     default:
+                        throw new ApplicationException("Missing Palette " + f.Name);
                         //Chose 1/64 random color
                         rand = Util.randgen.Next(0, 64);
                         newPal[f.Name]["Primary"] = palette[rand];

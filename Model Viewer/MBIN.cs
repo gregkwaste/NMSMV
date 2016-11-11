@@ -930,6 +930,9 @@ public static class GEOMMBIN {
                 //Parse material file
                 FileStream ms = new FileStream(Path.Combine(Model_Viewer.Util.dirpath, matname), FileMode.Open);
                 GMDL.Material mat = MATERIALMBIN.ParseXml(MATERIALMBIN.Parse(ms));
+                //Load default form palette on init
+                mat.palette = Model_Viewer.Palettes.paletteSel;
+
                 mat.prepTextures();
                 mat.mixTextures();
                 ms.Close();
@@ -938,8 +941,7 @@ public static class GEOMMBIN {
                 //ResourceMgmt.GLmaterials[matname] = mat;
             }
             
-            //Load default form palette on init
-            so.palette = Model_Viewer.Palettes.paletteSel;
+            
 
             //Decide if its a skinned mesh or not
             //if (so.firstskinmat == so.lastskinmat)
