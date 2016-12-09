@@ -1,3 +1,4 @@
+#version 330
 /* Copies incoming fragment color without change. */
 //Diffuse Textures
 uniform sampler2D diffuseTex[8];
@@ -10,7 +11,7 @@ uniform vec4 lRecolours[8];
 //uniform vec3 palColors[8];
 
 uniform bool recolour;
-uniform bool hasAlphaChannel;
+uniform float hasAlphaChannel;
 uniform int mode;
 
 varying vec2 uv0;
@@ -39,7 +40,7 @@ varying vec3 color;
 // 	return lOriginalHSVVec3;
 // }
 
-out vec3 outcolors[2];
+out vec4 outcolors[3];
 
 vec3
 Recolour(
@@ -79,10 +80,10 @@ vec4 MixMaskMaps(){
 
 	for (int i=0; i<8; i++){
 		//lFinalDiffColor.r = max(lFinalDiffColor.r, (1.0 - lLayerXVec4[i].r) * lfAlpha[i]);
-		lFinalDiffColor.r = max( lFinalDiffColor.r, lLayerXVec4[i].r );
+		lFinalDiffColor.r = max( lFinalDiffColor.r, 1.0 - lLayerXVec4[i].r );
 	}
 
-	//lFinalDiffColor.r = lFinalDiffColor.r;
+	lFinalDiffColor.r = 1.0 - lFinalDiffColor.r;
 
 	return vec4(lFinalDiffColor.r, 0.0, 0.0, 0.0);
 }
@@ -95,7 +96,7 @@ vec4 MixDiffuseMaps(){
 	gBaseAlphaLayerXVec4[1] = 0.0;
 	gBaseAlphaLayerXVec4[2] = 0.0;
 	gBaseAlphaLayerXVec4[3] = 0.0;
-	gBaseAlphaLayerXVec4[4] = 1.0;
+	gBaseAlphaLayerXVec4[4] = 0.0;
 	gBaseAlphaLayerXVec4[5] = 0.0;
 	gBaseAlphaLayerXVec4[6] = 0.0;
 	gBaseAlphaLayerXVec4[7] = 0.0;
@@ -115,7 +116,7 @@ vec4 MixDiffuseMaps(){
 	float lfAlpha[8];
 
 	//Output Color
-	vec4 lFinalDiffColor = vec4(1.0, 1.0, 1.0, 0.0);
+	vec4 lFinalDiffColor = vec4(0.0, 0.0, 0.0, 0.0);
 
 	//Fetch Diffuse Colors
 	for (int i=0; i<8; i++){
@@ -131,17 +132,19 @@ vec4 MixDiffuseMaps(){
 	// 	}
 	// }
 	
-	if (!hasAlphaChannel)
-	 	for (int i=0;i<8;i++)
-	 		lfAlpha[i] = mix(1.0, 1.0 - texture2D(maskTex[i], uv0).r, lalphaLayersUsed[i]);
+	if (hasAlphaChannel < 1.0)
+	 	for (int i=0;i<8;i++){
+	 		lfAlpha[i] = mix(1.0, texture2D(maskTex[i], uv0).r, lalphaLayersUsed[i]);
+	 	}
 
 	//Set the lowest alpha layer to fully opaque
-	for (int i=0;i<8;i++)
-		   	lfAlpha[i] = mix(lfAlpha[i], 1.0, gBaseAlphaLayerXVec4[i]);
-
+	for (int i=0;i<8;i++){
+	   	lfAlpha[i] = mix(lfAlpha[i], 1.0, gBaseAlphaLayerXVec4[i]);
+	}
 	//Set the alpha for any layer which is not used to 0
-	for (int i=0; i<8; i++)
+	for (int i=0; i<8; i++){
 		lfAlpha[i] *= lbaseLayersUsed[i];
+	}
 
 	//RECOLOURING HAPPENS HERE
 	// vec4 iColour[8];
@@ -151,21 +154,76 @@ vec4 MixDiffuseMaps(){
 	// }
 	
 	// Original Mix
-	//for (int i=0; i<8; i++)
-	//  	lLayerXVec4[i].rgb = Recolour(lLayerXVec4[i].rgb, gAverageColourXVec4[i].rgb, lRecolours[i].rgb, 1.0);
+	for (int i=0; i<8; i++)
+	  	lLayerXVec4[i].rgb = Recolour(lLayerXVec4[i].rgb, gAverageColourXVec4[i].rgb, lRecolours[i].rgb, lRecolours[i].a);
+
+	//Blend Layers together
+	bool init = false;
+	for (int i=0; i<8; i++){
+		lFinalDiffColor.rgb = mix(lFinalDiffColor.rgb, lLayerXVec4[i].rgb, lfAlpha[i]);
+	}
+
+	//Set Final Alpha
+	if (hasAlphaChannel>0.0)
+		for (int i=0; i<8; i++)
+			lFinalDiffColor.a = mix(lFinalDiffColor.a, lLayerXVec4[i].a, gBaseAlphaLayerXVec4[i]);
+	
+	return vec4(lFinalDiffColor.rgb, 1.0);
+}
+
+//Diffuse Color Mixing
+vec4 MixNormalMaps(){
+	//Constants
+	float gBaseAlphaLayerXVec4[8];
+	gBaseAlphaLayerXVec4[0] = 1.0;
+	gBaseAlphaLayerXVec4[1] = 0.0;
+	gBaseAlphaLayerXVec4[2] = 0.0;
+	gBaseAlphaLayerXVec4[3] = 0.0;
+	gBaseAlphaLayerXVec4[4] = 0.0;
+	gBaseAlphaLayerXVec4[5] = 0.0;
+	gBaseAlphaLayerXVec4[6] = 0.0;
+	gBaseAlphaLayerXVec4[7] = 0.0;
+
+	vec4 gAverageColourXVec4[8];
+	gAverageColourXVec4[0] = vec4(0.5, 0.5, 0.5, 1.0);
+	gAverageColourXVec4[1] = vec4(0.5, 0.5, 0.5, 1.0);
+	gAverageColourXVec4[2] = vec4(0.5, 0.5, 0.5, 1.0);
+	gAverageColourXVec4[3] = vec4(0.5, 0.5, 0.5, 1.0);
+	gAverageColourXVec4[4] = vec4(0.5, 0.5, 0.5, 1.0);
+	gAverageColourXVec4[5] = vec4(0.5, 0.5, 0.5, 1.0);
+	gAverageColourXVec4[6] = vec4(0.5, 0.5, 0.5, 1.0);
+	gAverageColourXVec4[7] = vec4(0.5, 0.5, 0.5, 1.0);
+
+	//Storage Arrays
+	vec4 lLayerXVec4[8];
+	float lfAlpha[8];
+
+	//Output Color
+	vec4 lFinalDiffColor = vec4(0.0, 0.0, 0.0, 0.0);
+
+	//Fetch Normal Colors
+	for (int i=0; i<8; i++){
+		lLayerXVec4[i] = texture2D(normalTex[i], uv0);
+		lfAlpha[i] = texture2D(maskTex[i], uv0).r;
+	}
+
+	//Set the lowest alpha layer to fully opaque
+	for (int i=0; i<8; i++){
+	   	lfAlpha[i] = mix(lfAlpha[i], 1.0, gBaseAlphaLayerXVec4[i]);
+	}
+
+	//Set the alpha for any layer which is not used to 0
+	for (int i=0; i<8; i++){
+		lfAlpha[i] *= lalphaLayersUsed[i];
+	}
 
 	//Blend Layers together
 	bool init = false;
 	for (int i=0; i<8; i++){
 		lFinalDiffColor = mix(lFinalDiffColor, lLayerXVec4[i], lfAlpha[i]);
 	}
-
-	//Set Final Alpha
-	//if (hasAlphaChannel)
-	//	for (int i=0; i<8; i++)
-	//		lFinalDiffColor.a = mix(lFinalDiffColor.a, lLayerXVec4[i].a, gBaseAlphaLayerXVec4[i]);
 	
-	return vec4(lFinalDiffColor.rgb, 1.0);
+	return lFinalDiffColor;
 }
 
 void main()
@@ -174,6 +232,6 @@ void main()
 	//gl_FragColor = MixDiffuseMaps();
 	outcolors[0] = MixDiffuseMaps();
 	outcolors[1] = MixMaskMaps();
-	//outcolors[2] = MixNormalMaps();
+	outcolors[2] = MixNormalMaps();
 
 }

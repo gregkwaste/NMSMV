@@ -1,4 +1,5 @@
-#extension GL_ARB_shading_language_include : require
+//#extension GL_ARB_shading_language_include : require
+
 //Imports
 #include "/common.glsl"
 
@@ -42,7 +43,7 @@ void main()
 	vec4 diffTexColor = vec4(color, 1.0); 
 	//Colors
 	//Check _F01_DIFFUSEMAP
-	if (matflags[0])
+	if (matflags[0] && (diffuseFlag > 0.0))
 		diffTexColor = texture2D(diffuseTex, uv0);
 	
 	vec3 lightColor = vec3(0.8, 0.8, 0.8);
@@ -56,30 +57,32 @@ void main()
 	alpha = diffTexColor.a;
 	//Mask Checks
 	//Check _F24_AOMAP
- 	if (matflags[23])
- 		diffTexColor.rgb *= texture2D(maskTex, uv0).r;
+ 	if (matflags[23] && (diffuseFlag > 0.0))
+ 	 	diffTexColor.rgb *= texture2D(maskTex, uv0).r;
 	
-	shininess = pow(max (dot (E, N), 0.0), 4.0);
-	
-	//Check _F03_NORMALMAP
-	// if (matflags[2]) {
-	// 	//Normal Checks
-	//  	vec3 normal;
+	bshininess = pow(max (dot (N, E), 0.0), 2.0);	
+	//Check _F03_NORMALMAP 63
+	if (matflags[2] && (diffuseFlag > 0.0)) {
+		//Normal Checks
+	  	vec3 normal;
 	 	
- // 		normal = DecodeNormalMap(texture2D(normalTex, uv0));
- // 		bshininess = pow(max (dot (E, normalize(TBN * normal)), 0.0), 2.0);
- // 	} else {
-	// 	bshininess = pow(max (dot (E, N), 0.0), 2.0);	
-	// }
-	bshininess = pow(max (dot (E, N), 0.0), 2.0);
+  		normal = DecodeNormalMap(texture2D(normalTex, uv0));
+  		bshininess = pow(max (dot (E, normalize(TBN * normal)), 0.0), 2.0);
+  	}
 
-	ambient = 0.8 * ambient;
+	ambient = 0.5 * ambient;
 	vec3 diff;
 	
-	diff = intensity * lightColor * shininess * diffTexColor.rgb; //(l_distance*l_distance);
+	diff = intensity * lightColor * bshininess * diffTexColor.rgb; //(l_distance*l_distance);
 
     //gl_FragColor = vec4(ambient + (intense + 1.0) * diff.xyz, 1.0);	
+    //if ((diffTexColor.r <0.0001) && (diffTexColor.g <0.0001) && (diffTexColor.b < 0.0001)) discard;
+    
+
     gl_FragColor = vec4(ambient + diff.xyz, 1.0);	
-    //gl_FragColor = vec4(nvectors[1], 1.0);
+    //gl_FragColor = vec4(N, 1.0);
+    
+
+
     
 }
