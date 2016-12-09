@@ -9,6 +9,10 @@ using System.Collections.Specialized;
 using System.Xml;
 using System.Reflection;
 
+//Custom imports
+using GLHelpers;
+using gImage;
+
 
 namespace Model_Viewer
 {
@@ -28,11 +32,15 @@ namespace Model_Viewer
         private Vector3 eye_dir = new Vector3(0.0f, 0.0f, -10.0f);
         private Vector3 eye_up = new Vector3(0.0f, 1.0f, 0.0f);
         private Camera cam = new Camera(35);
-        
+
+        private float zfar = 300.0f;
+        private float znear = 1.0f;
+
         private float light_angle_y = 0.0f;
         private float light_angle_x = 0.0f;
         private float light_distance = 5.0f;
         private float light_intensity = 2.0f;
+
 
         private float scale = 1.0f;
         private int movement_speed = 1;
@@ -41,16 +49,18 @@ namespace Model_Viewer
         private int mouse_y;
 
         public int childCounter = 0;
-        //private float rot_x = 0.0f;
-        //private float rot_y = 0.0f;
-
+        
         //Shader objects
         int vertex_shader_ob;
         int fragment_shader_ob;
         
         //Setup Timer to invalidate the viewport
         private Timer t;
-        
+
+        //Debug Font
+        FontGL font;
+        public List<GLText> texObs = new List<GLText>();
+
 
         public List<GMDL.model> animScenes = new List<GMDL.model>();
         //Deprecated
@@ -181,6 +191,9 @@ namespace Model_Viewer
 
 #endif
 
+            glControl1_Resize(new object(), null); //Try to call resize event
+
+            glControl1.Update();
             glControl1.Invalidate();
             Util.setStatus("Ready", this.toolStripStatusLabel1);
         }
@@ -193,47 +206,55 @@ namespace Model_Viewer
                 return;
 
             //Populate shader list
-            ResourceMgmt.shader_programs = new int[4];
-
-            //Create Preprocessor object
-
+            ResourceMgmt.shader_programs = new int[6];
+            string vvs, ggs, ffs;
+            //Geometry Shader
             //Compile Object Shaders
-            //using (StreamReader vs = new StreamReader("Shaders/Simple_VS.glsl"))
-            //using (StreamReader fs = new StreamReader("Shaders/Simple_FS.glsl"))
-            string vvs = GLSL_Preprocessor.Parser("Shaders/Simple_VS.glsl");
-            string ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FS.glsl");
+            vvs = GLSL_Preprocessor.Parser("Shaders/Simple_VSEmpty.glsl");
+            ggs = GLSL_Preprocessor.Parser("Shaders/Simple_GS.glsl");
+            ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FSEmpty.glsl");
 
-            //FileStream test = new FileStream("preproc_out", FileMode.Create);
-            //StreamWriter sw = new StreamWriter(test);
-            //sw.Write(ffs);
-            //test.Close();
+            GLShaderHelper.CreateShaders(vvs, ffs, ggs, out vertex_shader_ob,
+                    out fragment_shader_ob, out ResourceMgmt.shader_programs[5]);
 
-            CreateShaders(vvs, ffs, out vertex_shader_ob,
+            //Main Shader
+            vvs = GLSL_Preprocessor.Parser("Shaders/Simple_VS.glsl");
+            ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FS.glsl");
+
+            GLShaderHelper.CreateShaders(vvs, ffs, "", out vertex_shader_ob,
                     out fragment_shader_ob, out ResourceMgmt.shader_programs[0]);
+
             //Compile Locator Shaders
             using (StreamReader vs = new StreamReader("Shaders/locator_VS.glsl"))
             using (StreamReader fs = new StreamReader("Shaders/locator_FS.glsl"))
-                CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), out vertex_shader_ob,
+                GLShaderHelper.CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), "", out vertex_shader_ob,
                     out fragment_shader_ob, out ResourceMgmt.shader_programs[1]);
             //Compile Joint Shaders
             using (StreamReader vs = new StreamReader("Shaders/joint_VS.glsl"))
             using (StreamReader fs = new StreamReader("Shaders/joint_FS.glsl"))
-                CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), out vertex_shader_ob,
+                GLShaderHelper.CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), "", out vertex_shader_ob,
                     out fragment_shader_ob, out ResourceMgmt.shader_programs[2]);
 
             vvs = GLSL_Preprocessor.Parser("Shaders/pass_VS.glsl");
             ffs = GLSL_Preprocessor.Parser("Shaders/pass_FS.glsl");
             //Compile Texture Shaders
-            CreateShaders(vvs, ffs, out vertex_shader_ob,
+            GLShaderHelper.CreateShaders(vvs, ffs, "", out vertex_shader_ob,
                     out fragment_shader_ob, out ResourceMgmt.shader_programs[3]);
 
-            Debug.WriteLine("Programs {0} {1} {2} {3} ", ResourceMgmt.shader_programs[0],
-                                                     ResourceMgmt.shader_programs[1],
-                                                     ResourceMgmt.shader_programs[2],
-                                                     ResourceMgmt.shader_programs[3]);
+            //Compile Text Shaders
+            using (StreamReader vs = new StreamReader("Shaders/Text_VS.glsl"))
+            using (StreamReader fs = new StreamReader("Shaders/Text_FS.glsl"))
+                GLShaderHelper.CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), "" , out vertex_shader_ob,
+                    out fragment_shader_ob, out ResourceMgmt.shader_programs[4]);
+
+            //Debug.WriteLine("Programs {0} {1} {2} {3} ", ResourceMgmt.shader_programs[0],
+            //                                         ResourceMgmt.shader_programs[1],
+            //                                         ResourceMgmt.shader_programs[2],
+            //                                         ResourceMgmt.shader_programs[3]);
 
             GMDL.scene scene = new GMDL.scene();
-            scene.shader_program = ResourceMgmt.shader_programs[1];
+            scene.shader_programs = new int[1];
+            scene.shader_programs[0] = ResourceMgmt.shader_programs[1];
             scene.index = this.childCounter;
 
             this.mainScene = scene;
@@ -280,8 +301,40 @@ namespace Model_Viewer
             foreach (string s in ext)
                 Debug.WriteLine(s);
 
+
+            //Load default textures
             addDefaultTextures();
+
+            //Load font
+            setupFont();
             
+        }
+
+        private void setupFont()
+        {
+            font = new FontGL();
+
+            //Test BMP Image Class
+            //BMPImage bm = new BMPImage("courier.bmp");
+
+            //Create font to memory
+            MemoryStream ms = FontGL.createFont();
+            BMPImage bm = new BMPImage(ms);
+            
+            //Testing some inits
+            font.initFromImage(bm);
+            font.tex = bm.GLid;
+            font.program = ResourceMgmt.shader_programs[4];
+
+            //Set default settings
+            float scale = 0.60f;
+            font.space = scale * 0.20f;
+            font.width = scale * 0.20f;
+            font.height = scale * 0.30f;
+
+            //Add some text for rendering
+            texObs.Add(font.renderText("Greetings", new Vector2(0.02f, 0.0f), scale));
+            //texObs.Add(font.renderText("gregkwaste", new Vector2(1.6f, 0.0f), 1.0f));
         }
 
         private void addDefaultTextures()
@@ -299,7 +352,6 @@ namespace Model_Viewer
 
         }
 
-
         //glControl Timer
         private void timer_ticker(object sender, EventArgs e)
         {
@@ -315,96 +367,38 @@ namespace Model_Viewer
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             //Debug.WriteLine("Rendering Scene Cam Position : {0}", this.cam.Position);
             //Debug.WriteLine("Rendering Scene Cam Orientation: {0}", this.cam.Orientation);
+            GL.CullFace(CullFaceMode.Back);
 
             //Render only the first scene for now
             if (this.mainScene != null)
                 traverse_render(this.mainScene);
             
-            //Render Info
-
-            ////Clear Matrices
-            //GL.MatrixMode(MatrixMode.Modelview);
-            //GL.LoadIdentity();
-            //GL.MatrixMode(MatrixMode.Projection);
-            //GL.LoadIdentity();
-            
-            
-            //GL.MatrixMode(MatrixMode.Projection);
-            //GL.LoadIdentity();
-            //glControl1.SwapBuffers();
         }
 
-        //private bool render_object(GMDL.customVBO vbo)
-        //{
-        //    Debug.WriteLine("Rendering VBO Object here");
-
-        //    //Bind vertex buffer
-        //    GL.BindBuffer(BufferTarget.ArrayBuffer, vbo.vertex_buffer_object);
-        //    GL.VertexPointer(3, VertexPointerType.HalfFloat, vbo.vx_size, vbo.vx_stride);
-
-        //    int vpos;
-        //    //Vertex attribute
-        //    vpos = GL.GetAttribLocation(this.shader_program,"vPosition");
-        //    GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.HalfFloat,false, vbo.vx_size, vbo.vx_stride);
-        //    GL.EnableVertexAttribArray(vpos);
-
-        //    //Normal Attribute
-        //    vpos = GL.GetAttribLocation(this.shader_program, "nPosition");
-        //    GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.HalfFloat, false, vbo.vx_size, vbo.n_stride);
-        //    GL.EnableVertexAttribArray(vpos);
-
-        //    //Render Elements
-        //    GL.DrawElements(BeginMode.Triangles, vbo.iCount, DrawElementsType.UnsignedShort, 0);
-
-        //    return true;
-        //}
-        
-        private void CreateShaders(string vs,string fs, out int vertexObject, 
-            out int fragmentObject, out int program)
+        private void render_info()
         {
-            int status_code;
-            string info;
-
-            vertexObject = GL.CreateShader(ShaderType.VertexShader);
-            fragmentObject = GL.CreateShader(ShaderType.FragmentShader);
-
-            //Compile vertex Shader
-            GL.ShaderSource(vertexObject, vs);
-            GL.CompileShader(vertexObject);
-            GL.GetShaderInfoLog(vertexObject, out info);
-            GL.GetShader(vertexObject, ShaderParameter.CompileStatus, out status_code);
-            if (status_code != 1)
-                throw new ApplicationException(info);
-
-            //Compile fragment Shader
-            GL.ShaderSource(fragmentObject, fs);
-
-            //HANDLE INCLUDES
-            /*
-
-            DEPRECATED SECTION BECAUSE OF THE PREPROCESSOR IMPLEMENTATION
+            glControl1.MakeCurrent();
+            GL.Clear(ClearBufferMask.DepthBufferBit);
+            GL.Enable(EnableCap.Blend);
+            GL.Disable(EnableCap.DepthTest);
+            GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
             
-            //string commonCode;
-            //using (StreamReader cs = new StreamReader("Shaders/common.glsl"))
-            //    commonCode = cs.ReadToEnd();
-            //string[] common = { "/common.glsl" };
-            //int[] length = null;
-            //GL.Arb.NamedString(ArbShadingLanguageInclude.ShaderIncludeArb, common[0].Length, common[0], commonCode.Length, commonCode);
-            //Debug.WriteLine(GL.Arb.IsNamedString(common[0].Length, common[0]));
-            //GL.Arb.CompileShaderInclude(fragmentObject, 1, common, length);
 
-            */
-            GL.CompileShader(fragmentObject);
-            GL.GetShaderInfoLog(fragmentObject, out info);
-            GL.GetShader(fragmentObject, ShaderParameter.CompileStatus, out status_code);
-            if (status_code != 1)
-                throw new ApplicationException(info);
+            GL.UseProgram(ResourceMgmt.shader_programs[4]);
 
-            program = GL.CreateProgram();
-            GL.AttachShader(program, fragmentObject);
-            GL.AttachShader(program, vertexObject);
-            GL.LinkProgram(program);
-            //GL.UseProgram(program);
+            //Load uniforms
+            int loc;
+            loc = GL.GetUniformLocation(ResourceMgmt.shader_programs[4], "w");
+            GL.Uniform1(loc, (float)glControl1.Width);
+            loc = GL.GetUniformLocation(ResourceMgmt.shader_programs[4], "h");
+            GL.Uniform1(loc, (float)glControl1.Height);
+
+            //Render Text Objects
+            foreach (GLText t in texObs)
+                t.render();
+
+            GL.Disable(EnableCap.Blend);
+            GL.Enable(EnableCap.DepthTest);
 
         }
 
@@ -510,75 +504,87 @@ namespace Model_Viewer
 
         private void traverse_render(GMDL.model root)
         {
-            //GL.LinkProgram(root.ShaderProgram);
-            GL.UseProgram(root.shader_program);
-            if (root.shader_program == -1)
-                throw new ApplicationException("Shit program");
-
-            Matrix4 look = cam.GetViewMatrix();
-            float aspect = (float)glControl1.ClientSize.Width / glControl1.ClientSize.Height;
-            Matrix4 proj = Matrix4.CreatePerspectiveFieldOfView(cam.fov, aspect,
-                                                                0.1f, 300.0f);
-            int loc;
-            //Send LookAt matrix to all shaders
-            loc = GL.GetUniformLocation(root.shader_program, "look");
-            GL.UniformMatrix4(loc, false, ref look);
-            //Send object world Matrix to all shaders
-
-            loc = GL.GetUniformLocation(root.shader_program, "worldMat");
-            Matrix4 wMat = root.worldMat;
-            GL.UniformMatrix4(loc, false, ref wMat);
-
-            //Send projection matrix to all shaders
-            loc = GL.GetUniformLocation(root.shader_program, "proj");
-            GL.UniformMatrix4(loc, false, ref proj);
-            //Send theta to all shaders
-            loc = GL.GetUniformLocation(root.shader_program, "theta");
-            GL.Uniform3(loc, this.rot);
-
-            if (root.shader_program == ResourceMgmt.shader_programs[0])
+            for (int i = 0; i < root.shader_programs.Length; i++)
             {
-                //Object program
-                //Local Transformation is the same for all objects 
-                //Pending - Personalize local matrix on each object
-                loc = GL.GetUniformLocation(root.shader_program, "scale");
-                GL.Uniform1(loc, this.scale);
-
-                loc = GL.GetUniformLocation(root.shader_program, "light");
-
-                GL.Uniform3(loc, new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                            Math.Sin(this.light_angle_y * Math.PI / 180.0)),
-                                             (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
-                                             (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                            Math.Cos(this.light_angle_y * Math.PI / 180.0))));
-
-                //Upload Light Intensity
-                loc = GL.GetUniformLocation(root.shader_program, "intensity");
-                GL.Uniform1(loc, light_intensity);
-                
-                //Upload camera position as the light
-                //GL.Uniform3(loc, cam.Position);
-
-                //Upload firstskinmat
-                loc = GL.GetUniformLocation(root.shader_program, "firstskinmat");
-                GL.Uniform1(loc, ((GMDL.sharedVBO)root).firstskinmat);
-
-                //loc = GL.GetUniformLocation(root.shader_program, "jMs");
-                //GL.UniformMatrix4(loc, 60, false, JMArray);
-                
-                //Upload joint colors
-                //loc = GL.GetUniformLocation(root.shader_program, "jColors");
-                //GL.Uniform3(loc, 60, JColors);
+                int active_program = root.shader_programs[i];
+                GL.UseProgram(active_program);
 
 
-            } else if (root.shader_program == ResourceMgmt.shader_programs[1])
-            {
-                //Locator Program
-                //TESTING
+                if (active_program == -1)
+                    throw new ApplicationException("Shit program");
+
+                Matrix4 look = cam.GetViewMatrix();
+                float aspect = (float)glControl1.ClientSize.Width / glControl1.ClientSize.Height;
+                Matrix4 proj = Matrix4.CreatePerspectiveFieldOfView(cam.fov, aspect,
+                                                                    znear, zfar);
+                int loc;
+                //Send LookAt matrix to all shaders
+                loc = GL.GetUniformLocation(active_program, "look");
+                GL.UniformMatrix4(loc, false, ref look);
+                //Send object world Matrix to all shaders
+
+                loc = GL.GetUniformLocation(active_program, "worldMat");
+                Matrix4 wMat = root.worldMat;
+                GL.UniformMatrix4(loc, false, ref wMat);
+
+                //Send projection matrix to all shaders
+                loc = GL.GetUniformLocation(active_program, "proj");
+                GL.UniformMatrix4(loc, false, ref proj);
+                //Send theta to all shaders
+                loc = GL.GetUniformLocation(active_program, "theta");
+                GL.Uniform3(loc, this.rot);
+
+                if (active_program == ResourceMgmt.shader_programs[0] || active_program == ResourceMgmt.shader_programs[5])
+                {
+                    //Send DiffuseFlag
+                    loc = GL.GetUniformLocation(active_program, "diffuseFlag");
+                    GL.Uniform1(loc, RenderOptions.UseTextures);
+
+                    //Object program
+                    //Local Transformation is the same for all objects 
+                    //Pending - Personalize local matrix on each object
+                    loc = GL.GetUniformLocation(active_program, "scale");
+                    GL.Uniform1(loc, this.scale);
+
+                    loc = GL.GetUniformLocation(active_program, "light");
+
+                    GL.Uniform3(loc, new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
+                                                                Math.Sin(this.light_angle_y * Math.PI / 180.0)),
+                                                 (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
+                                                 (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
+                                                                Math.Cos(this.light_angle_y * Math.PI / 180.0))));
+
+                    //Upload Light Intensity
+                    loc = GL.GetUniformLocation(active_program, "intensity");
+                    GL.Uniform1(loc, light_intensity);
+
+                    //Upload camera position as the light
+                    //GL.Uniform3(loc, cam.Position);
+
+                    //Upload firstskinmat
+                    loc = GL.GetUniformLocation(active_program, "firstskinmat");
+                    GL.Uniform1(loc, ((GMDL.sharedVBO)root).firstskinmat);
+
+                    //loc = GL.GetUniformLocation(root.shader_program, "jMs");
+                    //GL.UniformMatrix4(loc, 60, false, JMArray);
+
+                    //Upload joint colors
+                    //loc = GL.GetUniformLocation(root.shader_program, "jColors");
+                    //GL.Uniform3(loc, 60, JColors);
+
+
+                }
+                else if (active_program == ResourceMgmt.shader_programs[1])
+                {
+                    //Locator Program
+                    //TESTING
+                }
+                GL.ClearColor(System.Drawing.Color.Black);
+                //if (this.index_dict.ContainsKey(root.name))
+                root.render(i);
             }
-            GL.ClearColor(System.Drawing.Color.Black);
-            //if (this.index_dict.ContainsKey(root.name))
-            root.render();
+
+            
             //Render children
             foreach (GMDL.model child in root.children){
                 this.glControl1.MakeCurrent();
@@ -801,86 +807,6 @@ namespace Model_Viewer
             f.t.Start();
         }
 
-        //Deprecated
-        //private void randomgenerator_Click(object sender, EventArgs e)
-        //{
-        //    XmlNode level0 = this.xmlDoc.SelectSingleNode("./ROOT/SECTIONS");
-        //    List<Selector> sellist = ModelProcGen.parse_level(level0);
-        //    List<List<GMDL.model>> allparts = new List<List<GMDL.model>>();
-        //    //Create 12 random instances
-        //    for (int k = 0; k < 15; k++)
-        //    {
-        //        List<string> parts = new List<string>();
-        //        for (int i = 0; i < sellist.Count; i++)
-        //            ModelProcGen.parse_selector(sellist[i], ref parts);
-
-        //        Debug.WriteLine(String.Join(" ", parts.ToArray()));
-        //        //Make list of active parts
-        //        List<GMDL.model> vboParts = new List<GMDL.model>();
-        //        for (int i = 0; i < parts.Count; i++)
-        //        {
-        //            GMDL.model part = collectPart(this.mainScene.children, parts[i]);
-        //            GMDL.model npart = (GMDL.model)part.Clone();
-        //            npart.children.Clear();
-        //            vboParts.Add(npart);
-        //        }
-
-        //        allparts.Add(vboParts);
-        //    }
-            
-        //    /* This code renders changes to the main viewport
-        //    //Reset all nodes
-        //    foreach (TreeNode node in treeView1.Nodes[0].Nodes)
-        //        node.Checked = false;
-            
-        //    //Temporarity swap tvscheckstatus
-        //    this.tvchkstat = treeviewCheckStatus.Single;
-        //    for (int i = 0; i < parts.Count; i++)
-        //    {
-        //        TreeNode node = findNodeFromText(treeView1.Nodes, parts[i]);
-        //        if (node !=null)
-        //            node.Checked = true;
-        //    }
-
-        //    //Bring it back
-        //    this.tvchkstat = treeviewCheckStatus.children;
-
-        //    */
-            
-        //    Form vpwin = new Form();
-        //    vpwin.AutoSize = true;
-        //    //vpwin.Size = new System.Drawing.Size(800, 600);
-
-        //    TableLayoutPanel table = new TableLayoutPanel();
-        //    table.AutoSize = true;
-        //    table.RowCount = 3;
-        //    table.ColumnCount = 5;
-        //    table.Dock = DockStyle.Fill;
-        //    //table.Anchor = AnchorStyles.Bottom | AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Left;
-
-        //    List<CGLControl> ctlist = new List<CGLControl>();
-
-        //    for (int i = 0; i < table.RowCount; i++)
-        //    {
-        //        for (int j = 0; j < table.ColumnCount; j++)
-        //        {
-        //            CGLControl n = new CGLControl(i * table.ColumnCount + j);
-        //            n.objects = allparts[i * table.ColumnCount + j];
-        //            n.shader_programs = ResourceMgmt.shader_programs;
-        //            table.Controls.Add(n, j, i);
-        //            ctlist.Add(n);
-        //        }
-        //    }
-
-        //    vpwin.Controls.Add(table);
-
-            
-        //    vpwin.Show();
-
-        //    foreach (GLControl ctl in ctlist)
-        //        ctl.Invalidate();
-        //}
-
         //Animation file Open
         private void openAnimationToolStripMenuItem_Click(object sender, EventArgs e)
         {
@@ -1003,6 +929,7 @@ namespace Model_Viewer
             glControl1.MakeCurrent();
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             render_scene();
+            //render_info();
             //GL.ClearColor(System.Drawing.Color.Black);
             glControl1.SwapBuffers();
             //translate_View();
@@ -1104,7 +1031,7 @@ namespace Model_Viewer
                     break;
                 //Toggle Texture Render
                 case Keys.O:
-                    RenderOptions.UseTextures = !RenderOptions.UseTextures;
+                    RenderOptions.UseTextures = 1.0f - RenderOptions.UseTextures;
                     break;
                 //Toggle Small Render
                 case Keys.P:
@@ -1230,7 +1157,7 @@ namespace Model_Viewer
 
         private void findGeoms(GMDL.model m, StreamWriter s, ref uint index)
         {
-            if (m.type == TYPES.MESH)
+            if (m.type == TYPES.MESH || m.type ==TYPES.COLLISION)
             {
                 //Get converted text
                 GMDL.sharedVBO me = (GMDL.sharedVBO)m;
@@ -1244,6 +1171,18 @@ namespace Model_Viewer
         private void l_intensity_nud_ValueChanged(object sender, EventArgs e)
         {
             light_intensity = (float) this.l_intensity_nud.Value;
+            glControl1.Invalidate();
+        }
+
+        private void numericUpDown4_ValueChanged(object sender, EventArgs e)
+        {
+            znear = (float)this.numericUpDown4.Value;
+            glControl1.Invalidate();
+        }
+
+        private void numericUpDown5_ValueChanged(object sender, EventArgs e)
+        {
+            zfar = (float)this.numericUpDown5.Value;
             glControl1.Invalidate();
         }
     }

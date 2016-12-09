@@ -30,7 +30,7 @@ namespace Model_Viewer
         private int index;
 
         //Custom Palette
-        private Dictionary<string,Dictionary<string,Vector3>> palette;
+        private Dictionary<string,Dictionary<string,Vector4>> palette;
 
         //Animation Stuff
         private bool animationStatus = false;
@@ -106,7 +106,7 @@ namespace Model_Viewer
                 traverse_oblistAnimScenes(c);
         }
 
-        public void traverse_oblistPalette(GMDL.model root,Dictionary<string,Dictionary<string,Vector3>> palette)
+        public void traverse_oblistPalette(GMDL.model root,Dictionary<string,Dictionary<string,Vector4>> palette)
         {
             foreach (GMDL.model m in root.children)
             {
@@ -121,9 +121,10 @@ namespace Model_Viewer
                         if (palOpt != null)
                             m.material.reColourings[i] = new float[] { palette[palOpt.PaletteName][palOpt.ColorName][0],
                                                                        palette[palOpt.PaletteName][palOpt.ColorName][1],
-                                                                       palette[palOpt.PaletteName][palOpt.ColorName][2] };
+                                                                       palette[palOpt.PaletteName][palOpt.ColorName][2],
+                                                                                                                   1.0f };
                         else
-                            m.material.reColourings[i] = new float[] { 1.0f, 1.0f, 1.0f};
+                            m.material.reColourings[i] = new float[] { 1.0f, 1.0f, 1.0f, 0.0f};
                     }
 
                     //Recalculate Textures
@@ -151,64 +152,71 @@ namespace Model_Viewer
         private void traverse_render(GMDL.model m)
         {
             this.MakeCurrent();
-            GL.UseProgram(m.shader_program);
-            if (m.shader_program == -1)
+
+            for (int i = 0; i < m.shader_programs.Length; i++)
             {
-                Debug.WriteLine("Shit program, Exiting");
-                //throw new ApplicationException("Shit program");
-                return;
+                int active_program = m.shader_programs[0];
+                GL.UseProgram(active_program);
+                if (active_program == -1)
+                {
+                    Debug.WriteLine("Shit program, Exiting");
+                    //throw new ApplicationException("Shit program");
+                    return;
+                }
+
+                Matrix4 look = cam.GetViewMatrix();
+                //Matrix4 look = Matrix4.Identity;
+                float aspect = (float)this.ClientSize.Width / this.ClientSize.Height;
+                Matrix4 proj = Matrix4.CreatePerspectiveFieldOfView(cam.fov, aspect,
+                                                                    0.1f, 300.0f);
+                int loc;
+                //Send LookAt matrix to all shaders
+                loc = GL.GetUniformLocation(active_program, "look");
+                GL.UniformMatrix4(loc, false, ref look);
+                //Send projection matrix to all shaders
+                loc = GL.GetUniformLocation(active_program, "proj");
+                GL.UniformMatrix4(loc, false, ref proj);
+                //Send theta to all shaders
+                loc = GL.GetUniformLocation(active_program, "theta");
+                GL.Uniform3(loc, this.rot);
+                //Send object world Matrix to all shaders
+                loc = GL.GetUniformLocation(active_program, "worldMat");
+                Matrix4 wMat = m.worldMat;
+                GL.UniformMatrix4(loc, false, ref wMat);
+
+                if (active_program == ResourceMgmt.shader_programs[0])
+                {
+                    //Object program
+                    //Local Transformation is the same for all objects 
+                    //Pending - Personalize local matrix on each object
+                    loc = GL.GetUniformLocation(active_program, "scale");
+                    GL.Uniform1(loc, this.scale);
+
+                    loc = GL.GetUniformLocation(active_program, "light");
+
+                    GL.Uniform3(loc, new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
+                                                                Math.Sin(this.light_angle_y * Math.PI / 180.0)),
+                                                    (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
+                                                    (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
+                                                                Math.Cos(this.light_angle_y * Math.PI / 180.0))));
+
+                    //Upload joint transform data
+                    //Multiply matrices before sending them
+                    //float[] skinmats = Util.mulMatArrays(((GMDL.sharedVBO)m).vbo.invBMats, JMArray, 128);
+                    //loc = GL.GetUniformLocation(active_program, "skinMats");
+                    //GL.UniformMatrix4(loc, 128, false, skinmats);
+
+                }
+                else if (active_program == ResourceMgmt.shader_programs[1])
+                {
+                    //Locator Program
+                }
+                GL.ClearColor(System.Drawing.Color.Black);
             }
-                
-            Matrix4 look = cam.GetViewMatrix();
-            //Matrix4 look = Matrix4.Identity;
-            float aspect = (float)this.ClientSize.Width / this.ClientSize.Height;
-            Matrix4 proj = Matrix4.CreatePerspectiveFieldOfView(cam.fov, aspect,
-                                                                0.1f, 300.0f);
-            int loc;
-            //Send LookAt matrix to all shaders
-            loc = GL.GetUniformLocation(m.shader_program, "look");
-            GL.UniformMatrix4(loc, false, ref look);
-            //Send projection matrix to all shaders
-            loc = GL.GetUniformLocation(m.shader_program, "proj");
-            GL.UniformMatrix4(loc, false, ref proj);
-            //Send theta to all shaders
-            loc = GL.GetUniformLocation(m.shader_program, "theta");
-            GL.Uniform3(loc, this.rot);
-            //Send object world Matrix to all shaders
-            loc = GL.GetUniformLocation(m.shader_program, "worldMat");
-            Matrix4 wMat = m.worldMat;
-            GL.UniformMatrix4(loc, false, ref wMat);
 
-            if (m.shader_program == shader_programs[0])
-            {
-                //Object program
-                //Local Transformation is the same for all objects 
-                //Pending - Personalize local matrix on each object
-                loc = GL.GetUniformLocation(m.shader_program, "scale");
-                GL.Uniform1(loc, this.scale);
-
-                loc = GL.GetUniformLocation(m.shader_program, "light");
-
-                GL.Uniform3(loc, new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                            Math.Sin(this.light_angle_y * Math.PI / 180.0)),
-                                                (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
-                                                (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                            Math.Cos(this.light_angle_y * Math.PI / 180.0))));
-
-                //Upload joint transform data
-                //Multiply matrices before sending them
-                //float[] skinmats = Util.mulMatArrays(((GMDL.sharedVBO)m).vbo.invBMats, JMArray, 128);
-                //loc = GL.GetUniformLocation(m.shader_program, "skinMats");
-                //GL.UniformMatrix4(loc, 128, false, skinmats);
-
-            }
-            else if (m.shader_program == shader_programs[1])
-            {
-                //Locator Program
-            }
-            GL.ClearColor(System.Drawing.Color.Black);
+            
             //Render Object
-            m.render();
+            m.render(0);
             //Render Children
             if (m.children!= null)
                 foreach (GMDL.model child in m.children)
@@ -433,7 +441,7 @@ namespace Model_Viewer
 
         private void findGeoms(GMDL.model m, StreamWriter s, ref uint index)
         {
-            if (m.type == TYPES.MESH)
+            if (m.type == TYPES.MESH || m.type==TYPES.COLLISION)
             {
                 //Get converted text
                 GMDL.sharedVBO me = (GMDL.sharedVBO) m;

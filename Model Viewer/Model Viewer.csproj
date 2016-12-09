@@ -84,7 +84,10 @@
     <Compile Include="DebugForm.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="FontGL.cs" />
+    <Compile Include="gImage.cs" />
     <Compile Include="GLPrimitives.cs" />
+    <Compile Include="GLShaderHelper.cs" />
     <Compile Include="GLSL_Preprocessor.cs" />
     <Compile Include="TreeStuff.cs" />
     <Compile Include="DDSImage.cs" />

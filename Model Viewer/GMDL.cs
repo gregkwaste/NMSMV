@@ -12,12 +12,12 @@ namespace GMDL
 {
     public abstract class model: IDisposable
     {
-        public abstract bool render();
+        public abstract bool render(int pass);
         public abstract GMDL.model Clone(GMDL.scene scn);
         public GMDL.scene scene;
         public GLControl pcontrol;
         public bool renderable = true;
-        public int shader_program = -1;
+        public int[] shader_programs;
         public int index;
         public TYPES type;
         public string name = "";
@@ -302,7 +302,7 @@ namespace GMDL
         {
             GMDL.scene copy = new GMDL.scene();
             copy.renderable = true; //Override Renderability
-            copy.shader_program = this.shader_program;
+            copy.shader_programs = this.shader_programs;
             copy.type = this.type;
             copy.name = this.name;
             copy.index = this.index;
@@ -334,11 +334,12 @@ namespace GMDL
 
             return (GMDL.model) copy;
         }
-        public override bool render()
-        {
-            //Don't render shit here
-            return true;
-        }
+
+        //public override bool render()
+        //{
+        //    //Don't render shit here
+        //    return true;
+        //}
     }
 
     public class locator: model
@@ -425,8 +426,10 @@ namespace GMDL
             base.Dispose();
         }
 
-        public override bool render()
+        public override bool render(int pass)
         {
+
+            int active_program = shader_programs[pass];
             if (this.renderable == false)
             {
                 //Debug.WriteLine("Not Renderable Locator");
@@ -441,12 +444,12 @@ namespace GMDL
                 //Vertex attribute
                 //Bind vertex buffer
                 GL.BindBuffer(BufferTarget.ArrayBuffer, this.vertex_buffer_object);
-                vpos = GL.GetAttribLocation(this.shader_program, "vPosition");
+                vpos = GL.GetAttribLocation(active_program, "vPosition");
                 GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.Float, false, 0, 0);
                 GL.EnableVertexAttribArray(vpos);
 
                 //Color Attribute
-                cpos = GL.GetAttribLocation(this.shader_program, "vcolor");
+                cpos = GL.GetAttribLocation(active_program, "vcolor");
                 GL.VertexAttribPointer(cpos, 3, VertexAttribPointerType.Float, false, 0, (IntPtr) arraysize);
                 GL.EnableVertexAttribArray(cpos);
                 
@@ -472,7 +475,7 @@ namespace GMDL
         {
             GMDL.locator copy = new GMDL.locator();
             copy.renderable = true; //Override Renderability
-            copy.shader_program = this.shader_program;
+            copy.shader_programs = this.shader_programs;
             copy.type = this.type;
             copy.name = this.name;
             copy.index = this.index;
@@ -565,43 +568,20 @@ namespace GMDL
                 return trans;
             }
         }
-        public override bool render()
+
+        public void renderMain()
         {
-            if (this.renderable == false)
-            {
-                //Debug.WriteLine("Not Renderable");
-                return false;
-            }
-
-            /*
-            if (RenderOptions.RenderSmall)
-            {
-                this.rendersmall();
-                return true;
-            }
-            */
-            
-            //Prepare Textures
-            
-            //Debug.WriteLine("Rendering " + this.name);
-            //ResourceMgmt.DebugWin.setPart(this);
-            //ResourceMgmt.DebugWin.cgl.Refresh();
-            //ResourceMgmt.DebugWin.cgl.Update(); //Force Window Invalidation
-            
-            //return true;
-
-            //Debug.WriteLine(this.name + this);
-            GL.UseProgram(this.shader_program);
+            GL.UseProgram(this.shader_programs[0]);
             //Bind vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
-            
+
             List<int> vxattriblocs = new List<int>();
             for (int i = 0; i < 7; i++)
             {
                 if (vbo.bufInfo[i] == null) continue;
                 bufInfo buf = vbo.bufInfo[i];
                 int pos;
-                pos = GL.GetAttribLocation(this.shader_program, buf.sem_text);
+                pos = GL.GetAttribLocation(this.shader_programs[0], buf.sem_text);
                 GL.VertexAttribPointer(pos, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
                 GL.EnableVertexAttribArray(pos);
                 vxattriblocs.Add(pos);
@@ -612,36 +592,35 @@ namespace GMDL
             //Reset
             for (int i = 0; i < 64; i++)
             {
-                loc = GL.GetUniformLocation(shader_program, "matflags[" + i.ToString() + "]");
+                loc = GL.GetUniformLocation(shader_programs[0], "matflags[" + i.ToString() + "]");
                 GL.Uniform1(loc, 0.0f);
             }
 
             for (int i = 0; i < material.materialflags.Count; i++)
             {
-                loc = GL.GetUniformLocation(shader_program, "matflags[" + material.materialflags[i].ToString() + "]");
+                loc = GL.GetUniformLocation(shader_programs[0], "matflags[" + material.materialflags[i].ToString() + "]");
                 GL.Uniform1(loc, 1.0f);
             }
-            
+
 
             //Upload BoneRemap Information
-            loc = GL.GetUniformLocation(shader_program, "boneRemap");
+            loc = GL.GetUniformLocation(shader_programs[0], "boneRemap");
             GL.Uniform1(loc, BoneRemap.Length, BoneRemap);
 
             //Upload skinned status
-            loc = GL.GetUniformLocation(shader_program, "skinned");
+            loc = GL.GetUniformLocation(shader_programs[0], "skinned");
             GL.Uniform1(loc, skinned);
-
 
             //Upload joint transform data
             //Multiply matrices before sending them
             //Check if scene has the jointModel
             float[] skinmats = Util.mulMatArrays(vbo.invBMats, scene.JMArray, 128);
 
-            loc = GL.GetUniformLocation(shader_program, "skinMats");
+            loc = GL.GetUniformLocation(shader_programs[0], "skinMats");
             GL.UniformMatrix4(loc, 128, false, skinmats);
 
             //Upload Light Flag
-            loc = GL.GetUniformLocation(shader_program, "useLighting");
+            loc = GL.GetUniformLocation(shader_programs[0], "useLighting");
             GL.Uniform1(loc, 1.0f);
 
             //Bind Matrices
@@ -657,7 +636,7 @@ namespace GMDL
             int tex0Id = (int)TextureUnit.Texture0;
             //Diffuse Texture
             string test = "diffuseTex";
-            loc = GL.GetUniformLocation(shader_program, test);
+            loc = GL.GetUniformLocation(shader_programs[0], test);
             GL.Uniform1(loc, 0); // I need to upload the texture unit number
 
             GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 0));
@@ -665,11 +644,19 @@ namespace GMDL
 
             //Mask Texture
             test = "maskTex";
-            loc = GL.GetUniformLocation(shader_program, test);
+            loc = GL.GetUniformLocation(shader_programs[0], test);
             GL.Uniform1(loc, 1); // I need to upload the texture unit number
 
             GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 1));
             GL.BindTexture(TextureTarget.Texture2D, material.fMaskMap.bufferID);
+
+            //Normal Texture
+            test = "normalTex";
+            loc = GL.GetUniformLocation(shader_programs[0], test);
+            GL.Uniform1(loc, 2); // I need to upload the texture unit number
+
+            GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 2));
+            GL.BindTexture(TextureTarget.Texture2D, material.fNormalMap.bufferID);
 
 
             //GL.Enable(EnableCap.Blend);
@@ -857,7 +844,7 @@ namespace GMDL
             */
 
             //Upload Default Color
-            loc = GL.GetUniformLocation(this.shader_program, "color");
+            loc = GL.GetUniformLocation(this.shader_programs[0], "color");
             GL.Uniform3(loc, this.color);
 
             ////Upload Normal Texture if any
@@ -887,9 +874,13 @@ namespace GMDL
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
 
             GL.PolygonMode(MaterialFace.Front, RenderOptions.RENDERMODE);
-            GL.PolygonMode(MaterialFace.Back, RenderOptions.RENDERMODE);
             GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
-                batchcount, vbo.iType, (IntPtr) (batchstart*vbo.iLength));
+                batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
+
+            //GL.UseProgram(ResourceMgmt.shader_programs[5]);
+            //GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
+            //    batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
+
 
             //GL.Disable(EnableCap.Blend);
             //Debug.WriteLine("Normal Object {2} vpos {0} cpos {1} prog {3}", vpos, npos, this.name, this.shader_program);
@@ -908,7 +899,69 @@ namespace GMDL
 
             foreach (int pos in vxattriblocs)
                 GL.DisableVertexAttribArray(pos);
+        }
 
+        public void renderDebug()
+        {
+            GL.UseProgram(this.shader_programs[1]);
+            //Bind vertex buffer
+            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
+
+            List<int> vxattriblocs = new List<int>();
+            for (int i = 0; i < 7; i++)
+            {
+                if (vbo.bufInfo[i] == null) continue;
+                bufInfo buf = vbo.bufInfo[i];
+                int pos;
+                pos = GL.GetAttribLocation(this.shader_programs[0], buf.sem_text);
+                GL.VertexAttribPointer(pos, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
+                GL.EnableVertexAttribArray(pos);
+                vxattriblocs.Add(pos);
+            }
+
+            int loc;
+            
+            //Upload skinned status
+            loc = GL.GetUniformLocation(shader_programs[0], "skinned");
+            GL.Uniform1(loc, skinned);
+
+            //Upload Default Color
+            loc = GL.GetUniformLocation(this.shader_programs[0], "color");
+            GL.Uniform3(loc, this.color);
+
+            //Render Elements
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
+
+            GL.PolygonMode(MaterialFace.Front, PolygonMode.Fill);
+            GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
+                batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
+
+            foreach (int pos in vxattriblocs)
+                GL.DisableVertexAttribArray(pos);
+
+        }
+
+        public override bool render(int pass)
+        {
+            if (this.renderable == false)
+            {
+                //Debug.WriteLine("Not Renderable");
+                return false;
+            }
+
+            //Render Object
+            switch (pass)
+            {
+                //Render Main
+                case 0:
+                    renderMain();
+                    break;
+                //Render Debug
+                case 1:
+                    //renderDebug();
+                    break;
+            }
+            
             return true;
         }
 
@@ -919,18 +972,18 @@ namespace GMDL
 
             int vpos, bI, bW;
             //Vertex attribute
-            vpos = GL.GetAttribLocation(this.shader_program, "vPosition");
+            vpos = GL.GetAttribLocation(this.shader_programs[0], "vPosition");
             int vstride = vbo.vx_size * vertrstart;
             GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.small_vx_size, vbo.small_vx_stride);
             GL.EnableVertexAttribArray(vpos);
 
             //If there are BlendIndices there are obviously blendWeights as well
             //Max Indices count found so far is 4. I'm hardcoding it unless i find something else in the files.
-            bI = GL.GetAttribLocation(this.shader_program, "blendIndices");
+            bI = GL.GetAttribLocation(this.shader_programs[0], "blendIndices");
             GL.VertexAttribPointer(bI, 4, VertexAttribPointerType.UnsignedByte, false, vbo.small_vx_size, vbo.small_blendI_stride);
             GL.EnableVertexAttribArray(bI);
 
-            bW = GL.GetAttribLocation(this.shader_program, "blendWeights");
+            bW = GL.GetAttribLocation(this.shader_programs[0], "blendWeights");
             GL.VertexAttribPointer(bW, 4, VertexAttribPointerType.HalfFloat, false, vbo.small_vx_size, vbo.small_blendW_stride);
             GL.EnableVertexAttribArray(bW);
 
@@ -946,11 +999,11 @@ namespace GMDL
             //GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.vbo.invBMats);
 
             //Upload BoneRemap Information
-            loc = GL.GetUniformLocation(shader_program, "boneRemap");
+            loc = GL.GetUniformLocation(shader_programs[0], "boneRemap");
             GL.Uniform1(loc, BoneRemap.Length, BoneRemap);
 
             //Upload skinned status
-            loc = GL.GetUniformLocation(shader_program, "skinned");
+            loc = GL.GetUniformLocation(shader_programs[0], "skinned");
             GL.Uniform1(loc, skinned);
 
             //Upload joint transform data
@@ -958,22 +1011,22 @@ namespace GMDL
             //Check if scene has the jointModel
             float[] skinmats = Util.mulMatArrays(vbo.invBMats, scene.JMArray, 128);
 
-            loc = GL.GetUniformLocation(shader_program, "skinMats");
+            loc = GL.GetUniformLocation(shader_programs[0], "skinMats");
             GL.UniformMatrix4(loc, 128, false, skinmats);
 
             //Upload procedural sampler flag
-            loc = GL.GetUniformLocation(shader_program, "procFlag");
+            loc = GL.GetUniformLocation(shader_programs[0], "procFlag");
             GL.Uniform1(loc, 0);
 
             //Disable Diffuse Maps
-            loc = GL.GetUniformLocation(shader_program, "diffTexCount");
+            loc = GL.GetUniformLocation(shader_programs[0], "diffTexCount");
             GL.Uniform1(loc, 0);
 
-            loc = GL.GetUniformLocation(shader_program, "diffuseFlag");
+            loc = GL.GetUniformLocation(shader_programs[0], "diffuseFlag");
             GL.Uniform1(loc, 0.0f);
 
             //Upload Default Color
-            loc = GL.GetUniformLocation(this.shader_program, "color");
+            loc = GL.GetUniformLocation(this.shader_programs[0], "color");
             GL.Uniform3(loc, 1.0, 0.0, 0.0); //Render Small Red
 
             //Render Elements
@@ -1000,7 +1053,7 @@ namespace GMDL
             copy.vertrend = this.vertrend;
             copy.vertrstart = this.vertrstart;
             copy.renderable = true; //Override Renderability
-            copy.shader_program = this.shader_program;
+            copy.shader_programs = this.shader_programs;
             copy.type = this.type;
             copy.vbo = this.vbo;
             copy.name = this.name;
@@ -1153,13 +1206,16 @@ namespace GMDL
             this.color = new Vector3(1.0f, 1.0f, 0.0f); //Set Yellow Color for collision objects
         }
         
-        public override bool render()
+        public override bool render(int pass)
         {
             if (this.renderable == false || this.vbo == null || RenderOptions.RenderCollisions == false)
             {
                 //Debug.WriteLine("Not Renderable");
                 return false;
             }
+
+            int active_program = this.shader_programs[0];
+
             //Debug.WriteLine(this.name + this);
             
             //Bind vertex buffer
@@ -1171,7 +1227,7 @@ namespace GMDL
                 if (vbo.bufInfo[i] == null) continue;
                 bufInfo buf = vbo.bufInfo[i];
                 int pos;
-                pos = GL.GetAttribLocation(this.shader_program, buf.sem_text);
+                pos = GL.GetAttribLocation(active_program, buf.sem_text);
                 GL.VertexAttribPointer(pos, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
                 GL.EnableVertexAttribArray(pos);
                 vxattriblocs.Add(pos);
@@ -1185,17 +1241,17 @@ namespace GMDL
             //Reset
             for (int i = 0; i < 64; i++)
             {
-                loc = GL.GetUniformLocation(shader_program, "matflags[" + i.ToString() + "]");
+                loc = GL.GetUniformLocation(active_program, "matflags[" + i.ToString() + "]");
                 GL.Uniform1(loc, 0.0f);
             }
 
             //Upload Default Color
-            loc = GL.GetUniformLocation(shader_program, "color");
+            loc = GL.GetUniformLocation(active_program, "color");
             //GL.Uniform3(loc, this.color);
             GL.Uniform3(loc, this.color);
 
             //Upload Light Flag
-            loc = GL.GetUniformLocation(shader_program, "useLighting");
+            loc = GL.GetUniformLocation(active_program, "useLighting");
             GL.Uniform1(loc, 0.0f);
 
             //Render Elements
@@ -1231,9 +1287,8 @@ namespace GMDL
             return true;
         }
 
+
         
-
-
     }
 
     public class customVBO
@@ -1468,7 +1523,7 @@ namespace GMDL
         public string type;
         public MatOpts opts;
         public List<int> materialflags = new List<int>();
-        public Dictionary<string, Dictionary<string, Vector3>> palette = new Dictionary<string, Dictionary<string, Vector3>>();
+        public Dictionary<string, Dictionary<string, Vector4>> palette = new Dictionary<string, Dictionary<string, Vector4>>();
         public List<Uniform> uniforms = new List<Uniform>();
         public List<Sampler> samplers = new List<Sampler>();
         public List<PaletteOpt> palOpts = new List<PaletteOpt>();
@@ -1490,7 +1545,7 @@ namespace GMDL
                 difftextures.Add(null);
                 masktextures.Add(null);
                 normaltextures.Add(null);
-                reColourings.Add(new float[] { 1.0f, 1.0f, 1.0f });
+                reColourings.Add(new float[] { 1.0f, 1.0f, 1.0f, 0.0f });
                 palOpts.Add(null);
             }
 
@@ -1511,11 +1566,19 @@ namespace GMDL
                 //newmat.masktextures[i] = this.masktextures[i];
                 //newmat.normaltextures[i] = this.normaltextures[i];
                 //newmat.reColourings[i] = this.reColourings[i];
-                //newmat.palOpts[i] = this.palOpts[i];
+                
+                //Create palOpts
+                if (this.palOpts[i] != null)
+                {
+                    PaletteOpt palOpt = new PaletteOpt();
+                    palOpt.ColorName = this.palOpts[i].ColorName;
+                    palOpt.PaletteName = this.palOpts[i].PaletteName;
+                    newmat.palOpts[i] = palOpt;
+                }
             }
 
             //Remix textures
-            
+
             return newmat;
         }
 
@@ -1568,11 +1631,7 @@ namespace GMDL
                         if (node == null)
                         {
                             baseLayersUsed[i] = 0.0f;
-                            this.difftextures[i] = Model_Viewer.ResourceMgmt.GLtextures["default.dds"];
-
                             alphaLayersUsed[i] = 0.0f;
-                            this.masktextures[i] = Model_Viewer.ResourceMgmt.GLtextures["default_mask.dds"];
-
                             continue;
                         }
 
@@ -1587,12 +1646,12 @@ namespace GMDL
                         string colorName = ((XmlElement)paletteNode.SelectSingleNode(".//Property[@name='ColourAlt']")).GetAttribute("value");
 
                         //Select a pallete color
-                        Vector3 palColor = palette[paletteName][colorName];
+                        Vector4 palColor = palette[paletteName][colorName];
                         //Randomize palette Color every single time
                         //Vector3 palColor = Model_Viewer.Palettes.get_color(paletteName, colorName);
                         
                         //Store pallete color to Recolouring List
-                        reColourings[i] = new float[] { palColor[0], palColor[1], palColor[2] };
+                        reColourings[i] = new float[] { palColor[0], palColor[1], palColor[2], palColor[3] };
                         //Create Palette Option
                         PaletteOpt palOpt = new PaletteOpt();
                         palOpt.PaletteName = paletteName;
@@ -1604,7 +1663,6 @@ namespace GMDL
                         {
                             //Add White
                             baseLayersUsed[i] = 0.0f;
-                            this.difftextures[i] = Model_Viewer.ResourceMgmt.GLtextures["default.dds"];
                         } else if (!Model_Viewer.ResourceMgmt.GLtextures.ContainsKey(partNameDiff))
                         {
                             //Construct Texture paths
@@ -1627,7 +1685,6 @@ namespace GMDL
                             {
                                 //Texture Not Found Continue
                                 Debug.WriteLine("Diffuse Texture " + pathDiff + " Not Found, Appending White Tex");
-                                this.difftextures[i] = Model_Viewer.ResourceMgmt.GLtextures["default.dds"];
                                 baseLayersUsed[i] = 0.0f;
                             }
                         } else
@@ -1643,7 +1700,6 @@ namespace GMDL
                         if (partNameMask == "")
                         {
                             //Skip
-                            this.masktextures[i] = Model_Viewer.ResourceMgmt.GLtextures["default_mask.dds"];
                             alphaLayersUsed[i] = 0.0f;
                         } else if (!Model_Viewer.ResourceMgmt.GLtextures.ContainsKey(partNameMask))
                         {
@@ -1662,7 +1718,6 @@ namespace GMDL
                             {
                                 //Mask Texture not found
                                 Debug.WriteLine("Mask Texture " + pathMask + " Not Found");
-                                this.masktextures[i] = Model_Viewer.ResourceMgmt.GLtextures["default_mask.dds"];
                                 alphaLayersUsed[i] = 0.0f;
                             }
                         }
@@ -1716,59 +1771,68 @@ namespace GMDL
                 {
                     Debug.WriteLine("Proper Texture, Bullshiting for now");
                     //Handle Diffuse
-                    if (sam.pathDiff != null)
+                    if (sam.pathDiff != "")
                         if (ResourceMgmt.GLtextures.ContainsKey(sam.pathDiff))
                         {
                             Texture tex = ResourceMgmt.GLtextures[sam.pathDiff];
-                            difftextures[0] = tex;
-                            baseLayersUsed[0] = 1.0f;
+                            difftextures[7] = tex;
+                            baseLayersUsed[7] = 1.0f;
                         }
                         else
                         {
                             Texture tex = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.pathDiff));
                             tex.palOpt = new PaletteOpt(false);
-                            tex.procColor = new Vector3(1.0f, 1.0f, 1.0f);
-                            difftextures[0] = tex;
-                            baseLayersUsed[0] = 1.0f;
+                            tex.procColor = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
+                            difftextures[7] = tex;
+                            baseLayersUsed[7] = 1.0f;
                             //Store to resource
                             ResourceMgmt.GLtextures[sam.pathDiff] = tex;
                         }
 
 
                     //Handle Mask
-                    if (sam.pathMask != null)
+                    if (sam.pathMask != "" && sam.pathMask != null)
                         if (ResourceMgmt.GLtextures.ContainsKey(sam.pathMask))
                         {
                             Texture tex = ResourceMgmt.GLtextures[sam.pathMask];
-                            masktextures[0] = tex;
-                            alphaLayersUsed[0] = 1.0f;
+                            masktextures[7] = tex;
+                            alphaLayersUsed[7] = 1.0f;
                         }
                         else
                         {
                             Texture tex = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.pathMask));
                             tex.palOpt = new PaletteOpt(false);
-                            tex.procColor = new Vector3(1.0f, 1.0f, 1.0f);
-                            masktextures[0] = tex;
-                            alphaLayersUsed[0] = 1.0f;
+                            tex.procColor = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
+                            masktextures[7] = tex;
+                            alphaLayersUsed[7] = 1.0f;
                             //Store to resource
                             ResourceMgmt.GLtextures[sam.pathMask] = tex;
                         }
 
                     //Handle Normal
-                    if (sam.pathNormal != null)
+                    if (sam.pathNormal != "" && sam.pathNormal != null)
                         if (ResourceMgmt.GLtextures.ContainsKey(sam.pathNormal))
                         {
                             Texture tex = ResourceMgmt.GLtextures[sam.pathNormal];
-                            normaltextures[0] = tex;
+                            normaltextures[7] = tex;
                         }
                         else
                         {
-                            Texture tex = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.pathNormal));
-                            tex.palOpt = new PaletteOpt(false);
-                            tex.procColor = new Vector3(1.0f, 1.0f, 1.0f);
-                            normaltextures[0] = tex;
-                            //Store to resource
-                            ResourceMgmt.GLtextures[sam.pathNormal] = tex;
+                            try
+                            {
+                                Texture tex = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.pathNormal));
+                                tex.palOpt = new PaletteOpt(false);
+                                tex.procColor = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
+                                normaltextures[7] = tex;
+                                //Store to resource
+                                ResourceMgmt.GLtextures[sam.pathNormal] = tex;
+                            }
+                            catch (System.IO.FileNotFoundException e)
+                            { 
+                                //File doesn't exist, to nothing
+                            }
+                            
+                            
                         }
                     
                 }
@@ -1861,9 +1925,9 @@ namespace GMDL
 
             //Create New RenderBuffer for the diffuse
             int fb_diffuse = GL.GenFramebuffer();
-            GL.BindFramebuffer(FramebufferTarget.FramebufferExt, fb_diffuse);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, fb_diffuse);
             //Attach Texture to this FBO
-            GL.FramebufferTexture2D(FramebufferTarget.FramebufferExt, FramebufferAttachment.ColorAttachment0Ext, TextureTarget.Texture2D, out_tex_diffuse, 0);
+            GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, out_tex_diffuse, 0);
 
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer) != FramebufferErrorCode.FramebufferComplete)
@@ -1881,7 +1945,25 @@ namespace GMDL
 
             //Create New RenderBuffer for the diffuse
             //Attach Texture to this FBO
-            GL.FramebufferTexture2D(FramebufferTarget.FramebufferExt, FramebufferAttachment.ColorAttachment1Ext, TextureTarget.Texture2D, out_tex_mask, 0);
+            GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment1, TextureTarget.Texture2D, out_tex_mask, 0);
+
+            //Check
+            if (GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer) != FramebufferErrorCode.FramebufferComplete)
+                Debug.WriteLine("MALAKIES STO FRAMEBUFFER");
+
+            //Normal Output
+            int out_tex_normal = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, out_tex_normal);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            //NULL means reserve texture memory, but texels are undefined
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, texsize, texsize, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+
+            //Create New RenderBuffer for the diffuse
+            //Attach Texture to this FBO
+            GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment2, TextureTarget.Texture2D, out_tex_normal, 0);
 
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer) != FramebufferErrorCode.FramebufferComplete)
@@ -1907,6 +1989,18 @@ namespace GMDL
             //GL.Enable(EnableCap.Blend);
             //GL.BlendFunc(BlendingFactorSrc.ConstantAlpha, BlendingFactorDest.OneMinusConstantAlpha);
 
+            /*
+             * 
+             * TEXTURES SHOULD BE PUSHED TO THE SHADERS BOTTOM TO TOP
+             * 
+             * 
+             * 
+             * 
+             */
+
+            Texture dMask = ResourceMgmt.GLtextures["default_mask.dds"];
+            Texture dDiff = ResourceMgmt.GLtextures["default.dds"];
+
             //Upload base Layers Used
             for (int i = 0; i < 8; i++)
             {
@@ -1916,32 +2010,31 @@ namespace GMDL
 
             for (int i = 0; i < 8; i++)
             {
+
                 if (difftextures[i] != null)
-                {
                     tex = difftextures[i];
+                else
+                    tex = dMask;
 
-                    //Upload diffuse Texture
-                    string sem = "diffuseTex[" + i.ToString() + "]";
-                    //Get Texture location
-                    loc = GL.GetUniformLocation(pass_program, sem);
-                    GL.Uniform1(loc, i); // I need to upload the texture unit number
+                //Upload diffuse Texture
+                string sem = "diffuseTex[" + i.ToString() + "]";
+                //Get Texture location
+                loc = GL.GetUniformLocation(pass_program, sem);
+                GL.Uniform1(loc, i); // I need to upload the texture unit number
 
-                    int tex0Id = (int)TextureUnit.Texture0;
+                int tex0Id = (int)TextureUnit.Texture0;
 
-                    //Upload PaletteColor
-                    //loc = GL.GetUniformLocation(pass_program, "palColors[" + i.ToString() + "]");
-                    //Use Texture paletteOpt and object palette to load the palette color
-                    //GL.Uniform3(loc, palette[tex.palOpt.PaletteName][tex.palOpt.ColorName]);
+                GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + i));
+                GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
 
-                    GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + i));
-                    GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
-                }
             }
 
-            //TESTING MASKS
-            //SETTING HASALPHACHANNEL FLAG TO FALSE
+            //Seems like alphaChannel variable is set from the _F24_AOMAP flag
             loc = GL.GetUniformLocation(pass_program, "hasAlphaChannel");
-            GL.Uniform1(loc, 1.0f);
+            if (materialflags.Contains(23))
+                GL.Uniform1(loc, 1.0f);
+            else
+                GL.Uniform1(loc, 0.0f);
 
 
             //MASKS
@@ -1955,9 +2048,11 @@ namespace GMDL
             //Upload Mask Textures -- Alpha Masks???
             for (int i = 0; i < 8; i++)
             {
-                if (masktextures[i] == null) continue;
+                if (masktextures[i] != null)
+                    tex = masktextures[i];
+                else
+                    tex = dDiff;
 
-                tex = masktextures[i];
 
                 //Upload diffuse Texture
                 string sem = "maskTex[" + i.ToString() + "]";
@@ -1977,11 +2072,31 @@ namespace GMDL
 
             }
 
+            //Upload Normal Textures
+            for (int i = 0; i < 8; i++)
+            {
+                if (normaltextures[i] != null)
+                    tex = normaltextures[i];
+                else
+                    tex = dMask;
+
+                //Upload diffuse Texture
+                string sem = "normalTex[" + i.ToString() + "]";
+                //Get Texture location
+                loc = GL.GetUniformLocation(pass_program, sem);
+                GL.Uniform1(loc, 16 + i); // I need to upload the texture unit number
+
+                int tex0Id = (int)TextureUnit.Texture0;
+
+                GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 16 + i));
+                GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
+            }
+
             //Upload Recolouring Information
             for (int i = 0; i < 8; i++)
             {
                 loc = GL.GetUniformLocation(pass_program, "lRecolours[" + i.ToString() + "]");
-                GL.Uniform4(loc, reColourings[i][0], reColourings[i][1], reColourings[i][2], 1.0f);
+                GL.Uniform4(loc, reColourings[i][0], reColourings[i][1], reColourings[i][2], reColourings[i][3]);
             }
 
 
@@ -1989,29 +2104,29 @@ namespace GMDL
             //GL.Enable(EnableCap.Blend);
             //GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
             //Render to the FBO
-            GL.BindFramebuffer(FramebufferTarget.FramebufferExt, fb_diffuse);
-            GL.DrawBuffers(2,  new DrawBuffersEnum[] { DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1 });
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, fb_diffuse);
+            GL.DrawBuffers(3,  new DrawBuffersEnum[] { DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment2 });
 
             GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
 
-            //GL.Disable(EnableCap.Blend);
             //Store Framebuffer to Disk
             byte[] pixels = new byte[4 * texsize * texsize];
             //GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
+            
+            //Diffuse
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             GL.ReadPixels(0, 0, texsize, texsize, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
-
 
             FileStream fs = new FileStream("framebuffer_raw_diffuse_" + name, FileMode.Create);
             BinaryWriter bw = new BinaryWriter(fs);
             bw.Write(pixels);
             fs.Flush();
             fs.Close();
-
-
+            
             //Store Texture to material
             fDiffuseMap.bufferID = out_tex_diffuse;
-
+            
+            
             GL.ReadBuffer(ReadBufferMode.ColorAttachment1);
             GL.ReadPixels(0, 0, texsize, texsize, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
 
@@ -2024,8 +2139,20 @@ namespace GMDL
             //Store Texture to material
             fMaskMap.bufferID = out_tex_mask;
 
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment2);
+            GL.ReadPixels(0, 0, texsize, texsize, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
+
+            fs = new FileStream("framebuffer_raw_normal_" + name, FileMode.Create);
+            bw = new BinaryWriter(fs);
+            bw.Write(pixels);
+            fs.Flush();
+            fs.Close();
+
+            //Store Texture to material
+            fNormalMap.bufferID = out_tex_normal;
+
             //Bring Back screen
-            GL.BindFramebuffer(FramebufferTarget.FramebufferExt, 0);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
             GL.DisableVertexAttribArray(vpos);
             GL.DisableVertexAttribArray(cpos);
             GL.DeleteBuffer(quad_vbo);
@@ -2085,7 +2212,7 @@ namespace GMDL
         public PixelInternalFormat pif;
         public bool containsAlphaMap;
         public PaletteOpt palOpt;
-        public Vector3 procColor;
+        public Vector4 procColor;
         public PixelFormat pf;
         public DDSImage ddsImage;
         //Attach mask and normal textures to the diffuse
@@ -2166,7 +2293,7 @@ namespace GMDL
         {
             GMDL.Joint copy = new GMDL.Joint();
             copy.renderable = true; //Override Renderability
-            copy.shader_program = this.shader_program;
+            copy.shader_programs = this.shader_programs;
             copy.type = this.type;
             copy.name = this.name;
             copy.index = this.index;
@@ -2193,7 +2320,7 @@ namespace GMDL
         }
             
         //Render should render Bones from joint to children
-        public override bool render()
+        public override bool render(int pass)
         {
             if (this.renderable == false)
             {
@@ -2202,6 +2329,9 @@ namespace GMDL
             }
             if (this.children.Count == 0)
                 return false;
+
+
+            int active_program = this.shader_programs[pass];
 
             //Draw Lines to children joints
             List<Vector3> verts = new List<Vector3>();
@@ -2247,12 +2377,12 @@ namespace GMDL
             //Bind vertex buffer
             int vpos, cpos;
             GL.BindBuffer(BufferTarget.ArrayBuffer, this.vertex_buffer_object);
-            vpos = GL.GetAttribLocation(this.shader_program, "vPosition");
+            vpos = GL.GetAttribLocation(active_program, "vPosition");
             GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.Float, false, 0, 0);
             GL.EnableVertexAttribArray(vpos);
 
             //Color Attribute
-            cpos = GL.GetAttribLocation(this.shader_program, "vcolor");
+            cpos = GL.GetAttribLocation(active_program, "vcolor");
             GL.VertexAttribPointer(cpos, 3, VertexAttribPointerType.Float, false, 0, (IntPtr)arraysize);
             GL.EnableVertexAttribArray(cpos);
 

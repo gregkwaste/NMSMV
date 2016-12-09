@@ -16,7 +16,7 @@ namespace Model_Viewer
     {
         //Set Full rendermode by default
         public static PolygonMode RENDERMODE = PolygonMode.Fill;
-        public static bool UseTextures = true;
+        public static float UseTextures = 1.0f;
         public static bool RenderSmall = false;
         public static bool RenderCollisions = false;
         public static int animFPS = 60;
@@ -1014,9 +1014,14 @@ namespace Model_Viewer
                                                                             Vector3.Multiply(new Vector3 (129, 101, 101) , rbgFloat),
                                                                             Vector3.Multiply(new Vector3 (75, 59, 68) , rbgFloat),
                                                                             Vector3.Multiply(new Vector3 (101, 113, 129) , rbgFloat)};
+        public static readonly List<Vector3> Scientific = new List<Vector3>
+        { Vector3.Multiply(new Vector3 (255, 0, 255) , rbgFloat)};
+
+        public static readonly List<Vector3> ScientificAlt = new List<Vector3>
+        { Vector3.Multiply(new Vector3 (255, 0, 255) , rbgFloat)};
 
         //Palette Selection
-        public static Dictionary<string,Dictionary<string,Vector3>> paletteSel;
+        public static Dictionary<string,Dictionary<string,Vector4>> paletteSel;
         
         //Methods
         public static List<Vector3> getPalette(string name)
@@ -1035,10 +1040,10 @@ namespace Model_Viewer
             throw new ApplicationException("Missing Pallete" + name);
         }
 
-        public static Dictionary<string,Dictionary<string,Vector3>> createPalette()
+        public static Dictionary<string,Dictionary<string,Vector4>> createPalette()
         {
-            Dictionary<string, Dictionary<string, Vector3>> newPal;
-            newPal = new Dictionary<string, Dictionary<string, Vector3>>();
+            Dictionary<string, Dictionary<string, Vector4>> newPal;
+            newPal = new Dictionary<string, Dictionary<string, Vector4>>();
 
             Type t = typeof(Palettes);
             FieldInfo[] fields = t.GetFields(System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
@@ -1051,9 +1056,9 @@ namespace Model_Viewer
                 List<Vector3> palette = (List<Vector3>)f.GetValue(null);
 
                 //Add palette to dictionary
-                newPal[f.Name] = new Dictionary<string, Vector3>();
+                newPal[f.Name] = new Dictionary<string, Vector4>();
                 //Add None option
-                newPal[f.Name]["None"] = new Vector3(0.0f, 0.0f, 0.0f);
+                newPal[f.Name]["None"] = new Vector4(0.0f, 0.0f, 0.0f, 0.0f);
 
                 int rand;
                 switch (f.Name)
@@ -1069,14 +1074,14 @@ namespace Model_Viewer
                         //So there is a total of 16 color ranges in the palette
                         //Chossing one range
                         rand = Util.randgen.Next(0, 16);
-                        newPal[f.Name]["Primary"] = palette[4 * rand];
-                        newPal[f.Name]["Alternative1"] = palette[4 * rand + 1];
-                        newPal[f.Name]["Alternative2"] = palette[4 * rand + 2];
-                        newPal[f.Name]["Alternative3"] = palette[4 * rand + 3];
+                        newPal[f.Name]["Primary"] = new Vector4(palette[4 * rand], 1.0f);
+                        newPal[f.Name]["Alternative1"] = new Vector4(palette[4 * rand + 1], 1.0f);
+                        newPal[f.Name]["Alternative2"] = new Vector4(palette[4 * rand + 2], 1.0f);
+                        newPal[f.Name]["Alternative3"] = new Vector4(palette[4 * rand + 3], 1.0f);
                         //Used By plants
-                        newPal[f.Name]["MatchGround"] = palette[4 * rand + 3];
+                        newPal[f.Name]["MatchGround"] = new Vector4(palette[4 * rand + 3], 1.0f);
                         //I have no idea where the fuck the 5th color comes from
-                        newPal[f.Name]["Alternative4"] = palette[4 * rand + 3];
+                        newPal[f.Name]["Alternative4"] = new Vector4(palette[4 * rand + 3], 1.0f);
 
                         //Explicitly Set unique to completely random color
                         rand = Util.randgen.Next(0, 64);
@@ -1091,11 +1096,11 @@ namespace Model_Viewer
                     case ("Undercoat"):
                         rand = Util.randgen.Next(0, 8);
                         int rand2 = Util.randgen.Next(0, 1);
-                        newPal[f.Name]["Primary"] = palette[rand2 * 32 + rand];
-                        newPal[f.Name]["Alternative1"] = palette[rand2 * 32 + rand + 1 * 8];
-                        newPal[f.Name]["Alternative2"] = palette[rand2 * 32 + rand + 2 * 8];
-                        newPal[f.Name]["Alternative3"] = palette[rand2 * 32 + rand + 3 * 8];
-                        newPal[f.Name]["Alternative4"] = palette[rand2 * 32 + rand + 3 * 8];
+                        newPal[f.Name]["Primary"] = new Vector4(palette[rand2 * 32 + rand], 1.0f);
+                        newPal[f.Name]["Alternative1"] = new Vector4(palette[rand2 * 32 + rand + 1 * 8], 1.0f);
+                        newPal[f.Name]["Alternative2"] = new Vector4(palette[rand2 * 32 + rand + 2 * 8], 1.0f);
+                        newPal[f.Name]["Alternative3"] = new Vector4(palette[rand2 * 32 + rand + 3 * 8], 1.0f);
+                        newPal[f.Name]["Alternative4"] = new Vector4(palette[rand2 * 32 + rand + 3 * 8], 1.0f);
                         break;
                     //Handle vertical palettes 1/16 options (Vertical parts of 4)
                     case ("Leaf"):
@@ -1104,23 +1109,31 @@ namespace Model_Viewer
                     case ("Stone"):
                     case ("Wood"):
                         rand = Util.randgen.Next(0, 16);
-                        newPal[f.Name]["Primary"] = palette[(rand / 8) * 32 + rand % 8];
-                        newPal[f.Name]["Alternative1"] = palette[(rand / 8) * 32 + rand % 8 + 1 * 8];
-                        newPal[f.Name]["Alternative2"] = palette[(rand / 8) * 32 + rand % 8 + 2 * 8];
-                        newPal[f.Name]["Alternative3"] = palette[(rand / 8) * 32 + rand % 8 + 3 * 8];
+                        newPal[f.Name]["Primary"] = new Vector4(palette[(rand / 8) * 32 + rand % 8], 1.0f);
+                        newPal[f.Name]["Alternative1"] = new Vector4(palette[(rand / 8) * 32 + rand % 8 + 1 * 8], 1.0f);
+                        newPal[f.Name]["Alternative2"] = new Vector4(palette[(rand / 8) * 32 + rand % 8 + 2 * 8], 1.0f);
+                        newPal[f.Name]["Alternative3"] = new Vector4(palette[(rand / 8) * 32 + rand % 8 + 3 * 8], 1.0f);
                         //Used by Wood
-                        newPal[f.Name]["MatchGround"] = palette[4 * rand + 3];
-                        newPal[f.Name]["Alternative4"] = palette[(rand / 8) * 32 + rand % 8 + 3 * 8];
+                        newPal[f.Name]["MatchGround"] = new Vector4(palette[4 * rand + 3], 1.0f);
+                        newPal[f.Name]["Alternative4"] = new Vector4(palette[(rand / 8) * 32 + rand % 8 + 3 * 8], 1.0f);
                         break;
                     case ("Metal"):
                         rand = Util.randgen.Next(0, 4);
-                        newPal[f.Name]["Primary"] = palette[(rand % 2) * 8 + (rand/2) ];
+                        newPal[f.Name]["Primary"] = new Vector4(palette[(rand % 2) * 8 + (rand/2) ], 1.0f);
+                        break;
+                    //New Palettes
+                    case ("Scientific"):
+                    case ("ScientificAlt"):
+                        newPal[f.Name]["Primary"] = new Vector4(palette[0], 1.0f);
+                        newPal[f.Name]["Alternative1"] = new Vector4(palette[0], 1.0f);
+                        newPal[f.Name]["Alternative2"] = new Vector4(palette[0], 1.0f);
+                        newPal[f.Name]["Alternative3"] = new Vector4(palette[0], 1.0f);
                         break;
                     default:
                         throw new ApplicationException("Missing Palette " + f.Name);
                         //Chose 1/64 random color
                         rand = Util.randgen.Next(0, 64);
-                        newPal[f.Name]["Primary"] = palette[rand];
+                        newPal[f.Name]["Primary"] = new Vector4(palette[rand], 1.0f);
                         //newPal[f.Name]["None"] = palette[rand];
                         break;
                 }
@@ -1240,7 +1253,7 @@ namespace Model_Viewer
         public static void set_palleteColors()
         {
             //Initialize the palette everytime this is called
-            paletteSel = new Dictionary<string, Dictionary<string, Vector3>>();
+            paletteSel = new Dictionary<string, Dictionary<string, Vector4>>();
             paletteSel = createPalette();
         }
     }
@@ -1532,7 +1545,7 @@ namespace Model_Viewer
             foreach (XmlElement el in root.ChildNodes)
             {
                 string layername = el.GetAttribute("name");
-                int layerid = int.Parse(layername.Split(new string[] { "Layer" }, StringSplitOptions.None)[1]) - 1;
+                int layerid = 9 - int.Parse(layername.Split(new string[] { "Layer" }, StringSplitOptions.None)[1]) - 1;
                 //Debug.WriteLine("Texture Layer: " + layerid.ToString());
 
                 parts[layerid] = null; //Init to null

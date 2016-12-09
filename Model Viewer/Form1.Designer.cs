@@ -48,6 +48,10 @@ namespace Model_Viewer
             this.splitContainer2 = new System.Windows.Forms.SplitContainer();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
             this.camSettings = new System.Windows.Forms.TableLayoutPanel();
+            this.zFar_Label = new System.Windows.Forms.Label();
+            this.numericUpDown5 = new System.Windows.Forms.NumericUpDown();
+            this.zNear_Label = new System.Windows.Forms.Label();
+            this.numericUpDown4 = new System.Windows.Forms.NumericUpDown();
             this.label3 = new System.Windows.Forms.Label();
             this.label4 = new System.Windows.Forms.Label();
             this.label1 = new System.Windows.Forms.Label();
@@ -58,17 +62,17 @@ namespace Model_Viewer
             this.l_intensity_nud = new System.Windows.Forms.NumericUpDown();
             this.splitContainer3 = new System.Windows.Forms.SplitContainer();
             this.sceneGraphGroup = new System.Windows.Forms.GroupBox();
+            this.treeView1 = new Model_Viewer.NoClickTree();
             this.splitContainer4 = new System.Windows.Forms.SplitContainer();
             this.ProcGenGroup = new System.Windows.Forms.GroupBox();
             this.randomgenerator = new System.Windows.Forms.Button();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.AnimTable = new System.Windows.Forms.TableLayoutPanel();
+            this.newButton1 = new Model_Viewer.NewButton();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.mainglcontrolContext = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.getAltIDToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.exportToObjToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.treeView1 = new Model_Viewer.NoClickTree();
-            this.newButton1 = new Model_Viewer.NewButton();
             this.menuStrip1.SuspendLayout();
             this.statusStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer2)).BeginInit();
@@ -77,6 +81,8 @@ namespace Model_Viewer
             this.splitContainer2.SuspendLayout();
             this.groupBox1.SuspendLayout();
             this.camSettings.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.numericUpDown5)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numericUpDown4)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown1)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown2)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown3)).BeginInit();
@@ -237,7 +243,7 @@ namespace Model_Viewer
             // 
             this.splitContainer2.Panel2.Controls.Add(this.splitContainer3);
             this.splitContainer2.Size = new System.Drawing.Size(260, 623);
-            this.splitContainer2.SplitterDistance = 125;
+            this.splitContainer2.SplitterDistance = 170;
             this.splitContainer2.TabIndex = 0;
             // 
             // groupBox1
@@ -246,7 +252,7 @@ namespace Model_Viewer
             this.groupBox1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBox1.Location = new System.Drawing.Point(0, 0);
             this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(260, 125);
+            this.groupBox1.Size = new System.Drawing.Size(260, 170);
             this.groupBox1.TabIndex = 3;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Camera Options";
@@ -256,6 +262,10 @@ namespace Model_Viewer
             this.camSettings.ColumnCount = 2;
             this.camSettings.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 47.05882F));
             this.camSettings.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 52.94118F));
+            this.camSettings.Controls.Add(this.zFar_Label, 0, 5);
+            this.camSettings.Controls.Add(this.numericUpDown5, 1, 5);
+            this.camSettings.Controls.Add(this.zNear_Label, 0, 4);
+            this.camSettings.Controls.Add(this.numericUpDown4, 1, 4);
             this.camSettings.Controls.Add(this.label3, 0, 3);
             this.camSettings.Controls.Add(this.label4, 0, 2);
             this.camSettings.Controls.Add(this.label1, 0, 0);
@@ -268,15 +278,98 @@ namespace Model_Viewer
             this.camSettings.GrowStyle = System.Windows.Forms.TableLayoutPanelGrowStyle.FixedSize;
             this.camSettings.Location = new System.Drawing.Point(3, 16);
             this.camSettings.Name = "camSettings";
-            this.camSettings.RowCount = 4;
+            this.camSettings.RowCount = 6;
             this.camSettings.RowStyles.Add(new System.Windows.Forms.RowStyle());
             this.camSettings.RowStyles.Add(new System.Windows.Forms.RowStyle());
             this.camSettings.RowStyles.Add(new System.Windows.Forms.RowStyle());
             this.camSettings.RowStyles.Add(new System.Windows.Forms.RowStyle());
             this.camSettings.RowStyles.Add(new System.Windows.Forms.RowStyle());
             this.camSettings.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
-            this.camSettings.Size = new System.Drawing.Size(254, 106);
+            this.camSettings.Size = new System.Drawing.Size(254, 151);
             this.camSettings.TabIndex = 0;
+            // 
+            // zFar_Label
+            // 
+            this.zFar_Label.AutoSize = true;
+            this.zFar_Label.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.zFar_Label.Location = new System.Drawing.Point(5, 135);
+            this.zFar_Label.Margin = new System.Windows.Forms.Padding(5);
+            this.zFar_Label.Name = "zFar_Label";
+            this.zFar_Label.Size = new System.Drawing.Size(109, 11);
+            this.zFar_Label.TabIndex = 14;
+            this.zFar_Label.Text = "zFar";
+            this.zFar_Label.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            // 
+            // numericUpDown5
+            // 
+            this.numericUpDown5.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.numericUpDown5.DecimalPlaces = 1;
+            this.numericUpDown5.Increment = new decimal(new int[] {
+            1,
+            0,
+            0,
+            65536});
+            this.numericUpDown5.Location = new System.Drawing.Point(122, 133);
+            this.numericUpDown5.Maximum = new decimal(new int[] {
+            5000,
+            0,
+            0,
+            65536});
+            this.numericUpDown5.Minimum = new decimal(new int[] {
+            100,
+            0,
+            0,
+            65536});
+            this.numericUpDown5.Name = "numericUpDown5";
+            this.numericUpDown5.Size = new System.Drawing.Size(129, 20);
+            this.numericUpDown5.TabIndex = 15;
+            this.numericUpDown5.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.numericUpDown5.Value = new decimal(new int[] {
+            3000,
+            0,
+            0,
+            65536});
+            this.numericUpDown5.ValueChanged += new System.EventHandler(this.numericUpDown5_ValueChanged);
+            // 
+            // zNear_Label
+            // 
+            this.zNear_Label.AutoSize = true;
+            this.zNear_Label.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.zNear_Label.Location = new System.Drawing.Point(5, 109);
+            this.zNear_Label.Margin = new System.Windows.Forms.Padding(5);
+            this.zNear_Label.Name = "zNear_Label";
+            this.zNear_Label.Size = new System.Drawing.Size(109, 16);
+            this.zNear_Label.TabIndex = 12;
+            this.zNear_Label.Text = "zNear";
+            this.zNear_Label.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            // 
+            // numericUpDown4
+            // 
+            this.numericUpDown4.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.numericUpDown4.DecimalPlaces = 1;
+            this.numericUpDown4.Increment = new decimal(new int[] {
+            1,
+            0,
+            0,
+            65536});
+            this.numericUpDown4.Location = new System.Drawing.Point(122, 107);
+            this.numericUpDown4.Maximum = new decimal(new int[] {
+            500,
+            0,
+            0,
+            65536});
+            this.numericUpDown4.Name = "numericUpDown4";
+            this.numericUpDown4.Size = new System.Drawing.Size(129, 20);
+            this.numericUpDown4.TabIndex = 13;
+            this.numericUpDown4.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.numericUpDown4.Value = new decimal(new int[] {
+            10,
+            0,
+            0,
+            65536});
+            this.numericUpDown4.ValueChanged += new System.EventHandler(this.numericUpDown4_ValueChanged);
             // 
             // label3
             // 
@@ -285,7 +378,7 @@ namespace Model_Viewer
             this.label3.Location = new System.Drawing.Point(5, 83);
             this.label3.Margin = new System.Windows.Forms.Padding(5);
             this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(109, 18);
+            this.label3.Size = new System.Drawing.Size(109, 16);
             this.label3.TabIndex = 10;
             this.label3.Text = "Light Intensity";
             this.label3.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -447,8 +540,8 @@ namespace Model_Viewer
             // splitContainer3.Panel2
             // 
             this.splitContainer3.Panel2.Controls.Add(this.splitContainer4);
-            this.splitContainer3.Size = new System.Drawing.Size(260, 494);
-            this.splitContainer3.SplitterDistance = 307;
+            this.splitContainer3.Size = new System.Drawing.Size(260, 449);
+            this.splitContainer3.SplitterDistance = 279;
             this.splitContainer3.TabIndex = 2;
             // 
             // sceneGraphGroup
@@ -457,10 +550,20 @@ namespace Model_Viewer
             this.sceneGraphGroup.Dock = System.Windows.Forms.DockStyle.Fill;
             this.sceneGraphGroup.Location = new System.Drawing.Point(0, 0);
             this.sceneGraphGroup.Name = "sceneGraphGroup";
-            this.sceneGraphGroup.Size = new System.Drawing.Size(260, 307);
+            this.sceneGraphGroup.Size = new System.Drawing.Size(260, 279);
             this.sceneGraphGroup.TabIndex = 1;
             this.sceneGraphGroup.TabStop = false;
             this.sceneGraphGroup.Text = "SceneGraph";
+            // 
+            // treeView1
+            // 
+            this.treeView1.CheckBoxes = true;
+            this.treeView1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.treeView1.Location = new System.Drawing.Point(3, 16);
+            this.treeView1.Name = "treeView1";
+            this.treeView1.Size = new System.Drawing.Size(254, 260);
+            this.treeView1.TabIndex = 0;
+            this.treeView1.AfterCheck += new System.Windows.Forms.TreeViewEventHandler(this.treeView1_AfterCheck);
             // 
             // splitContainer4
             // 
@@ -476,8 +579,8 @@ namespace Model_Viewer
             // splitContainer4.Panel2
             // 
             this.splitContainer4.Panel2.Controls.Add(this.groupBox2);
-            this.splitContainer4.Size = new System.Drawing.Size(260, 183);
-            this.splitContainer4.SplitterDistance = 99;
+            this.splitContainer4.Size = new System.Drawing.Size(260, 166);
+            this.splitContainer4.SplitterDistance = 89;
             this.splitContainer4.TabIndex = 1;
             // 
             // ProcGenGroup
@@ -486,7 +589,7 @@ namespace Model_Viewer
             this.ProcGenGroup.Dock = System.Windows.Forms.DockStyle.Fill;
             this.ProcGenGroup.Location = new System.Drawing.Point(0, 0);
             this.ProcGenGroup.Name = "ProcGenGroup";
-            this.ProcGenGroup.Size = new System.Drawing.Size(260, 99);
+            this.ProcGenGroup.Size = new System.Drawing.Size(260, 89);
             this.ProcGenGroup.TabIndex = 0;
             this.ProcGenGroup.TabStop = false;
             this.ProcGenGroup.Text = "ProcGenTools";
@@ -496,7 +599,7 @@ namespace Model_Viewer
             this.randomgenerator.Dock = System.Windows.Forms.DockStyle.Fill;
             this.randomgenerator.Location = new System.Drawing.Point(3, 16);
             this.randomgenerator.Name = "randomgenerator";
-            this.randomgenerator.Size = new System.Drawing.Size(254, 80);
+            this.randomgenerator.Size = new System.Drawing.Size(254, 70);
             this.randomgenerator.TabIndex = 9;
             this.randomgenerator.Text = "ProcGen";
             this.randomgenerator.UseVisualStyleBackColor = true;
@@ -508,7 +611,7 @@ namespace Model_Viewer
             this.groupBox2.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBox2.Location = new System.Drawing.Point(0, 0);
             this.groupBox2.Name = "groupBox2";
-            this.groupBox2.Size = new System.Drawing.Size(260, 80);
+            this.groupBox2.Size = new System.Drawing.Size(260, 73);
             this.groupBox2.TabIndex = 0;
             this.groupBox2.TabStop = false;
             this.groupBox2.Text = "AnimControls";
@@ -525,8 +628,20 @@ namespace Model_Viewer
             this.AnimTable.RowCount = 1;
             this.AnimTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.AnimTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.AnimTable.Size = new System.Drawing.Size(254, 61);
+            this.AnimTable.Size = new System.Drawing.Size(254, 54);
             this.AnimTable.TabIndex = 0;
+            // 
+            // newButton1
+            // 
+            this.AnimTable.SetColumnSpan(this.newButton1, 2);
+            this.newButton1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.newButton1.Location = new System.Drawing.Point(3, 3);
+            this.newButton1.Name = "newButton1";
+            this.newButton1.Size = new System.Drawing.Size(248, 48);
+            this.newButton1.TabIndex = 14;
+            this.newButton1.Text = "Play";
+            this.newButton1.UseVisualStyleBackColor = true;
+            this.newButton1.Click += new System.EventHandler(this.newButton1_Click);
             // 
             // splitContainer1
             // 
@@ -567,28 +682,6 @@ namespace Model_Viewer
             this.exportToObjToolStripMenuItem.Text = "Export to Obj";
             this.exportToObjToolStripMenuItem.Click += new System.EventHandler(this.exportToObjToolStripMenuItem_Click);
             // 
-            // treeView1
-            // 
-            this.treeView1.CheckBoxes = true;
-            this.treeView1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.treeView1.Location = new System.Drawing.Point(3, 16);
-            this.treeView1.Name = "treeView1";
-            this.treeView1.Size = new System.Drawing.Size(254, 288);
-            this.treeView1.TabIndex = 0;
-            this.treeView1.AfterCheck += new System.Windows.Forms.TreeViewEventHandler(this.treeView1_AfterCheck);
-            // 
-            // newButton1
-            // 
-            this.AnimTable.SetColumnSpan(this.newButton1, 2);
-            this.newButton1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.newButton1.Location = new System.Drawing.Point(3, 3);
-            this.newButton1.Name = "newButton1";
-            this.newButton1.Size = new System.Drawing.Size(248, 55);
-            this.newButton1.TabIndex = 14;
-            this.newButton1.Text = "Play";
-            this.newButton1.UseVisualStyleBackColor = true;
-            this.newButton1.Click += new System.EventHandler(this.newButton1_Click);
-            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -612,6 +705,8 @@ namespace Model_Viewer
             this.groupBox1.ResumeLayout(false);
             this.camSettings.ResumeLayout(false);
             this.camSettings.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.numericUpDown5)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numericUpDown4)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown1)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown2)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown3)).EndInit();
@@ -678,6 +773,10 @@ namespace Model_Viewer
         private ToolStripMenuItem exportToObjToolStripMenuItem;
         private Label label3;
         private NumericUpDown l_intensity_nud;
+        private Label zFar_Label;
+        private NumericUpDown numericUpDown5;
+        private Label zNear_Label;
+        private NumericUpDown numericUpDown4;
     }
 }
 
