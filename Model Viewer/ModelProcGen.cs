@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.Diagnostics;
 using OpenTK;
-using OpenTK.Graphics.OpenGL;
+using OpenTK.Graphics.OpenGL4;
 using System.Reflection;
 using System.IO;
 
@@ -19,6 +19,7 @@ namespace Model_Viewer
         public static float UseTextures = 1.0f;
         public static bool RenderSmall = false;
         public static bool RenderCollisions = false;
+        public static bool RenderDebug = false;
         public static int animFPS = 60;
     }
 
@@ -1020,6 +1021,18 @@ namespace Model_Viewer
         public static readonly List<Vector3> ScientificAlt = new List<Vector3>
         { Vector3.Multiply(new Vector3 (255, 0, 255) , rbgFloat)};
 
+        public static readonly List<Vector3> Trader = new List<Vector3>
+        { Vector3.Multiply(new Vector3 (0, 255, 255) , rbgFloat)};
+
+        public static readonly List<Vector3> TraderAlt = new List<Vector3>
+        { Vector3.Multiply(new Vector3 (0, 255, 255) , rbgFloat)};
+
+        public static readonly List<Vector3> Warrior = new List<Vector3>
+        { Vector3.Multiply(new Vector3 (255, 255, 0) , rbgFloat)};
+
+        public static readonly List<Vector3> WarriorAlt = new List<Vector3>
+        { Vector3.Multiply(new Vector3 (255, 255, 0) , rbgFloat)};
+
         //Palette Selection
         public static Dictionary<string,Dictionary<string,Vector4>> paletteSel;
         
@@ -1124,6 +1137,10 @@ namespace Model_Viewer
                     //New Palettes
                     case ("Scientific"):
                     case ("ScientificAlt"):
+                    case ("Trader"):
+                    case ("TraderAlt"):
+                    case ("Warrior"):
+                    case ("WarriorAlt"):
                         newPal[f.Name]["Primary"] = new Vector4(palette[0], 1.0f);
                         newPal[f.Name]["Alternative1"] = new Vector4(palette[0], 1.0f);
                         newPal[f.Name]["Alternative2"] = new Vector4(palette[0], 1.0f);

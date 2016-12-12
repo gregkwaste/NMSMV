@@ -18,6 +18,10 @@ public class FontGL
     public float width;
     public float height;
 
+    //Font Settings
+    static public int cw;
+    static public int ch;
+
     //Charmap Texture
     public int tex;
     //Text Program
@@ -30,27 +34,39 @@ public class FontGL
         foreach (char c in alphabet)
             Debug.WriteLine(c);
 
+        //Character Settings for font
+        cw = 50;
+        ch = 80;
     }
 
     static public MemoryStream createFont()
     {
         string alphabet = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
 
+        
+
         //Test writing the font image directly
-        byte[] b = new byte[2800 * 1920 * 3];
+        byte[] b = new byte[(ch * 10) * (cw * 10) * 4];
         MemoryStream ms = new MemoryStream(b);
         ms.Seek(0, SeekOrigin.Begin);
         ms.Position = 0;
 
         //Memory bitmap
-        Bitmap bmp = new Bitmap(1920, 2800, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
+        Bitmap bmp = new Bitmap((cw*10), (ch*10), System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
         Graphics g = Graphics.FromImage(bmp);
-        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        //g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
         g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
         g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
 
         //Make texture white
-        g.FillRectangle(Brushes.White, new Rectangle(0, 0, 1920, 2800));
+        g.FillRectangle(Brushes.Transparent, new Rectangle(0, 0, (cw * 10), (ch * 10)));
+
+        Font font = new Font(
+            "Consolas",
+            55.0f,
+            FontStyle.Regular,
+            GraphicsUnit.Pixel);
 
         int k = 0;
         for (int i = 0; i < 10; i++)
@@ -61,19 +77,19 @@ public class FontGL
                 if (k >= alphabet.Length) break;
                 char c = alphabet[k];
 
-                g.DrawString(c.ToString(), new Font("Courier New", 200), Brushes.Black, new Point(j * 192, 280 * i));
+                g.DrawString(c.ToString(), font, Brushes.White, new Point(j * cw, ch * i));
                 g.Flush();
             }
         }
 
-        byte[] ob = new byte[2800 * 1920 * 3];
+        byte[] ob = new byte[(ch * 10) * (cw * 10) * 4];
         MemoryStream oms = new MemoryStream();
         oms.Seek(0, SeekOrigin.Begin);
         oms.Position = 0;
         bmp.Save(oms, System.Drawing.Imaging.ImageFormat.Bmp);
         
         //Save Bmp to disk for testing
-        //bmp.Save("test.bmp",System.Drawing.Imaging.ImageFormat.Bmp);
+        bmp.Save("test.bmp",System.Drawing.Imaging.ImageFormat.Bmp);
 
         return oms;
     }
@@ -84,11 +100,8 @@ public class FontGL
          *  and parse-store all glyphs into the dictionary as textures
          */
 
-        int cw = 192;
-        int ch = 280;
-
         //Charmap is 10x10
-        int imagepitch = cw * 10 * 3;
+        int imagepitch = cw * 10 * 4;
 
         int clength = alphabet.Length;
         int count = 0;
@@ -105,9 +118,9 @@ public class FontGL
 
             //Letter masking
             int horl = 10;
-            int horr = 10;
-            int vertu = 30;
-            int vertd = 20;
+            int horr = 15;
+            int vertu = 00;
+            int vertd = 10;
 
             //Masked sizes
             int mcw = cw - horl - horr;

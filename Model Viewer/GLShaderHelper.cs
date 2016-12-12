@@ -53,7 +53,13 @@ namespace GLHelpers
             GL.AttachShader(program, vertexObject);
             if (gsflag) GL.AttachShader(program, geometryObject);
             GL.LinkProgram(program);
-            //GL.UseProgram(program);
+            
+            //Check Linking
+            GL.GetProgramInfoLog(program, out info);
+            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out status_code);
+            if (status_code != 1)
+                throw new ApplicationException(info);
+            
 
         }
     }

@@ -694,7 +694,7 @@ public static class GEOMMBIN {
     {
         int sem = buf_id;
         int off = buf_localoffset;
-        OpenTK.Graphics.OpenGL.VertexAttribPointerType typ = get_type(buf_type);
+        OpenTK.Graphics.OpenGL4.VertexAttribPointerType typ = get_type(buf_type);
         string text = get_shader_sem(buf_id);
         return new GMDL.bufInfo(sem, typ, count, off, text);
     }
@@ -725,20 +725,20 @@ public static class GEOMMBIN {
         
     }
 
-    private static OpenTK.Graphics.OpenGL.VertexAttribPointerType get_type(int val){
+    private static OpenTK.Graphics.OpenGL4.VertexAttribPointerType get_type(int val){
 
         switch (val)
         {
             case (0x140B):
-                return OpenTK.Graphics.OpenGL.VertexAttribPointerType.HalfFloat;
+                return OpenTK.Graphics.OpenGL4.VertexAttribPointerType.HalfFloat;
             case (0x1401):
-                return OpenTK.Graphics.OpenGL.VertexAttribPointerType.UnsignedByte;
+                return OpenTK.Graphics.OpenGL4.VertexAttribPointerType.UnsignedByte;
             case (0x8D9F):
-                return OpenTK.Graphics.OpenGL.VertexAttribPointerType.Int2101010Rev;
+                return OpenTK.Graphics.OpenGL4.VertexAttribPointerType.Int2101010Rev;
             default:
                 Debug.WriteLine("Unknown VERTEX SECTION TYPE-----------------------------------");
                 throw new ApplicationException("NEW VERTEX SECTION TYPE. FIX IT ASSHOLE...");
-                return OpenTK.Graphics.OpenGL.VertexAttribPointerType.UnsignedByte;
+                return OpenTK.Graphics.OpenGL4.VertexAttribPointerType.UnsignedByte;
         }
     }
 
@@ -829,9 +829,10 @@ public static class GEOMMBIN {
         GMDL.scene root = new GMDL.scene();
         root.name = scnName;
         root.type = TYPES.SCENE;
-        root.shader_programs = new int[1];
-        root.shader_programs[0] = ResourceMgmt.shader_programs[1];
-        
+        root.shader_programs = new int[]{ ResourceMgmt.shader_programs[1],
+                                        ResourceMgmt.shader_programs[5],
+                                        ResourceMgmt.shader_programs[6]};
+
         //Store sections node
         XmlElement children = (XmlElement)sceneNode.SelectSingleNode("Property[@name='Children']");
         foreach (XmlElement node in children)
@@ -889,11 +890,12 @@ public static class GEOMMBIN {
 
             //Set cvbo
             so.vbo = cvbo;
-            so.shader_programs = new int[2];
-            so.shader_programs[0] = ResourceMgmt.shader_programs[0]; //Main Program
-            so.shader_programs[1] = ResourceMgmt.shader_programs[5]; //Debug Info program
+            so.shader_programs = new int[] { ResourceMgmt.shader_programs[0],
+                                             ResourceMgmt.shader_programs[5],
+                                             ResourceMgmt.shader_programs[6]};
             so.name = name;
             so.type = typeEnum;
+            so.debuggable = true;
             //Set Random Color
             so.color[0] = Model_Viewer.Util.randgen.Next(255) / 255.0f;
             so.color[1] = Model_Viewer.Util.randgen.Next(255) / 255.0f;
@@ -980,8 +982,9 @@ public static class GEOMMBIN {
             so.name = name;
             so.type = typeEnum;
             //Set Shader Program
-            so.shader_programs = new int[1];
-            so.shader_programs[0] = ResourceMgmt.shader_programs[1];
+            so.shader_programs = new int[]{     ResourceMgmt.shader_programs[1],
+                                                ResourceMgmt.shader_programs[5],
+                                                ResourceMgmt.shader_programs[6]};
 
             //Get Transformation
             so.parent = parent;
@@ -1012,8 +1015,9 @@ public static class GEOMMBIN {
             //Set properties
             joint.name = name.ToUpper();
             joint.type = typeEnum;
-            joint.shader_programs = new int[1];
-            joint.shader_programs[0] = ResourceMgmt.shader_programs[2];
+            joint.shader_programs = new int[]{ ResourceMgmt.shader_programs[2],
+                                               ResourceMgmt.shader_programs[5],
+                                               ResourceMgmt.shader_programs[6]};
             //Get Transformation
             joint.parent = parent;
             joint.scene = scene;
@@ -1085,7 +1089,10 @@ public static class GEOMMBIN {
             GMDL.Collision so = new GMDL.Collision();
 
             //Remove that after implemented all the different collision types
-            so.shader_programs = new int[] { ResourceMgmt.shader_programs[0] }; //Use Mesh program for collisions
+            so.shader_programs = new int[] { ResourceMgmt.shader_programs[0],
+                                              ResourceMgmt.shader_programs[5],
+                                              ResourceMgmt.shader_programs[6]}; //Use Mesh program for collisions
+            so.debuggable = true;
             so.name = name + "_COLLISION";
             so.type = typeEnum;
 
@@ -1097,12 +1104,9 @@ public static class GEOMMBIN {
             Debug.WriteLine("Collision Detected " + name + "TYPE: " + collisionType);
             if (collisionType == "MESH")
             {
-
                 //Set cvbo
                 so.vbo = cvbo;
                 so.collisionType = (int)COLLISIONTYPES.MESH;
-                //Set Program
-                so.shader_programs = new int[] { ResourceMgmt.shader_programs[0] }; //Use Mesh program for collisions
                 so.batchstart = int.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 so.batchcount = int.Parse(((XmlElement)attribs.ChildNodes[2].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 so.vertrstart = int.Parse(((XmlElement)attribs.ChildNodes[3].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
@@ -1115,8 +1119,6 @@ public static class GEOMMBIN {
                 //Set cvbo
                 float radius = float.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 float height = float.Parse(((XmlElement)attribs.ChildNodes[2].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-                //Set Program
-                so.shader_programs = new int[] { ResourceMgmt.shader_programs[0] }; //Use Mesh program for collisions
                 so.vbo = (new Cylinder(radius,height)).getVBO();
                 so.collisionType = (int)COLLISIONTYPES.CYLINDER;
 
@@ -1128,8 +1130,6 @@ public static class GEOMMBIN {
                 float width  = float.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 float height = float.Parse(((XmlElement)attribs.ChildNodes[2].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 float depth  = float.Parse(((XmlElement)attribs.ChildNodes[3].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-                //Set Program
-                so.shader_programs = new int[] { ResourceMgmt.shader_programs[0] }; //Use Mesh program for collisions
                 so.vbo = (new Box(width, height, depth)).getVBO();
             }
             else if (collisionType == "CAPSULE")
@@ -1140,8 +1140,6 @@ public static class GEOMMBIN {
             {
                 //Set cvbo
                 float radius = float.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-                //Set Program
-                so.shader_programs = new int[] { ResourceMgmt.shader_programs[0] }; //Use Mesh program for collisions
                 so.vbo = (new Sphere(radius)).getVBO();
             }
             else
@@ -1174,7 +1172,9 @@ public static class GEOMMBIN {
             so.name = name + "_UNKNOWN";
             so.type = TYPES.UNKNOWN;
             //Set Shader Program
-            so.shader_programs = new int[] { ResourceMgmt.shader_programs[1] };
+            so.shader_programs = new int[] { ResourceMgmt.shader_programs[1],
+                                             ResourceMgmt.shader_programs[5],
+                                             ResourceMgmt.shader_programs[6]};
 
             //Locator Objects don't have options
 

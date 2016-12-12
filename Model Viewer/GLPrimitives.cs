@@ -106,8 +106,8 @@ namespace Model_Viewer
 
             geom.mesh_descr = "vn";
             geom.offsets[0] = 0;
-            geom.bufInfo[0] = new GMDL.bufInfo(0, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "vPosition");
-            geom.bufInfo[2] = new GMDL.bufInfo(0, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "nPosition");
+            geom.bufInfo[0] = new GMDL.bufInfo(0, OpenTK.Graphics.OpenGL4.VertexAttribPointerType.Float, 3, 0, "vPosition");
+            geom.bufInfo[2] = new GMDL.bufInfo(0, OpenTK.Graphics.OpenGL4.VertexAttribPointerType.Float, 3, 0, "nPosition");
             geom.offsets[2] = 0;
             
             //Set Buffers
@@ -253,8 +253,8 @@ namespace Model_Viewer
 
             geom.mesh_descr = "vn";
             geom.offsets[0] = 0;
-            geom.bufInfo[0] = new GMDL.bufInfo(0, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "vPosition");
-            geom.bufInfo[2] = new GMDL.bufInfo(2, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "nPosition");
+            geom.bufInfo[0] = new GMDL.bufInfo(0, OpenTK.Graphics.OpenGL4.VertexAttribPointerType.Float, 3, 0, "vPosition");
+            geom.bufInfo[2] = new GMDL.bufInfo(2, OpenTK.Graphics.OpenGL4.VertexAttribPointerType.Float, 3, 0, "nPosition");
             geom.offsets[2] = 0;
 
             //Set Buffers
@@ -359,8 +359,8 @@ namespace Model_Viewer
 
             geom.mesh_descr = "vn";
             geom.offsets[0] = 0;
-            geom.bufInfo[0] = new GMDL.bufInfo(0, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "vPosition");
-            geom.bufInfo[2] = new GMDL.bufInfo(2, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "nPosition");
+            geom.bufInfo[0] = new GMDL.bufInfo(0, OpenTK.Graphics.OpenGL4.VertexAttribPointerType.Float, 3, 0, "vPosition");
+            geom.bufInfo[2] = new GMDL.bufInfo(2, OpenTK.Graphics.OpenGL4.VertexAttribPointerType.Float, 3, 0, "nPosition");
             geom.offsets[2] = 0;
 
             //Set Buffers

@@ -3,7 +3,7 @@ using System.Windows.Forms;
 using System.Diagnostics;
 using System.IO;
 using OpenTK;
-using OpenTK.Graphics.OpenGL;
+using OpenTK.Graphics.OpenGL4;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Xml;
@@ -49,11 +49,11 @@ namespace Model_Viewer
         private int mouse_y;
 
         public int childCounter = 0;
-        
+
         //Shader objects
         int vertex_shader_ob;
         int fragment_shader_ob;
-        
+
         //Setup Timer to invalidate the viewport
         private Timer t;
 
@@ -82,8 +82,8 @@ namespace Model_Viewer
         //Path
         private string mainFilePath;
         //Private Settings Window
-        private SettingsForm Settings = new SettingsForm(); 
-        
+        private SettingsForm Settings = new SettingsForm();
+
 
         public Form1()
         {
@@ -104,7 +104,7 @@ namespace Model_Viewer
             var ext = split[split.Length - 1].ToUpper();
             Debug.WriteLine(ext);
 
-            if (ext != "MBIN" & ext !="EXML")
+            if (ext != "MBIN" & ext != "EXML")
             {
                 MessageBox.Show("Please select a SCENE.MBIN or a SCENE.exml File", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
@@ -126,14 +126,14 @@ namespace Model_Viewer
                     Util.MbinToExml(filename);
                 }
             }
-            
+
 
             //Open exml
             this.xmlDoc.Load(exmlPath);
-            
+
             //Initialize Palettes
             Model_Viewer.Palettes.set_palleteColors();
-            
+
             splitContainer1.Panel2.Controls.Clear();
             //Clear Resources
             ResourceMgmt.GLtextures.Clear();
@@ -148,13 +148,13 @@ namespace Model_Viewer
             glControl1.MakeCurrent();
             GMDL.scene scene;
             scene = GEOMMBIN.LoadObjects(this.xmlDoc);
-            scene.index = this.childCounter;
+            scene.ID = this.childCounter;
             this.mainScene = null;
             this.mainScene = scene;
             this.childCounter++;
 
             Util.setStatus("Creating Nodes...", this.toolStripStatusLabel1);
-            
+
             //Debug.WriteLine("Objects Returned: {0}",oblist.Count);
             MyTreeNode node = new MyTreeNode(scene.name);
             node.Checked = true;
@@ -163,7 +163,7 @@ namespace Model_Viewer
             index_dict.Clear();
             joint_dict.Clear();
             animScenes.Clear();
-            
+
             this.childCounter = 0;
             //Add root to dictionary
             index_dict[scene.name] = this.childCounter;
@@ -188,7 +188,6 @@ namespace Model_Viewer
                                                                    JMArray[4 * i + 3].ToString()}));
                 }
             }
-
 #endif
 
             glControl1_Resize(new object(), null); //Try to call resize event
@@ -198,15 +197,13 @@ namespace Model_Viewer
             Util.setStatus("Ready", this.toolStripStatusLabel1);
         }
 
-        
-
         private void Form1_Load(object sender, EventArgs e)
         {
             if (!this.glloaded)
                 return;
 
             //Populate shader list
-            ResourceMgmt.shader_programs = new int[6];
+            ResourceMgmt.shader_programs = new int[7];
             string vvs, ggs, ffs;
             //Geometry Shader
             //Compile Object Shaders
@@ -244,8 +241,15 @@ namespace Model_Viewer
             //Compile Text Shaders
             using (StreamReader vs = new StreamReader("Shaders/Text_VS.glsl"))
             using (StreamReader fs = new StreamReader("Shaders/Text_FS.glsl"))
-                GLShaderHelper.CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), "" , out vertex_shader_ob,
+                GLShaderHelper.CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), "", out vertex_shader_ob,
                     out fragment_shader_ob, out ResourceMgmt.shader_programs[4]);
+
+            //Picking Shaders
+            using (StreamReader vs = new StreamReader("Shaders/Picking_VS.glsl"))
+            using (StreamReader fs = new StreamReader("Shaders/Picking_FS.glsl"))
+                GLShaderHelper.CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), "", out vertex_shader_ob,
+                    out fragment_shader_ob, out ResourceMgmt.shader_programs[6]);
+
 
             //Debug.WriteLine("Programs {0} {1} {2} {3} ", ResourceMgmt.shader_programs[0],
             //                                         ResourceMgmt.shader_programs[1],
@@ -253,9 +257,11 @@ namespace Model_Viewer
             //                                         ResourceMgmt.shader_programs[3]);
 
             GMDL.scene scene = new GMDL.scene();
-            scene.shader_programs = new int[1];
-            scene.shader_programs[0] = ResourceMgmt.shader_programs[1];
-            scene.index = this.childCounter;
+            scene.type = TYPES.SCENE;
+            scene.shader_programs = new int[] { ResourceMgmt.shader_programs[1],
+                                                ResourceMgmt.shader_programs[5],
+                                                ResourceMgmt.shader_programs[6]};
+            scene.ID = this.childCounter;
 
             this.mainScene = scene;
             this.childCounter++;
@@ -266,7 +272,7 @@ namespace Model_Viewer
 
             //Set to current cam fov
             numericUpDown1.Value = 35;
-            numericUpDown2.Value = (decimal) 5.0;
+            numericUpDown2.Value = (decimal)5.0;
 
             //Joystick Init
             for (int i = 0; i < 2; i++)
@@ -292,7 +298,7 @@ namespace Model_Viewer
                 Util.insertMatToArray(Util.JMarray, i * 16, Matrix4.Identity);
 
             int maxfloats;
-            GL.GetInteger(GetPName.MaxVertexUniformVectors,out maxfloats);
+            GL.GetInteger(GetPName.MaxVertexUniformVectors, out maxfloats);
             toolStripStatusLabel1.Text = "Ready";
 
             //Query GL Extensions
@@ -307,7 +313,7 @@ namespace Model_Viewer
 
             //Load font
             setupFont();
-            
+
         }
 
         private void setupFont()
@@ -320,17 +326,17 @@ namespace Model_Viewer
             //Create font to memory
             MemoryStream ms = FontGL.createFont();
             BMPImage bm = new BMPImage(ms);
-            
+
             //Testing some inits
             font.initFromImage(bm);
             font.tex = bm.GLid;
             font.program = ResourceMgmt.shader_programs[4];
 
             //Set default settings
-            float scale = 0.60f;
+            float scale = 0.75f;
             font.space = scale * 0.20f;
             font.width = scale * 0.20f;
-            font.height = scale * 0.30f;
+            font.height = scale * 0.35f;
 
             //Add some text for rendering
             texObs.Add(font.renderText("Greetings", new Vector2(0.02f, 0.0f), scale));
@@ -360,7 +366,7 @@ namespace Model_Viewer
             glControl1.Invalidate();
         }
 
-        
+
         private void render_scene()
         {
             glControl1.MakeCurrent();
@@ -370,9 +376,15 @@ namespace Model_Viewer
             GL.CullFace(CullFaceMode.Back);
 
             //Render only the first scene for now
-            if (this.mainScene != null)
-                traverse_render(this.mainScene);
             
+            if (this.mainScene != null)
+            {
+                //Drawing Phase
+                traverse_render(this.mainScene, 0);
+                //Drawing Debug
+                if (RenderOptions.RenderDebug) traverse_render(this.mainScene, 1);
+            }
+
         }
 
         private void render_info()
@@ -382,7 +394,7 @@ namespace Model_Viewer
             GL.Enable(EnableCap.Blend);
             GL.Disable(EnableCap.DepthTest);
             GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
-            
+
 
             GL.UseProgram(ResourceMgmt.shader_programs[4]);
 
@@ -402,25 +414,139 @@ namespace Model_Viewer
 
         }
 
+        private void selectObject(System.Drawing.Point p)
+        {
+            //First of all clear the color buffer
+            //Create the texture to render to
+            int tex_w = glControl1.Width;
+            int tex_h = glControl1.Height;
+
+            //Create Frame and renderbuffers
+            int fb = GL.GenFramebuffer();
+            int depth_rb = GL.GenRenderbuffer();
+            //int color_rb = GL.GenRenderbuffer();
+
+
+            GL.BindFramebuffer(FramebufferTarget.FramebufferExt, fb);
+            GL.Viewport(0, 0, tex_w, tex_h);
+            //Clear the buffer and enable depth test
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            GL.Enable(EnableCap.DepthTest);
+            GL.DepthMask(true);
+
+            //Create Color texture
+            int out_tex = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, out_tex);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, tex_w, tex_h, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+
+            //Create Depth texture
+            //int depth_tex = GL.GenTexture();
+            //GL.BindTexture(TextureTarget.Texture2D, depth_tex);
+            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Clamp);
+            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Clamp);
+            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            //GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent32, tex_w, tex_h, 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
+
+
+            
+            //GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment, TextureTarget.Texture2D, depth_tex, 0);
+
+            //Bind depth renderbuffer
+            GL.BindRenderbuffer(RenderbufferTarget.RenderbufferExt, depth_rb);
+            GL.RenderbufferStorage(RenderbufferTarget.RenderbufferExt, RenderbufferStorage.DepthComponent32, tex_w, tex_h);
+
+            //Attach Textures to this FBO
+            GL.FramebufferTexture2D(FramebufferTarget.FramebufferExt, FramebufferAttachment.ColorAttachment0Ext, TextureTarget.Texture2D, out_tex, 0);
+            GL.FramebufferRenderbuffer(FramebufferTarget.FramebufferExt, FramebufferAttachment.DepthAttachmentExt, RenderbufferTarget.RenderbufferExt, depth_rb);
+
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+
+
+            GL.BindFramebuffer(FramebufferTarget.FramebufferExt, fb);
+            //Now render objects with the picking program
+            if (this.mainScene != null) traverse_render(this.mainScene, 2);
+
+            //Check
+            if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
+                Debug.WriteLine("MALAKIES STO FRAMEBUFFER" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
+            
+                
+
+            //Store Framebuffer to Disk
+            byte[] pixels = new byte[4 * tex_w * tex_h];
+            
+#if DEBUG
+            //GL.ReadBuffer(ReadBufferMode.None);
+            //Debug.WriteLine("Saving Picking Buffer. Dimensions: " + tex_w + " " + tex_h);
+            //GL.ReadPixels(0, 0, tex_w, tex_h, PixelFormat.DepthComponent, PixelType.UnsignedByte, pixels);
+            //FileStream ds = new FileStream("pickDepthBuffer", FileMode.Create);
+            //BinaryWriter bw = new BinaryWriter(ds);
+            //bw.Write(pixels);
+            //ds.Flush();
+            //ds.Close();
+
+
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+            Debug.WriteLine("Saving Picking Buffer. Dimensions: " + tex_w +" "+ tex_h);
+            GL.ReadPixels(0, 0, tex_w, tex_h, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
+            FileStream fs = new FileStream("pickBuffer", FileMode.Create);
+            BinaryWriter bw = new BinaryWriter(fs);
+            bw.Write(pixels);
+            fs.Flush();
+            fs.Close();
+#endif
+
+            //Pick object here :)
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+            Debug.WriteLine("Selecting Object at Position: " + p.X + " " + (tex_h -p.Y));
+            byte[] buffer = new byte[4];
+            GL.ReadPixels(p.X, tex_h - p.Y, 1, 1, PixelFormat.Rgba, PixelType.UnsignedByte, buffer);
+
+            //Convert color to id
+            int ob_id = (buffer[1] << 8) | buffer[0];
+
+            //Deselect everything first
+            traverse_oblist_rs(this.mainScene, "selected", 0);
+            
+            //Try to find object
+            traverse_oblist_field<int>(this.mainScene, ob_id, "selected", 1);
+
+            //Restore Rendering Buffer
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+
+            //Cleanup
+            GL.DeleteFramebuffer(fb);
+            //GL.DeleteRenderbuffer(color_rb);
+            GL.DeleteRenderbuffer(depth_rb);
+            GL.DeleteTexture(out_tex);
+            //GL.DeleteTexture(depth_tex);
+            pixels = null;
+
+            
+        }
+
         private void numericUpDown1_ValueChanged(object sender, EventArgs e)
         {
             //Set Camera FOV
-            cam.setFOV((int) Math.Max(1, numericUpDown1.Value));
+            cam.setFOV((int)Math.Max(1, numericUpDown1.Value));
             glControl1.Invalidate();
         }
-
+        
         private void treeView1_AfterCheck(object sender, TreeViewEventArgs e)
         {
             //Debug.WriteLine("{0} {1}", e.Node.Checked, e.Node.Index);
             //Toggle Renderability of node
-            traverse_oblist_rs(((MyTreeNode) e.Node).model, e.Node.Text, e.Node.Checked);
+            traverse_oblist_rs(((MyTreeNode)e.Node).model, "renderable", e.Node.Checked);
             //Handle Children in treeview
             if (this.tvchkstat == treeviewCheckStatus.Children)
             {
                 foreach (TreeNode node in e.Node.Nodes)
                     node.Checked = e.Node.Checked;
             }
-            
+
             glControl1.Invalidate();
         }
 
@@ -428,7 +554,7 @@ namespace Model_Viewer
         {
             Type t = ob.GetType();
 
-            FieldInfo[] fields= t.GetFields();
+            FieldInfo[] fields = t.GetFields();
             foreach (FieldInfo f in fields)
             {
                 if (f.Name == field)
@@ -443,12 +569,12 @@ namespace Model_Viewer
 
         private void numericUpDown2_ValueChanged(object sender, EventArgs e)
         {
-            light_distance = (float) numericUpDown2.Value;
+            light_distance = (float)numericUpDown2.Value;
             glControl1.Invalidate();
         }
 
 
-        private void traverse_oblist_altid(ref List<string> alt , TreeNode parent)
+        private void traverse_oblist_altid(ref List<string> alt, TreeNode parent)
         {
             //Detect Checked Descriptor
 
@@ -456,7 +582,7 @@ namespace Model_Viewer
             {
                 if (parent.Text.StartsWith("_"))
                     if (!alt.Contains(parent.Text)) alt.Add(parent.Text);
-                
+
                 foreach (TreeNode child in parent.Nodes)
                     traverse_oblist_altid(ref alt, child);
             }
@@ -464,10 +590,10 @@ namespace Model_Viewer
 
         private void traverse_oblist(GMDL.model ob, TreeNode parent)
         {
-            ob.index = this.childCounter;
+            ob.ID = this.childCounter;
             this.childCounter++;
 
-            
+
             //At this point LoadObjects should have properly parsed the skeleton if any
             //I can init the joint matrix array 
             if (ob.jointModel.Count > 0)
@@ -475,120 +601,130 @@ namespace Model_Viewer
                 ob.traverse_joints(ob.jointModel);
                 this.animScenes.Add(ob); //Add scene to animscenes
             }
-                
-            
+
+
 
             if (ob.children.Count > 0)
             {
                 foreach (GMDL.model child in ob.children)
                 {
-                        //Set object index
-                        //Check if child is a scene
-                        MyTreeNode node = new MyTreeNode(child.name);
-                        node.model = child; //Reference model
-                        
-                        //Debug.WriteLine("Testing Geom {0}  Node {1}", child.Index, node.Index);
-                        node.Checked = true;
-                        parent.Nodes.Add(node);
-                        traverse_oblist(child, node);
+                    //Set object index
+                    //Check if child is a scene
+                    MyTreeNode node = new MyTreeNode(child.name);
+                    node.model = child; //Reference model
+
+                    //Debug.WriteLine("Testing Geom {0}  Node {1}", child.Index, node.Index);
+                    node.Checked = true;
+                    parent.Nodes.Add(node);
+                    traverse_oblist(child, node);
                 }
             }
         }
 
-        private void traverse_oblist_rs(GMDL.model root, string name, bool status)
+        private void traverse_oblist_rs<T>(GMDL.model root, string field, T status)
         {
-            setObjectField<bool>("renderable", (GMDL.model)root, status);
+            setObjectField<T>(field, (GMDL.model)root, status);
             foreach (GMDL.model child in root.children)
-                traverse_oblist_rs(child, name, status);
+                traverse_oblist_rs(child, field, status);
         }
 
-        private void traverse_render(GMDL.model root)
+        private void traverse_oblist_field<T>(GMDL.model root, int id, string field, T value)
         {
-            for (int i = 0; i < root.shader_programs.Length; i++)
+            if (root.ID == id)
             {
-                int active_program = root.shader_programs[i];
-                GL.UseProgram(active_program);
-
-
-                if (active_program == -1)
-                    throw new ApplicationException("Shit program");
-
-                Matrix4 look = cam.GetViewMatrix();
-                float aspect = (float)glControl1.ClientSize.Width / glControl1.ClientSize.Height;
-                Matrix4 proj = Matrix4.CreatePerspectiveFieldOfView(cam.fov, aspect,
-                                                                    znear, zfar);
-                int loc;
-                //Send LookAt matrix to all shaders
-                loc = GL.GetUniformLocation(active_program, "look");
-                GL.UniformMatrix4(loc, false, ref look);
-                //Send object world Matrix to all shaders
-
-                loc = GL.GetUniformLocation(active_program, "worldMat");
-                Matrix4 wMat = root.worldMat;
-                GL.UniformMatrix4(loc, false, ref wMat);
-
-                //Send projection matrix to all shaders
-                loc = GL.GetUniformLocation(active_program, "proj");
-                GL.UniformMatrix4(loc, false, ref proj);
-                //Send theta to all shaders
-                loc = GL.GetUniformLocation(active_program, "theta");
-                GL.Uniform3(loc, this.rot);
-
-                if (active_program == ResourceMgmt.shader_programs[0] || active_program == ResourceMgmt.shader_programs[5])
-                {
-                    //Send DiffuseFlag
-                    loc = GL.GetUniformLocation(active_program, "diffuseFlag");
-                    GL.Uniform1(loc, RenderOptions.UseTextures);
-
-                    //Object program
-                    //Local Transformation is the same for all objects 
-                    //Pending - Personalize local matrix on each object
-                    loc = GL.GetUniformLocation(active_program, "scale");
-                    GL.Uniform1(loc, this.scale);
-
-                    loc = GL.GetUniformLocation(active_program, "light");
-
-                    GL.Uniform3(loc, new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                                Math.Sin(this.light_angle_y * Math.PI / 180.0)),
-                                                 (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
-                                                 (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                                Math.Cos(this.light_angle_y * Math.PI / 180.0))));
-
-                    //Upload Light Intensity
-                    loc = GL.GetUniformLocation(active_program, "intensity");
-                    GL.Uniform1(loc, light_intensity);
-
-                    //Upload camera position as the light
-                    //GL.Uniform3(loc, cam.Position);
-
-                    //Upload firstskinmat
-                    loc = GL.GetUniformLocation(active_program, "firstskinmat");
-                    GL.Uniform1(loc, ((GMDL.sharedVBO)root).firstskinmat);
-
-                    //loc = GL.GetUniformLocation(root.shader_program, "jMs");
-                    //GL.UniformMatrix4(loc, 60, false, JMArray);
-
-                    //Upload joint colors
-                    //loc = GL.GetUniformLocation(root.shader_program, "jColors");
-                    //GL.Uniform3(loc, 60, JColors);
-
-
-                }
-                else if (active_program == ResourceMgmt.shader_programs[1])
-                {
-                    //Locator Program
-                    //TESTING
-                }
-                GL.ClearColor(System.Drawing.Color.Black);
-                //if (this.index_dict.ContainsKey(root.name))
-                root.render(i);
+                Debug.WriteLine("Object Found: " + root.name + " ID: " + root.ID);
+                setObjectField<T>(field, root, value);
+                return;
             }
+            foreach (GMDL.model child in root.children)
+                traverse_oblist_field(child, id, field, value);
+        }
 
+        private void traverse_render(GMDL.model root, int program)
+        {
+
+            int active_program = root.shader_programs[program];
+
+            GL.UseProgram(active_program);
+
+            if (active_program == -1)
+                throw new ApplicationException("Shit program");
+
+            Matrix4 look = cam.GetViewMatrix();
+            float aspect = (float)glControl1.ClientSize.Width / glControl1.ClientSize.Height;
+            Matrix4 proj = Matrix4.CreatePerspectiveFieldOfView(cam.fov, aspect,
+                                                                znear, zfar);
+            int loc;
+            //Send LookAt matrix to all shaders
+            loc = GL.GetUniformLocation(active_program, "look");
+            GL.UniformMatrix4(loc, false, ref look);
+            //Send object world Matrix to all shaders
+
+            loc = GL.GetUniformLocation(active_program, "worldMat");
+            Matrix4 wMat = root.worldMat;
+            GL.UniformMatrix4(loc, false, ref wMat);
+
+            //Send projection matrix to all shaders
+            loc = GL.GetUniformLocation(active_program, "proj");
+            GL.UniformMatrix4(loc, false, ref proj);
+            //Send theta to all shaders
+            loc = GL.GetUniformLocation(active_program, "theta");
+            GL.Uniform3(loc, this.rot);
+
+            if (root.type == TYPES.MESH)
+            {
+                //Send DiffuseFlag
+                loc = GL.GetUniformLocation(active_program, "diffuseFlag");
+                GL.Uniform1(loc, RenderOptions.UseTextures);
+
+                //Object program
+                //Local Transformation is the same for all objects 
+                //Pending - Personalize local matrix on each object
+                loc = GL.GetUniformLocation(active_program, "scale");
+                GL.Uniform1(loc, this.scale);
+
+                loc = GL.GetUniformLocation(active_program, "light");
+
+                GL.Uniform3(loc, new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
+                                                            Math.Sin(this.light_angle_y * Math.PI / 180.0)),
+                                                (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
+                                                (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
+                                                            Math.Cos(this.light_angle_y * Math.PI / 180.0))));
+
+                //Upload Light Intensity
+                loc = GL.GetUniformLocation(active_program, "intensity");
+                GL.Uniform1(loc, light_intensity);
+
+                //Upload camera position as the light
+                //GL.Uniform3(loc, cam.Position);
+
+                //Upload firstskinmat
+                loc = GL.GetUniformLocation(active_program, "firstskinmat");
+                GL.Uniform1(loc, ((GMDL.sharedVBO)root).firstskinmat);
+
+                //loc = GL.GetUniformLocation(root.shader_program, "jMs");
+                //GL.UniformMatrix4(loc, 60, false, JMArray);
+
+                //Upload joint colors
+                //loc = GL.GetUniformLocation(root.shader_program, "jColors");
+                //GL.Uniform3(loc, 60, JColors);
+
+
+            }
+            else if (root.type == TYPES.LOCATOR || root.type == TYPES.SCENE)
+            {
+                //Locator Program
+                //TESTING
+            }
+            GL.ClearColor(System.Drawing.Color.Black);
+            //if (this.index_dict.ContainsKey(root.name))
+            if (root.debuggable) root.render(program);
+            
             
             //Render children
             foreach (GMDL.model child in root.children){
-                this.glControl1.MakeCurrent();
-                traverse_render(child);
+                //this.glControl1.MakeCurrent();
+                traverse_render(child, program);
             }
         }
 
@@ -929,7 +1065,7 @@ namespace Model_Viewer
             glControl1.MakeCurrent();
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             render_scene();
-            //render_info();
+            render_info();
             //GL.ClearColor(System.Drawing.Color.Black);
             glControl1.SwapBuffers();
             //translate_View();
@@ -1041,9 +1177,13 @@ namespace Model_Viewer
                 case Keys.OemOpenBrackets:
                     RenderOptions.RenderCollisions = !RenderOptions.RenderCollisions;
                     break;
-                default:
-                    Debug.WriteLine("Not Implemented Yet");
+                //Toggle Debug Render
+                case Keys.OemCloseBrackets:
+                    RenderOptions.RenderDebug = !RenderOptions.RenderDebug;
                     break;
+                default:
+                    //Debug.WriteLine("Not Implemented Yet");
+                    return;
             }
             //glControl1.Invalidate();
 
@@ -1115,7 +1255,11 @@ namespace Model_Viewer
             if (e.Button == MouseButtons.Right)
             {
                 mainglcontrolContext.Show(Control.MousePosition);
+            }else if ((e.Button == MouseButtons.Left) && (ModifierKeys == Keys.Control))
+            {
+                selectObject(e.Location);
             }
+
         }
 
         private void getAltIDToolStripMenuItem_Click(object sender, EventArgs e)
