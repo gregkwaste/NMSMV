@@ -45,6 +45,9 @@ namespace Model_Viewer
         //Common transforms
         private Matrix4 proj, look;
 
+        //Common transforms
+        private Matrix4 proj, look;
+        
         private float scale = 1.0f;
         private int movement_speed = 1;
         //Mouse Pos
@@ -139,8 +142,7 @@ namespace Model_Viewer
 
             splitContainer1.Panel2.Controls.Clear();
             //Clear Resources
-            ResourceMgmt.GLtextures.Clear();
-            ResourceMgmt.GLmaterials.Clear();
+            ResourceMgmt.Cleanup();
             //Add Defaults
             addDefaultTextures();
 
@@ -229,11 +231,10 @@ namespace Model_Viewer
             using (StreamReader fs = new StreamReader("Shaders/locator_FS.glsl"))
                 GLShaderHelper.CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), "", out vertex_shader_ob,
                     out fragment_shader_ob, out ResourceMgmt.shader_programs[1]);
+            
             //Compile Joint Shaders
-            using (StreamReader vs = new StreamReader("Shaders/joint_VS.glsl"))
-            using (StreamReader fs = new StreamReader("Shaders/joint_FS.glsl"))
-                GLShaderHelper.CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), "", out vertex_shader_ob,
-                    out fragment_shader_ob, out ResourceMgmt.shader_programs[2]);
+            GLShaderHelper.CreateShaders(Resources.joint_vert, Resources.joint_frag, "", out vertex_shader_ob,
+                out fragment_shader_ob, out ResourceMgmt.shader_programs[2]);
 
             vvs = GLSL_Preprocessor.Parser("Shaders/pass_VS.glsl");
             ffs = GLSL_Preprocessor.Parser("Shaders/pass_FS.glsl");
@@ -384,6 +385,32 @@ namespace Model_Viewer
             ResourceMgmt.GLlights.Add(light);
         }
 
+        private void updateLightPosition(int light_id)
+        {
+            GMDL.Light light = (GMDL.Light) ResourceMgmt.GLlights[light_id];
+            light.updatePosition(new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
+                                                            Math.Sin(this.light_angle_y * Math.PI / 180.0)),
+                                                (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
+                                                (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
+                                                            Math.Cos(this.light_angle_y * Math.PI / 180.0))));
+        }
+
+        //Light Functions
+
+        private void addDefaultLights()
+        {
+            //Add one and only light for now
+            GMDL.Light light = new GMDL.Light();
+            light.shader_programs = new int[] { ResourceMgmt.shader_programs[7] };
+            light.localPosition = new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
+                                                            Math.Sin(this.light_angle_y * Math.PI / 180.0)),
+                                                (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
+                                                (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
+                                                            Math.Cos(this.light_angle_y * Math.PI / 180.0)));
+
+            ResourceMgmt.GLlights.Add(light);
+        }
+
         //glControl Timer
         private void timer_ticker(object sender, EventArgs e)
         {
@@ -393,7 +420,7 @@ namespace Model_Viewer
             proj = Matrix4.CreatePerspectiveFieldOfView(cam.fov, aspect,
                                                                 znear, zfar);
 
-//SImply invalidate the gl control
+            //Simply invalidate the gl control
             glControl1.MakeCurrent();
             glControl1.Invalidate();
         }
@@ -465,7 +492,7 @@ namespace Model_Viewer
 
             foreach (GMDL.model light in ResourceMgmt.GLlights)
                 light.render(0);
-
+            
         }
 
         private void selectObject(System.Drawing.Point p)
@@ -523,7 +550,7 @@ namespace Model_Viewer
 #if DEBUG
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             Debug.WriteLine("Saving Picking Buffer. Dimensions: " + tex_w +" "+ tex_h);
-            GL.ReadPixels(0, 0, tex_w, tex_h, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
+            //GL.ReadPixels(0, 0, tex_w, tex_h, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             FileStream fs = new FileStream("pickBuffer", FileMode.Create);
             BinaryWriter bw = new BinaryWriter(fs);
             bw.Write(pixels);
@@ -532,7 +559,7 @@ namespace Model_Viewer
 #endif
 
             //Pick object here :)
-            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+            //GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             Debug.WriteLine("Selecting Object at Position: " + p.X + " " + (tex_h -p.Y));
             byte[] buffer = new byte[4];
             GL.ReadPixels(p.X, tex_h - p.Y, 1, 1, PixelFormat.Rgba, PixelType.UnsignedByte, buffer);
@@ -550,9 +577,11 @@ namespace Model_Viewer
             GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, 0);
 
             //Cleanup
-            GL.Ext.DeleteFramebuffer(fb);
-            GL.Ext.DeleteRenderbuffer(color_rb);
-            GL.Ext.DeleteRenderbuffer(depth_rb);
+            GL.DeleteFramebuffer(fb);
+            GL.DeleteRenderbuffer(color_rb);
+            GL.DeleteRenderbuffer(depth_rb);
+            GL.DeleteTexture(out_tex);
+            //GL.DeleteTexture(depth_tex);
             pixels = null;
     
         }
@@ -679,10 +708,6 @@ namespace Model_Viewer
             if (active_program == -1)
                 throw new ApplicationException("Shit program");
 
-            Matrix4 look = cam.GetViewMatrix();
-            float aspect = (float)glControl1.ClientSize.Width / glControl1.ClientSize.Height;
-            Matrix4 proj = Matrix4.CreatePerspectiveFieldOfView(cam.fov, aspect,
-                                                                znear, zfar);
             int loc;
             //Send LookAt matrix to all shaders
             loc = GL.GetUniformLocation(active_program, "look");
@@ -714,11 +739,7 @@ namespace Model_Viewer
 
                 loc = GL.GetUniformLocation(active_program, "light");
 
-                GL.Uniform3(loc, new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                            Math.Sin(this.light_angle_y * Math.PI / 180.0)),
-                                                (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
-                                                (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                            Math.Cos(this.light_angle_y * Math.PI / 180.0))));
+                GL.Uniform3(loc, ResourceMgmt.GLlights[0].localPosition);
 
                 //Upload Light Intensity
                 loc = GL.GetUniformLocation(active_program, "intensity");
@@ -745,10 +766,8 @@ namespace Model_Viewer
                 //Locator Program
                 //TESTING
             }
-            GL.ClearColor(System.Drawing.Color.Black);
-            //if (this.index_dict.ContainsKey(root.name))
-            if (root.debuggable) root.render(program);
-            
+
+            root.render(program);
             
             //Render children
             foreach (GMDL.model child in root.children){
@@ -1095,6 +1114,7 @@ namespace Model_Viewer
             glControl1.MakeCurrent();
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             render_scene();
+            render_lights();
             render_info();
             //GL.ClearColor(System.Drawing.Color.Black);
             glControl1.SwapBuffers();
@@ -1178,15 +1198,19 @@ namespace Model_Viewer
                 //Light Rotation
                 case Keys.N:
                     this.light_angle_y -= 1;
+                    updateLightPosition(0);
                     break;
                 case Keys.M:
                     this.light_angle_y += 1;
+                    updateLightPosition(0);
                     break;
                 case Keys.Oemcomma:
                     this.light_angle_x -= 1;
+                    updateLightPosition(0);
                     break;
                 case Keys.OemPeriod:
                     this.light_angle_x += 1;
+                    updateLightPosition(0);
                     break;
                 //Toggle Wireframe
                 case Keys.I:
@@ -1366,7 +1390,15 @@ namespace Model_Viewer
     {
         public static Dictionary<string, GMDL.Texture> GLtextures = new Dictionary<string, GMDL.Texture>();
         public static Dictionary<string, GMDL.Material> GLmaterials = new Dictionary<string, GMDL.Material>();
+        public static List<GMDL.model> GLlights = new List<GMDL.model>();
         public static int[] shader_programs;
-        public static DebugForm DebugWin = new DebugForm();
+        public static DebugForm DebugWin;
+
+
+        public static void Cleanup()
+        {
+            GLtextures.Clear();
+            GLmaterials.Clear();
+        }
     }
 }

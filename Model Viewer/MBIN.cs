@@ -738,7 +738,7 @@ public static class GEOMMBIN {
             default:
                 Debug.WriteLine("Unknown VERTEX SECTION TYPE-----------------------------------");
                 throw new ApplicationException("NEW VERTEX SECTION TYPE. FIX IT ASSHOLE...");
-                return OpenTK.Graphics.OpenGL.VertexAttribPointerType.UnsignedByte;
+                //return OpenTK.Graphics.OpenGL4.VertexAttribPointerType.UnsignedByte;
         }
     }
 
