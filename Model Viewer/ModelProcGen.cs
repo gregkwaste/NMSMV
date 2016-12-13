@@ -1279,6 +1279,7 @@ namespace Model_Viewer
     class ModelProcGen
     {
         //static Random randgen = new Random();
+        static Dictionary<string, string> procDecisions = new Dictionary<string, string>();
 
         //Deprecated
         public static List<Selector> parse_level(XmlNode level)
@@ -1563,6 +1564,8 @@ namespace Model_Viewer
             {
                 string layername = el.GetAttribute("name");
                 int layerid = 9 - int.Parse(layername.Split(new string[] { "Layer" }, StringSplitOptions.None)[1]) - 1;
+                XmlElement optNode = (XmlElement)el.SelectSingleNode(".//Property[@name='Name']");
+                string option = optNode.GetAttribute("value");
                 //Debug.WriteLine("Texture Layer: " + layerid.ToString());
 
                 parts[layerid] = null; //Init to null
@@ -1573,13 +1576,26 @@ namespace Model_Viewer
                 if (descriptors.ChildNodes.Count > 0)
                 {
                     //Select one descriptor
-                    int sel = Util.randgen.Next(0, descriptors.ChildNodes.Count);
-                    XmlElement selNode = (XmlElement)descriptors.ChildNodes[sel];
+                    XmlElement selNode = null;
+                    //Check if option is in dictionary
+                    if (procDecisions.ContainsKey(option))
+                        selNode = (XmlElement) descriptors.SelectSingleNode(".//Property[@value='" + procDecisions[option] + "']/parent::Property");
+
+                    if (selNode == null)
+                    {
+                        int sel = Util.randgen.Next(0, descriptors.ChildNodes.Count);
+                        selNode = (XmlElement)descriptors.ChildNodes[sel];
+                    }
+                    
                     //Add selection to parts
                     string partName = ((XmlElement)selNode.SelectSingleNode(".//Property[@name='Diffuse']")).GetAttribute("value");
                     //string partName = ((XmlElement)selNode.SelectSingleNode(".//Property[@name='Diffuse']")).GetAttribute("value");
                     parts[layerid] = selNode;
                     //addToStr(ref parts, partName);
+
+                    //Store Decision Option
+                    string decision = ((XmlElement)selNode.SelectSingleNode(".//Property[@name='Name']")).GetAttribute("value");
+                    procDecisions[option] = decision;
                 }
             }
         }

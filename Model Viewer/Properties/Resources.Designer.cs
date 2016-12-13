@@ -59,5 +59,97 @@ namespace Model_Viewer.Properties {
                 resourceCulture = value;
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to #version 330
+        ////* Copies incoming fragment color without change. */
+        ///in vec3 color;
+        ///void main()
+        ///{	
+        ///	gl_FragColor = vec4(color, 1.0);
+        ///}.
+        /// </summary>
+        internal static string joint_frag {
+            get {
+                return ResourceManager.GetString("joint_frag", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to #version 330
+        ////* Copies incoming vertex color without change.
+        /// * Applies the transformation matrix to vertex position.
+        /// */
+        ///
+        ///layout(location=0) in vec4 vPosition;
+        ///layout(location=1) in vec3 vcolor;
+        ///uniform mat4 look, proj;
+        ///uniform vec3 theta;
+        ///uniform mat4 worldMat;
+        ///
+        ///out vec3 color;
+        ///
+        ///void main()
+        ///{
+        ///    //Set color
+        ///    color = vcolor;
+        ///
+        ///    vec3 angles = radians( theta );
+        ///    vec3 c = cos( angles );
+        ///    vec3 s = sin( angles );
+        ///    
+        ///	// Remeber: thse matrices are column-major
+        ///    mat4 rx = m [rest of string was truncated]&quot;;.
+        /// </summary>
+        internal static string joint_vert {
+            get {
+                return ResourceManager.GetString("joint_vert", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to #version 330
+        ////* Copies incoming vertex color without change.
+        ///*/
+        ///void main()
+        ///{
+        ///	//Yellow point lights
+        ///	gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+        ///}.
+        /// </summary>
+        internal static string light_frag {
+            get {
+                return ResourceManager.GetString("light_frag", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to #version 330
+        ///
+        ///layout(location=0) in vec4 vPosition;
+        ///uniform mat4 look, proj;
+        ///uniform vec3 theta;
+        ///
+        ///void main()
+        ///{
+        ///	vec3 angles = radians( theta );
+        ///    vec3 c = cos( angles );
+        ///    vec3 s = sin( angles );
+        ///    
+        ///	// Remeber: thse matrices are column-major
+        ///    mat4 rx = mat4( 1.0,  0.0,  0.0, 0.0,
+        ///            		0.0,  c.x,  s.x, 0.0,
+        ///            		0.0, -s.x,  c.x, 0.0,
+        ///            		0.0,  0.0,  0.0, 1.0 );
+        ///
+        ///    mat4 ry = mat4( c.y, 0.0, -s.y, 0.0,
+        ///            0.0, 1.0,  0.0, 0.0,
+        ///            s.y [rest of string was truncated]&quot;;.
+        /// </summary>
+        internal static string light_vert {
+            get {
+                return ResourceManager.GetString("light_vert", resourceCulture);
+            }
+        }
     }
 }

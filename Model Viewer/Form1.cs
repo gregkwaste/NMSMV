@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Xml;
 using System.Reflection;
+using Model_Viewer.Properties;
 
 //Custom imports
 using GLHelpers;
@@ -42,6 +43,9 @@ namespace Model_Viewer
         private float light_intensity = 2.0f;
 
 
+        //Common transforms
+        private Matrix4 proj, look;
+        
         private float scale = 1.0f;
         private int movement_speed = 1;
         //Mouse Pos
@@ -136,8 +140,7 @@ namespace Model_Viewer
 
             splitContainer1.Panel2.Controls.Clear();
             //Clear Resources
-            ResourceMgmt.GLtextures.Clear();
-            ResourceMgmt.GLmaterials.Clear();
+            ResourceMgmt.Cleanup();
             //Add Defaults
             addDefaultTextures();
 
@@ -203,7 +206,7 @@ namespace Model_Viewer
                 return;
 
             //Populate shader list
-            ResourceMgmt.shader_programs = new int[7];
+            ResourceMgmt.shader_programs = new int[8];
             string vvs, ggs, ffs;
             //Geometry Shader
             //Compile Object Shaders
@@ -226,11 +229,10 @@ namespace Model_Viewer
             using (StreamReader fs = new StreamReader("Shaders/locator_FS.glsl"))
                 GLShaderHelper.CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), "", out vertex_shader_ob,
                     out fragment_shader_ob, out ResourceMgmt.shader_programs[1]);
+            
             //Compile Joint Shaders
-            using (StreamReader vs = new StreamReader("Shaders/joint_VS.glsl"))
-            using (StreamReader fs = new StreamReader("Shaders/joint_FS.glsl"))
-                GLShaderHelper.CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), "", out vertex_shader_ob,
-                    out fragment_shader_ob, out ResourceMgmt.shader_programs[2]);
+            GLShaderHelper.CreateShaders(Resources.joint_vert, Resources.joint_frag, "", out vertex_shader_ob,
+                out fragment_shader_ob, out ResourceMgmt.shader_programs[2]);
 
             vvs = GLSL_Preprocessor.Parser("Shaders/pass_VS.glsl");
             ffs = GLSL_Preprocessor.Parser("Shaders/pass_FS.glsl");
@@ -249,7 +251,10 @@ namespace Model_Viewer
             using (StreamReader fs = new StreamReader("Shaders/Picking_FS.glsl"))
                 GLShaderHelper.CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), "", out vertex_shader_ob,
                     out fragment_shader_ob, out ResourceMgmt.shader_programs[6]);
-
+            
+            //Light Shaders
+            GLShaderHelper.CreateShaders(Resources.light_vert, Resources.light_frag, "", out vertex_shader_ob,
+                out fragment_shader_ob, out ResourceMgmt.shader_programs[7]);
 
             //Debug.WriteLine("Programs {0} {1} {2} {3} ", ResourceMgmt.shader_programs[0],
             //                                         ResourceMgmt.shader_programs[1],
@@ -311,6 +316,9 @@ namespace Model_Viewer
             //Load default textures
             addDefaultTextures();
 
+            //Load default Lights
+            addDefaultLights();
+
             //Load font
             setupFont();
 
@@ -358,10 +366,42 @@ namespace Model_Viewer
 
         }
 
+        //Light Functions
+
+        private void addDefaultLights()
+        {
+            //Add one and only light for now
+            GMDL.Light light = new GMDL.Light();
+            light.shader_programs = new int[] { ResourceMgmt.shader_programs[7] };
+            light.localPosition = new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
+                                                            Math.Sin(this.light_angle_y * Math.PI / 180.0)),
+                                                (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
+                                                (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
+                                                            Math.Cos(this.light_angle_y * Math.PI / 180.0)));
+
+            ResourceMgmt.GLlights.Add(light);
+        }
+
+        private void updateLightPosition(int light_id)
+        {
+            GMDL.Light light = (GMDL.Light) ResourceMgmt.GLlights[light_id];
+            light.updatePosition(new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
+                                                            Math.Sin(this.light_angle_y * Math.PI / 180.0)),
+                                                (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
+                                                (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
+                                                            Math.Cos(this.light_angle_y * Math.PI / 180.0))));
+        }
+
         //glControl Timer
         private void timer_ticker(object sender, EventArgs e)
         {
-            //SImply invalidate the gl control
+            //Update common transforms
+            look = cam.GetViewMatrix();
+            float aspect = (float)glControl1.ClientSize.Width / glControl1.ClientSize.Height;
+            proj = Matrix4.CreatePerspectiveFieldOfView(cam.fov, aspect,
+                                                                znear, zfar);
+
+            //Simply invalidate the gl control
             glControl1.MakeCurrent();
             glControl1.Invalidate();
         }
@@ -414,6 +454,28 @@ namespace Model_Viewer
 
         }
 
+        private void render_lights()
+        {
+            int active_program = ResourceMgmt.shader_programs[7];
+            GL.UseProgram(active_program);
+            int loc;
+            //Send LookAt matrix to all shaders
+            loc = GL.GetUniformLocation(active_program, "look");
+            GL.UniformMatrix4(loc, false, ref look);
+            //Send object world Matrix to all shaders
+
+            //Send projection matrix to all shaders
+            loc = GL.GetUniformLocation(active_program, "proj");
+            GL.UniformMatrix4(loc, false, ref proj);
+            //Send theta to all shaders
+            loc = GL.GetUniformLocation(active_program, "theta");
+            GL.Uniform3(loc, this.rot);
+
+            foreach (GMDL.model light in ResourceMgmt.GLlights)
+                light.render(0);
+            
+        }
+
         private void selectObject(System.Drawing.Point p)
         {
             //First of all clear the color buffer
@@ -422,17 +484,13 @@ namespace Model_Viewer
             int tex_h = glControl1.Height;
 
             //Create Frame and renderbuffers
-            int fb = GL.GenFramebuffer();
-            int depth_rb = GL.GenRenderbuffer();
-            //int color_rb = GL.GenRenderbuffer();
-
-
-            GL.BindFramebuffer(FramebufferTarget.FramebufferExt, fb);
-            GL.Viewport(0, 0, tex_w, tex_h);
-            //Clear the buffer and enable depth test
-            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            GL.Enable(EnableCap.DepthTest);
-            GL.DepthMask(true);
+            int fb;
+            GL.CreateFramebuffers(1, out fb);
+            int[] rbuffers = new int[2];
+            GL.CreateRenderbuffers(2, rbuffers);
+            int color_rb = rbuffers[0];
+            int depth_rb = rbuffers[1];
+            
 
             //Create Color texture
             int out_tex = GL.GenTexture();
@@ -451,29 +509,45 @@ namespace Model_Viewer
             //GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent32, tex_w, tex_h, 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
 
 
-            
             //GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment, TextureTarget.Texture2D, depth_tex, 0);
 
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, fb);
+            //Bind color renderbuffer
+            GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, color_rb);
+            GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, RenderbufferStorage.Rgba8, tex_w, tex_h);
+            GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, RenderbufferTarget.Renderbuffer, color_rb);
+
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, fb);
             //Bind depth renderbuffer
-            GL.BindRenderbuffer(RenderbufferTarget.RenderbufferExt, depth_rb);
-            GL.RenderbufferStorage(RenderbufferTarget.RenderbufferExt, RenderbufferStorage.DepthComponent32, tex_w, tex_h);
+            GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, depth_rb);
+            GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, RenderbufferStorage.DepthComponent16, tex_w, tex_h);
+            GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment, RenderbufferTarget.Renderbuffer, depth_rb);
 
             //Attach Textures to this FBO
-            GL.FramebufferTexture2D(FramebufferTarget.FramebufferExt, FramebufferAttachment.ColorAttachment0Ext, TextureTarget.Texture2D, out_tex, 0);
-            GL.FramebufferRenderbuffer(FramebufferTarget.FramebufferExt, FramebufferAttachment.DepthAttachmentExt, RenderbufferTarget.RenderbufferExt, depth_rb);
+            //GL.FramebufferTexture2D(FramebufferTarget.FramebufferExt, FramebufferAttachment.ColorAttachment0Ext, TextureTarget.Texture2D, out_tex, 0);
 
+
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, fb);
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
 
-
-            GL.BindFramebuffer(FramebufferTarget.FramebufferExt, fb);
-            //Now render objects with the picking program
-            if (this.mainScene != null) traverse_render(this.mainScene, 2);
-
             //Check
-            if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
-                Debug.WriteLine("MALAKIES STO FRAMEBUFFER" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
+            if (GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer) != FramebufferErrorCode.FramebufferComplete)
+                Debug.WriteLine("MALAKIES STO FRAMEBUFFER" + GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer));
+
+            //Clear the buffer and enable depth test
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, fb);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            GL.Enable(EnableCap.DepthTest);
+            GL.DepthFunc(DepthFunction.Lequal);
+            GL.DepthMask(true);
             
-                
+            //Now render objects with the picking program
+            if (this.mainScene != null) traverse_render(this.mainScene, 0);
+
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+            return;
+
+
 
             //Store Framebuffer to Disk
             byte[] pixels = new byte[4 * tex_w * tex_h];
@@ -489,9 +563,9 @@ namespace Model_Viewer
             //ds.Close();
 
 
-            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+            //GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             Debug.WriteLine("Saving Picking Buffer. Dimensions: " + tex_w +" "+ tex_h);
-            GL.ReadPixels(0, 0, tex_w, tex_h, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
+            //GL.ReadPixels(0, 0, tex_w, tex_h, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             FileStream fs = new FileStream("pickBuffer", FileMode.Create);
             BinaryWriter bw = new BinaryWriter(fs);
             bw.Write(pixels);
@@ -500,7 +574,7 @@ namespace Model_Viewer
 #endif
 
             //Pick object here :)
-            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+            //GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             Debug.WriteLine("Selecting Object at Position: " + p.X + " " + (tex_h -p.Y));
             byte[] buffer = new byte[4];
             GL.ReadPixels(p.X, tex_h - p.Y, 1, 1, PixelFormat.Rgba, PixelType.UnsignedByte, buffer);
@@ -519,7 +593,7 @@ namespace Model_Viewer
 
             //Cleanup
             GL.DeleteFramebuffer(fb);
-            //GL.DeleteRenderbuffer(color_rb);
+            GL.DeleteRenderbuffer(color_rb);
             GL.DeleteRenderbuffer(depth_rb);
             GL.DeleteTexture(out_tex);
             //GL.DeleteTexture(depth_tex);
@@ -650,10 +724,6 @@ namespace Model_Viewer
             if (active_program == -1)
                 throw new ApplicationException("Shit program");
 
-            Matrix4 look = cam.GetViewMatrix();
-            float aspect = (float)glControl1.ClientSize.Width / glControl1.ClientSize.Height;
-            Matrix4 proj = Matrix4.CreatePerspectiveFieldOfView(cam.fov, aspect,
-                                                                znear, zfar);
             int loc;
             //Send LookAt matrix to all shaders
             loc = GL.GetUniformLocation(active_program, "look");
@@ -685,11 +755,7 @@ namespace Model_Viewer
 
                 loc = GL.GetUniformLocation(active_program, "light");
 
-                GL.Uniform3(loc, new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                            Math.Sin(this.light_angle_y * Math.PI / 180.0)),
-                                                (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
-                                                (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                            Math.Cos(this.light_angle_y * Math.PI / 180.0))));
+                GL.Uniform3(loc, ResourceMgmt.GLlights[0].localPosition);
 
                 //Upload Light Intensity
                 loc = GL.GetUniformLocation(active_program, "intensity");
@@ -716,10 +782,8 @@ namespace Model_Viewer
                 //Locator Program
                 //TESTING
             }
-            GL.ClearColor(System.Drawing.Color.Black);
-            //if (this.index_dict.ContainsKey(root.name))
-            if (root.debuggable) root.render(program);
-            
+
+            root.render(program);
             
             //Render children
             foreach (GMDL.model child in root.children){
@@ -1065,6 +1129,7 @@ namespace Model_Viewer
             glControl1.MakeCurrent();
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             render_scene();
+            render_lights();
             render_info();
             //GL.ClearColor(System.Drawing.Color.Black);
             glControl1.SwapBuffers();
@@ -1148,15 +1213,19 @@ namespace Model_Viewer
                 //Light Rotation
                 case Keys.N:
                     this.light_angle_y -= 1;
+                    updateLightPosition(0);
                     break;
                 case Keys.M:
                     this.light_angle_y += 1;
+                    updateLightPosition(0);
                     break;
                 case Keys.Oemcomma:
                     this.light_angle_x -= 1;
+                    updateLightPosition(0);
                     break;
                 case Keys.OemPeriod:
                     this.light_angle_x += 1;
+                    updateLightPosition(0);
                     break;
                 //Toggle Wireframe
                 case Keys.I:
@@ -1336,7 +1405,15 @@ namespace Model_Viewer
     {
         public static Dictionary<string, GMDL.Texture> GLtextures = new Dictionary<string, GMDL.Texture>();
         public static Dictionary<string, GMDL.Material> GLmaterials = new Dictionary<string, GMDL.Material>();
+        public static List<GMDL.model> GLlights = new List<GMDL.model>();
         public static int[] shader_programs;
-        public static DebugForm DebugWin = new DebugForm();
+        public static DebugForm DebugWin;
+
+
+        public static void Cleanup()
+        {
+            GLtextures.Clear();
+            GLmaterials.Clear();
+        }
     }
 }
