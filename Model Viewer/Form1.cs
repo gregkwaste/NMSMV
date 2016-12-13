@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Xml;
 using System.Reflection;
+using Model_Viewer.Properties;
 
 //Custom imports
 using GLHelpers;
@@ -41,6 +42,8 @@ namespace Model_Viewer
         private float light_distance = 5.0f;
         private float light_intensity = 2.0f;
 
+        //Common transforms
+        private Matrix4 proj, look;
 
         private float scale = 1.0f;
         private int movement_speed = 1;
@@ -203,7 +206,7 @@ namespace Model_Viewer
                 return;
 
             //Populate shader list
-            ResourceMgmt.shader_programs = new int[7];
+            ResourceMgmt.shader_programs = new int[8];
             string vvs, ggs, ffs;
             //Geometry Shader
             //Compile Object Shaders
@@ -249,6 +252,10 @@ namespace Model_Viewer
             using (StreamReader fs = new StreamReader("Shaders/Picking_FS.glsl"))
                 GLShaderHelper.CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), "", out vertex_shader_ob,
                     out fragment_shader_ob, out ResourceMgmt.shader_programs[6]);
+
+            //Light Shaders
+            GLShaderHelper.CreateShaders(Resources.light_vert, Resources.light_frag, "", out vertex_shader_ob,
+                out fragment_shader_ob, out ResourceMgmt.shader_programs[7]);
 
 
             //Debug.WriteLine("Programs {0} {1} {2} {3} ", ResourceMgmt.shader_programs[0],
@@ -311,6 +318,9 @@ namespace Model_Viewer
             //Load default textures
             addDefaultTextures();
 
+            //Load default Lights
+            addDefaultLights();
+
             //Load font
             setupFont();
 
@@ -358,10 +368,32 @@ namespace Model_Viewer
 
         }
 
+        //Light Functions
+
+        private void addDefaultLights()
+        {
+            //Add one and only light for now
+            GMDL.Light light = new GMDL.Light();
+            light.shader_programs = new int[] { ResourceMgmt.shader_programs[7] };
+            light.localPosition = new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
+                                                            Math.Sin(this.light_angle_y * Math.PI / 180.0)),
+                                                (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
+                                                (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
+                                                            Math.Cos(this.light_angle_y * Math.PI / 180.0)));
+
+            ResourceMgmt.GLlights.Add(light);
+        }
+
         //glControl Timer
         private void timer_ticker(object sender, EventArgs e)
         {
-            //SImply invalidate the gl control
+            //Update common transforms
+            look = cam.GetViewMatrix();
+            float aspect = (float)glControl1.ClientSize.Width / glControl1.ClientSize.Height;
+            proj = Matrix4.CreatePerspectiveFieldOfView(cam.fov, aspect,
+                                                                znear, zfar);
+
+//SImply invalidate the gl control
             glControl1.MakeCurrent();
             glControl1.Invalidate();
         }
@@ -411,6 +443,28 @@ namespace Model_Viewer
 
             GL.Disable(EnableCap.Blend);
             GL.Enable(EnableCap.DepthTest);
+
+        }
+
+        private void render_lights()
+        {
+            int active_program = ResourceMgmt.shader_programs[7];
+            GL.UseProgram(active_program);
+            int loc;
+            //Send LookAt matrix to all shaders
+            loc = GL.GetUniformLocation(active_program, "look");
+            GL.UniformMatrix4(loc, false, ref look);
+            //Send object world Matrix to all shaders
+
+            //Send projection matrix to all shaders
+            loc = GL.GetUniformLocation(active_program, "proj");
+            GL.UniformMatrix4(loc, false, ref proj);
+            //Send theta to all shaders
+            loc = GL.GetUniformLocation(active_program, "theta");
+            GL.Uniform3(loc, this.rot);
+
+            foreach (GMDL.model light in ResourceMgmt.GLlights)
+                light.render(0);
 
         }
 

@@ -1225,16 +1225,18 @@ namespace GMDL
                 return false;
             }
 
-            int program = this.shader_programs[pass];
+            int program;
             //Render Object
             switch (pass)
             {
                 //Render Main
                 case 0:
+                    program = this.shader_programs[pass];
                     renderMain(program);
                     break;
                 //Render Debug
                 case 1:
+                    program = this.shader_programs[pass];
                     renderDebug(program);
                     break;
                 default:
@@ -1652,6 +1654,18 @@ namespace GMDL
                     for (int i = 0; i < 8; i++) texList.Add(null);
                     ModelProcGen.parse_procTexture(ref texList, root);
 
+#if DEBUG
+                    Debug.WriteLine("Proc Texture Selection");
+                    for (int i = 0; i < 8; i++) {
+                        if (texList[i] != null)
+                        {
+                            string partNameDiff = ((XmlElement)texList[i].SelectSingleNode(".//Property[@name='Diffuse']")).GetAttribute("value");
+                            Debug.WriteLine(partNameDiff);
+                        }
+
+                    }
+                        
+#endif
                     Debug.WriteLine("Proc Textures");
 
                     for (int i = 0; i < 8; i++)
@@ -2348,21 +2362,12 @@ namespace GMDL
 
             return copy;
         }
-            
+
         //Render should render Bones from joint to children
-        public override bool render(int pass)
+        private void renderMain(int pass)
         {
-            if (this.renderable == false)
-            {
-                //Debug.WriteLine("Not Renderable");
-                return false;
-            }
-            if (this.children.Count == 0)
-                return false;
-
-
-            int active_program = this.shader_programs[pass];
-
+            GL.UseProgram(pass);
+            
             //Draw Lines to children joints
             List<Vector3> verts = new List<Vector3>();
             //List<int> indices = new List<int>();
@@ -2379,7 +2384,7 @@ namespace GMDL
                 //Use Random Color for Testing
                 //colors.Add(color);
                 //colors.Add(color);
-                
+
                 //Add line indices
                 indices[2 * i] = 2 * i;
                 indices[2 * i + 1] = 2 * i + 1;
@@ -2405,16 +2410,102 @@ namespace GMDL
 
             //Render Immediately
             //Bind vertex buffer
-            int vpos, cpos;
             GL.BindBuffer(BufferTarget.ArrayBuffer, this.vertex_buffer_object);
-            vpos = GL.GetAttribLocation(active_program, "vPosition");
-            GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.Float, false, 0, 0);
-            GL.EnableVertexAttribArray(vpos);
+            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, 0);
+            GL.EnableVertexAttribArray(0);
 
             //Color Attribute
-            cpos = GL.GetAttribLocation(active_program, "vcolor");
-            GL.VertexAttribPointer(cpos, 3, VertexAttribPointerType.Float, false, 0, (IntPtr)arraysize);
-            GL.EnableVertexAttribArray(cpos);
+            GL.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 0, (IntPtr)arraysize);
+            GL.EnableVertexAttribArray(1);
+
+            //Render Elements
+            //Bind elem buffer
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.element_buffer_object);
+            GL.PointSize(10.0f);
+            //GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Point);
+            
+            GL.DrawArrays(PrimitiveType.Lines, 0, indices.Length);
+            GL.DrawArrays(PrimitiveType.Points, 0, indices.Length);
+            
+            //Draw only Joint Point
+            GL.DisableVertexAttribArray(0);
+            GL.DisableVertexAttribArray(1);
+        }
+
+
+        public override bool render(int pass)
+        {
+            if (this.renderable == false)
+            {
+                //Debug.WriteLine("Not Renderable");
+                return false;
+            }
+            if (this.children.Count == 0)
+                return false;
+
+            int program;
+            //Render Object
+            switch (pass)
+            {
+                //Render Main
+                case 0:
+                    program = this.shader_programs[pass];
+                    renderMain(program);
+                    break;
+                default:
+                    //Do nothing otherwise
+                    break;
+            }
+
+            return true;
+        }
+
+    }
+
+    public class Light : model
+    {
+        //I should expand the light properties here
+        public float intensity = 1.0f;
+
+        private int vertex_buffer_object;
+        private int element_buffer_object;
+
+
+        public Light() {
+            GL.GenBuffers(1, out vertex_buffer_object);
+            GL.GenBuffers(1, out element_buffer_object);
+        }
+
+        private void renderMain(int pass)
+        {
+            GL.UseProgram(pass);
+
+            //Draw Single Points
+            float[] vertsf = new float[9];
+            int[] indices = new int[1];
+            indices[0] = 0;
+            
+            vertsf[0] = this.worldPosition.X;
+            vertsf[1] = this.worldPosition.Y;
+            vertsf[2] = this.worldPosition.Z;
+
+            int arraysize = 3 * sizeof(float);
+            
+            //Upload vertex buffer
+            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vertex_buffer_object);
+            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)(arraysize), (IntPtr)null, BufferUsageHint.StaticDraw);
+            //Add verts data
+            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, vertsf);
+            
+            ////Upload index buffer
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.element_buffer_object);
+            GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr)(sizeof(int) * indices.Length), indices, BufferUsageHint.StaticDraw);
+
+            //Render Immediately
+            //Bind vertex buffer
+            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vertex_buffer_object);
+            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, 0);
+            GL.EnableVertexAttribArray(0);
 
             //Render Elements
             //Bind elem buffer
@@ -2422,17 +2513,39 @@ namespace GMDL
             GL.PointSize(10.0f);
             //GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Point);
 
+            GL.DrawArrays(PrimitiveType.Points, 0, indices.Length);
 
-            GL.DrawArrays(PrimitiveType.Lines, 0, indices.Length);
-            GL.DrawArrays(PrimitiveType.Points, 0, vertsf.Length);
             //Draw only Joint Point
-            GL.DisableVertexAttribArray(vpos);
-            GL.DisableVertexAttribArray(cpos);
-            
+            GL.DisableVertexAttribArray(0);
+        }
+
+        public override bool render(int pass)
+        {
+            int program = this.shader_programs[pass];
+
+            switch (pass)
+            {
+                case 0:
+                    renderMain(program);
+                    break;
+                default:
+                    break;      
+            }
+
             return true;
         }
 
+        public override GMDL.model Clone(GMDL.scene scene)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void updatePosition(Vector3 newPosition)
+        {
+            this.localPosition = newPosition;
+        }
     }
+
 
     //Animation Classes
     public class AnimNodeFrameData
