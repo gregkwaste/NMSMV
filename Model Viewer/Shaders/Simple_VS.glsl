@@ -1,14 +1,19 @@
 #version 330
+#extension GL_ARB_explicit_uniform_location : enable
+#extension GL_ARB_separate_shader_objects : enable
+
 /* Copies incoming vertex color without change.
  * Applies the transformation matrix to vertex position.
  */
-attribute vec4 vPosition;
-attribute vec4 nPosition; //normals
-attribute vec4 tPosition; //tangents
-attribute vec4 bPosition; //bitangents
-attribute vec2 uvPosition0;
-attribute vec4 blendWeights;
-attribute vec4 blendIndices;
+layout(location=0) in vec4 vPosition;
+layout(location=1) in vec2 uvPosition0;
+layout(location=2) in vec4 nPosition; //normals
+layout(location=3) in vec4 tPosition; //tangents
+layout(location=4) in vec4 bPosition; //bitangents
+layout(location=5) in vec4 blendIndices;
+layout(location=6) in vec4 blendWeights;
+
+
 uniform vec3 theta, pan, light;
 uniform int firstskinmat;
 uniform int boneRemap[256];
@@ -16,15 +21,16 @@ uniform mat4 skinMats[128];
 uniform int skinned;
 uniform bool matflags[64];
 uniform float scale;
-uniform mat4 look, proj, worldMat;
+uniform mat4 look;
+uniform mat4 proj;
+uniform mat4 worldMat;
 //Outputs
-varying vec3 E,N;
-varying float l_distance;
-varying mat3 TBN;
-varying vec3 nvectors[3];
-varying vec2 uv0;
-varying float bColor;
-
+out vec3 E;
+out vec3 N;
+out vec2 uv0;
+out float l_distance;
+out mat3 TBN;
+out float bColor;
 
 void main()
 {

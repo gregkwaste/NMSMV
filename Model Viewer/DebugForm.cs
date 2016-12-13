@@ -123,18 +123,17 @@ namespace Model_Viewer
 
 
             // Attach to Shaders
-            int vpos, cpos;
-
+            
             //Vertex attribute
             //Bind vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, quad_vbo);
-            vpos = GL.GetAttribLocation(ResourceMgmt.shader_programs[3], "vPosition");
-            GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.Float, false, 0, 0);
-            GL.EnableVertexAttribArray(vpos);
-
-            cpos = GL.GetAttribLocation(ResourceMgmt.shader_programs[3], "vColor");
-            GL.VertexAttribPointer(cpos, 3, VertexAttribPointerType.Float, false, 0, (IntPtr)arraysize);
-            GL.EnableVertexAttribArray(cpos);
+            //vPosition #0
+            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, 0);
+            GL.EnableVertexAttribArray(0);
+            
+            //vColor #1
+            GL.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 0, (IntPtr)arraysize);
+            GL.EnableVertexAttribArray(1);
 
             //Bind elem buffer
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, quad_ebo);
@@ -188,8 +187,8 @@ namespace Model_Viewer
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
             GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
             
-            GL.DisableVertexAttribArray(vpos);
-            GL.DisableVertexAttribArray(cpos);
+            GL.DisableVertexAttribArray(0);
+            GL.DisableVertexAttribArray(1);
             GL.DeleteBuffer(quad_vbo);
             GL.DeleteBuffer(quad_ebo);
         }

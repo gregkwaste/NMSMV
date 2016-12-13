@@ -1,21 +1,28 @@
 #version 330
+#extension GL_ARB_explicit_uniform_location : enable
+#extension GL_ARB_separate_shader_objects : enable
 /* Copies incoming vertex color without change.
  * Applies the transformation matrix to vertex position.
  */
-attribute vec4 vPosition;
-attribute vec4 nPosition; //normals
-attribute vec4 tPosition; //tangents
-attribute vec4 blendWeights;
-attribute vec4 blendIndices;
+layout(location=0) in vec4 vPosition;
+layout(location=1) in vec2 uvPosition0;
+layout(location=2) in vec4 nPosition; //normals
+layout(location=3) in vec4 tPosition; //tangents
+layout(location=4) in vec4 bPosition; //bitangents
+layout(location=5) in vec4 blendIndices;
+layout(location=6) in vec4 blendWeights;
+
 uniform vec3 theta, pan, light;
 uniform int firstskinmat;
 uniform int boneRemap[256];
 uniform mat4 skinMats[128];
 uniform bool matflags[64];
 uniform int skinned;
-uniform mat4 look, proj, worldMat;
 uniform int id;
-//Outputs
+uniform mat4 look;
+uniform mat4 proj;
+uniform mat4 worldMat;
+
 flat out int object_id;
 
 void main()
@@ -76,7 +83,5 @@ void main()
     } else{
     	gl_Position = proj * look * mviewMat * worldMat * vPosition;
     }
-
-    //Send ID to picking fragment shader
     object_id = id;
 }

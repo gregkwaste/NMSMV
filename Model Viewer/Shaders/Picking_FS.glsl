@@ -1,5 +1,7 @@
 #version 330
+#extension GL_ARB_explicit_uniform_location : enable
 flat in int object_id;
+//flat int object_id;
 layout(location=0) out vec4 outcolor;
 
 void main()

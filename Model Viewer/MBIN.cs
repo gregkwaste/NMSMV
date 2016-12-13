@@ -694,7 +694,7 @@ public static class GEOMMBIN {
     {
         int sem = buf_id;
         int off = buf_localoffset;
-        OpenTK.Graphics.OpenGL4.VertexAttribPointerType typ = get_type(buf_type);
+        OpenTK.Graphics.OpenGL.VertexAttribPointerType typ = get_type(buf_type);
         string text = get_shader_sem(buf_id);
         return new GMDL.bufInfo(sem, typ, count, off, text);
     }
@@ -725,20 +725,20 @@ public static class GEOMMBIN {
         
     }
 
-    private static OpenTK.Graphics.OpenGL4.VertexAttribPointerType get_type(int val){
+    private static OpenTK.Graphics.OpenGL.VertexAttribPointerType get_type(int val){
 
         switch (val)
         {
             case (0x140B):
-                return OpenTK.Graphics.OpenGL4.VertexAttribPointerType.HalfFloat;
+                return OpenTK.Graphics.OpenGL.VertexAttribPointerType.HalfFloat;
             case (0x1401):
-                return OpenTK.Graphics.OpenGL4.VertexAttribPointerType.UnsignedByte;
+                return OpenTK.Graphics.OpenGL.VertexAttribPointerType.UnsignedByte;
             case (0x8D9F):
-                return OpenTK.Graphics.OpenGL4.VertexAttribPointerType.Int2101010Rev;
+                return OpenTK.Graphics.OpenGL.VertexAttribPointerType.Int2101010Rev;
             default:
                 Debug.WriteLine("Unknown VERTEX SECTION TYPE-----------------------------------");
                 throw new ApplicationException("NEW VERTEX SECTION TYPE. FIX IT ASSHOLE...");
-                return OpenTK.Graphics.OpenGL4.VertexAttribPointerType.UnsignedByte;
+                return OpenTK.Graphics.OpenGL.VertexAttribPointerType.UnsignedByte;
         }
     }
 

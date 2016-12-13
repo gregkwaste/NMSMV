@@ -1,4 +1,6 @@
-//#extension GL_ARB_shading_language_include : require
+#version 330
+#extension GL_ARB_explicit_uniform_location : enable
+#extension GL_ARB_separate_shader_objects : enable
 
 //Imports
 #include "/common.glsl"
@@ -18,12 +20,15 @@ uniform float diffuseFlag;
 uniform bool procFlag;
 uniform bool useLighting;
 
-varying vec3 E,N;
-varying float l_distance;
-varying mat3 TBN;
-varying vec3 nvectors[3];
-varying vec2 uv0;
-varying float bColor;
+in vec3 E;
+in vec3 N;
+in vec2 uv0;
+in float l_distance;
+in mat3 TBN;
+in float bColor;
+
+//Selected
+uniform int selected;
 
 //Normal Decode Function
 vec3 DecodeNormalMap(vec4 lNormalTexVec4){
@@ -80,6 +85,7 @@ void main()
     
 
     gl_FragColor = vec4(ambient + diff.xyz, 1.0);	
+    if (selected>0.0) gl_FragColor *= vec4(0.0, 2.0, 0.0, 1.0);
     //gl_FragColor = vec4(N, 1.0);
     
 

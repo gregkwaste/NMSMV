@@ -3,7 +3,7 @@ using System.Windows.Forms;
 using System.Diagnostics;
 using System.IO;
 using OpenTK;
-using OpenTK.Graphics.OpenGL4;
+using OpenTK.Graphics.OpenGL;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Xml;
@@ -416,79 +416,57 @@ namespace Model_Viewer
 
         private void selectObject(System.Drawing.Point p)
         {
+            if (!GL.GetString(StringName.Extensions).Contains("GL_EXT_framebuffer_object"))
+            {
+                throw new NotSupportedException(
+                     "GL_EXT_framebuffer_object extension is required. Please update your drivers.");
+            }
+
             //First of all clear the color buffer
             //Create the texture to render to
             int tex_w = glControl1.Width;
             int tex_h = glControl1.Height;
 
             //Create Frame and renderbuffers
-            int fb = GL.GenFramebuffer();
-            int depth_rb = GL.GenRenderbuffer();
-            //int color_rb = GL.GenRenderbuffer();
+            int fb = GL.Ext.GenFramebuffer();
+            //GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, fb);
+            //GL.Viewport(0, 0, tex_w, tex_h);
 
 
-            GL.BindFramebuffer(FramebufferTarget.FramebufferExt, fb);
-            GL.Viewport(0, 0, tex_w, tex_h);
-            //Clear the buffer and enable depth test
-            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            GL.Enable(EnableCap.DepthTest);
-            GL.DepthMask(true);
+            int[] rbufs = new int[2];
+            GL.Ext.GenRenderbuffers(2, rbufs);
+            int depth_rb = rbufs[1];
+            int color_rb = rbufs[0];
 
-            //Create Color texture
-            int out_tex = GL.GenTexture();
-            GL.BindTexture(TextureTarget.Texture2D, out_tex);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, tex_w, tex_h, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+            Console.WriteLine("Last GL Error: " + GL.GetError());
 
-            //Create Depth texture
-            //int depth_tex = GL.GenTexture();
-            //GL.BindTexture(TextureTarget.Texture2D, depth_tex);
-            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Clamp);
-            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Clamp);
-            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
-            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-            //GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent32, tex_w, tex_h, 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
+            GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, fb);
+            //Bind color renderbuffer
+            GL.Ext.BindRenderbuffer(RenderbufferTarget.RenderbufferExt, color_rb);
+            GL.Ext.RenderbufferStorage(RenderbufferTarget.RenderbufferExt, RenderbufferStorage.Rgba8, tex_w, tex_h);
+            GL.Ext.FramebufferRenderbuffer(FramebufferTarget.FramebufferExt, FramebufferAttachment.ColorAttachment0Ext, RenderbufferTarget.RenderbufferExt, color_rb);
 
-
-            
-            //GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment, TextureTarget.Texture2D, depth_tex, 0);
-
+            GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, fb);
             //Bind depth renderbuffer
-            GL.BindRenderbuffer(RenderbufferTarget.RenderbufferExt, depth_rb);
-            GL.RenderbufferStorage(RenderbufferTarget.RenderbufferExt, RenderbufferStorage.DepthComponent32, tex_w, tex_h);
+            GL.Ext.BindRenderbuffer(RenderbufferTarget.RenderbufferExt, depth_rb);
+            GL.Ext.RenderbufferStorage(RenderbufferTarget.RenderbufferExt, RenderbufferStorage.DepthComponent, tex_w, tex_h);
+            GL.Ext.FramebufferRenderbuffer(FramebufferTarget.FramebufferExt, FramebufferAttachment.DepthAttachmentExt, RenderbufferTarget.RenderbufferExt, depth_rb);
 
-            //Attach Textures to this FBO
-            GL.FramebufferTexture2D(FramebufferTarget.FramebufferExt, FramebufferAttachment.ColorAttachment0Ext, TextureTarget.Texture2D, out_tex, 0);
-            GL.FramebufferRenderbuffer(FramebufferTarget.FramebufferExt, FramebufferAttachment.DepthAttachmentExt, RenderbufferTarget.RenderbufferExt, depth_rb);
-
+            //Draw Scene
+            GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, fb);//Now render objects with the picking program
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-
-
-            GL.BindFramebuffer(FramebufferTarget.FramebufferExt, fb);
-            //Now render objects with the picking program
-            if (this.mainScene != null) traverse_render(this.mainScene, 2);
-
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
                 Debug.WriteLine("MALAKIES STO FRAMEBUFFER" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
-            
-                
+
+            if (this.mainScene != null) traverse_render(this.mainScene, 2);
 
             //Store Framebuffer to Disk
             byte[] pixels = new byte[4 * tex_w * tex_h];
             
 #if DEBUG
-            //GL.ReadBuffer(ReadBufferMode.None);
-            //Debug.WriteLine("Saving Picking Buffer. Dimensions: " + tex_w + " " + tex_h);
-            //GL.ReadPixels(0, 0, tex_w, tex_h, PixelFormat.DepthComponent, PixelType.UnsignedByte, pixels);
-            //FileStream ds = new FileStream("pickDepthBuffer", FileMode.Create);
-            //BinaryWriter bw = new BinaryWriter(ds);
-            //bw.Write(pixels);
-            //ds.Flush();
-            //ds.Close();
-
-
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             Debug.WriteLine("Saving Picking Buffer. Dimensions: " + tex_w +" "+ tex_h);
             GL.ReadPixels(0, 0, tex_w, tex_h, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
@@ -515,17 +493,14 @@ namespace Model_Viewer
             traverse_oblist_field<int>(this.mainScene, ob_id, "selected", 1);
 
             //Restore Rendering Buffer
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+            GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, 0);
 
             //Cleanup
-            GL.DeleteFramebuffer(fb);
-            //GL.DeleteRenderbuffer(color_rb);
-            GL.DeleteRenderbuffer(depth_rb);
-            GL.DeleteTexture(out_tex);
-            //GL.DeleteTexture(depth_tex);
+            GL.Ext.DeleteFramebuffer(fb);
+            GL.Ext.DeleteRenderbuffer(color_rb);
+            GL.Ext.DeleteRenderbuffer(depth_rb);
             pixels = null;
-
-            
+    
         }
 
         private void numericUpDown1_ValueChanged(object sender, EventArgs e)
@@ -726,6 +701,7 @@ namespace Model_Viewer
                 //this.glControl1.MakeCurrent();
                 traverse_render(child, program);
             }
+
         }
 
         private TreeNode findNodeFromText(TreeNodeCollection coll, string text)

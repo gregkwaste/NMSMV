@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Diagnostics;
-using OpenTK.Graphics.OpenGL4;
+using OpenTK.Graphics.OpenGL;
 using OpenTK;
 using KUtility;
 using Model_Viewer;
@@ -594,16 +594,14 @@ namespace GMDL
             //Bind vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
 
-            List<int> vxattriblocs = new List<int>();
             for (int i = 0; i < 7; i++)
             {
                 if (vbo.bufInfo[i] == null) continue;
                 bufInfo buf = vbo.bufInfo[i];
-                int pos;
-                pos = GL.GetAttribLocation(pass, buf.sem_text);
+                int pos = i;
+                //pos = GL.GetAttribLocation(pass, buf.sem_text);
                 GL.VertexAttribPointer(pos, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
                 GL.EnableVertexAttribArray(pos);
-                vxattriblocs.Add(pos);
             }
 
             int loc;
@@ -662,7 +660,7 @@ namespace GMDL
             loc = GL.GetUniformLocation(pass, test);
             GL.Uniform1(loc, 0); // I need to upload the texture unit number
 
-            GL.ActiveTexture((OpenTK.Graphics.OpenGL4.TextureUnit)(tex0Id + 0));
+            GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 0));
             GL.BindTexture(TextureTarget.Texture2D, material.fDiffuseMap.bufferID);
 
             //Mask Texture
@@ -670,7 +668,7 @@ namespace GMDL
             loc = GL.GetUniformLocation(pass, test);
             GL.Uniform1(loc, 1); // I need to upload the texture unit number
 
-            GL.ActiveTexture((OpenTK.Graphics.OpenGL4.TextureUnit)(tex0Id + 1));
+            GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 1));
             GL.BindTexture(TextureTarget.Texture2D, material.fMaskMap.bufferID);
 
             //Normal Texture
@@ -678,7 +676,7 @@ namespace GMDL
             loc = GL.GetUniformLocation(pass, test);
             GL.Uniform1(loc, 2); // I need to upload the texture unit number
 
-            GL.ActiveTexture((OpenTK.Graphics.OpenGL4.TextureUnit)(tex0Id + 2));
+            GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 2));
             GL.BindTexture(TextureTarget.Texture2D, material.fNormalMap.bufferID);
 
 
@@ -900,8 +898,8 @@ namespace GMDL
             GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
                 batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
 
-            foreach (int pos in vxattriblocs)
-                GL.DisableVertexAttribArray(pos);
+            for (int i=0;i<7;i++)
+                GL.DisableVertexAttribArray(i);
         }
 
         public  virtual void renderDebug(int pass)
@@ -910,16 +908,13 @@ namespace GMDL
             //Bind vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
 
-            List<int> vxattriblocs = new List<int>();
             for (int i = 0; i < 7; i++)
             {
                 if (vbo.bufInfo[i] == null) continue;
                 bufInfo buf = vbo.bufInfo[i];
-                int pos;
-                pos = GL.GetAttribLocation(pass, buf.sem_text);
+                int pos = i;
                 GL.VertexAttribPointer(pos, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
                 GL.EnableVertexAttribArray(pos);
-                vxattriblocs.Add(pos);
             }
 
             int loc;
@@ -943,8 +938,8 @@ namespace GMDL
             GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
                 batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
 
-            foreach (int pos in vxattriblocs)
-                GL.DisableVertexAttribArray(pos);
+            for (int i = 0; i< 7; i++)
+                GL.DisableVertexAttribArray(i);
 
         }
 
@@ -1934,13 +1929,13 @@ namespace GMDL
             //Vertex attribute
             //Bind vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, quad_vbo);
-            vpos = GL.GetAttribLocation(ResourceMgmt.shader_programs[3], "vPosition");
-            GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.Float, false, 0, 0);
-            GL.EnableVertexAttribArray(vpos);
+            //vPosition #0
+            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, 0);
+            GL.EnableVertexAttribArray(0);
 
-            cpos = GL.GetAttribLocation(ResourceMgmt.shader_programs[3], "vColor");
-            GL.VertexAttribPointer(cpos, 3, VertexAttribPointerType.Float, false, 0, (IntPtr)arraysize);
-            GL.EnableVertexAttribArray(cpos);
+            //vColor #1
+            GL.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 0, (IntPtr)arraysize);
+            GL.EnableVertexAttribArray(1);
 
             //Bind elem buffer
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, quad_ebo);
@@ -2059,7 +2054,7 @@ namespace GMDL
 
                 int tex0Id = (int)TextureUnit.Texture0;
 
-                GL.ActiveTexture((OpenTK.Graphics.OpenGL4.TextureUnit)(tex0Id + i));
+                GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + i));
                 GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
 
             }
@@ -2102,7 +2097,7 @@ namespace GMDL
                 //Use Texture paletteOpt and object palette to load the palette color
                 //GL.Uniform3(loc, palette[tex.palOpt.PaletteName][tex.palOpt.ColorName]);
 
-                GL.ActiveTexture((OpenTK.Graphics.OpenGL4.TextureUnit)(tex0Id + 8 + i));
+                GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 8 + i));
                 GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
 
             }
@@ -2123,7 +2118,7 @@ namespace GMDL
 
                 int tex0Id = (int)TextureUnit.Texture0;
 
-                GL.ActiveTexture((OpenTK.Graphics.OpenGL4.TextureUnit)(tex0Id + 16 + i));
+                GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 16 + i));
                 GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
             }
 
@@ -2188,8 +2183,8 @@ namespace GMDL
 
             //Bring Back screen
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-            GL.DisableVertexAttribArray(vpos);
-            GL.DisableVertexAttribArray(cpos);
+            GL.DisableVertexAttribArray(0);
+            GL.DisableVertexAttribArray(1);
             GL.DeleteBuffer(quad_vbo);
             GL.DeleteBuffer(quad_ebo);
         }
