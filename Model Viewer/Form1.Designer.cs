@@ -70,9 +70,16 @@ namespace Model_Viewer
             this.AnimTable = new System.Windows.Forms.TableLayoutPanel();
             this.newButton1 = new Model_Viewer.NewButton();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
+            this.RightSplitter = new System.Windows.Forms.SplitContainer();
+            this.selObjectBox = new System.Windows.Forms.GroupBox();
+            this.selMatInfo = new System.Windows.Forms.GroupBox();
+            this.selMatName = new System.Windows.Forms.TextBox();
+            this.label5 = new System.Windows.Forms.Label();
             this.mainglcontrolContext = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.getAltIDToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.exportToObjToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.xyzControl1 = new XYZControl("worldPosition");
+            this.xyzControl2 = new XYZControl("localPosition");
             this.menuStrip1.SuspendLayout();
             this.statusStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer2)).BeginInit();
@@ -103,6 +110,12 @@ namespace Model_Viewer
             this.splitContainer1.Panel1.SuspendLayout();
             this.splitContainer1.Panel2.SuspendLayout();
             this.splitContainer1.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.RightSplitter)).BeginInit();
+            this.RightSplitter.Panel1.SuspendLayout();
+            this.RightSplitter.Panel2.SuspendLayout();
+            this.RightSplitter.SuspendLayout();
+            this.selObjectBox.SuspendLayout();
+            this.selMatInfo.SuspendLayout();
             this.mainglcontrolContext.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -213,7 +226,7 @@ namespace Model_Viewer
             this.glControl1.Location = new System.Drawing.Point(0, 0);
             this.glControl1.MinimumSize = new System.Drawing.Size(256, 256);
             this.glControl1.Name = "glControl1";
-            this.glControl1.Size = new System.Drawing.Size(976, 623);
+            this.glControl1.Size = new System.Drawing.Size(661, 623);
             this.glControl1.TabIndex = 1;
             this.glControl1.VSync = true;
             this.glControl1.Load += new System.EventHandler(this.glControl_Load);
@@ -242,7 +255,7 @@ namespace Model_Viewer
             // splitContainer2.Panel2
             // 
             this.splitContainer2.Panel2.Controls.Add(this.splitContainer3);
-            this.splitContainer2.Size = new System.Drawing.Size(260, 623);
+            this.splitContainer2.Size = new System.Drawing.Size(257, 623);
             this.splitContainer2.SplitterDistance = 170;
             this.splitContainer2.TabIndex = 0;
             // 
@@ -252,7 +265,7 @@ namespace Model_Viewer
             this.groupBox1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBox1.Location = new System.Drawing.Point(0, 0);
             this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(260, 170);
+            this.groupBox1.Size = new System.Drawing.Size(257, 170);
             this.groupBox1.TabIndex = 3;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Camera Options";
@@ -285,7 +298,7 @@ namespace Model_Viewer
             this.camSettings.RowStyles.Add(new System.Windows.Forms.RowStyle());
             this.camSettings.RowStyles.Add(new System.Windows.Forms.RowStyle());
             this.camSettings.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
-            this.camSettings.Size = new System.Drawing.Size(254, 151);
+            this.camSettings.Size = new System.Drawing.Size(251, 151);
             this.camSettings.TabIndex = 0;
             // 
             // zFar_Label
@@ -295,7 +308,7 @@ namespace Model_Viewer
             this.zFar_Label.Location = new System.Drawing.Point(5, 135);
             this.zFar_Label.Margin = new System.Windows.Forms.Padding(5);
             this.zFar_Label.Name = "zFar_Label";
-            this.zFar_Label.Size = new System.Drawing.Size(109, 11);
+            this.zFar_Label.Size = new System.Drawing.Size(108, 11);
             this.zFar_Label.TabIndex = 14;
             this.zFar_Label.Text = "zFar";
             this.zFar_Label.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -310,7 +323,7 @@ namespace Model_Viewer
             0,
             0,
             65536});
-            this.numericUpDown5.Location = new System.Drawing.Point(122, 133);
+            this.numericUpDown5.Location = new System.Drawing.Point(121, 133);
             this.numericUpDown5.Maximum = new decimal(new int[] {
             5000,
             0,
@@ -322,7 +335,7 @@ namespace Model_Viewer
             0,
             65536});
             this.numericUpDown5.Name = "numericUpDown5";
-            this.numericUpDown5.Size = new System.Drawing.Size(129, 20);
+            this.numericUpDown5.Size = new System.Drawing.Size(127, 20);
             this.numericUpDown5.TabIndex = 15;
             this.numericUpDown5.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             this.numericUpDown5.Value = new decimal(new int[] {
@@ -339,7 +352,7 @@ namespace Model_Viewer
             this.zNear_Label.Location = new System.Drawing.Point(5, 109);
             this.zNear_Label.Margin = new System.Windows.Forms.Padding(5);
             this.zNear_Label.Name = "zNear_Label";
-            this.zNear_Label.Size = new System.Drawing.Size(109, 16);
+            this.zNear_Label.Size = new System.Drawing.Size(108, 16);
             this.zNear_Label.TabIndex = 12;
             this.zNear_Label.Text = "zNear";
             this.zNear_Label.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -354,14 +367,14 @@ namespace Model_Viewer
             0,
             0,
             65536});
-            this.numericUpDown4.Location = new System.Drawing.Point(122, 107);
+            this.numericUpDown4.Location = new System.Drawing.Point(121, 107);
             this.numericUpDown4.Maximum = new decimal(new int[] {
             500,
             0,
             0,
             65536});
             this.numericUpDown4.Name = "numericUpDown4";
-            this.numericUpDown4.Size = new System.Drawing.Size(129, 20);
+            this.numericUpDown4.Size = new System.Drawing.Size(127, 20);
             this.numericUpDown4.TabIndex = 13;
             this.numericUpDown4.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             this.numericUpDown4.Value = new decimal(new int[] {
@@ -378,7 +391,7 @@ namespace Model_Viewer
             this.label3.Location = new System.Drawing.Point(5, 83);
             this.label3.Margin = new System.Windows.Forms.Padding(5);
             this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(109, 16);
+            this.label3.Size = new System.Drawing.Size(108, 16);
             this.label3.TabIndex = 10;
             this.label3.Text = "Light Intensity";
             this.label3.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -390,7 +403,7 @@ namespace Model_Viewer
             this.label4.Location = new System.Drawing.Point(5, 57);
             this.label4.Margin = new System.Windows.Forms.Padding(5);
             this.label4.Name = "label4";
-            this.label4.Size = new System.Drawing.Size(109, 16);
+            this.label4.Size = new System.Drawing.Size(108, 16);
             this.label4.TabIndex = 8;
             this.label4.Text = "Movement Speed";
             this.label4.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -404,7 +417,7 @@ namespace Model_Viewer
             this.label1.Location = new System.Drawing.Point(5, 5);
             this.label1.Margin = new System.Windows.Forms.Padding(5);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(109, 16);
+            this.label1.Size = new System.Drawing.Size(108, 16);
             this.label1.TabIndex = 3;
             this.label1.Text = "FOV";
             this.label1.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -413,14 +426,14 @@ namespace Model_Viewer
             // 
             this.numericUpDown1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.numericUpDown1.Location = new System.Drawing.Point(122, 3);
+            this.numericUpDown1.Location = new System.Drawing.Point(121, 3);
             this.numericUpDown1.Minimum = new decimal(new int[] {
             1,
             0,
             0,
             0});
             this.numericUpDown1.Name = "numericUpDown1";
-            this.numericUpDown1.Size = new System.Drawing.Size(129, 20);
+            this.numericUpDown1.Size = new System.Drawing.Size(127, 20);
             this.numericUpDown1.TabIndex = 5;
             this.numericUpDown1.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             this.numericUpDown1.Value = new decimal(new int[] {
@@ -437,7 +450,7 @@ namespace Model_Viewer
             this.label2.Location = new System.Drawing.Point(5, 31);
             this.label2.Margin = new System.Windows.Forms.Padding(5);
             this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(109, 16);
+            this.label2.Size = new System.Drawing.Size(108, 16);
             this.label2.TabIndex = 6;
             this.label2.Text = "Light Distance";
             this.label2.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -451,28 +464,28 @@ namespace Model_Viewer
             0,
             0,
             65536});
-            this.numericUpDown2.Location = new System.Drawing.Point(122, 29);
+            this.numericUpDown2.Location = new System.Drawing.Point(121, 29);
             this.numericUpDown2.Maximum = new decimal(new int[] {
             50,
             0,
             0,
             0});
             this.numericUpDown2.Name = "numericUpDown2";
-            this.numericUpDown2.Size = new System.Drawing.Size(129, 20);
+            this.numericUpDown2.Size = new System.Drawing.Size(127, 20);
             this.numericUpDown2.TabIndex = 7;
             this.numericUpDown2.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             this.numericUpDown2.Value = new decimal(new int[] {
-            1,
+            50,
             0,
             0,
-            0});
+            65536});
             this.numericUpDown2.ValueChanged += new System.EventHandler(this.numericUpDown2_ValueChanged);
             // 
             // numericUpDown3
             // 
             this.numericUpDown3.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.numericUpDown3.Location = new System.Drawing.Point(122, 55);
+            this.numericUpDown3.Location = new System.Drawing.Point(121, 55);
             this.numericUpDown3.Maximum = new decimal(new int[] {
             10,
             0,
@@ -484,7 +497,7 @@ namespace Model_Viewer
             0,
             0});
             this.numericUpDown3.Name = "numericUpDown3";
-            this.numericUpDown3.Size = new System.Drawing.Size(129, 20);
+            this.numericUpDown3.Size = new System.Drawing.Size(127, 20);
             this.numericUpDown3.TabIndex = 9;
             this.numericUpDown3.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             this.numericUpDown3.Value = new decimal(new int[] {
@@ -504,7 +517,7 @@ namespace Model_Viewer
             0,
             0,
             65536});
-            this.l_intensity_nud.Location = new System.Drawing.Point(122, 81);
+            this.l_intensity_nud.Location = new System.Drawing.Point(121, 81);
             this.l_intensity_nud.Maximum = new decimal(new int[] {
             10,
             0,
@@ -516,7 +529,7 @@ namespace Model_Viewer
             0,
             0});
             this.l_intensity_nud.Name = "l_intensity_nud";
-            this.l_intensity_nud.Size = new System.Drawing.Size(129, 20);
+            this.l_intensity_nud.Size = new System.Drawing.Size(127, 20);
             this.l_intensity_nud.TabIndex = 11;
             this.l_intensity_nud.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             this.l_intensity_nud.Value = new decimal(new int[] {
@@ -540,7 +553,7 @@ namespace Model_Viewer
             // splitContainer3.Panel2
             // 
             this.splitContainer3.Panel2.Controls.Add(this.splitContainer4);
-            this.splitContainer3.Size = new System.Drawing.Size(260, 449);
+            this.splitContainer3.Size = new System.Drawing.Size(257, 449);
             this.splitContainer3.SplitterDistance = 279;
             this.splitContainer3.TabIndex = 2;
             // 
@@ -550,7 +563,7 @@ namespace Model_Viewer
             this.sceneGraphGroup.Dock = System.Windows.Forms.DockStyle.Fill;
             this.sceneGraphGroup.Location = new System.Drawing.Point(0, 0);
             this.sceneGraphGroup.Name = "sceneGraphGroup";
-            this.sceneGraphGroup.Size = new System.Drawing.Size(260, 279);
+            this.sceneGraphGroup.Size = new System.Drawing.Size(257, 279);
             this.sceneGraphGroup.TabIndex = 1;
             this.sceneGraphGroup.TabStop = false;
             this.sceneGraphGroup.Text = "SceneGraph";
@@ -561,7 +574,7 @@ namespace Model_Viewer
             this.treeView1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.treeView1.Location = new System.Drawing.Point(3, 16);
             this.treeView1.Name = "treeView1";
-            this.treeView1.Size = new System.Drawing.Size(254, 260);
+            this.treeView1.Size = new System.Drawing.Size(251, 260);
             this.treeView1.TabIndex = 0;
             this.treeView1.AfterCheck += new System.Windows.Forms.TreeViewEventHandler(this.treeView1_AfterCheck);
             // 
@@ -579,7 +592,7 @@ namespace Model_Viewer
             // splitContainer4.Panel2
             // 
             this.splitContainer4.Panel2.Controls.Add(this.groupBox2);
-            this.splitContainer4.Size = new System.Drawing.Size(260, 166);
+            this.splitContainer4.Size = new System.Drawing.Size(257, 166);
             this.splitContainer4.SplitterDistance = 89;
             this.splitContainer4.TabIndex = 1;
             // 
@@ -589,7 +602,7 @@ namespace Model_Viewer
             this.ProcGenGroup.Dock = System.Windows.Forms.DockStyle.Fill;
             this.ProcGenGroup.Location = new System.Drawing.Point(0, 0);
             this.ProcGenGroup.Name = "ProcGenGroup";
-            this.ProcGenGroup.Size = new System.Drawing.Size(260, 89);
+            this.ProcGenGroup.Size = new System.Drawing.Size(257, 89);
             this.ProcGenGroup.TabIndex = 0;
             this.ProcGenGroup.TabStop = false;
             this.ProcGenGroup.Text = "ProcGenTools";
@@ -599,7 +612,7 @@ namespace Model_Viewer
             this.randomgenerator.Dock = System.Windows.Forms.DockStyle.Fill;
             this.randomgenerator.Location = new System.Drawing.Point(3, 16);
             this.randomgenerator.Name = "randomgenerator";
-            this.randomgenerator.Size = new System.Drawing.Size(254, 70);
+            this.randomgenerator.Size = new System.Drawing.Size(251, 70);
             this.randomgenerator.TabIndex = 9;
             this.randomgenerator.Text = "ProcGen";
             this.randomgenerator.UseVisualStyleBackColor = true;
@@ -611,7 +624,7 @@ namespace Model_Viewer
             this.groupBox2.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBox2.Location = new System.Drawing.Point(0, 0);
             this.groupBox2.Name = "groupBox2";
-            this.groupBox2.Size = new System.Drawing.Size(260, 73);
+            this.groupBox2.Size = new System.Drawing.Size(257, 73);
             this.groupBox2.TabIndex = 0;
             this.groupBox2.TabStop = false;
             this.groupBox2.Text = "AnimControls";
@@ -628,7 +641,7 @@ namespace Model_Viewer
             this.AnimTable.RowCount = 1;
             this.AnimTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.AnimTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.AnimTable.Size = new System.Drawing.Size(254, 54);
+            this.AnimTable.Size = new System.Drawing.Size(251, 54);
             this.AnimTable.TabIndex = 0;
             // 
             // newButton1
@@ -637,7 +650,7 @@ namespace Model_Viewer
             this.newButton1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.newButton1.Location = new System.Drawing.Point(3, 3);
             this.newButton1.Name = "newButton1";
-            this.newButton1.Size = new System.Drawing.Size(248, 48);
+            this.newButton1.Size = new System.Drawing.Size(245, 48);
             this.newButton1.TabIndex = 14;
             this.newButton1.Text = "Play";
             this.newButton1.UseVisualStyleBackColor = true;
@@ -655,10 +668,84 @@ namespace Model_Viewer
             // 
             // splitContainer1.Panel2
             // 
-            this.splitContainer1.Panel2.Controls.Add(this.glControl1);
+            this.splitContainer1.Panel2.Controls.Add(this.RightSplitter);
             this.splitContainer1.Size = new System.Drawing.Size(1240, 623);
-            this.splitContainer1.SplitterDistance = 260;
+            this.splitContainer1.SplitterDistance = 257;
             this.splitContainer1.TabIndex = 2;
+            // 
+            // RightSplitter
+            // 
+            this.RightSplitter.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.RightSplitter.Location = new System.Drawing.Point(0, 0);
+            this.RightSplitter.Name = "RightSplitter";
+            // 
+            // RightSplitter.Panel1
+            // 
+            this.RightSplitter.Panel1.Controls.Add(this.glControl1);
+            // 
+            // RightSplitter.Panel2
+            // 
+            this.RightSplitter.Panel2.Controls.Add(this.selObjectBox);
+            this.RightSplitter.Size = new System.Drawing.Size(979, 623);
+            this.RightSplitter.SplitterDistance = 661;
+            this.RightSplitter.TabIndex = 2;
+            // 
+            // selObjectBox
+            // 
+            this.selObjectBox.Controls.Add(this.xyzControl2);
+            this.selObjectBox.Controls.Add(this.xyzControl1);
+            this.selObjectBox.Controls.Add(this.selMatInfo);
+            this.selObjectBox.Location = new System.Drawing.Point(3, 3);
+            this.selObjectBox.Name = "selObjectBox";
+            this.selObjectBox.Size = new System.Drawing.Size(304, 614);
+            this.selObjectBox.TabIndex = 0;
+            this.selObjectBox.TabStop = false;
+            this.selObjectBox.Text = "Selected Object Info";
+            // 
+            // xyzControl2
+            // 
+            this.xyzControl2.Location = new System.Drawing.Point(133, 21);
+            this.xyzControl2.Name = "xyzControl2";
+            this.xyzControl2.Size = new System.Drawing.Size(112, 119);
+            this.xyzControl2.TabIndex = 4;
+            this.xyzControl2.TabStop = false;
+            this.xyzControl2.Text = "LocalPosition";
+            // 
+            // xyzControl1
+            // 
+            this.xyzControl1.Location = new System.Drawing.Point(15, 19);
+            this.xyzControl1.Name = "xyzControl1";
+            this.xyzControl1.Size = new System.Drawing.Size(112, 119);
+            this.xyzControl1.TabIndex = 3;
+            this.xyzControl1.TabStop = false;
+            this.xyzControl1.Text = "WorldPosition";
+            // 
+            // selMatInfo
+            // 
+            this.selMatInfo.Controls.Add(this.selMatName);
+            this.selMatInfo.Controls.Add(this.label5);
+            this.selMatInfo.Location = new System.Drawing.Point(6, 271);
+            this.selMatInfo.Name = "selMatInfo";
+            this.selMatInfo.Size = new System.Drawing.Size(292, 67);
+            this.selMatInfo.TabIndex = 2;
+            this.selMatInfo.TabStop = false;
+            this.selMatInfo.Text = "MaterialInfo";
+            // 
+            // selMatName
+            // 
+            this.selMatName.Location = new System.Drawing.Point(148, 13);
+            this.selMatName.Name = "selMatName";
+            this.selMatName.Size = new System.Drawing.Size(138, 20);
+            this.selMatName.TabIndex = 1;
+            // 
+            // label5
+            // 
+            this.label5.AutoSize = true;
+            this.label5.Location = new System.Drawing.Point(6, 16);
+            this.label5.Name = "label5";
+            this.label5.Size = new System.Drawing.Size(75, 13);
+            this.label5.TabIndex = 0;
+            this.label5.Text = "Material Name";
             // 
             // mainglcontrolContext
             // 
@@ -727,6 +814,13 @@ namespace Model_Viewer
             this.splitContainer1.Panel2.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).EndInit();
             this.splitContainer1.ResumeLayout(false);
+            this.RightSplitter.Panel1.ResumeLayout(false);
+            this.RightSplitter.Panel2.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)(this.RightSplitter)).EndInit();
+            this.RightSplitter.ResumeLayout(false);
+            this.selObjectBox.ResumeLayout(false);
+            this.selMatInfo.ResumeLayout(false);
+            this.selMatInfo.PerformLayout();
             this.mainglcontrolContext.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
@@ -777,6 +871,13 @@ namespace Model_Viewer
         private NumericUpDown numericUpDown5;
         private Label zNear_Label;
         private NumericUpDown numericUpDown4;
+        private SplitContainer RightSplitter;
+        private GroupBox selObjectBox;
+        private GroupBox selMatInfo;
+        private TextBox selMatName;
+        private Label label5;
+        private XYZControl xyzControl2;
+        private XYZControl xyzControl1;
     }
 }
 

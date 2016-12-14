@@ -84,6 +84,9 @@
     <Compile Include="CGLControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Include="XYZControl.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="DebugForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -134,6 +137,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="CGLControl.resx">
       <DependentUpon>CGLControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="XYZControl.resx">
+      <DependentUpon>XYZControl.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="DebugForm.resx">
       <DependentUpon>DebugForm.cs</DependentUpon>

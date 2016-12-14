@@ -45,9 +45,6 @@ namespace Model_Viewer
         //Common transforms
         private Matrix4 proj, look;
 
-        //Common transforms
-        private Matrix4 proj, look;
-        
         private float scale = 1.0f;
         private int movement_speed = 1;
         //Mouse Pos
@@ -84,6 +81,9 @@ namespace Model_Viewer
         //Joint Array for shader
         public float[] JMArray = new float[128 * 16];
         //public float[] JColors = new float[128 * 3];
+
+        //Selected Object
+        public GMDL.sharedVBO selectedOb;
 
         //Path
         private string mainFilePath;
@@ -140,14 +140,14 @@ namespace Model_Viewer
             //Initialize Palettes
             Model_Viewer.Palettes.set_palleteColors();
 
-            splitContainer1.Panel2.Controls.Clear();
+            RightSplitter.Panel1.Controls.Clear();
             //Clear Resources
             ResourceMgmt.Cleanup();
             //Add Defaults
             addDefaultTextures();
 
             setup_GLControl();
-            splitContainer1.Panel2.Controls.Add(glControl1);
+            RightSplitter.Panel1.Controls.Add(glControl1);
 
             glControl1.Update();
             glControl1.MakeCurrent();
@@ -280,7 +280,7 @@ namespace Model_Viewer
 
             //Set to current cam fov
             numericUpDown1.Value = 35;
-            numericUpDown2.Value = (decimal)5.0;
+            //numericUpDown2.Value = (decimal)5.0;
 
             //Joystick Init
             for (int i = 0; i < 2; i++)
@@ -294,7 +294,7 @@ namespace Model_Viewer
 
             //Setup the update timer
             t = new Timer();
-            t.Interval = 20;
+            t.Interval = 16;
             t.Tick += new EventHandler(timer_ticker);
             t.Start();
 
@@ -395,30 +395,13 @@ namespace Model_Viewer
                                                             Math.Cos(this.light_angle_y * Math.PI / 180.0))));
         }
 
-        //Light Functions
-
-        private void addDefaultLights()
-        {
-            //Add one and only light for now
-            GMDL.Light light = new GMDL.Light();
-            light.shader_programs = new int[] { ResourceMgmt.shader_programs[7] };
-            light.localPosition = new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                            Math.Sin(this.light_angle_y * Math.PI / 180.0)),
-                                                (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
-                                                (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                            Math.Cos(this.light_angle_y * Math.PI / 180.0)));
-
-            ResourceMgmt.GLlights.Add(light);
-        }
-
         //glControl Timer
         private void timer_ticker(object sender, EventArgs e)
         {
             //Update common transforms
             look = cam.GetViewMatrix();
             float aspect = (float)glControl1.ClientSize.Width / glControl1.ClientSize.Height;
-            proj = Matrix4.CreatePerspectiveFieldOfView(cam.fov, aspect,
-                                                                znear, zfar);
+            proj = Matrix4.CreatePerspectiveFieldOfView(cam.fov, aspect, znear, zfar);
 
             //Simply invalidate the gl control
             glControl1.MakeCurrent();
@@ -476,6 +459,7 @@ namespace Model_Viewer
         private void render_lights()
         {
             int active_program = ResourceMgmt.shader_programs[7];
+
             GL.UseProgram(active_program);
             int loc;
             //Send LookAt matrix to all shaders
@@ -571,7 +555,8 @@ namespace Model_Viewer
             traverse_oblist_rs(this.mainScene, "selected", 0);
             
             //Try to find object
-            traverse_oblist_field<int>(this.mainScene, ob_id, "selected", 1);
+            selectedOb = (GMDL.sharedVBO) traverse_oblist_field<int>(this.mainScene, ob_id, "selected", 1);
+            if (selectedOb !=null) loadSelectedObect(); //Update the Form
 
             //Restore Rendering Buffer
             GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, 0);
@@ -580,10 +565,18 @@ namespace Model_Viewer
             GL.DeleteFramebuffer(fb);
             GL.DeleteRenderbuffer(color_rb);
             GL.DeleteRenderbuffer(depth_rb);
-            GL.DeleteTexture(out_tex);
-            //GL.DeleteTexture(depth_tex);
             pixels = null;
     
+        }
+
+        private void loadSelectedObect()
+        {
+            //Set World Position
+            xyzControl1.bind_model(selectedOb);
+            //Set Local Position
+            xyzControl2.bind_model(selectedOb);
+            //Set Material Name
+            selMatName.Text = selectedOb.material.name;
         }
 
         private void numericUpDown1_ValueChanged(object sender, EventArgs e)
@@ -628,6 +621,7 @@ namespace Model_Viewer
         private void numericUpDown2_ValueChanged(object sender, EventArgs e)
         {
             light_distance = (float)numericUpDown2.Value;
+            updateLightPosition(0);
             glControl1.Invalidate();
         }
 
@@ -686,16 +680,23 @@ namespace Model_Viewer
                 traverse_oblist_rs(child, field, status);
         }
 
-        private void traverse_oblist_field<T>(GMDL.model root, int id, string field, T value)
+        private GMDL.model traverse_oblist_field<T>(GMDL.model root, int id, string field, T value)
         {
             if (root.ID == id)
             {
                 Debug.WriteLine("Object Found: " + root.name + " ID: " + root.ID);
                 setObjectField<T>(field, root, value);
-                return;
+                return root;
             }
+            
             foreach (GMDL.model child in root.children)
-                traverse_oblist_field(child, id, field, value);
+            {
+                GMDL.model m;
+                m =  traverse_oblist_field(child, id, field, value);
+                if (m != null) return m;
+            }
+
+            return null;
         }
 
         private void traverse_render(GMDL.model root, int program)
@@ -770,11 +771,9 @@ namespace Model_Viewer
             root.render(program);
             
             //Render children
-            foreach (GMDL.model child in root.children){
-                //this.glControl1.MakeCurrent();
+            foreach (GMDL.model child in root.children)
                 traverse_render(child, program);
-            }
-
+            
         }
 
         private TreeNode findNodeFromText(TreeNodeCollection coll, string text)
@@ -1116,7 +1115,8 @@ namespace Model_Viewer
             render_scene();
             render_lights();
             render_info();
-            //GL.ClearColor(System.Drawing.Color.Black);
+            
+
             glControl1.SwapBuffers();
             //translate_View();
             ////Draw scene
@@ -1257,7 +1257,6 @@ namespace Model_Viewer
             {
                 //Debug.WriteLine("Deltas {0} {1} {2}", delta_x, delta_y, e.Button);
                 cam.AddRotation(delta_x, delta_y);
-                glControl1.Invalidate();
             }
 
             mouse_x = e.X;
@@ -1369,6 +1368,7 @@ namespace Model_Viewer
         private void l_intensity_nud_ValueChanged(object sender, EventArgs e)
         {
             light_intensity = (float) this.l_intensity_nud.Value;
+            updateLightPosition(0);
             glControl1.Invalidate();
         }
 

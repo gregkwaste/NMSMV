@@ -644,15 +644,6 @@ namespace GMDL
             loc = GL.GetUniformLocation(pass, "selected");
             GL.Uniform1(loc, selected);
 
-            //Bind Matrices
-            //loc = GL.GetUniformLocation(shader_program, "BMs");
-            //GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.getBindRotMats);
-
-            //Bind Translations
-            //loc = GL.GetUniformLocation(shader_program, "BTs");
-            //GL.Uniform3(loc, this.vbo.jointData.Count, this.getBindTransMats);
-
-
             //BIND TEXTURES
             int tex0Id = (int)TextureUnit.Texture0;
             //Diffuse Texture
@@ -1309,9 +1300,7 @@ namespace GMDL
                 GL.DrawRangeElements(PrimitiveType.Triangles, 0, vbo.vCount,
                 vbo.iCount, vbo.iType, IntPtr.Zero);
             }
-
-
-
+            
             //Debug.WriteLine("Normal Object {2} vpos {0} cpos {1} prog {3}", vpos, npos, this.name, this.shader_program);
             //Debug.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vbo.vertex_buffer_object, this.vbo.color_buffer_object);
 
