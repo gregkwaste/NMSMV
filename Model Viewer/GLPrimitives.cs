@@ -280,7 +280,7 @@ namespace Model_Viewer
             //Init Arrays
             verts = new float[8*3];
             normals = new float[8*3];
-            indices = new int[36*3];
+            indices = new int[12*3];
 
             //Verts
             //0

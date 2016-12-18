@@ -73,22 +73,25 @@ namespace Model_Viewer
         {
             string[] split = path.Split('.');
             string newpath = "";
-            for (int i = 0; i < split.Length - 1; i++)
-                newpath += split[i]+ "." ;
+            //for (int i = 0; i < split.Length - 1; i++)
+            //    newpath += split[i]+ "." ;
+            //Get main name
+            string[] pathsplit = split[0].Split('\\');
+            newpath = pathsplit[pathsplit.Length-1] + "." + split[split.Length - 2] + ".exml";
 
-            return newpath + "exml";
+            return "Temp\\" + newpath;
         }
         //MbinCompiler Caller
-        public static void MbinToExml(string path)
+        public static void MbinToExml(string path, string output)
         {
             Process proc = new System.Diagnostics.Process();
             proc.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
             proc.StartInfo.FileName = "MBINCompiler.exe";
-            proc.StartInfo.Arguments = " \" " + path + " \" ";
+            proc.StartInfo.Arguments = " \"" + path + "\" " +  " \"" + output + "\" ";
             proc.Start();
             proc.WaitForExit();
         }
-        //Update STatus strip
+        //Update Status strip
         public static void setStatus(string status,System.Windows.Forms.ToolStripStatusLabel strip)
         {
             strip.Text = status;
@@ -1434,7 +1437,7 @@ namespace Model_Viewer
                             {
                                 Debug.WriteLine("Exml does not exist, Converting...");
                                 //Convert Descriptor MBIN to exml
-                                Util.MbinToExml(descrpath);
+                                Util.MbinToExml(descrpath, exmlPath);
                             }
 
                             //Parse exml now

@@ -158,6 +158,12 @@
       <SubType>Designer</SubType>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
+    <None Include="Resources\locator.frag" />
+    <None Include="Resources\locator.vert" />
+    <None Include="Resources\pick.frag" />
+    <None Include="Resources\pick.vert" />
+    <None Include="Resources\text.frag" />
+    <None Include="Resources\text.vert" />
     <Resource Include="Resources\joint.frag" />
     <Resource Include="Resources\joint.vert" />
     <None Include="OpenTK.dll.config" />

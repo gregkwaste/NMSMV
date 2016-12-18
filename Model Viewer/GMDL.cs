@@ -89,6 +89,7 @@ namespace GMDL
         public Vector3 localScale = new Vector3(1.0f, 1.0f, 1.0f);
         //public Vector3 localRotation = new Vector3(0.0f, 0.0f, 0.0f);
         public Matrix3 localRotation = Matrix3.Identity;
+        public Vector3[] Bbox = new Vector3[2];
 
         public model parent;
         public int cIndex = 0;
@@ -280,9 +281,6 @@ namespace GMDL
             foreach (GMDL.model child in joint.children)
                 cloneJointPart(ref jointdict, child);
         }
-
-        
-        
 
     }
 
@@ -587,6 +585,104 @@ namespace GMDL
                 return trans;
             }
         }
+
+        public void renderBbox(int pass)
+        {
+            GL.UseProgram(pass);
+
+            float [] verts = new float[] { Bbox[0].X, Bbox[0].Y, Bbox[0].Z,
+                                           Bbox[1].X, Bbox[0].Y, Bbox[0].Z,
+                                           Bbox[0].X, Bbox[1].Y, Bbox[0].Z,
+                                           Bbox[1].X, Bbox[1].Y, Bbox[0].Z,
+
+                                           Bbox[0].X, Bbox[0].Y, Bbox[1].Z,
+                                           Bbox[1].X, Bbox[0].Y, Bbox[1].Z,
+                                           Bbox[0].X, Bbox[1].Y, Bbox[1].Z,
+                                           Bbox[1].X, Bbox[1].Y, Bbox[1].Z };
+
+            float[] colors = new float[] { color.X,color.Y,color.Z,
+                                                color.X,color.Y,color.Z,
+                                                color.X,color.Y,color.Z,
+                                                color.X,color.Y,color.Z,
+                                                color.X,color.Y,color.Z,
+                                                color.X,color.Y,color.Z,
+                                                color.X,color.Y,color.Z,
+                                                color.X,color.Y,color.Z};
+
+            //Indices
+            Int32[] indices = new Int32[] { 0,1,2,
+                                            2,1,3,
+                                            1,5,3,
+                                            5,7,3,
+                                            5,4,6,
+                                            5,6,7,
+                                            0,2,4,
+                                            2,6,4,
+                                            3,6,2,
+                                            7,6,3,
+                                            0,4,5,
+                                            1,0,5};
+            //Generate OpenGL buffers
+            int arraysize = sizeof(float) * verts.Length;
+            int vb_bbox, eb_bbox;
+            GL.GenBuffers(1, out vb_bbox);
+            GL.GenBuffers(1, out eb_bbox);
+
+            //Upload vertex buffer
+            GL.BindBuffer(BufferTarget.ArrayBuffer, vb_bbox);
+            //Allocate to NULL
+            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)(2*arraysize), (IntPtr)null, BufferUsageHint.StaticDraw);
+            //Add verts data
+            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
+            //Add vert color data
+            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)arraysize, (IntPtr)arraysize, colors);
+
+            ////Upload index buffer
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, eb_bbox);
+            GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr)(sizeof(Int32) * indices.Length), indices, BufferUsageHint.StaticDraw);
+
+
+
+            //Render
+
+            GL.BindBuffer(BufferTarget.ArrayBuffer, vb_bbox);
+            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, 0);
+            GL.EnableVertexAttribArray(0);
+
+            //InverseBind Matrices
+            int loc;
+            //loc = GL.GetUniformLocation(shader_program, "invBMs");
+            //GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.vbo.invBMats);
+
+            //Reset
+            for (int i = 0; i < 64; i++)
+            {
+                loc = GL.GetUniformLocation(pass, "matflags[" + i.ToString() + "]");
+                GL.Uniform1(loc, 0.0f);
+            }
+
+            //Upload Default Color
+            loc = GL.GetUniformLocation(pass, "color");
+            //GL.Uniform3(loc, this.color);
+            GL.Uniform3(loc, this.color);
+
+            //Upload Light Flag
+            loc = GL.GetUniformLocation(pass, "useLighting");
+            GL.Uniform1(loc, 0.0f);
+
+            //Render Elements
+            GL.PointSize(5.0f);
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, eb_bbox);
+
+            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+
+            GL.DrawRangeElements(PrimitiveType.Triangles, 0, verts.Length,
+                indices.Length, DrawElementsType.UnsignedInt , IntPtr.Zero);
+
+            GL.DisableVertexAttribArray(0);
+
+        
+    }
 
         public virtual void renderMain(int pass)
         {
@@ -950,6 +1046,7 @@ namespace GMDL
                 //Render Main
                 case 0:
                     renderMain(program);
+                    //renderBbox(program);
                     break;
                 //Render Debug
                 case 1:
@@ -1292,7 +1389,7 @@ namespace GMDL
             }
             else if (collisionType == (int)COLLISIONTYPES.BOX)
             {
-                GL.DrawRangeElements(PrimitiveType.Points, 0, vbo.vCount,
+                GL.DrawRangeElements(PrimitiveType.Triangles, 0, vbo.vCount,
                 vbo.iCount, vbo.iType, IntPtr.Zero);
             }
             else
@@ -1383,7 +1480,7 @@ namespace GMDL
             this.boneRemap = geom.boneRemap;
             this.geomVbuf = geom.vbuffer;
             this.geomIbuf = geom.ibuffer;
-
+            
             if (geom.indicesLength == 0x2)
                 this.iType = DrawElementsType.UnsignedShort;
             else
@@ -1487,6 +1584,8 @@ namespace GMDL
         public int[] offsets; //List to save strides according to meshdescr
         public int[] small_offsets; //Same thing for the small description
         public int[] boneRemap;
+        public List<Vector3[]> bboxes = new List<Vector3[]>();
+        public List<int> vstarts = new List<int>();
 
         //Joint info
         public List<JointBindingData> jointData = new List<JointBindingData>();
@@ -1607,6 +1706,7 @@ namespace GMDL
         {
             foreach (Sampler sam in samplers){
 
+
                 string[] split = sam.pathDiff.Split('.');
                 //Construct main filename
                 string temp = "";
@@ -1614,8 +1714,9 @@ namespace GMDL
                     temp += split[i] + ".";
                 string texMbin = temp + "TEXTURE.MBIN";
                 string texMbinexml = temp + "TEXTURE.exml";
-                texMbin = Path.Combine(Util.dirpath, texMbin);
-                texMbinexml = Path.Combine(Util.dirpath, texMbinexml);
+                texMbin = Path.GetFullPath(Path.Combine(Util.dirpath, texMbin));
+                //texMbinexml = Path.Combine(Util.dirpath, texMbinexml);
+                texMbinexml = Util.getExmlPath(texMbin);
                 //Detect Procedural Texture
                 if (File.Exists(texMbin))
                 {
@@ -1623,17 +1724,8 @@ namespace GMDL
                     sam.proc = true;
                     //Convert to exml
                     if (!File.Exists(texMbinexml))
-                    {
-                        Debug.WriteLine("Exml does not exist");
-                        //Convert Descriptor MBIN to exml
-                        Process proc = new System.Diagnostics.Process();
-                        proc.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
-                        proc.StartInfo.FileName = "MBINCompiler.exe";
-                        proc.StartInfo.Arguments = " \" " + texMbin + " \" ";
-                        proc.Start();
-                        proc.WaitForExit();
-                    }
-
+                        Util.MbinToExml(texMbin, texMbinexml);
+                    
                     //Parse exml now
                     XmlDocument descrXml = new XmlDocument();
                     descrXml.Load(texMbinexml);
@@ -2155,7 +2247,7 @@ namespace GMDL
             bw.Write(pixels);
             fs.Flush();
             fs.Close();
-#endif            
+#endif
             //Store Texture to material
             fDiffuseMap.bufferID = out_tex_diffuse;
             
@@ -2410,7 +2502,7 @@ namespace GMDL
             //Render Elements
             //Bind elem buffer
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.element_buffer_object);
-            GL.PointSize(10.0f);
+            GL.PointSize(5.0f);
             //GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Point);
             
             GL.DrawArrays(PrimitiveType.Lines, 0, indices.Length);

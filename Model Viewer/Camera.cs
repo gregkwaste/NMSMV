@@ -62,7 +62,7 @@ namespace Model_Viewer
 
         public void setFOV(int angle)
         {
-            this.fov = (float) Math.PI * angle / 180;
+            this.fov = (float) Math.PI * angle / 180.0f;
         }
 
     }

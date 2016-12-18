@@ -43,7 +43,9 @@ namespace Model_Viewer
         private float light_intensity = 2.0f;
 
         //Common transforms
-        private Matrix4 proj, look;
+        private Matrix4 proj, look, rotMat, mvp;
+        private Vector4[] frPlanes = new Vector4[6];
+        private int occludedNum = 0;
 
         private float scale = 1.0f;
         private int movement_speed = 1;
@@ -93,7 +95,36 @@ namespace Model_Viewer
 
         public Form1()
         {
+            //Custom stuff
+            this.xyzControl1 = new XYZControl("WorldPosition");
+            this.xyzControl2 = new XYZControl("LocalPosition");
+
             InitializeComponent();
+
+            this.rightFlowPanel.Controls.Add(xyzControl2);
+            this.rightFlowPanel.Controls.Add(xyzControl1);
+
+            //
+            // xyzControl2
+            //
+            this.xyzControl2.Name = "xyzControl2";
+            this.xyzControl2.Size = new System.Drawing.Size(112, 119);
+            this.xyzControl2.TabIndex = 4;
+            this.xyzControl2.TabStop = false;
+            this.xyzControl2.Text = "LocalPosition";
+
+            //
+            // xyzControl1
+            //
+            this.xyzControl1.Name = "xyzControl1";
+            this.xyzControl1.Size = new System.Drawing.Size(112, 119);
+            this.xyzControl1.TabIndex = 3;
+            this.xyzControl1.TabStop = false;
+            this.xyzControl1.Text = "WorldPosition";
+
+
+
+
         }
 
         private void openToolStripMenuItem_Click(object sender, EventArgs e)
@@ -129,7 +160,7 @@ namespace Model_Viewer
                 if (!File.Exists(exmlPath))
                 {
                     Debug.WriteLine("Exml does not exist");
-                    Util.MbinToExml(filename);
+                    Util.MbinToExml(filename, exmlPath);
                 }
             }
 
@@ -180,21 +211,6 @@ namespace Model_Viewer
             treeView1.Nodes.Add(node);
             GC.Collect();
 
-#if DEBUG
-            //DEBUG write the jmarray to disk
-            using (System.IO.StreamWriter file =
-            new System.IO.StreamWriter(@"jmarray.txt"))
-            {
-                for (int i = 0; i < JMArray.Length / 4; i++)
-                {
-                    file.WriteLine(String.Join(" ", new string[] { JMArray[4 * i].ToString(),
-                                                                   JMArray[4 * i + 1].ToString(),
-                                                                   JMArray[4 * i + 2].ToString(),
-                                                                   JMArray[4 * i + 3].ToString()}));
-                }
-            }
-#endif
-
             glControl1_Resize(new object(), null); //Try to call resize event
 
             glControl1.Update();
@@ -222,47 +238,35 @@ namespace Model_Viewer
             //Main Shader
             vvs = GLSL_Preprocessor.Parser("Shaders/Simple_VS.glsl");
             ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FS.glsl");
-
             GLShaderHelper.CreateShaders(vvs, ffs, "", out vertex_shader_ob,
                     out fragment_shader_ob, out ResourceMgmt.shader_programs[0]);
 
-            //Compile Locator Shaders
-            using (StreamReader vs = new StreamReader("Shaders/locator_VS.glsl"))
-            using (StreamReader fs = new StreamReader("Shaders/locator_FS.glsl"))
-                GLShaderHelper.CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), "", out vertex_shader_ob,
-                    out fragment_shader_ob, out ResourceMgmt.shader_programs[1]);
-            
-            //Compile Joint Shaders
-            GLShaderHelper.CreateShaders(Resources.joint_vert, Resources.joint_frag, "", out vertex_shader_ob,
-                out fragment_shader_ob, out ResourceMgmt.shader_programs[2]);
-
+            //Texture Mixing Shaders
             vvs = GLSL_Preprocessor.Parser("Shaders/pass_VS.glsl");
             ffs = GLSL_Preprocessor.Parser("Shaders/pass_FS.glsl");
-            //Compile Texture Shaders
             GLShaderHelper.CreateShaders(vvs, ffs, "", out vertex_shader_ob,
                     out fragment_shader_ob, out ResourceMgmt.shader_programs[3]);
 
-            //Compile Text Shaders
-            using (StreamReader vs = new StreamReader("Shaders/Text_VS.glsl"))
-            using (StreamReader fs = new StreamReader("Shaders/Text_FS.glsl"))
-                GLShaderHelper.CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), "", out vertex_shader_ob,
-                    out fragment_shader_ob, out ResourceMgmt.shader_programs[4]);
+            //Locator Shaders
+            GLShaderHelper.CreateShaders(Resources.locator_vert, Resources.locator_frag, "", out vertex_shader_ob,
+                out fragment_shader_ob, out ResourceMgmt.shader_programs[1]);
+            
+            //Joint Shaders
+            GLShaderHelper.CreateShaders(Resources.joint_vert, Resources.joint_frag, "", out vertex_shader_ob,
+                out fragment_shader_ob, out ResourceMgmt.shader_programs[2]);
+
+            //Text Shaders
+            GLShaderHelper.CreateShaders(Resources.text_vert, Resources.text_frag, "", out vertex_shader_ob,
+                out fragment_shader_ob, out ResourceMgmt.shader_programs[4]);
 
             //Picking Shaders
-            using (StreamReader vs = new StreamReader("Shaders/Picking_VS.glsl"))
-            using (StreamReader fs = new StreamReader("Shaders/Picking_FS.glsl"))
-                GLShaderHelper.CreateShaders(vs.ReadToEnd(), fs.ReadToEnd(), "", out vertex_shader_ob,
-                    out fragment_shader_ob, out ResourceMgmt.shader_programs[6]);
+            GLShaderHelper.CreateShaders(Resources.pick_vert, Resources.pick_frag, "", out vertex_shader_ob,
+                out fragment_shader_ob, out ResourceMgmt.shader_programs[6]);
 
             //Light Shaders
             GLShaderHelper.CreateShaders(Resources.light_vert, Resources.light_frag, "", out vertex_shader_ob,
                 out fragment_shader_ob, out ResourceMgmt.shader_programs[7]);
 
-
-            //Debug.WriteLine("Programs {0} {1} {2} {3} ", ResourceMgmt.shader_programs[0],
-            //                                         ResourceMgmt.shader_programs[1],
-            //                                         ResourceMgmt.shader_programs[2],
-            //                                         ResourceMgmt.shader_programs[3]);
 
             GMDL.scene scene = new GMDL.scene();
             scene.type = TYPES.SCENE;
@@ -270,6 +274,24 @@ namespace Model_Viewer
                                                 ResourceMgmt.shader_programs[5],
                                                 ResourceMgmt.shader_programs[6]};
             scene.ID = this.childCounter;
+
+
+            //Add Frustum cube
+            GMDL.Collision cube = new GMDL.Collision();
+            cube.vbo = (new Box(2.0f, 2.0f, 2.0f)).getVBO();
+
+            //Create model
+            GMDL.Collision so = new GMDL.Collision();
+
+            //Remove that after implemented all the different collision types
+            cube.shader_programs = new int[] { ResourceMgmt.shader_programs[0],
+                                              ResourceMgmt.shader_programs[5],
+                                              ResourceMgmt.shader_programs[6]}; //Use Mesh program for collisions
+            cube.name = "FRUSTUM";
+            cube.collisionType = (int) COLLISIONTYPES.BOX;
+
+
+            scene.children.Add(cube);
 
             this.mainScene = scene;
             this.childCounter++;
@@ -325,6 +347,10 @@ namespace Model_Viewer
             //Load font
             setupFont();
 
+            //Check if Temp folder exists
+            if (!Directory.Exists("Temp")) Directory.CreateDirectory("Temp");
+
+
         }
 
         private void setupFont()
@@ -351,7 +377,7 @@ namespace Model_Viewer
 
             //Add some text for rendering
             texObs.Add(font.renderText("Greetings", new Vector2(0.02f, 0.0f), scale));
-            //texObs.Add(font.renderText("gregkwaste", new Vector2(1.6f, 0.0f), 1.0f));
+            texObs.Add(font.renderText(occludedNum.ToString(), new Vector2(1.0f, 0.0f), 1.0f));
         }
 
         private void addDefaultTextures()
@@ -395,19 +421,114 @@ namespace Model_Viewer
                                                             Math.Cos(this.light_angle_y * Math.PI / 180.0))));
         }
 
+
+        private void updateFrustumPlanes()
+        {
+            Matrix4 mat = Matrix4.Mult(look, proj);
+            //mat.Transpose();
+            //Matrix4 mat = proj;
+
+            frPlanes[0] = new Vector4(mat[0, 3] - mat[0, 0],
+                                      mat[1, 3] - mat[1, 0],
+                                      mat[2, 3] - mat[2, 0],
+                                      mat[3, 3] - mat[3, 0]);
+
+            frPlanes[1] = new Vector4(mat[0, 3] + mat[0, 0],
+                                      mat[1, 3] + mat[1, 0],
+                                      mat[2, 3] + mat[2, 0],
+                                      mat[3, 3] + mat[3, 0]);
+            
+            frPlanes[2] = new Vector4(mat[0, 3] + mat[0, 1],
+                                      mat[1, 3] + mat[1, 1],
+                                      mat[2, 3] + mat[2, 1],
+                                      mat[3, 3] + mat[3, 1]);
+
+            frPlanes[3] = new Vector4(mat[0, 3] - mat[0, 1],
+                                      mat[1, 3] - mat[1, 1],
+                                      mat[2, 3] - mat[2, 1],
+                                      mat[3, 3] - mat[3, 1]);
+
+            frPlanes[4] = new Vector4(mat[0, 3] - mat[0, 2],
+                                      mat[1, 3] - mat[1, 2],
+                                      mat[2, 3] - mat[2, 2],
+                                      mat[3, 3] - mat[3, 2]);
+
+            frPlanes[5] = new Vector4(mat[0, 3] + mat[0, 2],
+                                      mat[1, 3] + mat[1, 2],
+                                      mat[2, 3] + mat[2, 2],
+                                      mat[3, 3] + mat[3, 2]);
+
+            //Normalize them
+            for (int i = 0; i < 6; i++) {
+                Vector3 v = new Vector3(frPlanes[i].X, frPlanes[i].Y, frPlanes[i].Z);
+                float l = v.Length;
+                //Normalize
+                frPlanes[i].X /= l;
+                frPlanes[i].Y /= l;
+                frPlanes[i].Z /= l;
+                frPlanes[i].W /= l;
+            }
+                
+        }
+
         //glControl Timer
         private void timer_ticker(object sender, EventArgs e)
         {
             //Update common transforms
             look = cam.GetViewMatrix();
-            float aspect = (float)glControl1.ClientSize.Width / glControl1.ClientSize.Height;
+            float aspect = (float) glControl1.ClientSize.Width / glControl1.ClientSize.Height;
             proj = Matrix4.CreatePerspectiveFieldOfView(cam.fov, aspect, znear, zfar);
+            Matrix4 Rotx = Matrix4.CreateRotationX(rot[0] * (float) Math.PI / 180.0f);
+            Matrix4 Roty = Matrix4.CreateRotationY(rot[1] * (float) Math.PI / 180.0f);
+            Matrix4 Rotz = Matrix4.CreateRotationZ(rot[2] * (float) Math.PI / 180.0f);
+            rotMat = Matrix4.Mult(Rotz, Matrix4.Mult(Roty, Rotx));
+            mvp = Matrix4.Mult(Matrix4.Mult(rotMat, look), proj); //Full mvp matrix
+
+            updateFrustumPlanes();
+
+            occludedNum = 0; //Reset Counter
 
             //Simply invalidate the gl control
             glControl1.MakeCurrent();
             glControl1.Invalidate();
         }
 
+        private bool frustum_occlude(GMDL.model cand)
+        {
+            //Matrix4 mat = Matrix4.Mult(cand.worldMat, rotMat);
+            Matrix4 mat = rotMat;
+            mat = Matrix4.Mult(mat, look);
+            mat = Matrix4.Mult(mat, proj);
+            mat.Transpose();
+
+            for (int i = 0; i < 6; i++)
+            {
+                int result = 0;
+                Vector4 v;
+
+                v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[0].Y, cand.Bbox[0].Z, 1.0f), mat);
+                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
+                v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[0].Y, cand.Bbox[0].Z, 1.0f), mat);
+                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
+                v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[1].Y, cand.Bbox[0].Z, 1.0f), mat);
+                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
+                v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[1].Y, cand.Bbox[0].Z, 1.0f), mat);
+                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
+
+                v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[0].Y, cand.Bbox[1].Z, 1.0f), mat);
+                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
+                v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[0].Y, cand.Bbox[1].Z, 1.0f), mat);
+                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
+                v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[1].Y, cand.Bbox[1].Z, 1.0f), mat);
+                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
+                v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[1].Y, cand.Bbox[1].Z, 1.0f), mat);
+                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
+
+                if (result == 8) return false;
+            }
+
+            return true;
+        }
 
         private void render_scene()
         {
@@ -447,6 +568,7 @@ namespace Model_Viewer
             loc = GL.GetUniformLocation(ResourceMgmt.shader_programs[4], "h");
             GL.Uniform1(loc, (float)glControl1.Height);
 
+            texObs[1]=font.renderText(occludedNum.ToString(), new Vector2(1.0f, 0.0f), 0.75f);
             //Render Text Objects
             foreach (GLText t in texObs)
                 t.render();
@@ -543,7 +665,7 @@ namespace Model_Viewer
 #endif
 
             //Pick object here :)
-            //GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             Debug.WriteLine("Selecting Object at Position: " + p.X + " " + (tex_h -p.Y));
             byte[] buffer = new byte[4];
             GL.ReadPixels(p.X, tex_h - p.Y, 1, 1, PixelFormat.Rgba, PixelType.UnsignedByte, buffer);
@@ -710,24 +832,21 @@ namespace Model_Viewer
                 throw new ApplicationException("Shit program");
 
             int loc;
-            //Send LookAt matrix to all shaders
-            loc = GL.GetUniformLocation(active_program, "look");
-            GL.UniformMatrix4(loc, false, ref look);
-            //Send object world Matrix to all shaders
-
+            
             loc = GL.GetUniformLocation(active_program, "worldMat");
             Matrix4 wMat = root.worldMat;
             GL.UniformMatrix4(loc, false, ref wMat);
 
-            //Send projection matrix to all shaders
-            loc = GL.GetUniformLocation(active_program, "proj");
-            GL.UniformMatrix4(loc, false, ref proj);
-            //Send theta to all shaders
-            loc = GL.GetUniformLocation(active_program, "theta");
-            GL.Uniform3(loc, this.rot);
+            //Send mvp to all shaders
+            loc = GL.GetUniformLocation(active_program, "mvp");
+            GL.UniformMatrix4(loc, false, ref mvp);
 
             if (root.type == TYPES.MESH)
             {
+                //Sent rotation matrix individually for light calculations
+                loc = GL.GetUniformLocation(active_program, "rotMat");
+                GL.UniformMatrix4(loc, false, ref rotMat);
+
                 //Send DiffuseFlag
                 loc = GL.GetUniformLocation(active_program, "diffuseFlag");
                 GL.Uniform1(loc, RenderOptions.UseTextures);
@@ -753,22 +872,16 @@ namespace Model_Viewer
                 loc = GL.GetUniformLocation(active_program, "firstskinmat");
                 GL.Uniform1(loc, ((GMDL.sharedVBO)root).firstskinmat);
 
-                //loc = GL.GetUniformLocation(root.shader_program, "jMs");
-                //GL.UniformMatrix4(loc, 60, false, JMArray);
-
-                //Upload joint colors
-                //loc = GL.GetUniformLocation(root.shader_program, "jColors");
-                //GL.Uniform3(loc, 60, JColors);
-
-
+                //Apply frustum culling only for mesh objects
+                if (frustum_occlude(root)) root.render(program);
+                else occludedNum++;
             }
-            else if (root.type == TYPES.LOCATOR || root.type == TYPES.SCENE)
+            else if (root.type == TYPES.LOCATOR || root.type == TYPES.SCENE || root.type == TYPES.JOINT || root.type == TYPES.LIGHT || root.type ==TYPES.COLLISION)
             {
                 //Locator Program
                 //TESTING
+                root.render(program);
             }
-
-            root.render(program);
             
             //Render children
             foreach (GMDL.model child in root.children)
@@ -854,7 +967,7 @@ namespace Model_Viewer
             {
                 Debug.WriteLine("Exml does not exist, Converting...");
                 //Convert Descriptor MBIN to exml
-                Util.MbinToExml(descrpath);
+                Util.MbinToExml(descrpath, exmlPath);
             }
             
             //Parse exml now

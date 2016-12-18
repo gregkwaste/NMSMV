@@ -529,13 +529,22 @@ public static class GEOMMBIN {
         var bc = br.ReadInt32();
         fs.Seek(0x4, SeekOrigin.Current);
 
-
-        fs.Seek(0x8, SeekOrigin.Current);
+        //Vertstarts
+        var vsoffset = fs.Position + br.ReadInt32();
+        fs.Seek(0x4, SeekOrigin.Current);
         var partcount = br.ReadInt32();
         fs.Seek(0x4, SeekOrigin.Current);
+        //VertEnds
+        fs.Seek(0x10, SeekOrigin.Current);
+        //MatrixLayouts
+        fs.Seek(0x10, SeekOrigin.Current);
 
-        //Skip rest section type offsets
-        fs.Seek(4 * 0x10, SeekOrigin.Current);
+        //BoundBoxes
+        var bboxminoffset = fs.Position + br.ReadInt32();
+        fs.Seek(0xC, SeekOrigin.Current);
+        var bboxmaxoffset = fs.Position + br.ReadInt32();
+        fs.Seek(0xC, SeekOrigin.Current);
+
 
         var lod_count = br.ReadInt32();
         var vx_type = br.ReadInt32();
@@ -602,6 +611,33 @@ public static class GEOMMBIN {
             GMDL.JointBindingData jdata = new GMDL.JointBindingData();
             jdata.Load(fs);
             geom.jointData.Add(jdata);
+        }
+
+        //Get Vertex Starts
+        //I'm fetching that just for getting the object id within the geometry file
+        fs.Seek(vsoffset, SeekOrigin.Begin);
+        for (int i = 0; i < partcount; i++)
+            geom.vstarts.Add(br.ReadInt32());
+        
+        //Get BBoxes
+        //Init first
+        for (int i = 0; i < partcount; i++)
+        {
+            Vector3[] bb = new Vector3[2];
+            geom.bboxes.Add(bb);
+        }
+
+        fs.Seek(bboxminoffset, SeekOrigin.Begin);
+        for (int i = 0; i < partcount; i++) {
+            geom.bboxes[i][0] = new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
+            br.ReadBytes(4);
+        }
+
+        fs.Seek(bboxmaxoffset, SeekOrigin.Begin);
+        for (int i = 0; i < partcount; i++)
+        {
+            geom.bboxes[i][1] = new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
+            br.ReadBytes(4);
         }
 
         //Get indices buffer
@@ -819,7 +855,8 @@ public static class GEOMMBIN {
         XmlElement geom = (XmlElement) sceneNodeData.ChildNodes[0].SelectSingleNode("Property[@name='Value']");
         geomfile = geom.GetAttribute("value");
         FileStream fs = new FileStream(Path.Combine(Util.dirpath, geomfile) + ".PC", FileMode.Open);
-        GMDL.customVBO cvbo = new GMDL.customVBO(GEOMMBIN.Parse(fs));
+        GMDL.GeomObject gobject = GEOMMBIN.Parse(fs);
+        GMDL.customVBO cvbo = new GMDL.customVBO(gobject);
         fs.Close();
 
         //Random Generetor for colors
@@ -837,7 +874,7 @@ public static class GEOMMBIN {
         XmlElement children = (XmlElement)sceneNode.SelectSingleNode("Property[@name='Children']");
         foreach (XmlElement node in children)
         {
-            GMDL.model part = parseNode(node, cvbo, root, root);
+            GMDL.model part = parseNode(node, cvbo, gobject, root, root);
             //If joint save it also to the jointmodels of the scene
             if (part.type == TYPES.JOINT)
                 root.jointModel.Add((GMDL.Joint) part);
@@ -847,7 +884,7 @@ public static class GEOMMBIN {
     }
 
        private static GMDL.model parseNode(XmlElement node, 
-           GMDL.customVBO cvbo, GMDL.model parent, GMDL.scene scene)
+           GMDL.customVBO cvbo, GMDL.GeomObject gobject, GMDL.model parent, GMDL.scene scene)
         {
         XmlElement attribs,childs,transform;
         transform = (XmlElement)node.SelectSingleNode("Property[@name='Transform']");
@@ -909,20 +946,21 @@ public static class GEOMMBIN {
             so.vertrend = int.Parse(((XmlElement)attribs.ChildNodes[3].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
             so.firstskinmat = int.Parse(((XmlElement)attribs.ChildNodes[4].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
             so.lastskinmat = int.Parse(((XmlElement)attribs.ChildNodes[5].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-            //opt = (XmlElement)attribs.SelectSingleNode(".//OPTION[@NAME='FIRSTSKINMAT']");
-            //so.firstskinmat = int.Parse(opt.GetAttribute("VALUE"));
-            //opt = (XmlElement)attribs.SelectSingleNode(".//OPTION[@NAME='LASTSKINMAT']");
-            //so.lastskinmat = int.Parse(opt.GetAttribute("VALUE"));
-            //opt = (XmlElement)attribs.SelectSingleNode(".//OPTION[@NAME='BATCHSTART']");
-            //so.batchstart = int.Parse(opt.GetAttribute("VALUE"));
-            //opt = (XmlElement)attribs.SelectSingleNode(".//OPTION[@NAME='BATCHCOUNT']");
-            //so.batchcount = int.Parse(opt.GetAttribute("VALUE"));
-            //opt = (XmlElement)attribs.SelectSingleNode(".//OPTION[@NAME='VERTRSTART']");
-            //so.vertrstart = int.Parse(opt.GetAttribute("VALUE"));
-            //opt = (XmlElement)attribs.SelectSingleNode(".//OPTION[@NAME='VERTREND']");
-            //so.vertrend = int.Parse(opt.GetAttribute("VALUE"));
             Debug.WriteLine("Batch Start {0} Count {1} ", so.batchstart, so.batchcount);
 
+            //Find id within the vbo
+            int iid = -1;
+            for (int i = 0; i < gobject.vstarts.Count; i++)
+                if (gobject.vstarts[i] == so.vertrstart)
+                {
+                    iid = i;
+                    break;
+                }
+                
+            
+
+
+            so.Bbox = gobject.bboxes[iid];
             so.parent = parent;
             so.scene = scene;
             so.init(String.Join(",",transforms));
@@ -964,7 +1002,7 @@ public static class GEOMMBIN {
                 //Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
-                    GMDL.model part = parseNode(childnode, cvbo, so, scene);
+                    GMDL.model part = parseNode(childnode, cvbo, gobject, so, scene);
                     if (part.type == TYPES.JOINT)
                         so.scene.jointModel.Add((GMDL.Joint) part);
                     so.children.Add(part);
@@ -999,7 +1037,7 @@ public static class GEOMMBIN {
                 //Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
-                    GMDL.model part = parseNode(childnode, cvbo, so, scene);
+                    GMDL.model part = parseNode(childnode, cvbo, gobject, so, scene);
                     if (part.type == TYPES.JOINT)
                         so.scene.jointModel.Add((GMDL.Joint)part);
                     so.children.Add(part);
@@ -1035,7 +1073,7 @@ public static class GEOMMBIN {
                 //Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
-                    GMDL.model part = parseNode(childnode, cvbo, joint, scene);
+                    GMDL.model part = parseNode(childnode, cvbo, gobject, joint, scene);
                     joint.children.Add(part);
                 }
             }
@@ -1048,13 +1086,13 @@ public static class GEOMMBIN {
             Debug.WriteLine("Reference Detected");
             //Getting Scene MBIN file
             XmlElement opt = ((XmlElement)attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']"));
-            string path = Path.Combine(Util.dirpath, opt.GetAttribute("value"));
+            string path = Path.GetFullPath(Path.Combine(Util.dirpath, opt.GetAttribute("value")));
 
             //Debug.WriteLine("Loading Scene " + path);
             XmlDocument newXml = new XmlDocument(); 
             //Parse MBIN to xml
             if (!File.Exists(Util.getExmlPath(path)))
-                Util.MbinToExml(path);
+                Util.MbinToExml(path, Util.getExmlPath(path));
             
             newXml.Load(Util.getExmlPath(path));
 
@@ -1072,7 +1110,7 @@ public static class GEOMMBIN {
             {
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
-                    GMDL.model part = parseNode(childnode, cvbo, so, scene);
+                    GMDL.model part = parseNode(childnode, cvbo, gobject, so, scene);
                     //If joint save it also to the jointmodels of the scene
                     if (part.type == TYPES.JOINT)
                         so.jointModel.Add((GMDL.Joint)part);
@@ -1158,7 +1196,7 @@ public static class GEOMMBIN {
             {
                 Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
-                    so.children.Add(parseNode(childnode, cvbo, so, scene));
+                    so.children.Add(parseNode(childnode, cvbo, gobject, so, scene));
             }
             
             return so;

@@ -62,24 +62,23 @@ namespace Model_Viewer
             this.l_intensity_nud = new System.Windows.Forms.NumericUpDown();
             this.splitContainer3 = new System.Windows.Forms.SplitContainer();
             this.sceneGraphGroup = new System.Windows.Forms.GroupBox();
-            this.treeView1 = new Model_Viewer.NoClickTree();
             this.splitContainer4 = new System.Windows.Forms.SplitContainer();
             this.ProcGenGroup = new System.Windows.Forms.GroupBox();
             this.randomgenerator = new System.Windows.Forms.Button();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.AnimTable = new System.Windows.Forms.TableLayoutPanel();
-            this.newButton1 = new Model_Viewer.NewButton();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.RightSplitter = new System.Windows.Forms.SplitContainer();
             this.selObjectBox = new System.Windows.Forms.GroupBox();
+            this.rightFlowPanel = new System.Windows.Forms.FlowLayoutPanel();
             this.selMatInfo = new System.Windows.Forms.GroupBox();
             this.selMatName = new System.Windows.Forms.TextBox();
             this.label5 = new System.Windows.Forms.Label();
             this.mainglcontrolContext = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.getAltIDToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.exportToObjToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.xyzControl1 = new XYZControl("worldPosition");
-            this.xyzControl2 = new XYZControl("localPosition");
+            this.treeView1 = new Model_Viewer.NoClickTree();
+            this.newButton1 = new Model_Viewer.NewButton();
             this.menuStrip1.SuspendLayout();
             this.statusStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer2)).BeginInit();
@@ -115,6 +114,7 @@ namespace Model_Viewer
             this.RightSplitter.Panel2.SuspendLayout();
             this.RightSplitter.SuspendLayout();
             this.selObjectBox.SuspendLayout();
+            this.rightFlowPanel.SuspendLayout();
             this.selMatInfo.SuspendLayout();
             this.mainglcontrolContext.SuspendLayout();
             this.SuspendLayout();
@@ -325,10 +325,10 @@ namespace Model_Viewer
             65536});
             this.numericUpDown5.Location = new System.Drawing.Point(121, 133);
             this.numericUpDown5.Maximum = new decimal(new int[] {
-            5000,
+            1000,
             0,
             0,
-            65536});
+            0});
             this.numericUpDown5.Minimum = new decimal(new int[] {
             100,
             0,
@@ -370,6 +370,11 @@ namespace Model_Viewer
             this.numericUpDown4.Location = new System.Drawing.Point(121, 107);
             this.numericUpDown4.Maximum = new decimal(new int[] {
             500,
+            0,
+            0,
+            65536});
+            this.numericUpDown4.Minimum = new decimal(new int[] {
+            1,
             0,
             0,
             65536});
@@ -568,16 +573,6 @@ namespace Model_Viewer
             this.sceneGraphGroup.TabStop = false;
             this.sceneGraphGroup.Text = "SceneGraph";
             // 
-            // treeView1
-            // 
-            this.treeView1.CheckBoxes = true;
-            this.treeView1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.treeView1.Location = new System.Drawing.Point(3, 16);
-            this.treeView1.Name = "treeView1";
-            this.treeView1.Size = new System.Drawing.Size(251, 260);
-            this.treeView1.TabIndex = 0;
-            this.treeView1.AfterCheck += new System.Windows.Forms.TreeViewEventHandler(this.treeView1_AfterCheck);
-            // 
             // splitContainer4
             // 
             this.splitContainer4.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -644,18 +639,6 @@ namespace Model_Viewer
             this.AnimTable.Size = new System.Drawing.Size(251, 54);
             this.AnimTable.TabIndex = 0;
             // 
-            // newButton1
-            // 
-            this.AnimTable.SetColumnSpan(this.newButton1, 2);
-            this.newButton1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.newButton1.Location = new System.Drawing.Point(3, 3);
-            this.newButton1.Name = "newButton1";
-            this.newButton1.Size = new System.Drawing.Size(245, 48);
-            this.newButton1.TabIndex = 14;
-            this.newButton1.Text = "Play";
-            this.newButton1.UseVisualStyleBackColor = true;
-            this.newButton1.Click += new System.EventHandler(this.newButton1_Click);
-            // 
             // splitContainer1
             // 
             this.splitContainer1.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -692,42 +675,32 @@ namespace Model_Viewer
             // 
             // selObjectBox
             // 
-            this.selObjectBox.Controls.Add(this.xyzControl2);
-            this.selObjectBox.Controls.Add(this.xyzControl1);
-            this.selObjectBox.Controls.Add(this.selMatInfo);
-            this.selObjectBox.Location = new System.Drawing.Point(3, 3);
+            this.selObjectBox.Controls.Add(this.rightFlowPanel);
+            this.selObjectBox.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.selObjectBox.Location = new System.Drawing.Point(0, 0);
             this.selObjectBox.Name = "selObjectBox";
-            this.selObjectBox.Size = new System.Drawing.Size(304, 614);
+            this.selObjectBox.Size = new System.Drawing.Size(314, 623);
             this.selObjectBox.TabIndex = 0;
             this.selObjectBox.TabStop = false;
             this.selObjectBox.Text = "Selected Object Info";
             // 
-            // xyzControl2
+            // rightFlowPanel
             // 
-            this.xyzControl2.Location = new System.Drawing.Point(133, 21);
-            this.xyzControl2.Name = "xyzControl2";
-            this.xyzControl2.Size = new System.Drawing.Size(112, 119);
-            this.xyzControl2.TabIndex = 4;
-            this.xyzControl2.TabStop = false;
-            this.xyzControl2.Text = "LocalPosition";
-            // 
-            // xyzControl1
-            // 
-            this.xyzControl1.Location = new System.Drawing.Point(15, 19);
-            this.xyzControl1.Name = "xyzControl1";
-            this.xyzControl1.Size = new System.Drawing.Size(112, 119);
-            this.xyzControl1.TabIndex = 3;
-            this.xyzControl1.TabStop = false;
-            this.xyzControl1.Text = "WorldPosition";
+            this.rightFlowPanel.Controls.Add(this.selMatInfo);
+            this.rightFlowPanel.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.rightFlowPanel.Location = new System.Drawing.Point(3, 16);
+            this.rightFlowPanel.Name = "rightFlowPanel";
+            this.rightFlowPanel.Size = new System.Drawing.Size(308, 604);
+            this.rightFlowPanel.TabIndex = 3;
             // 
             // selMatInfo
             // 
             this.selMatInfo.Controls.Add(this.selMatName);
             this.selMatInfo.Controls.Add(this.label5);
-            this.selMatInfo.Location = new System.Drawing.Point(6, 271);
+            this.selMatInfo.Location = new System.Drawing.Point(3, 3);
             this.selMatInfo.Name = "selMatInfo";
             this.selMatInfo.Size = new System.Drawing.Size(292, 67);
-            this.selMatInfo.TabIndex = 2;
+            this.selMatInfo.TabIndex = 3;
             this.selMatInfo.TabStop = false;
             this.selMatInfo.Text = "MaterialInfo";
             // 
@@ -768,6 +741,28 @@ namespace Model_Viewer
             this.exportToObjToolStripMenuItem.Size = new System.Drawing.Size(143, 22);
             this.exportToObjToolStripMenuItem.Text = "Export to Obj";
             this.exportToObjToolStripMenuItem.Click += new System.EventHandler(this.exportToObjToolStripMenuItem_Click);
+            // 
+            // treeView1
+            // 
+            this.treeView1.CheckBoxes = true;
+            this.treeView1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.treeView1.Location = new System.Drawing.Point(3, 16);
+            this.treeView1.Name = "treeView1";
+            this.treeView1.Size = new System.Drawing.Size(251, 260);
+            this.treeView1.TabIndex = 0;
+            this.treeView1.AfterCheck += new System.Windows.Forms.TreeViewEventHandler(this.treeView1_AfterCheck);
+            // 
+            // newButton1
+            // 
+            this.AnimTable.SetColumnSpan(this.newButton1, 2);
+            this.newButton1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.newButton1.Location = new System.Drawing.Point(3, 3);
+            this.newButton1.Name = "newButton1";
+            this.newButton1.Size = new System.Drawing.Size(245, 48);
+            this.newButton1.TabIndex = 14;
+            this.newButton1.Text = "Play";
+            this.newButton1.UseVisualStyleBackColor = true;
+            this.newButton1.Click += new System.EventHandler(this.newButton1_Click);
             // 
             // Form1
             // 
@@ -819,6 +814,7 @@ namespace Model_Viewer
             ((System.ComponentModel.ISupportInitialize)(this.RightSplitter)).EndInit();
             this.RightSplitter.ResumeLayout(false);
             this.selObjectBox.ResumeLayout(false);
+            this.rightFlowPanel.ResumeLayout(false);
             this.selMatInfo.ResumeLayout(false);
             this.selMatInfo.PerformLayout();
             this.mainglcontrolContext.ResumeLayout(false);
@@ -873,11 +869,12 @@ namespace Model_Viewer
         private NumericUpDown numericUpDown4;
         private SplitContainer RightSplitter;
         private GroupBox selObjectBox;
+        private XYZControl xyzControl2;
+        private XYZControl xyzControl1;
+        private FlowLayoutPanel rightFlowPanel;
         private GroupBox selMatInfo;
         private TextBox selMatName;
         private Label label5;
-        private XYZControl xyzControl2;
-        private XYZControl xyzControl1;
     }
 }
 
