@@ -62,11 +62,13 @@ namespace Model_Viewer
             this.l_intensity_nud = new System.Windows.Forms.NumericUpDown();
             this.splitContainer3 = new System.Windows.Forms.SplitContainer();
             this.sceneGraphGroup = new System.Windows.Forms.GroupBox();
+            this.treeView1 = new Model_Viewer.NoClickTree();
             this.splitContainer4 = new System.Windows.Forms.SplitContainer();
             this.ProcGenGroup = new System.Windows.Forms.GroupBox();
             this.randomgenerator = new System.Windows.Forms.Button();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.AnimTable = new System.Windows.Forms.TableLayoutPanel();
+            this.newButton1 = new Model_Viewer.NewButton();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.RightSplitter = new System.Windows.Forms.SplitContainer();
             this.selObjectBox = new System.Windows.Forms.GroupBox();
@@ -77,8 +79,6 @@ namespace Model_Viewer
             this.mainglcontrolContext = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.getAltIDToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.exportToObjToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.treeView1 = new Model_Viewer.NoClickTree();
-            this.newButton1 = new Model_Viewer.NewButton();
             this.menuStrip1.SuspendLayout();
             this.statusStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer2)).BeginInit();
@@ -442,7 +442,7 @@ namespace Model_Viewer
             this.numericUpDown1.TabIndex = 5;
             this.numericUpDown1.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             this.numericUpDown1.Value = new decimal(new int[] {
-            1,
+            35,
             0,
             0,
             0});
@@ -573,6 +573,16 @@ namespace Model_Viewer
             this.sceneGraphGroup.TabStop = false;
             this.sceneGraphGroup.Text = "SceneGraph";
             // 
+            // treeView1
+            // 
+            this.treeView1.CheckBoxes = true;
+            this.treeView1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.treeView1.Location = new System.Drawing.Point(3, 16);
+            this.treeView1.Name = "treeView1";
+            this.treeView1.Size = new System.Drawing.Size(251, 260);
+            this.treeView1.TabIndex = 0;
+            this.treeView1.AfterCheck += new System.Windows.Forms.TreeViewEventHandler(this.treeView1_AfterCheck);
+            // 
             // splitContainer4
             // 
             this.splitContainer4.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -638,6 +648,18 @@ namespace Model_Viewer
             this.AnimTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.AnimTable.Size = new System.Drawing.Size(251, 54);
             this.AnimTable.TabIndex = 0;
+            // 
+            // newButton1
+            // 
+            this.AnimTable.SetColumnSpan(this.newButton1, 2);
+            this.newButton1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.newButton1.Location = new System.Drawing.Point(3, 3);
+            this.newButton1.Name = "newButton1";
+            this.newButton1.Size = new System.Drawing.Size(245, 48);
+            this.newButton1.TabIndex = 14;
+            this.newButton1.Text = "Play";
+            this.newButton1.UseVisualStyleBackColor = true;
+            this.newButton1.Click += new System.EventHandler(this.newButton1_Click);
             // 
             // splitContainer1
             // 
@@ -741,28 +763,6 @@ namespace Model_Viewer
             this.exportToObjToolStripMenuItem.Size = new System.Drawing.Size(143, 22);
             this.exportToObjToolStripMenuItem.Text = "Export to Obj";
             this.exportToObjToolStripMenuItem.Click += new System.EventHandler(this.exportToObjToolStripMenuItem_Click);
-            // 
-            // treeView1
-            // 
-            this.treeView1.CheckBoxes = true;
-            this.treeView1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.treeView1.Location = new System.Drawing.Point(3, 16);
-            this.treeView1.Name = "treeView1";
-            this.treeView1.Size = new System.Drawing.Size(251, 260);
-            this.treeView1.TabIndex = 0;
-            this.treeView1.AfterCheck += new System.Windows.Forms.TreeViewEventHandler(this.treeView1_AfterCheck);
-            // 
-            // newButton1
-            // 
-            this.AnimTable.SetColumnSpan(this.newButton1, 2);
-            this.newButton1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.newButton1.Location = new System.Drawing.Point(3, 3);
-            this.newButton1.Name = "newButton1";
-            this.newButton1.Size = new System.Drawing.Size(245, 48);
-            this.newButton1.TabIndex = 14;
-            this.newButton1.Text = "Play";
-            this.newButton1.UseVisualStyleBackColor = true;
-            this.newButton1.Click += new System.EventHandler(this.newButton1_Click);
             // 
             // Form1
             // 

@@ -62,6 +62,47 @@ namespace Model_Viewer.Properties {
         
         /// <summary>
         ///   Looks up a localized string similar to #version 330
+        ///#extension GL_ARB_explicit_uniform_location : enable
+        ///#extension GL_ARB_separate_shader_objects : enable
+        ///
+        ///void main()
+        ///{	
+        ///	gl_FragColor = vec4(0.8, 0.0, 0.0, 1.0);	
+        ///}.
+        /// </summary>
+        internal static string camera_frag {
+            get {
+                return ResourceManager.GetString("camera_frag", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to #version 330
+        ///#extension GL_ARB_explicit_uniform_location : enable
+        ///#extension GL_ARB_separate_shader_objects : enable
+        ///
+        ////* Copies incoming vertex color without change.
+        /// * Applies the transformation matrix to vertex position.
+        /// */
+        ///layout(location=0) in vec4 vPosition;
+        ///layout(location=1) in vec4 nPosition; //normals
+        ///uniform mat4 self_proj, self_look;
+        ///uniform mat4 mvp;
+        ///
+        /////Outputs
+        ///void main()
+        ///{
+        ///    gl_Position = mvp * inverse(self_proj* self_look) * vPosition;
+        ///}.
+        /// </summary>
+        internal static string camera_vert {
+            get {
+                return ResourceManager.GetString("camera_vert", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to #version 330
         ////* Copies incoming fragment color without change. */
         ///in vec3 color;
         ///void main()

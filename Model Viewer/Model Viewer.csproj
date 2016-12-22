@@ -158,6 +158,8 @@
       <SubType>Designer</SubType>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
+    <None Include="Resources\camera.frag" />
+    <None Include="Resources\camera.vert" />
     <None Include="Resources\locator.frag" />
     <None Include="Resources\locator.vert" />
     <None Include="Resources\pick.frag" />

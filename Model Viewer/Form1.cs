@@ -32,7 +32,7 @@ namespace Model_Viewer
         private Vector3 eye_pos = new Vector3(0.0f, 5.5f, 50.0f);
         private Vector3 eye_dir = new Vector3(0.0f, 0.0f, -10.0f);
         private Vector3 eye_up = new Vector3(0.0f, 1.0f, 0.0f);
-        private Camera cam = new Camera(35);
+        private Camera activeCam;
 
         private float zfar = 300.0f;
         private float znear = 1.0f;
@@ -121,8 +121,6 @@ namespace Model_Viewer
             this.xyzControl1.TabIndex = 3;
             this.xyzControl1.TabStop = false;
             this.xyzControl1.Text = "WorldPosition";
-
-
 
 
         }
@@ -224,7 +222,7 @@ namespace Model_Viewer
                 return;
 
             //Populate shader list
-            ResourceMgmt.shader_programs = new int[8];
+            ResourceMgmt.shader_programs = new int[9];
             string vvs, ggs, ffs;
             //Geometry Shader
             //Compile Object Shaders
@@ -267,7 +265,10 @@ namespace Model_Viewer
             GLShaderHelper.CreateShaders(Resources.light_vert, Resources.light_frag, "", out vertex_shader_ob,
                 out fragment_shader_ob, out ResourceMgmt.shader_programs[7]);
 
-
+            //Camera Shaders
+            GLShaderHelper.CreateShaders(Resources.camera_vert, Resources.camera_frag, "", out vertex_shader_ob,
+                out fragment_shader_ob, out ResourceMgmt.shader_programs[8]);
+            
             GMDL.scene scene = new GMDL.scene();
             scene.type = TYPES.SCENE;
             scene.shader_programs = new int[] { ResourceMgmt.shader_programs[1],
@@ -301,7 +302,7 @@ namespace Model_Viewer
             treeView1.Nodes.Add(node);
 
             //Set to current cam fov
-            numericUpDown1.Value = 35;
+            //numericUpDown1.Value = 35;
             //numericUpDown2.Value = (decimal)5.0;
 
             //Joystick Init
@@ -347,10 +348,20 @@ namespace Model_Viewer
             //Load font
             setupFont();
 
+
+            //Add 2 Cams
+            Camera cam;
+            cam = new Camera(35, ResourceMgmt.shader_programs[8]);
+            ResourceMgmt.GLCameras.Add(cam);
+            cam = new Camera(65, ResourceMgmt.shader_programs[8]);
+            ResourceMgmt.GLCameras.Add(cam);
+            activeCam = ResourceMgmt.GLCameras[0];
+            activeCam.isActive = true;
+
+            
             //Check if Temp folder exists
             if (!Directory.Exists("Temp")) Directory.CreateDirectory("Temp");
-
-
+            
         }
 
         private void setupFont()
@@ -424,42 +435,26 @@ namespace Model_Viewer
 
         private void updateFrustumPlanes()
         {
-            Matrix4 mat = Matrix4.Mult(look, proj);
-            //mat.Transpose();
+            Matrix4 mat = activeCam.GetViewMatrix();
+            mat.Transpose();
             //Matrix4 mat = proj;
+            //Left
+            frPlanes[0] = mat.Row0 + mat.Row3;
+            //Right
+            frPlanes[1] = mat.Row3 - mat.Row0;
+            //Bottom
+            frPlanes[2] = mat.Row3 + mat.Row1;
+            //Top
+            frPlanes[3] = mat.Row3 - mat.Row1;
+            //Near
+            frPlanes[4] = mat.Row3 + mat.Row2;
+            //Far
+            frPlanes[5] = mat.Row3 - mat.Row2;
 
-            frPlanes[0] = new Vector4(mat[0, 3] - mat[0, 0],
-                                      mat[1, 3] - mat[1, 0],
-                                      mat[2, 3] - mat[2, 0],
-                                      mat[3, 3] - mat[3, 0]);
-
-            frPlanes[1] = new Vector4(mat[0, 3] + mat[0, 0],
-                                      mat[1, 3] + mat[1, 0],
-                                      mat[2, 3] + mat[2, 0],
-                                      mat[3, 3] + mat[3, 0]);
-            
-            frPlanes[2] = new Vector4(mat[0, 3] + mat[0, 1],
-                                      mat[1, 3] + mat[1, 1],
-                                      mat[2, 3] + mat[2, 1],
-                                      mat[3, 3] + mat[3, 1]);
-
-            frPlanes[3] = new Vector4(mat[0, 3] - mat[0, 1],
-                                      mat[1, 3] - mat[1, 1],
-                                      mat[2, 3] - mat[2, 1],
-                                      mat[3, 3] - mat[3, 1]);
-
-            frPlanes[4] = new Vector4(mat[0, 3] - mat[0, 2],
-                                      mat[1, 3] - mat[1, 2],
-                                      mat[2, 3] - mat[2, 2],
-                                      mat[3, 3] - mat[3, 2]);
-
-            frPlanes[5] = new Vector4(mat[0, 3] + mat[0, 2],
-                                      mat[1, 3] + mat[1, 2],
-                                      mat[2, 3] + mat[2, 2],
-                                      mat[3, 3] + mat[3, 2]);
 
             //Normalize them
-            for (int i = 0; i < 6; i++) {
+            for (int i = 0; i < 6; i++)
+            {
                 Vector3 v = new Vector3(frPlanes[i].X, frPlanes[i].Y, frPlanes[i].Z);
                 float l = v.Length;
                 //Normalize
@@ -468,21 +463,21 @@ namespace Model_Viewer
                 frPlanes[i].Z /= l;
                 frPlanes[i].W /= l;
             }
-                
+
         }
 
         //glControl Timer
         private void timer_ticker(object sender, EventArgs e)
         {
             //Update common transforms
-            look = cam.GetViewMatrix();
-            float aspect = (float) glControl1.ClientSize.Width / glControl1.ClientSize.Height;
-            proj = Matrix4.CreatePerspectiveFieldOfView(cam.fov, aspect, znear, zfar);
+            activeCam.aspect = (float)glControl1.ClientSize.Width / glControl1.ClientSize.Height;
+            //proj = Matrix4.CreatePerspectiveFieldOfView(-w, w, -h, h , znear, zfar);
+
             Matrix4 Rotx = Matrix4.CreateRotationX(rot[0] * (float) Math.PI / 180.0f);
             Matrix4 Roty = Matrix4.CreateRotationY(rot[1] * (float) Math.PI / 180.0f);
             Matrix4 Rotz = Matrix4.CreateRotationZ(rot[2] * (float) Math.PI / 180.0f);
-            rotMat = Matrix4.Mult(Rotz, Matrix4.Mult(Roty, Rotx));
-            mvp = Matrix4.Mult(Matrix4.Mult(rotMat, look), proj); //Full mvp matrix
+            rotMat = Rotz * Roty * Rotx;
+            mvp = rotMat * activeCam.GetViewMatrix(); //Full mvp matrix
 
             updateFrustumPlanes();
 
@@ -495,10 +490,8 @@ namespace Model_Viewer
 
         private bool frustum_occlude(GMDL.model cand)
         {
-            //Matrix4 mat = Matrix4.Mult(cand.worldMat, rotMat);
-            Matrix4 mat = rotMat;
-            mat = Matrix4.Mult(mat, look);
-            mat = Matrix4.Mult(mat, proj);
+            Matrix4 mat = Matrix4.Mult(cand.worldMat, mvp);
+            //Matrix4 mat = mvp;
             mat.Transpose();
 
             for (int i = 0; i < 6; i++)
@@ -584,21 +577,39 @@ namespace Model_Viewer
 
             GL.UseProgram(active_program);
             int loc;
-            //Send LookAt matrix to all shaders
-            loc = GL.GetUniformLocation(active_program, "look");
-            GL.UniformMatrix4(loc, false, ref look);
-            //Send object world Matrix to all shaders
-
-            //Send projection matrix to all shaders
-            loc = GL.GetUniformLocation(active_program, "proj");
-            GL.UniformMatrix4(loc, false, ref proj);
+            //Send mvp matrix
+            loc = GL.GetUniformLocation(active_program, "mvp");
+            GL.UniformMatrix4(loc, false, ref mvp);
+            
             //Send theta to all shaders
             loc = GL.GetUniformLocation(active_program, "theta");
             GL.Uniform3(loc, this.rot);
 
             foreach (GMDL.model light in ResourceMgmt.GLlights)
                 light.render(0);
-            
+        }
+
+        private void render_cameras()
+        {
+            int active_program = ResourceMgmt.shader_programs[8];
+
+            GL.UseProgram(active_program);
+            int loc;
+            //Send mvp matrix to all shaders
+            loc = GL.GetUniformLocation(active_program, "mvp");
+            Matrix4 cam_mvp = activeCam.GetViewMatrix();
+            GL.UniformMatrix4(loc, false, ref cam_mvp);
+            //Send object world Matrix to all shaders
+
+            foreach (Camera cam in ResourceMgmt.GLCameras)
+            {
+                //Upload uniforms
+                loc = GL.GetUniformLocation(active_program, "self_mvp");
+                Matrix4 self_mvp = cam.GetViewMatrix();
+                GL.UniformMatrix4(loc, false, ref self_mvp);
+                if (!cam.isActive) cam.render();
+            }
+                
         }
 
         private void selectObject(System.Drawing.Point p)
@@ -701,13 +712,28 @@ namespace Model_Viewer
             selMatName.Text = selectedOb.material.name;
         }
 
+        //Set Camera FOV
         private void numericUpDown1_ValueChanged(object sender, EventArgs e)
         {
-            //Set Camera FOV
-            cam.setFOV((int)Math.Max(1, numericUpDown1.Value));
+            
+            activeCam.setFOV((int)Math.Max(1, numericUpDown1.Value));
             glControl1.Invalidate();
         }
-        
+
+        //Znear
+        private void numericUpDown4_ValueChanged(object sender, EventArgs e)
+        {
+            activeCam.zNear = (float)this.numericUpDown4.Value;
+            glControl1.Invalidate();
+        }
+
+        //Zfar
+        private void numericUpDown5_ValueChanged(object sender, EventArgs e)
+        {
+            activeCam.zFar = (float)this.numericUpDown5.Value;
+            glControl1.Invalidate();
+        }
+
         private void treeView1_AfterCheck(object sender, TreeViewEventArgs e)
         {
             //Debug.WriteLine("{0} {1}", e.Node.Checked, e.Node.Index);
@@ -740,13 +766,13 @@ namespace Model_Viewer
             return false;
         }
 
+        //Light Distance
         private void numericUpDown2_ValueChanged(object sender, EventArgs e)
         {
             light_distance = (float)numericUpDown2.Value;
             updateLightPosition(0);
             glControl1.Invalidate();
         }
-
 
         private void traverse_oblist_altid(ref List<string> alt, TreeNode parent)
         {
@@ -832,7 +858,6 @@ namespace Model_Viewer
                 throw new ApplicationException("Shit program");
 
             int loc;
-            
             loc = GL.GetUniformLocation(active_program, "worldMat");
             Matrix4 wMat = root.worldMat;
             GL.UniformMatrix4(loc, false, ref wMat);
@@ -1169,6 +1194,7 @@ namespace Model_Viewer
             about.Show();
         }
 
+        //Movement Speed
         private void numericUpDown3_ValueChanged(object sender, EventArgs e)
         {
             NumericUpDown s = (NumericUpDown)sender;
@@ -1227,6 +1253,7 @@ namespace Model_Viewer
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             render_scene();
             render_lights();
+            render_cameras();
             render_info();
             
 
@@ -1286,27 +1313,27 @@ namespace Model_Viewer
                 //Camera Movement
                 case Keys.W:
                     for (int i = 0; i < movement_speed; i++)
-                        cam.Move(0.0f, 0.1f, 0.0f);
+                        activeCam.Move(0.0f, -0.1f, 0.0f);
                     break;
                 case Keys.S:
                     for (int i = 0; i < movement_speed; i++)
-                        cam.Move(0.0f, -0.1f, 0.0f);
+                        activeCam.Move(0.0f, 0.1f, 0.0f);
                     break;
                 case (Keys.D):
                     for (int i = 0; i < movement_speed; i++)
-                        cam.Move(+0.1f, 0.0f, 0.0f);
+                        activeCam.Move(-0.1f, 0.0f, 0.0f);
                     break;
                 case Keys.A:
                     for (int i = 0; i < movement_speed; i++)
-                        cam.Move(-0.1f, 0.0f, 0.0f);
+                        activeCam.Move(0.1f, 0.0f, 0.0f);
                     break;
                 case (Keys.R):
                     for (int i = 0; i < movement_speed; i++)
-                        cam.Move(0.0f, 0.0f, 0.1f);
+                        activeCam.Move(0.0f, 0.0f, -0.1f);
                     break;
                 case Keys.F:
                     for (int i = 0; i < movement_speed; i++)
-                        cam.Move(0.0f, 0.0f, -0.1f);
+                        activeCam.Move(0.0f, 0.0f, 0.1f);
                     break;
                 //Light Rotation
                 case Keys.N:
@@ -1348,6 +1375,38 @@ namespace Model_Viewer
                 case Keys.OemCloseBrackets:
                     RenderOptions.RenderDebug = !RenderOptions.RenderDebug;
                     break;
+                //Switch cameras
+                case Keys.NumPad0:
+                    if (ResourceMgmt.GLCameras[0].isActive)
+                    {
+                        activeCam.isActive = false;
+                        activeCam = ResourceMgmt.GLCameras[1];
+                    }
+                    else
+                    {
+                        activeCam.isActive = false;
+                        activeCam = ResourceMgmt.GLCameras[0];
+                    }
+                        
+                    activeCam.isActive = true;
+
+                    //Set info of active cam to the controls
+                    numericUpDown1.ValueChanged -= this.numericUpDown1_ValueChanged;
+                    numericUpDown1.Value =   (decimal) (180.0f * activeCam.fov / (float) Math.PI);
+                    numericUpDown1.ValueChanged += this.numericUpDown1_ValueChanged;
+
+                    numericUpDown4.ValueChanged -= this.numericUpDown4_ValueChanged;
+                    numericUpDown4.Value = (decimal) activeCam.zNear;
+                    numericUpDown4.ValueChanged += this.numericUpDown4_ValueChanged;
+
+                    numericUpDown5.ValueChanged -= this.numericUpDown5_ValueChanged;
+                    numericUpDown5.Value = (decimal) activeCam.zFar;
+                    numericUpDown5.ValueChanged += this.numericUpDown5_ValueChanged;
+
+                    //Debug.WriteLine(activeCam.GetViewMatrix());
+                    
+                    break;
+
                 default:
                     //Debug.WriteLine("Not Implemented Yet");
                     return;
@@ -1369,7 +1428,7 @@ namespace Model_Viewer
             if (e.Button == MouseButtons.Left)
             {
                 //Debug.WriteLine("Deltas {0} {1} {2}", delta_x, delta_y, e.Button);
-                cam.AddRotation(delta_x, delta_y);
+                activeCam.AddRotation(delta_x, delta_y);
             }
 
             mouse_x = e.X;
@@ -1385,7 +1444,7 @@ namespace Model_Viewer
                 int sign = e.Delta / Math.Abs(e.Delta);
                 int newval = (int)numericUpDown1.Value + sign;
                 newval = (int)Math.Min(Math.Max(newval, numericUpDown1.Minimum), numericUpDown1.Maximum);
-                cam.setFOV(newval);
+                activeCam.setFOV(newval);
                 numericUpDown1.Value = newval;
 
                 //eye.Z += e.Delta * 0.2f;
@@ -1477,25 +1536,16 @@ namespace Model_Viewer
             foreach (GMDL.model c in m.children)
                 if (c.renderable) findGeoms(c, s, ref index);
         }
-
+        
+        //Light Intensity
         private void l_intensity_nud_ValueChanged(object sender, EventArgs e)
         {
             light_intensity = (float) this.l_intensity_nud.Value;
             updateLightPosition(0);
             glControl1.Invalidate();
         }
-
-        private void numericUpDown4_ValueChanged(object sender, EventArgs e)
-        {
-            znear = (float)this.numericUpDown4.Value;
-            glControl1.Invalidate();
-        }
-
-        private void numericUpDown5_ValueChanged(object sender, EventArgs e)
-        {
-            zfar = (float)this.numericUpDown5.Value;
-            glControl1.Invalidate();
-        }
+        
+    
     }
 
     //Class Which will store all the texture resources for better memory management
@@ -1504,6 +1554,7 @@ namespace Model_Viewer
         public static Dictionary<string, GMDL.Texture> GLtextures = new Dictionary<string, GMDL.Texture>();
         public static Dictionary<string, GMDL.Material> GLmaterials = new Dictionary<string, GMDL.Material>();
         public static List<GMDL.model> GLlights = new List<GMDL.model>();
+        public static List<Camera> GLCameras = new List<Camera>();
         public static int[] shader_programs;
         public static DebugForm DebugWin;
 

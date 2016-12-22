@@ -60,6 +60,7 @@ namespace GMDL
                 {
                     //Original working
                     return Matrix4.Mult(this.localMat, parent.worldMat);
+                    //return this.localMat;
                 }
 
                 else
@@ -642,7 +643,6 @@ namespace GMDL
             GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr)(sizeof(Int32) * indices.Length), indices, BufferUsageHint.StaticDraw);
 
 
-
             //Render
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, vb_bbox);
@@ -680,8 +680,7 @@ namespace GMDL
                 indices.Length, DrawElementsType.UnsignedInt , IntPtr.Zero);
 
             GL.DisableVertexAttribArray(0);
-
-        
+  
     }
 
         public virtual void renderMain(int pass)
@@ -1045,8 +1044,8 @@ namespace GMDL
             {
                 //Render Main
                 case 0:
-                    renderMain(program);
-                    //renderBbox(program);
+                    //renderMain(program);
+                    renderBbox(program);
                     break;
                 //Render Debug
                 case 1:
