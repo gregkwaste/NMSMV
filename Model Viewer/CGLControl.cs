@@ -16,7 +16,7 @@ namespace Model_Viewer
 
         private Vector3 rot = new Vector3(0.0f, 0.0f, 0.0f);
         private Vector3 target = new Vector3(0.0f, 0.0f, 0.0f);
-        private Camera cam = new Camera(60, ResourceMgmt.shader_programs[8]);
+        private Camera cam = new Camera(60, ResourceMgmt.shader_programs[8], 0);
 
         private float light_angle_y = 0.0f;
         private float light_angle_x = 0.0f;

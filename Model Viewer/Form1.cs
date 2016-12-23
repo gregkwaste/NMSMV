@@ -351,9 +351,9 @@ namespace Model_Viewer
 
             //Add 2 Cams
             Camera cam;
-            cam = new Camera(35, ResourceMgmt.shader_programs[8]);
+            cam = new Camera(35, ResourceMgmt.shader_programs[8], 0);
             ResourceMgmt.GLCameras.Add(cam);
-            cam = new Camera(65, ResourceMgmt.shader_programs[8]);
+            cam = new Camera(65, ResourceMgmt.shader_programs[8], 1);
             ResourceMgmt.GLCameras.Add(cam);
             activeCam = ResourceMgmt.GLCameras[0];
             activeCam.isActive = true;
@@ -433,39 +433,6 @@ namespace Model_Viewer
         }
 
 
-        private void updateFrustumPlanes()
-        {
-            Matrix4 mat = activeCam.GetViewMatrix();
-            mat.Transpose();
-            //Matrix4 mat = proj;
-            //Left
-            frPlanes[0] = mat.Row0 + mat.Row3;
-            //Right
-            frPlanes[1] = mat.Row3 - mat.Row0;
-            //Bottom
-            frPlanes[2] = mat.Row3 + mat.Row1;
-            //Top
-            frPlanes[3] = mat.Row3 - mat.Row1;
-            //Near
-            frPlanes[4] = mat.Row3 + mat.Row2;
-            //Far
-            frPlanes[5] = mat.Row3 - mat.Row2;
-
-
-            //Normalize them
-            for (int i = 0; i < 6; i++)
-            {
-                Vector3 v = new Vector3(frPlanes[i].X, frPlanes[i].Y, frPlanes[i].Z);
-                float l = v.Length;
-                //Normalize
-                frPlanes[i].X /= l;
-                frPlanes[i].Y /= l;
-                frPlanes[i].Z /= l;
-                frPlanes[i].W /= l;
-            }
-
-        }
-
         //glControl Timer
         private void timer_ticker(object sender, EventArgs e)
         {
@@ -479,48 +446,13 @@ namespace Model_Viewer
             rotMat = Rotz * Roty * Rotx;
             mvp = rotMat * activeCam.GetViewMatrix(); //Full mvp matrix
 
-            updateFrustumPlanes();
-
+            activeCam.updateFrustumPlanes();
+            
             occludedNum = 0; //Reset Counter
 
             //Simply invalidate the gl control
             glControl1.MakeCurrent();
             glControl1.Invalidate();
-        }
-
-        private bool frustum_occlude(GMDL.model cand)
-        {
-            Matrix4 mat = Matrix4.Mult(cand.worldMat, mvp);
-            //Matrix4 mat = mvp;
-            mat.Transpose();
-
-            for (int i = 0; i < 6; i++)
-            {
-                int result = 0;
-                Vector4 v;
-
-                v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[0].Y, cand.Bbox[0].Z, 1.0f), mat);
-                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
-                v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[0].Y, cand.Bbox[0].Z, 1.0f), mat);
-                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
-                v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[1].Y, cand.Bbox[0].Z, 1.0f), mat);
-                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
-                v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[1].Y, cand.Bbox[0].Z, 1.0f), mat);
-                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
-
-                v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[0].Y, cand.Bbox[1].Z, 1.0f), mat);
-                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
-                v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[0].Y, cand.Bbox[1].Z, 1.0f), mat);
-                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
-                v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[1].Y, cand.Bbox[1].Z, 1.0f), mat);
-                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
-                v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[1].Y, cand.Bbox[1].Z, 1.0f), mat);
-                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
-
-                if (result == 8) return false;
-            }
-
-            return true;
         }
 
         private void render_scene()
@@ -898,7 +830,7 @@ namespace Model_Viewer
                 GL.Uniform1(loc, ((GMDL.sharedVBO)root).firstskinmat);
 
                 //Apply frustum culling only for mesh objects
-                if (frustum_occlude(root)) root.render(program);
+                if (activeCam.frustum_occlude(root, rotMat)) root.render(program);
                 else occludedNum++;
             }
             else if (root.type == TYPES.LOCATOR || root.type == TYPES.SCENE || root.type == TYPES.JOINT || root.type == TYPES.LIGHT || root.type ==TYPES.COLLISION)

@@ -7,7 +7,8 @@ namespace Model_Viewer
 {
     public class Camera
     {
-        public Vector3 Position = new Vector3(0.0f, 0.0f, -5.0f);
+        public Vector3 Position = new Vector3(0.0f, 0.0f, 0.0f);
+        public Vector3 Movement = new Vector3(0.0f, 0.0f, 0.0f);
         public Vector3 Orientation = new Vector3(0.0f, 0f, 0f);
         public float MoveSpeed = 0.2f;
         public float MouseSensitivity = 0.01f;
@@ -21,17 +22,24 @@ namespace Model_Viewer
         //Matrices
         public Matrix4 projMat;
         public Matrix4 lookMat;
+        public int type;
+
+        //Camera Frustum Planes
+        public Vector4[] frPlanes = new Vector4[6];
+
 
         //Rendering Stuff
         public GMDL.customVBO vbo;
         public int program;
 
-        public Camera(int angle, int program)
+        public Camera(int angle, int program, int mode)
         {
             //Set fov on init
             this.setFOV(angle);
             vbo = (new Box(1.0f, 1.0f, 1.0f)).getVBO();
             this.program = program;
+            this.type = mode;
+
         }
         
         public Matrix4 GetViewMatrix()
@@ -43,11 +51,42 @@ namespace Model_Viewer
             lookat.Z = (float)(Math.Cos((float) Orientation.X) * Math.Cos((float) Orientation.Y));
 
             lookMat = Matrix4.LookAt(Position, Position + lookat, Vector3.UnitY);
-            //projMat = Matrix4.CreatePerspectiveFieldOfView(fov, aspect, zNear, zFar);
-            //Call Custom
-            projMat = this.ComputeFOVProjection();
 
-            return lookMat * projMat;
+            Matrix4 trans = Matrix4.CreateTranslation(Movement);
+            if (type == 0) {
+                //projMat = Matrix4.CreatePerspectiveFieldOfView(fov, aspect, zNear, zFar);
+                //Call Custom
+                //projMat = this.ComputeFOVProjection();
+                float w, h;
+                if (aspect > 1.0f)
+                {
+                    w = 0.5f;
+                    h = w / aspect;
+                }
+                else
+                {
+                    h = 0.5f;
+                    w = h * aspect;
+                }
+
+
+                //projMat = Matrix4.CreatePerspectiveOffCenter(-w, w, -h, h, zNear, zFar);
+                projMat = Matrix4.CreatePerspectiveFieldOfView(fov, aspect, zNear, zFar);
+
+                return trans * lookMat * projMat;
+            }
+            else
+            {
+                //Create orthographic projection
+                projMat = Matrix4.CreateOrthographic(aspect * 2.0f, 2.0f, zNear, zFar);
+
+                //Create scale matrix based on the fov
+                Matrix4 scaleMat = Matrix4.CreateScale(0.8f * fov);
+                return scaleMat * trans * lookMat * projMat;
+            }
+            
+
+            
         }
 
         public void Move(float x, float y, float z)
@@ -64,7 +103,7 @@ namespace Model_Viewer
             offset.NormalizeFast();
             offset = Vector3.Multiply(offset, MoveSpeed);
 
-            Position += offset;
+            Movement += offset;
         }
 
         public void AddRotation(float x, float y)
@@ -79,6 +118,74 @@ namespace Model_Viewer
         public void setFOV(int angle)
         {
             this.fov = (float) Math.PI * angle / 180.0f;
+        }
+
+        public void updateFrustumPlanes()
+        {
+            Matrix4 mat = GetViewMatrix();
+            mat.Transpose();
+            //Matrix4 mat = proj;
+            //Left
+            frPlanes[0] = mat.Row0 + mat.Row3;
+            //Right
+            frPlanes[1] = mat.Row3 - mat.Row0;
+            //Bottom
+            frPlanes[2] = mat.Row3 + mat.Row1;
+            //Top
+            frPlanes[3] = mat.Row3 - mat.Row1;
+            //Near
+            frPlanes[4] = mat.Row3 + mat.Row2;
+            //Far
+            frPlanes[5] = mat.Row3 - mat.Row2;
+
+
+            //Normalize them
+            for (int i = 0; i < 6; i++)
+            {
+                float l = frPlanes[i].Xyz.Length;
+                //Normalize
+                frPlanes[i].X /= l;
+                frPlanes[i].Y /= l;
+                frPlanes[i].Z /= l;
+                frPlanes[i].W /= l;
+            }
+
+        }
+
+        public bool frustum_occlude(GMDL.model cand, Matrix4 transform)
+        {
+            //transform is the local transformation that may be applied additionally
+            Matrix4 mat = cand.worldMat * transform * GetViewMatrix();
+            //Matrix4 mat = mvp;
+            //mat.Transpose();
+
+            for (int i = 0; i < 6; i++)
+            {
+                int result = 0;
+                Vector4 v;
+
+                v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[0].Y, cand.Bbox[0].Z, 1.0f), mat);
+                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
+                v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[0].Y, cand.Bbox[0].Z, 1.0f), mat);
+                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
+                v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[1].Y, cand.Bbox[0].Z, 1.0f), mat);
+                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
+                v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[1].Y, cand.Bbox[0].Z, 1.0f), mat);
+                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
+
+                v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[0].Y, cand.Bbox[1].Z, 1.0f), mat);
+                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
+                v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[0].Y, cand.Bbox[1].Z, 1.0f), mat);
+                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
+                v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[1].Y, cand.Bbox[1].Z, 1.0f), mat);
+                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
+                v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[1].Y, cand.Bbox[1].Z, 1.0f), mat);
+                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
+
+                if (result == 8) return false;
+            }
+
+            return true;
         }
 
         public Matrix4 ComputeFOVProjection()
@@ -113,7 +220,6 @@ namespace Model_Viewer
             return proj;
         }
 
-
         public void render()
         {
             GL.UseProgram(program);
@@ -136,6 +242,9 @@ namespace Model_Viewer
             GL.DisableVertexAttribArray(0);
             GL.DisableVertexAttribArray(1);
         }
+
+
+        
 
     }
 
