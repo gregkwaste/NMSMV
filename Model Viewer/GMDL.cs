@@ -1045,7 +1045,7 @@ namespace GMDL
                 //Render Main
                 case 0:
                     renderMain(program);
-                    //renderBbox(program);
+                    renderBbox(program);
                     break;
                 //Render Debug
                 case 1:

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OpenTK;
 
 namespace Model_Viewer
 {
@@ -13,7 +14,7 @@ namespace Model_Viewer
 
 
         //Constructor
-        public Sphere(float radius)
+        public Sphere(Vector3 center, float radius)
         {
             int latBands = 10;
             int longBands = 10;

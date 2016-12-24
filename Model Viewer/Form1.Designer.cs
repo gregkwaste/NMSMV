@@ -325,15 +325,15 @@ namespace Model_Viewer
             65536});
             this.numericUpDown5.Location = new System.Drawing.Point(121, 133);
             this.numericUpDown5.Maximum = new decimal(new int[] {
-            1000,
+            5000,
             0,
             0,
             0});
             this.numericUpDown5.Minimum = new decimal(new int[] {
-            100,
+            1,
             0,
             0,
-            65536});
+            0});
             this.numericUpDown5.Name = "numericUpDown5";
             this.numericUpDown5.Size = new System.Drawing.Size(127, 20);
             this.numericUpDown5.TabIndex = 15;
@@ -368,11 +368,6 @@ namespace Model_Viewer
             0,
             65536});
             this.numericUpDown4.Location = new System.Drawing.Point(121, 107);
-            this.numericUpDown4.Maximum = new decimal(new int[] {
-            500,
-            0,
-            0,
-            65536});
             this.numericUpDown4.Minimum = new decimal(new int[] {
             1,
             0,

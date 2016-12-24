@@ -351,9 +351,9 @@ namespace Model_Viewer
 
             //Add 2 Cams
             Camera cam;
-            cam = new Camera(35, ResourceMgmt.shader_programs[8], 0);
+            cam = new Camera(50, ResourceMgmt.shader_programs[8], 0, true);
             ResourceMgmt.GLCameras.Add(cam);
-            cam = new Camera(65, ResourceMgmt.shader_programs[8], 1);
+            cam = new Camera(50, ResourceMgmt.shader_programs[8], 0, false);
             ResourceMgmt.GLCameras.Add(cam);
             activeCam = ResourceMgmt.GLCameras[0];
             activeCam.isActive = true;
@@ -444,8 +444,8 @@ namespace Model_Viewer
             Matrix4 Roty = Matrix4.CreateRotationY(rot[1] * (float) Math.PI / 180.0f);
             Matrix4 Rotz = Matrix4.CreateRotationZ(rot[2] * (float) Math.PI / 180.0f);
             rotMat = Rotz * Roty * Rotx;
-            mvp = rotMat * activeCam.GetViewMatrix(); //Full mvp matrix
-
+            mvp = activeCam.GetViewMatrix(); //Full mvp matrix
+            
             activeCam.updateFrustumPlanes();
             
             occludedNum = 0; //Reset Counter
