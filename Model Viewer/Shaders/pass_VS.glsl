@@ -3,16 +3,15 @@
  * Applies the transformation matrix to vertex position.
  */
 
-attribute vec4 vPosition;
-attribute vec3 vColor;
-
+layout(location = 0) in vec4 vPosition;
+layout(location = 1) in vec3 vColor;
 
 varying vec2 uv0;
 varying vec3 color;
 
 void main()
 {
-	color = vColor;
+	color = vColor.xyz;
     uv0 = vPosition.xy * vec2(0.5, 0.5) + vec2(0.5, 0.5);
     //Render to UV coordinate
     float w,h;

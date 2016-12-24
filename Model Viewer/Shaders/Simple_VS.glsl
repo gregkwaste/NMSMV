@@ -21,9 +21,8 @@ uniform mat4 skinMats[128];
 uniform int skinned;
 uniform bool matflags[64];
 uniform float scale;
-uniform mat4 look;
-uniform mat4 proj;
-uniform mat4 worldMat;
+uniform mat4 mvp, rotMat, worldMat;
+
 //Outputs
 out vec3 E;
 out vec3 N;
@@ -34,11 +33,7 @@ out float bColor;
 
 void main()
 {
-	vec3 angles = radians( theta );
-    vec3 c = cos( angles );
-    vec3 s = sin( angles );
-    vec4 light4 = vec4(light, 0.0);
-
+	vec4 light4 = vec4(light, 0.0);
     //Pass uv
     uv0 = uvPosition0;
     //Pas normal mapping related vectors
@@ -46,37 +41,14 @@ void main()
     //nvectors[1] = cross(tPosition.xyz, nPosition.xyz);
     //nvectors[2] = nPosition.xyz;
 	// Remeber: thse matrices are column-major
-    mat4 rx = mat4( 1.0,  0.0,  0.0, 0.0,
-            		0.0,  c.x,  s.x, 0.0,
-            		0.0, -s.x,  c.x, 0.0,
-            		0.0,  0.0,  0.0, 1.0 );
-
-    mat4 ry = mat4( c.y, 0.0, -s.y, 0.0,
-            0.0, 1.0,  0.0, 0.0,
-            s.y, 0.0,  c.y, 0.0,
-            0.0, 0.0,  0.0, 1.0 );
-
-    mat4 rz = mat4( c.z, -s.z, 0.0, 0.0,
-            s.z,  c.z, 0.0, 0.0,
-            0.0,  0.0, 1.0, 0.0,
-            0.0,  0.0, 0.0, 1.0 );
-
-    mat4 panning = mat4(1.0, 0.0, 0.0 , 0.0,
-          0.0, 1.0, 0.0, 0.0,
-          0.0, 0.0, 1.0, 0.0,
-          pan.x, pan.y, pan.z, 1.0);
-    //      pan.x*(scale+1.0), pan.y*(scale+1.0), 0.0, 1.0);
     
-    mat4 rotMat = rx*ry*rz;
-    mat4 mviewMat = rotMat;
-
     mat4 nMat = transpose(inverse(rotMat));
     //mat4 nMat = rotMat;
     
     N = normalize(nMat * vec4(nPosition.xyz, 0.0)).xyz;
     
     //gl_FrontColor = gl_Color;
-    E = (mviewMat * (light4 - vPosition)).xyz; //Light vector
+    E = (rotMat * (light4 - vPosition)).xyz; //Light vector
     l_distance = distance(vPosition.xyz, light);
     //E = - ((vPosition-light4)).xyz; //Light vector
     E = normalize(E);
@@ -99,9 +71,8 @@ void main()
     //TBN = transpose(TBN);
 
     //Check F02_SKINNED
-    if (matflags[1]){
-
-    	vec4 wPos=vec4(0.0, 0.0, 0.0, 0.0);
+    if (matflags[1]) {
+        vec4 wPos = vec4(0.0, 0.0, 0.0, 0.0);
 	    ivec4 index;
 
 	    index.x = boneRemap[int(blendIndices.x)];
@@ -119,11 +90,10 @@ void main()
 		bColor = blendIndices.x/255.0;
 	    
 	    //gl_PointSize = 10.0;
-	    
-        gl_Position = proj * look * mviewMat * wPos;
+	    gl_Position = mvp * wPos;
+        //gl_Position = mvp * worldMat * vPosition;
         
-    } else{
-    	gl_Position = proj * look * mviewMat * worldMat * vPosition;
-        
+    } else {
+    	gl_Position = mvp * worldMat * vPosition;
     }
 }

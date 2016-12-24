@@ -1178,7 +1178,7 @@ public static class GEOMMBIN {
             {
                 //Set cvbo
                 float radius = float.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-                so.vbo = (new Sphere(radius)).getVBO();
+                so.vbo = (new Sphere(new Vector3(), radius)).getVBO();
             }
             else
             {

@@ -1,4 +1,3 @@
-#version 330
 /* Copies incoming vertex color without change.
  * Applies the transformation matrix to vertex position.
  */
@@ -12,23 +11,17 @@ attribute vec4 blendIndices;
 uniform vec3 theta, pan, light;
 uniform int firstskinmat;
 uniform int boneRemap[256];
-uniform mat4 skinMats[128], worldMat;
+uniform mat4 worldMat;
+uniform mat4 skinMats[128];
 uniform int skinned;
-uniform bool matflags[64];
 uniform float scale;
-uniform mat4 look, proj;
+uniform mat4 look, proj, worldRot;
 //Outputs
-
-//Output for geometry shader
-
-out Vertex
-{
-  vec3 normal;
-  vec3 tangent;
-  vec3 bitangent;
-  vec4 color;
-} vertex;
-
+varying vec3 E,N;
+varying mat3 TBN;
+varying vec3 nvectors[3];
+varying vec2 uv0;
+varying float bColor;
 
 void main()
 {
@@ -37,10 +30,12 @@ void main()
     vec3 s = sin( angles );
     vec4 light4 = vec4(light, 0.0);
 
+    //Pass uv
+    uv0 = uvPosition0;
     //Pas normal mapping related vectors
-    //nvectors[0] = tPosition.xyz;
-    //nvectors[1] = cross(tPosition.xyz, nPosition.xyz);
-    //nvectors[2] = nPosition.xyz;
+    nvectors[0] = tPosition.xyz;
+    nvectors[1] = cross(tPosition.xyz, nPosition.xyz);
+    nvectors[2] = nPosition.xyz;
 	// Remeber: thse matrices are column-major
     mat4 rx = mat4( 1.0,  0.0,  0.0, 0.0,
             		0.0,  c.x,  s.x, 0.0,
@@ -65,9 +60,18 @@ void main()
     
     mat4 rotMat = rx*ry*rz;
     mat4 mviewMat = rotMat;
-    mat4 nMat;
-    //Check F02_SKINNED
-    if (matflags[1]){
+    mat4 nMat = transpose(inverse(rotMat));
+    //gl_FrontColor = gl_Color;
+    E = - (rotMat * (vPosition-light4)).xyz; //Light vector
+    //E = - rotMat(vPosition-light4).xyz; //Light vector
+    vec4 nPos = vec4(nPosition.xyz, 0.0);
+    N = normalize(nMat * nPos).xyz;
+    //Construct TBN matrix
+    TBN = mat3(normalize((mviewMat * tPosition).xyz),
+               normalize((mviewMat * vec4(cross(tPosition.xyz, nPosition.xyz), 0.0)).xyz),
+               normalize((mviewMat * nPosition).xyz));
+
+    if (skinned==1) {
     	vec4 wPos=vec4(0.0, 0.0, 0.0, 0.0);
 	    ivec4 index;
 
@@ -83,41 +87,13 @@ void main()
 	    wPos += blendWeights.w * (skinMats[index.w] * vPosition);
 
 		//wPos = BMs[int(tempI.x)]*vPosition;
-		//gl_PointSize = 10.0;
+		bColor = blendIndices.x/255.0;
 	    
-        //gl_Position = proj * look * mviewMat * wPos;
-        mat4 nMat = transpose(inverse(look * mviewMat));
-        gl_Position = wPos;
-        vertex.color = vec4(1.0, 1.0, 0.0, 1.0);
+	    //gl_PointSize = 10.0;
+	    gl_Position = proj * look * mviewMat * wPos;
 	    
     } else{
-    	//gl_Position = proj * look * mviewMat * worldMat * vPosition;
-        mat4 nMat = transpose(inverse(look * mviewMat));
-        gl_Position = vPosition.xyzw;
-        vertex.color = vec4(1.0, 0.0, 0.0, 1.0);
+    	gl_Position = proj * look * mviewMat * worldMat * vPosition;
     }
-
-    //Construct TBN matrix
-    //Nullify w components
-    vec3 lLocalTangentVec3 = tPosition.xyz;
-    vec3 lLocalBitangentVec3 = bPosition.xyz;
-    vec3 lLocalNormalVec3 = normalize(nPosition.xyz);
-    
-    vec3 lWorldTangentVec3 = (vec4(lLocalTangentVec3, 1.0)).xyz;
-    vec3 lWorldNormalVec3 =  (vec4(lLocalNormalVec3, 1.0)).xyz;
-    vec3 lWorldBitangentVec3 = cross(lWorldNormalVec3, lWorldTangentVec3);
-
-    //Handle Geometry Shader outputs
-    //Normalized proper vectors
-    vertex.normal = normalize(lWorldNormalVec3);
-    vertex.tangent = normalize(lWorldTangentVec3);
-    vertex.bitangent = normalize(lWorldBitangentVec3);
-    
-
-    //Raw vectors
-    //vertex.normal = nPosition.xyz;
-    //vertex.tangent = tPosition.xyz;
-    //vertex.bitangent = normalize(cross(nPosition.xyz, tPosition.xyz));
-
     
 }
