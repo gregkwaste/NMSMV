@@ -961,6 +961,7 @@ public static class GEOMMBIN {
 
 
             so.Bbox = gobject.bboxes[iid];
+            so.setupBSphere();
             so.parent = parent;
             so.scene = scene;
             so.init(String.Join(",",transforms));

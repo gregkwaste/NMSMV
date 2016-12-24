@@ -13,4 +13,5 @@ uniform mat4 self_mvp, mvp;
 void main()
 {
     gl_Position = mvp * inverse(self_mvp) * vPosition;
+	gl_Position = gl_Position * 1.0f/gl_Position.w;
 }

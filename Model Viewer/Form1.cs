@@ -44,7 +44,6 @@ namespace Model_Viewer
 
         //Common transforms
         private Matrix4 proj, look, rotMat, mvp;
-        private Vector4[] frPlanes = new Vector4[6];
         private int occludedNum = 0;
 
         private float scale = 1.0f;
@@ -790,10 +789,11 @@ namespace Model_Viewer
                 throw new ApplicationException("Shit program");
 
             int loc;
+            
             loc = GL.GetUniformLocation(active_program, "worldMat");
             Matrix4 wMat = root.worldMat;
             GL.UniformMatrix4(loc, false, ref wMat);
-
+            
             //Send mvp to all shaders
             loc = GL.GetUniformLocation(active_program, "mvp");
             GL.UniformMatrix4(loc, false, ref mvp);
@@ -829,9 +829,9 @@ namespace Model_Viewer
                 GL.Uniform1(loc, ((GMDL.sharedVBO)root).firstskinmat);
 
                 //Apply frustum culling only for mesh objects
-                root.render(program);
-                //if (activeCam.frustum_occlude(root, rotMat)) root.render(program);
-                //else occludedNum++;
+                //root.render(program);
+                if (activeCam.frustum_occlude(root, rotMat)) root.render(program);
+                else occludedNum++;
             }
             else if (root.type == TYPES.LOCATOR || root.type == TYPES.SCENE || root.type == TYPES.JOINT || root.type == TYPES.LIGHT || root.type ==TYPES.COLLISION)
             {
@@ -839,6 +839,8 @@ namespace Model_Viewer
                 //TESTING
                 root.render(program);
             }
+
+            //Cleanup
             
             //Render children
             foreach (GMDL.model child in root.children)

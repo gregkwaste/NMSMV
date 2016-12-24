@@ -529,12 +529,27 @@ namespace GMDL
         //Accurate boneRemap
         public int[] BoneRemap;
         public customVBO vbo;
+        public customVBO sph_vbo;
+
         public Vector3 color = new Vector3();
         //public bool renderable = true;
         //public int shader_program = -1;
         //public int index;
-        //Material
-        //public GMDL.Material material;
+        
+        //BSphere calculator
+        public void setupBSphere()
+        {
+            //For now just setup the Bounding Sphere VBO
+            Vector4 bsh_center = (new Vector4((Bbox[0] + Bbox[1])));
+            bsh_center = 0.5f * bsh_center;
+            bsh_center.W = 1.0f;
+
+            float radius = (0.5f * (Bbox[1] - Bbox[0])).Length;
+
+            //Create Sphere vbo
+            sph_vbo = new Sphere(bsh_center.Xyz, radius).getVBO();
+        }
+
         public float[] getBindRotMats
         {
             get
@@ -591,30 +606,16 @@ namespace GMDL
         {
             GL.UseProgram(pass);
 
-            //Render Sphere
-            Vector4 bsh_center = (new Vector4((Bbox[0] + Bbox[1])));
-            bsh_center = 0.5f * bsh_center;
-            bsh_center.W = 1.0f;
-
-            float radius = (0.5f * (Bbox[1] - Bbox[0])).Length;
-
-            //Create Sphere vbo
-            customVBO sph_vbo = new Sphere(new Vector3(), radius).getVBO();
-
             //Render the sphere
             //Bind vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, sph_vbo.vertex_buffer_object);
 
-            List<int> vxattriblocs = new List<int>();
             for (int i = 0; i < 7; i++)
             {
                 if (sph_vbo.bufInfo[i] == null) continue;
                 bufInfo buf = sph_vbo.bufInfo[i];
-                int pos;
-                pos = GL.GetAttribLocation(pass, buf.sem_text);
-                GL.VertexAttribPointer(pos, buf.count, buf.type, false, sph_vbo.vx_size, buf.stride);
-                GL.EnableVertexAttribArray(pos);
-                vxattriblocs.Add(pos);
+                GL.VertexAttribPointer(i, buf.count, buf.type, false, sph_vbo.vx_size, buf.stride);
+                GL.EnableVertexAttribArray(i);
             }
 
             //Reset
@@ -627,7 +628,6 @@ namespace GMDL
 
             //Upload Default Color
             loc = GL.GetUniformLocation(pass, "color");
-            //GL.Uniform3(loc, this.color);
             GL.Uniform3(loc, this.color);
 
             //Upload Light Flag
@@ -639,16 +639,12 @@ namespace GMDL
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, sph_vbo.element_buffer_object);
 
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Point);
-            
-            GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
-            batchcount, sph_vbo.iType, (IntPtr)(batchstart * sph_vbo.iLength));
+            GL.DrawRangeElements(PrimitiveType.Triangles, 0, sph_vbo.vCount,
+            sph_vbo.iCount, sph_vbo.iType, IntPtr.Zero);
 
+            for (int i = 0; i < 7; i++)
+                GL.DisableVertexAttribArray(i);
 
-            foreach (int pos in vxattriblocs)
-                GL.DisableVertexAttribArray(pos);
-
-            //Dereference object and hopefully call deconstructor
-            sph_vbo = null;
         }
 
         public void renderBbox(int pass)
@@ -1048,7 +1044,7 @@ namespace GMDL
             GL.PointSize(5.0f);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
 
-            GL.PolygonMode(MaterialFace.Front, RenderOptions.RENDERMODE);
+            GL.PolygonMode(MaterialFace.FrontAndBack, RenderOptions.RENDERMODE);
             GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
                 batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
 
@@ -1113,8 +1109,8 @@ namespace GMDL
                 //Render Main
                 case 0:
                     renderMain(program);
-                    renderBbox(program);
-                    renderBsphere(program);
+                    //renderBbox(program);
+                    //renderBsphere(program);
                     break;
                 //Render Debug
                 case 1:

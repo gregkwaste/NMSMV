@@ -118,8 +118,8 @@ namespace Model_Viewer
         public void updateFrustumPlanes()
         {
             //projMat.Transpose();
-            //extFrustum.CalculateFrustum(projMat, lookMat);
-            //return;
+            extFrustum.CalculateFrustum(projMat, lookMat);
+            return;
 
             Matrix4 mat = GetViewMatrix();
             mat.Transpose();
@@ -156,123 +156,14 @@ namespace Model_Viewer
             Matrix4 mat = cand.worldMat * GetViewMatrix();
             ////Matrix4 mat = mvp;
             //mat.Transpose();
+            Vector4 bsh_center = (new Vector4((cand.Bbox[0] + cand.Bbox[1])));
+            bsh_center = 0.5f * bsh_center;
+            bsh_center.W = 1.0f;
 
-            for (int i = 0; i < 6; i++)
-            {
-                int result = 0;
-                Vector4 v;
+            float radius = (0.5f * (cand.Bbox[1] - cand.Bbox[0])).Length;
 
-                v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[0].Y, cand.Bbox[0].Z, 1.0f), mat);
-                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
-                v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[0].Y, cand.Bbox[0].Z, 1.0f), mat);
-                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
-                v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[1].Y, cand.Bbox[0].Z, 1.0f), mat);
-                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
-                v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[1].Y, cand.Bbox[0].Z, 1.0f), mat);
-                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
-
-                v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[0].Y, cand.Bbox[1].Z, 1.0f), mat);
-                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
-                v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[0].Y, cand.Bbox[1].Z, 1.0f), mat);
-                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
-                v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[1].Y, cand.Bbox[1].Z, 1.0f), mat);
-                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
-                v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[1].Y, cand.Bbox[1].Z, 1.0f), mat);
-                result += (Vector3.Dot(frPlanes[i].Xyz, v.Xyz) + frPlanes[i].W < 0.0f ? 1 : 0);
-
-                if (result == 8) return false;
-            }
-
-            return true;
-
-
-            //Vector4 v;
-            //int result = 0;
-            //v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[0].Y, cand.Bbox[0].Z, 1.0f), mat);
-            ////v = (1.0f / v.W) * v;
-            //if (!extFrustum.PointVsFrustum(v.Xyz)) result++;
-            //v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[0].Y, cand.Bbox[0].Z, 1.0f), mat);
-            ////v = (1.0f / v.W) * v;
-            //if (!extFrustum.PointVsFrustum(v.Xyz)) result++;
-            //v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[1].Y, cand.Bbox[0].Z, 1.0f), mat);
-            ////v = (1.0f / v.W) * v;
-            //if (!extFrustum.PointVsFrustum(v.Xyz)) result++;
-            //v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[1].Y, cand.Bbox[0].Z, 1.0f), mat);
-            ////v = (1.0f / v.W) * v;
-            //if (!extFrustum.PointVsFrustum(v.Xyz)) result++;
-
-            //v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[0].Y, cand.Bbox[1].Z, 1.0f), mat);
-            ////v = (1.0f / v.W) * v;
-            //if (!extFrustum.PointVsFrustum(v.Xyz)) result++;
-            //v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[0].Y, cand.Bbox[1].Z, 1.0f), mat);
-            ////v = (1.0f / v.W) * v;
-            //if (!extFrustum.PointVsFrustum(v.Xyz)) result++;
-            //v = Vector4.Transform(new Vector4(cand.Bbox[0].X, cand.Bbox[1].Y, cand.Bbox[1].Z, 1.0f), mat);
-            ////v = (1.0f / v.W) * v;
-            //if (!extFrustum.PointVsFrustum(v.Xyz)) result++;
-            //v = Vector4.Transform(new Vector4(cand.Bbox[1].X, cand.Bbox[1].Y, cand.Bbox[1].Z, 1.0f), mat);
-            ////v = (1.0f / v.W) * v;
-            //if (!extFrustum.PointVsFrustum(v.Xyz)) result++;
-
-
-            //if (result == 8)
-            //{
-            //    //Before discarding check the bounding Sphere
-            //    Vector4 bsh_center = (new Vector4 ((cand.Bbox[0] + cand.Bbox[1])));
-            //    bsh_center = 0.5f * bsh_center;
-            //    bsh_center.W = 1.0f;
-
-            //    float radius = (0.5f * (cand.Bbox[1] - cand.Bbox[0])).Length;
-
-            //    //Now bring it to clip space
-            //    v = Vector4.Transform(bsh_center, mat);
-            //    //v = (1.0f / v.W) * v;
-
-            //    //Now calculate distances from the planes
-            //    for (int i = 0; i < 6; i++)
-            //    {
-            //        if (!extFrustum.SphereVsFrustum(bsh_center.Xyz, radius)) return false;
-            //    }
-
-
-            //    return false;
-            //}
-                
-
-
-            return true;
-        }
-
-        public Matrix4 ComputeFOVProjection()
-        {
-            Matrix4 proj = new Matrix4();
-            //
-            // General form of the Projection Matrix
-            //
-            // uh = Cot( fov/2 ) == 1/Tan(fov/2)
-            // uw / uh = 1/aspect
-            // 
-            //   uw         0       0       0
-            //    0        uh       0       0
-            //    0         0      f/(f-n)  1
-            //    0         0    -fn/(f-n)  0
-            //
-            // Make result to be identity first
-
-            // check for bad parameters to avoid divide by zero:
-            // if found, assert and return an identity matrix.
-            float frustumDepth = zFar - zNear;
-            float oneOverDepth = 1 / frustumDepth;
-
-            proj[1, 1] = 1.0f / (float) Math.Tan(0.5f * fov);
-            proj[0, 0] = -1.0f * proj[1, 1] / (aspect);
-            proj[2, 2] = zFar * oneOverDepth;
-            proj[3, 2] = (-zFar * zNear) * oneOverDepth;
-            proj[2, 3] = 1;
-            proj[3, 3] = 0;
-
-            //Debug.WriteLine(proj);
-            return proj;
+            return extFrustum.SphereVsFrustum(bsh_center.Xyz, radius);
+            
         }
 
         public void render()
@@ -522,13 +413,6 @@ namespace Model_Viewer
             NormalizePlane(_frustum, (int)ClippingPlane.Front);
         }
 
-        /// <summary>
-        /// Draw the frustum for debugging purposes.
-        /// </summary>
-        public void Draw()
-        {
-            // Implement drawing code here.
-        }
     }
 
 
