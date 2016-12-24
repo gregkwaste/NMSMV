@@ -11,7 +11,7 @@ namespace Model_Viewer
         public Vector3 Movement = new Vector3(0.0f, 0.0f, 0.0f);
         public Vector3 Orientation = new Vector3(0.0f, 0f, 0f);
         public float MoveSpeed = 0.2f;
-        public float MouseSensitivity = 0.002f;
+        public float MouseSensitivity = 0.01f;
         public bool isActive = false;
         //Projection variables Set defaults
         public float fov;
@@ -42,8 +42,6 @@ namespace Model_Viewer
             this.program = program;
             this.type = mode;
             this.culling = cull;
-                
-
         }
         
         public Matrix4 GetViewMatrix()
@@ -70,8 +68,6 @@ namespace Model_Viewer
                 //projMat.Transpose();
                 //projMat = Matrix4.CreatePerspectiveFieldOfView(fov, aspect, zNear, zFar);
                 
-
-
                 return (lookMat * projMat);
             }
             else
@@ -299,7 +295,6 @@ namespace Model_Viewer
                 vbo.iCount, vbo.iType, IntPtr.Zero);
 
             GL.DisableVertexAttribArray(0);
-            GL.DisableVertexAttribArray(1);
         }
 
         

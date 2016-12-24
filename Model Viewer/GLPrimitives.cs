@@ -47,9 +47,9 @@ namespace Model_Viewer
                     float y = costheta;
                     float z = sinphi * sintheta;
 
-                    verts[lat * (longBands + 1) * 3 + 3 * lng + 0] = radius * x;
-                    verts[lat * (longBands + 1) * 3 + 3 * lng + 1] = radius * y;
-                    verts[lat * (longBands + 1) * 3 + 3 * lng + 2] = radius * z;
+                    verts[lat * (longBands + 1) * 3 + 3 * lng + 0] = center.X + radius * x;
+                    verts[lat * (longBands + 1) * 3 + 3 * lng + 1] = center.Y + radius * y;
+                    verts[lat * (longBands + 1) * 3 + 3 * lng + 2] = center.Z + radius * z;
                     
                     normals[lat * latBands * 3 + 3 * lng + 0] = x;
                     normals[lat * latBands * 3 + 3 * lng + 1] = y;

@@ -815,7 +815,6 @@ namespace Model_Viewer
                 GL.Uniform1(loc, this.scale);
 
                 loc = GL.GetUniformLocation(active_program, "light");
-
                 GL.Uniform3(loc, ResourceMgmt.GLlights[0].localPosition);
 
                 //Upload Light Intensity
@@ -830,8 +829,9 @@ namespace Model_Viewer
                 GL.Uniform1(loc, ((GMDL.sharedVBO)root).firstskinmat);
 
                 //Apply frustum culling only for mesh objects
-                if (activeCam.frustum_occlude(root, rotMat)) root.render(program);
-                else occludedNum++;
+                root.render(program);
+                //if (activeCam.frustum_occlude(root, rotMat)) root.render(program);
+                //else occludedNum++;
             }
             else if (root.type == TYPES.LOCATOR || root.type == TYPES.SCENE || root.type == TYPES.JOINT || root.type == TYPES.LIGHT || root.type ==TYPES.COLLISION)
             {
@@ -1183,6 +1183,7 @@ namespace Model_Viewer
                 return;
             glControl1.MakeCurrent();
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            GL.Enable(EnableCap.DepthTest);
             render_scene();
             render_lights();
             render_cameras();

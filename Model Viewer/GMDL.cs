@@ -587,6 +587,70 @@ namespace GMDL
             }
         }
 
+        public void renderBsphere(int pass)
+        {
+            GL.UseProgram(pass);
+
+            //Render Sphere
+            Vector4 bsh_center = (new Vector4((Bbox[0] + Bbox[1])));
+            bsh_center = 0.5f * bsh_center;
+            bsh_center.W = 1.0f;
+
+            float radius = (0.5f * (Bbox[1] - Bbox[0])).Length;
+
+            //Create Sphere vbo
+            customVBO sph_vbo = new Sphere(new Vector3(), radius).getVBO();
+
+            //Render the sphere
+            //Bind vertex buffer
+            GL.BindBuffer(BufferTarget.ArrayBuffer, sph_vbo.vertex_buffer_object);
+
+            List<int> vxattriblocs = new List<int>();
+            for (int i = 0; i < 7; i++)
+            {
+                if (sph_vbo.bufInfo[i] == null) continue;
+                bufInfo buf = sph_vbo.bufInfo[i];
+                int pos;
+                pos = GL.GetAttribLocation(pass, buf.sem_text);
+                GL.VertexAttribPointer(pos, buf.count, buf.type, false, sph_vbo.vx_size, buf.stride);
+                GL.EnableVertexAttribArray(pos);
+                vxattriblocs.Add(pos);
+            }
+
+            //Reset
+            int loc;
+            for (int i = 0; i < 64; i++)
+            {
+                loc = GL.GetUniformLocation(pass, "matflags[" + i.ToString() + "]");
+                GL.Uniform1(loc, 0.0f);
+            }
+
+            //Upload Default Color
+            loc = GL.GetUniformLocation(pass, "color");
+            //GL.Uniform3(loc, this.color);
+            GL.Uniform3(loc, this.color);
+
+            //Upload Light Flag
+            loc = GL.GetUniformLocation(pass, "useLighting");
+            GL.Uniform1(loc, 0.0f);
+
+            //Render Elements
+            GL.PointSize(5.0f);
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, sph_vbo.element_buffer_object);
+
+            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Point);
+            
+            GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
+            batchcount, sph_vbo.iType, (IntPtr)(batchstart * sph_vbo.iLength));
+
+
+            foreach (int pos in vxattriblocs)
+                GL.DisableVertexAttribArray(pos);
+
+            //Dereference object and hopefully call deconstructor
+            sph_vbo = null;
+        }
+
         public void renderBbox(int pass)
         {
             GL.UseProgram(pass);
@@ -663,8 +727,8 @@ namespace GMDL
 
             //Upload Default Color
             loc = GL.GetUniformLocation(pass, "color");
-            //GL.Uniform3(loc, this.color);
             GL.Uniform3(loc, this.color);
+            
 
             //Upload Light Flag
             loc = GL.GetUniformLocation(pass, "useLighting");
@@ -680,7 +744,11 @@ namespace GMDL
                 indices.Length, DrawElementsType.UnsignedInt , IntPtr.Zero);
 
             GL.DisableVertexAttribArray(0);
-  
+
+
+            GL.DeleteBuffer(vb_bbox);
+            GL.DeleteBuffer(eb_bbox);
+            
     }
 
         public virtual void renderMain(int pass)
@@ -1046,6 +1114,7 @@ namespace GMDL
                 case 0:
                     renderMain(program);
                     renderBbox(program);
+                    renderBsphere(program);
                     break;
                 //Render Debug
                 case 1:
@@ -1548,6 +1617,18 @@ namespace GMDL
             //GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr) (sizeof(int) * 4 * geom.vertCount),
             //    bIndices, BufferUsageHint.StaticDraw);
 
+        }
+
+
+        ~customVBO()
+        {
+            //Release GL stuff
+            //GL.DeleteBuffer(vertex_buffer_object);
+            //GL.DeleteBuffer(element_buffer_object);
+
+            //Clear Lists
+            bufInfo.Clear();
+            jointData.Clear();
         }
     }
 
