@@ -34,16 +34,13 @@ namespace Model_Viewer
         private Vector3 eye_up = new Vector3(0.0f, 1.0f, 0.0f);
         private Camera activeCam;
 
-        private float zfar = 300.0f;
-        private float znear = 1.0f;
-
         private float light_angle_y = 0.0f;
         private float light_angle_x = 0.0f;
         private float light_distance = 5.0f;
         private float light_intensity = 2.0f;
 
         //Common transforms
-        private Matrix4 proj, look, rotMat, mvp;
+        private Matrix4 rotMat, mvp;
         private int occludedNum = 0;
 
         private float scale = 1.0f;
@@ -456,8 +453,6 @@ namespace Model_Viewer
 
         private void render_scene()
         {
-            glControl1.MakeCurrent();
-            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             //Debug.WriteLine("Rendering Scene Cam Position : {0}", this.cam.Position);
             //Debug.WriteLine("Rendering Scene Cam Orientation: {0}", this.cam.Orientation);
             GL.CullFace(CullFaceMode.Back);
@@ -1185,7 +1180,7 @@ namespace Model_Viewer
                 return;
             glControl1.MakeCurrent();
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            GL.Enable(EnableCap.DepthTest);
+            //GL.Enable(EnableCap.DepthTest);
             render_scene();
             render_lights();
             render_cameras();
@@ -1492,12 +1487,12 @@ namespace Model_Viewer
         public static List<Camera> GLCameras = new List<Camera>();
         public static int[] shader_programs;
         public static DebugForm DebugWin;
-
-
+        
         public static void Cleanup()
         {
             GLtextures.Clear();
             GLmaterials.Clear();
         }
+
     }
 }

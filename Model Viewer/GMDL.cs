@@ -417,15 +417,14 @@ namespace GMDL
         }
 
         //Deconstructor
-        ~locator()
+        protected override void Dispose(bool disposing)
         {
-            //Debug.WriteLine("Locator Deconstructor"+ this.name);
-            //Cleanup arrays
             verts = null;
             indices = null;
             colors = null;
-            base.Dispose();
+            base.Dispose(disposing);
         }
+        
 
         private void renderMain(int pass)
         {
@@ -638,7 +637,7 @@ namespace GMDL
             GL.PointSize(5.0f);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, sph_vbo.element_buffer_object);
 
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Point);
+            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
             GL.DrawRangeElements(PrimitiveType.Triangles, 0, sph_vbo.vCount,
             sph_vbo.iCount, sph_vbo.iType, IntPtr.Zero);
 
@@ -757,28 +756,21 @@ namespace GMDL
             {
                 if (vbo.bufInfo[i] == null) continue;
                 bufInfo buf = vbo.bufInfo[i];
-                int pos = i;
-                //pos = GL.GetAttribLocation(pass, buf.sem_text);
-                GL.VertexAttribPointer(pos, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
-                GL.EnableVertexAttribArray(pos);
+                GL.VertexAttribPointer(i, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
+                GL.EnableVertexAttribArray(i);
             }
 
             int loc;
             //Upload Material Flags here
             //Reset
+            loc = GL.GetUniformLocation(pass, "matflags");
+
             for (int i = 0; i < 64; i++)
-            {
-                loc = GL.GetUniformLocation(pass, "matflags[" + i.ToString() + "]");
-                GL.Uniform1(loc, 0.0f);
-            }
-
+                GL.Uniform1(loc + i, 0.0f);
+            
             for (int i = 0; i < material.materialflags.Count; i++)
-            {
-                loc = GL.GetUniformLocation(pass, "matflags[" + material.materialflags[i].ToString() + "]");
-                GL.Uniform1(loc, 1.0f);
-            }
-
-
+                GL.Uniform1(loc + material.materialflags[i], 1.0f);
+            
             //Upload BoneRemap Information
             loc = GL.GetUniformLocation(pass, "boneRemap");
             GL.Uniform1(loc, BoneRemap.Length, BoneRemap);
@@ -810,7 +802,7 @@ namespace GMDL
             loc = GL.GetUniformLocation(pass, test);
             GL.Uniform1(loc, 0); // I need to upload the texture unit number
 
-            GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 0));
+            GL.ActiveTexture((TextureUnit) (tex0Id + 0));
             GL.BindTexture(TextureTarget.Texture2D, material.fDiffuseMap.bufferID);
 
             //Mask Texture
@@ -818,7 +810,7 @@ namespace GMDL
             loc = GL.GetUniformLocation(pass, test);
             GL.Uniform1(loc, 1); // I need to upload the texture unit number
 
-            GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 1));
+            GL.ActiveTexture((TextureUnit) (tex0Id + 1));
             GL.BindTexture(TextureTarget.Texture2D, material.fMaskMap.bufferID);
 
             //Normal Texture
@@ -826,7 +818,7 @@ namespace GMDL
             loc = GL.GetUniformLocation(pass, test);
             GL.Uniform1(loc, 2); // I need to upload the texture unit number
 
-            GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 2));
+            GL.ActiveTexture((TextureUnit) (tex0Id + 2));
             GL.BindTexture(TextureTarget.Texture2D, material.fNormalMap.bufferID);
 
 
@@ -836,210 +828,10 @@ namespace GMDL
             //NEW WAY OF TEXTURE BINDING
             //If there are samples defined, there are diffuse textures for sure
 
-            /*
-             * 
-            if (material.samplers.Count > 0)
-            {
-                //GL.Enable(EnableCap.Blend);
-                //GL.BlendFunc(BlendingFactorSrc.One, BlendingFactorDest.One);
-                //GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
-                
-                //Get Diffuse sampler
-                Sampler sam = material.samplers[0];
-
-                //Upload procedural sampler flag
-                loc = GL.GetUniformLocation(shader_program, "procFlag");
-                if (sam.proc) GL.Uniform1(loc, 1);
-                else GL.Uniform1(loc, 0);
-
-                if (sam.procTextures.Count > 0 & RenderOptions.UseTextures)
-                {
-                    loc = GL.GetUniformLocation(shader_program, "diffuseFlag");
-                    GL.Uniform1(loc, 1.0f);
-
-                    int tex0Id = (int)TextureUnit.Texture0;
-
-                    //Handle ProcGen Sampler
-                    loc = GL.GetUniformLocation(shader_program, "diffTexCount");
-                    GL.Uniform1(loc, sam.procTextures.Count);
-
-                    //if (this.name == "_Body_Tri" | this.name == "_Head_Tri")
-                    //    Debug.WriteLine("Debug");
-
-                    for (int i = 0; i < sam.procTextures.Count; i++)
-                    {
-                        tex = sam.procTextures[i];
-
-                        //Upload PaletteColor
-                        loc = GL.GetUniformLocation(shader_program, "palColors[" + i.ToString() + "]");
-                        //Use Texture paletteOpt and object palette to load the palette color
-                        GL.Uniform3(loc, palette[tex.palOpt.PaletteName][tex.palOpt.ColorName]);
-
-                        //Get Texture location
-                        string test = "diffuseTex[" + i.ToString() + "]";
-                        loc = GL.GetUniformLocation(shader_program, test);
-                        GL.Uniform1(loc, i); // I need to upload the texture unit number
-
-                        GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + i));
-                        GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
-
-                        //Check if there is a masked texture bound
-                        if (tex.mask != null) {
-                            //Set mask flag
-                            test = "maskFlags[" + i.ToString() + "]";
-                            loc = GL.GetUniformLocation(shader_program, test);
-                            GL.Uniform1(loc, 1);
-
-                            test = "maskTex[" + i.ToString() + "]";
-                            loc = GL.GetUniformLocation(shader_program, test);
-                            GL.Uniform1(loc, 8 + i); // I need to upload the texture unit number
-
-                            GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 8 + i));
-                            GL.BindTexture(TextureTarget.Texture2D, tex.mask.bufferID);
-
-                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
-                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
-                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-
-                            GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, tex.mask.pif,
-                                tex.mask.width, tex.mask.height, 0, tex.mask.ddsImage.header.dwPitchOrLinearSize, tex.mask.ddsImage.bdata);
-                        } 
-                        else
-                        {
-                            //Set mask flag to false
-                            test = "maskFlags[" + i.ToString() + "]";
-                            loc = GL.GetUniformLocation(shader_program, test);
-                            GL.Uniform1(loc, 0);
-                        }
-
-                        //Check if there is a normal texture bound
-                        if (tex.normal != null)
-                        {
-                            //Set mask flag
-                            test = "normalFlags[" + i.ToString() + "]";
-                            loc = GL.GetUniformLocation(shader_program, test);
-                            GL.Uniform1(loc, 1);
-
-                            test = "normalTex[" + i.ToString() + "]";
-                            loc = GL.GetUniformLocation(shader_program, test);
-                            GL.Uniform1(loc, 8 + i); // I need to upload the texture unit number
-
-                            GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 8 + i));
-                            GL.BindTexture(TextureTarget.Texture2D, tex.normal.bufferID);
-
-                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
-                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
-                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-                            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-
-                            GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, tex.normal.pif,
-                                tex.normal.width, tex.normal.height, 0, tex.normal.ddsImage.header.dwPitchOrLinearSize, tex.normal.ddsImage.bdata);
-
-
-                        }
-                        else
-                        {
-                            //Set mask flag to false
-                            test = "normalFlags[" + i.ToString() + "]";
-                            loc = GL.GetUniformLocation(shader_program, test);
-                            GL.Uniform1(loc, 0);
-                        }
-
-                    }
-
-                    //Load global material mask
-                    if (sam.pathMask != null && !sam.proc)
-                    {
-                        //Set mask flag
-                        string test = "maskFlags[0]";
-                        loc = GL.GetUniformLocation(shader_program, test);
-                        GL.Uniform1(loc, 1);
-
-                        test = "maskTex[0]";
-                        loc = GL.GetUniformLocation(shader_program, test);
-                        GL.Uniform1(loc, 8); // I need to upload the texture unit number
-
-                        GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 8));
-                        GL.BindTexture(TextureTarget.Texture2D, sam.procTextures[0].mask.bufferID);
-
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-
-                        GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, sam.procTextures[0].mask.pif,
-                            sam.procTextures[0].mask.width, sam.procTextures[0].mask.height, 0, sam.procTextures[0].mask.ddsImage.header.dwPitchOrLinearSize,
-                            sam.procTextures[0].mask.ddsImage.bdata);
-                    }
-
-                    //Load global material normal
-                    if (sam.pathNormal != null && !sam.proc)
-                    {
-                        //Set mask flag
-                        string test = "normalFlags[0]";
-                        loc = GL.GetUniformLocation(shader_program, test);
-                        GL.Uniform1(loc, 1);
-
-                        test = "normalTex[0]";
-                        loc = GL.GetUniformLocation(shader_program, test);
-                        GL.Uniform1(loc, 16); // I need to upload the texture unit number
-
-                        GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)(tex0Id + 16));
-                        GL.BindTexture(TextureTarget.Texture2D, sam.procTextures[0].normal.bufferID);
-
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-                        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-
-                        GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, sam.procTextures[0].normal.pif,
-                            sam.procTextures[0].normal.width, sam.procTextures[0].normal.height, 0, sam.procTextures[0].normal.ddsImage.header.dwPitchOrLinearSize,
-                            sam.procTextures[0].normal.ddsImage.bdata);
-                    }
-                    
-                }
-                else
-                {
-                    //Probably textures not found. Render with random color
-                    loc = GL.GetUniformLocation(shader_program, "diffuseFlag");
-                    GL.Uniform1(loc, 0.0f);
-                }
-            }
-            else
-            {
-                loc = GL.GetUniformLocation(shader_program, "diffuseFlag");
-                GL.Uniform1(loc, 0.0f);
-            }
-            
-            */
-
             //Upload Default Color
             loc = GL.GetUniformLocation(pass, "color");
             GL.Uniform3(loc, this.color);
-
-            ////Upload Normal Texture if any
-            //if (this.material.textures.Count > 2)
-            //{
-            //    tex = this.material.textures[2];
-            //    // Bind Diffuse Texture
-            //    GL.ActiveTexture(TextureUnit.Texture1);
-            //    GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
-            //    // Send Image to Device
-            //    //GL.TexImage2D(TextureTarget.Texture2D, 0, tex.pif, tex.width,
-            //    //    tex.height, 0, tex.pf, PixelType.UnsignedByte, tex.ddsImage.bdata);
-            //    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
-            //    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
-            //    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-            //    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-
-            //    GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, tex.pif,
-            //        tex.width, tex.height, 0, tex.ddsImage.header.dwPitchOrLinearSize, tex.ddsImage.bdata);
-            //}
-
-            //Uniform Color probably deprecated
-            //Set Color
-
+            
             //Render Elements
             GL.PointSize(5.0f);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
@@ -1108,9 +900,9 @@ namespace GMDL
             {
                 //Render Main
                 case 0:
-                    renderMain(program);
-                    //renderBbox(program);
                     //renderBsphere(program);
+                    renderBbox(program);
+                    renderMain(program);
                     break;
                 //Render Debug
                 case 1:
@@ -1882,7 +1674,7 @@ namespace GMDL
                                 this.difftextures[i] = tex;
                                 baseLayersUsed[i] = 1.0f;
                             }
-                            catch (System.IO.FileNotFoundException e)
+                            catch (System.IO.FileNotFoundException)
                             {
                                 //Texture Not Found Continue
                                 Debug.WriteLine("Diffuse Texture " + pathDiff + " Not Found, Appending White Tex");
@@ -1915,7 +1707,7 @@ namespace GMDL
                                 this.masktextures[i] = texmask;
                                 alphaLayersUsed[i] = 1.0f;
                             }
-                            catch (System.IO.FileNotFoundException e)
+                            catch (System.IO.FileNotFoundException)
                             {
                                 //Mask Texture not found
                                 Debug.WriteLine("Mask Texture " + pathMask + " Not Found");
@@ -1949,7 +1741,7 @@ namespace GMDL
                                 //Store Texture to material
                                 this.normaltextures[i] = texnormal;
                             }
-                            catch (System.IO.FileNotFoundException e)
+                            catch (System.IO.FileNotFoundException)
                             {
                                 //Normal Texture not found
                                 Debug.WriteLine("Normal Texture " + pathNormal + " Not Found");
@@ -2028,7 +1820,7 @@ namespace GMDL
                                 //Store to resource
                                 ResourceMgmt.GLtextures[sam.pathNormal] = tex;
                             }
-                            catch (System.IO.FileNotFoundException e)
+                            catch (System.IO.FileNotFoundException)
                             { 
                                 //File doesn't exist, to nothing
                             }
@@ -2092,10 +1884,6 @@ namespace GMDL
             //Upload index buffer
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, quad_ebo);
             GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr)(sizeof(int) * 6), indices, BufferUsageHint.StaticDraw);
-
-
-            // Attach to Shaders
-            int vpos, cpos;
 
             //Vertex attribute
             //Bind vertex buffer
@@ -2425,7 +2213,6 @@ namespace GMDL
         //Path Initializer
         public Texture(string path)
         {
-            DDSImage dds;
             if (!File.Exists(path))
                 throw new System.IO.FileNotFoundException();
             
@@ -2481,14 +2268,12 @@ namespace GMDL
         }
 
         //Deconstructor
-        ~Joint()
+        protected override void Dispose(bool disposing)
         {
-            //Delete GLBuffers
-            //Debug.WriteLine("Joint Deconstructor");
-            //GL.DeleteBuffer(vertex_buffer_object);
-            //GL.DeleteBuffer(element_buffer_object);
-        }
 
+            base.Dispose(disposing);
+        }
+        
         //Empty stuff
         public override model Clone(scene scn)
         {

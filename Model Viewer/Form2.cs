@@ -41,7 +41,7 @@ namespace Model_Viewer
             {
                 xml.Load("settings.xml");
             }
-            catch (System.IO.FileNotFoundException e)
+            catch (System.IO.FileNotFoundException)
             {
                 DialogResult res = MessageBox.Show("Settings File Missing. Please choose your unpacked files folder...", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
