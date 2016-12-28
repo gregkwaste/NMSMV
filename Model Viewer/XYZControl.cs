@@ -15,7 +15,6 @@ public partial class XYZControl : GroupBox
 
     public XYZControl(string field)
     {
-
         //Set Fieldname
         fieldName = field;
         //Create main container

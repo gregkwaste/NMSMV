@@ -61,8 +61,7 @@ namespace Model_Viewer
         //Debug Font
         FontGL font;
         public List<GLText> texObs = new List<GLText>();
-
-
+        
         public List<GMDL.model> animScenes = new List<GMDL.model>();
         //Deprecated
         //private List<GMDL.model> vboobjects = new List<GMDL.model>();
@@ -81,19 +80,22 @@ namespace Model_Viewer
         //public float[] JColors = new float[128 * 3];
 
         //Selected Object
-        public GMDL.sharedVBO selectedOb;
+        public GMDL.model selectedOb;
 
         //Path
         private string mainFilePath;
         //Private Settings Window
         private SettingsForm Settings = new SettingsForm();
+        //Private fps Counter
+        private int frames = 0;
+        private DateTime oldtime;
 
 
         public Form1()
         {
             //Custom stuff
-            this.xyzControl1 = new XYZControl("WorldPosition");
-            this.xyzControl2 = new XYZControl("LocalPosition");
+            this.xyzControl1 = new XYZControl("worldPosition");
+            this.xyzControl2 = new XYZControl("localPosition");
 
             InitializeComponent();
 
@@ -164,7 +166,12 @@ namespace Model_Viewer
 
             //Initialize Palettes
             Model_Viewer.Palettes.set_palleteColors();
-
+            
+            t.Stop();
+            this.glControl1.Paint -= this.glControl1_Paint;
+            this.mainScene.Dispose(); //Prevent rendering
+            this.mainScene = null;
+            t.Start();
             RightSplitter.Panel1.Controls.Clear();
             //Clear Resources
             ResourceMgmt.Cleanup();
@@ -179,7 +186,6 @@ namespace Model_Viewer
             GMDL.scene scene;
             scene = GEOMMBIN.LoadObjects(this.xmlDoc);
             scene.ID = this.childCounter;
-            this.mainScene = null;
             this.mainScene = scene;
             this.childCounter++;
 
@@ -209,6 +215,7 @@ namespace Model_Viewer
 
             glControl1.Update();
             glControl1.Invalidate();
+
             Util.setStatus("Ready", this.toolStripStatusLabel1);
         }
 
@@ -275,7 +282,7 @@ namespace Model_Viewer
 
             //Add Frustum cube
             GMDL.Collision cube = new GMDL.Collision();
-            cube.vbo = (new Box(2.0f, 2.0f, 2.0f)).getVBO();
+            cube.vbo = (new Capsule(new Vector3(), 14.0f, 2.0f)).getVBO();
 
             //Create model
             GMDL.Collision so = new GMDL.Collision();
@@ -285,7 +292,7 @@ namespace Model_Viewer
                                               ResourceMgmt.shader_programs[5],
                                               ResourceMgmt.shader_programs[6]}; //Use Mesh program for collisions
             cube.name = "FRUSTUM";
-            cube.collisionType = (int) COLLISIONTYPES.BOX;
+            cube.collisionType = (int) COLLISIONTYPES.CAPSULE;
 
 
             scene.children.Add(cube);
@@ -313,7 +320,7 @@ namespace Model_Viewer
 
             //Setup the update timer
             t = new Timer();
-            t.Interval = 16;
+            t.Interval = 5;
             t.Tick += new EventHandler(timer_ticker);
             t.Start();
 
@@ -349,8 +356,8 @@ namespace Model_Viewer
             Camera cam;
             cam = new Camera(50, ResourceMgmt.shader_programs[8], 0, true);
             ResourceMgmt.GLCameras.Add(cam);
-            cam = new Camera(50, ResourceMgmt.shader_programs[8], 0, false);
-            ResourceMgmt.GLCameras.Add(cam);
+            //cam = new Camera(50, ResourceMgmt.shader_programs[8], 0, false);
+            //ResourceMgmt.GLCameras.Add(cam);
             activeCam = ResourceMgmt.GLCameras[0];
             activeCam.isActive = true;
 
@@ -358,6 +365,31 @@ namespace Model_Viewer
             //Check if Temp folder exists
             if (!Directory.Exists("Temp")) Directory.CreateDirectory("Temp");
             
+        }
+
+        private void Form1_Close(object sender, EventArgs e)
+        {
+
+        }
+
+        private void fps()
+        {
+            //Get FPS
+            DateTime now = DateTime.UtcNow;
+            TimeSpan time = now - oldtime;
+
+            if (time.TotalMilliseconds > 1000)
+            {
+                float fps = 1000.0f * frames / (float)time.TotalMilliseconds;
+                //Debug.WriteLine("{0} {1}", frames, fps);
+                //Reset
+                frames = 0;
+                oldtime = now;
+                texObs[0] = font.renderText("FPS: " + Math.Round(fps, 1).ToString(), new Vector2(1.3f, 0.0f), 0.75f);
+            }
+            else
+                frames += 1;
+
         }
 
         private void setupFont()
@@ -434,16 +466,16 @@ namespace Model_Viewer
         {
             //Update common transforms
             activeCam.aspect = (float)glControl1.ClientSize.Width / glControl1.ClientSize.Height;
+            activeCam.updateViewMatrix();
+            activeCam.updateFrustumPlanes();
             //proj = Matrix4.CreatePerspectiveFieldOfView(-w, w, -h, h , znear, zfar);
 
             Matrix4 Rotx = Matrix4.CreateRotationX(rot[0] * (float) Math.PI / 180.0f);
             Matrix4 Roty = Matrix4.CreateRotationY(rot[1] * (float) Math.PI / 180.0f);
             Matrix4 Rotz = Matrix4.CreateRotationZ(rot[2] * (float) Math.PI / 180.0f);
             rotMat = Rotz * Roty * Rotx;
-            mvp = activeCam.GetViewMatrix(); //Full mvp matrix
-            
-            activeCam.updateFrustumPlanes();
-            
+            mvp = activeCam.viewMat; //Full mvp matrix
+
             occludedNum = 0; //Reset Counter
 
             //Simply invalidate the gl control
@@ -453,8 +485,8 @@ namespace Model_Viewer
 
         private void render_scene()
         {
-            //Debug.WriteLine("Rendering Scene Cam Position : {0}", this.cam.Position);
-            //Debug.WriteLine("Rendering Scene Cam Orientation: {0}", this.cam.Orientation);
+            //Debug.WriteLine("Rendering Scene Cam Position : {0}", this.activeCam.Position);
+            //Debug.WriteLine("Rendering Scene Cam Orientation: {0}", this.activeCam.Orientation);
             GL.CullFace(CullFaceMode.Back);
 
             //Render only the first scene for now
@@ -487,6 +519,7 @@ namespace Model_Viewer
             loc = GL.GetUniformLocation(ResourceMgmt.shader_programs[4], "h");
             GL.Uniform1(loc, (float)glControl1.Height);
 
+            fps();
             texObs[1]=font.renderText(occludedNum.ToString(), new Vector2(1.0f, 0.0f), 0.75f);
             //Render Text Objects
             foreach (GLText t in texObs)
@@ -523,7 +556,7 @@ namespace Model_Viewer
             int loc;
             //Send mvp matrix to all shaders
             loc = GL.GetUniformLocation(active_program, "mvp");
-            Matrix4 cam_mvp = activeCam.GetViewMatrix();
+            Matrix4 cam_mvp = activeCam.viewMat;
             GL.UniformMatrix4(loc, false, ref cam_mvp);
             //Send object world Matrix to all shaders
 
@@ -531,7 +564,7 @@ namespace Model_Viewer
             {
                 //Upload uniforms
                 loc = GL.GetUniformLocation(active_program, "self_mvp");
-                Matrix4 self_mvp = cam.GetViewMatrix();
+                Matrix4 self_mvp = cam.viewMat;
                 GL.UniformMatrix4(loc, false, ref self_mvp);
                 if (!cam.isActive) cam.render();
             }
@@ -635,7 +668,16 @@ namespace Model_Viewer
             //Set Local Position
             xyzControl2.bind_model(selectedOb);
             //Set Material Name
-            selMatName.Text = selectedOb.material.name;
+            switch (selectedOb.type)
+            {
+                case TYPES.MESH:
+                    selMatName.Text = selectedOb.material.name;
+                    break;
+                default:
+                    selMatName.Text = "NaN";
+                    break;
+            }
+            
         }
 
         //Set Camera FOV
@@ -788,13 +830,14 @@ namespace Model_Viewer
             loc = GL.GetUniformLocation(active_program, "worldMat");
             Matrix4 wMat = root.worldMat;
             GL.UniformMatrix4(loc, false, ref wMat);
-            
+
             //Send mvp to all shaders
             loc = GL.GetUniformLocation(active_program, "mvp");
             GL.UniformMatrix4(loc, false, ref mvp);
 
             if (root.type == TYPES.MESH)
             {
+                
                 //Sent rotation matrix individually for light calculations
                 loc = GL.GetUniformLocation(active_program, "rotMat");
                 GL.UniformMatrix4(loc, false, ref rotMat);
@@ -819,10 +862,6 @@ namespace Model_Viewer
                 //Upload camera position as the light
                 //GL.Uniform3(loc, cam.Position);
 
-                //Upload firstskinmat
-                loc = GL.GetUniformLocation(active_program, "firstskinmat");
-                GL.Uniform1(loc, ((GMDL.sharedVBO)root).firstskinmat);
-
                 //Apply frustum culling only for mesh objects
                 //root.render(program);
                 if (activeCam.frustum_occlude(root, rotMat)) root.render(program);
@@ -840,7 +879,7 @@ namespace Model_Viewer
             //Render children
             foreach (GMDL.model child in root.children)
                 traverse_render(child, program);
-            
+
         }
 
         private TreeNode findNodeFromText(TreeNodeCollection coll, string text)
@@ -883,6 +922,25 @@ namespace Model_Viewer
                 } 
             }
             return null;
+        }
+
+
+        private void procWinCLose(object sender, EventArgs e)
+        {
+            Debug.WriteLine("procwin closing");
+            //This function applies specifically to the structure of the procgen window
+            //Get glcontrol table
+            Form vpwin = (Form)sender;
+            TableLayoutPanel table = (TableLayoutPanel) vpwin.Controls[0];
+
+            foreach (CGLControl c in table.Controls)
+            {
+                c.t.Stop();
+                c.unsubscribePaint();
+                c.rootObject.Dispose(); //Prevent rendering
+                c.rootObject = null;
+            }
+
         }
 
         private void randgenClickNew(object sender, EventArgs e)
@@ -936,7 +994,7 @@ namespace Model_Viewer
             //First Create the form and the table
             Form vpwin = new Form();
             //vpwin.parentForm = this; //Set parent to this form
-            //vpwin.FormClosed += new FormClosedEventHandler(this.resumeTicker);
+            vpwin.FormClosed += new FormClosedEventHandler(this.procWinCLose);
             vpwin.Text = "Procedural Generated Models";
             vpwin.FormBorderStyle = FormBorderStyle.Sizable;
             
@@ -1000,7 +1058,7 @@ namespace Model_Viewer
             {
                 //Create New GLControl
                 CGLControl n = new CGLControl(i, vpwin);
-                n.MakeCurrent(); //Make current
+                //n.MakeCurrent(); //Make current
 
                 //----PROC GENERATION START----
                 List<string> parts = new List<string>();
@@ -1186,7 +1244,6 @@ namespace Model_Viewer
             render_cameras();
             render_info();
             
-
             glControl1.SwapBuffers();
             //translate_View();
             ////Draw scene
@@ -1243,27 +1300,27 @@ namespace Model_Viewer
                 //Camera Movement
                 case Keys.W:
                     for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(0.0f, -0.1f, 0.0f);
+                        activeCam.Move(0.0f, 0.1f, 0.0f);
                     break;
                 case Keys.S:
                     for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(0.0f, 0.1f, 0.0f);
+                        activeCam.Move(0.0f, -0.1f, 0.0f);
                     break;
                 case (Keys.D):
                     for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(-0.1f, 0.0f, 0.0f);
+                        activeCam.Move(0.1f, 0.0f, 0.0f);
                     break;
                 case Keys.A:
                     for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(0.1f, 0.0f, 0.0f);
+                        activeCam.Move(-0.1f, 0.0f, 0.0f);
                     break;
                 case (Keys.R):
                     for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(0.0f, 0.0f, -0.1f);
+                        activeCam.Move(0.0f, 0.0f, 0.1f);
                     break;
                 case Keys.F:
                     for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(0.0f, 0.0f, 0.1f);
+                        activeCam.Move(0.0f, 0.0f, -0.1f);
                     break;
                 //Light Rotation
                 case Keys.N:
@@ -1403,7 +1460,7 @@ namespace Model_Viewer
             if (newButton1.status)
                 t.Stop();
         }
-        
+
         //GLCONTROL Context Menu
         private void glControl1_MouseClick(object sender, MouseEventArgs e)
         {
@@ -1466,7 +1523,28 @@ namespace Model_Viewer
             foreach (GMDL.model c in m.children)
                 if (c.renderable) findGeoms(c, s, ref index);
         }
-        
+
+        private void Form1_FormClosed(object sender, FormClosedEventArgs e)
+        {
+            this.mainScene.Dispose();
+            ResourceMgmt.Cleanup();
+        }
+
+        private void treeView1_NodeMouseClick(object sender, TreeNodeMouseClickEventArgs e)
+        {
+            Debug.WriteLine("Clicked");
+            selectedOb = ((MyTreeNode)e.Node).model;
+            loadSelectedObect();
+            //Deselect everything first
+            traverse_oblist_rs(this.mainScene, "selected", 0);
+            
+            //Try to find object
+            selectedOb = traverse_oblist_field<int>(this.mainScene, selectedOb.ID, "selected", 1);
+
+
+        }
+
+
         //Light Intensity
         private void l_intensity_nud_ValueChanged(object sender, EventArgs e)
         {
@@ -1483,6 +1561,7 @@ namespace Model_Viewer
     {
         public static Dictionary<string, GMDL.Texture> GLtextures = new Dictionary<string, GMDL.Texture>();
         public static Dictionary<string, GMDL.Material> GLmaterials = new Dictionary<string, GMDL.Material>();
+        public static Dictionary<string, GMDL.GeomObject> GLgeoms = new Dictionary<string, GMDL.GeomObject>();
         public static List<GMDL.model> GLlights = new List<GMDL.model>();
         public static List<Camera> GLCameras = new List<Camera>();
         public static int[] shader_programs;
@@ -1490,8 +1569,20 @@ namespace Model_Viewer
         
         public static void Cleanup()
         {
+            foreach (GMDL.Texture p in GLtextures.Values)
+                p.Dispose();
             GLtextures.Clear();
+
+            foreach (GMDL.GeomObject p in GLgeoms.Values)
+                p.Dispose();
+            GLgeoms.Clear();
+
+            foreach (GMDL.Material p in GLmaterials.Values)
+                p.Dispose();
             GLmaterials.Clear();
+
+            GC.Collect();
+            
         }
 
     }

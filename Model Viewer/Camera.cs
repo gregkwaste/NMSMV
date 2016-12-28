@@ -22,6 +22,7 @@ namespace Model_Viewer
         //Matrices
         public Matrix4 projMat;
         public Matrix4 lookMat;
+        public Matrix4 viewMat = Matrix4.Identity;
         public int type;
         public bool culling;
 
@@ -42,9 +43,14 @@ namespace Model_Viewer
             this.program = program;
             this.type = mode;
             this.culling = cull;
+
+            //Initialize the viewmat
+            this.updateViewMatrix();
+            this.updateFrustumPlanes();
+
         }
         
-        public Matrix4 GetViewMatrix()
+        public void updateViewMatrix()
         {
             Vector3 lookat = new Vector3();
 
@@ -65,10 +71,9 @@ namespace Model_Viewer
                 w = h * aspect;       // half width of near plane
 
                 projMat = Matrix4.CreatePerspectiveOffCenter(-w, w, -h, h, zNear, zFar);
-                //projMat.Transpose();
                 //projMat = Matrix4.CreatePerspectiveFieldOfView(fov, aspect, zNear, zFar);
                 
-                return (lookMat * projMat);
+                viewMat =  lookMat * projMat;
             }
             else
             {
@@ -77,10 +82,8 @@ namespace Model_Viewer
                 //projMat.Transpose();
                 //Create scale matrix based on the fov
                 Matrix4 scaleMat = Matrix4.CreateScale(0.8f * fov);
-                return scaleMat * trans * lookMat * projMat;
+                viewMat =  scaleMat * lookMat * projMat;
             }
-            
-
             
         }
 
@@ -121,7 +124,7 @@ namespace Model_Viewer
             extFrustum.CalculateFrustum(projMat, lookMat);
             return;
 
-            Matrix4 mat = GetViewMatrix();
+            Matrix4 mat = viewMat;
             mat.Transpose();
             //Matrix4 mat = proj;
             //Left
@@ -153,17 +156,19 @@ namespace Model_Viewer
         {
             if (!culling) return true;
             //transform is the local transformation that may be applied additionally
-            Matrix4 mat = cand.worldMat * GetViewMatrix();
+            Matrix4 mat = cand.worldMat;
             ////Matrix4 mat = mvp;
-            //mat.Transpose();
-            Vector4 bsh_center = (new Vector4((cand.Bbox[0] + cand.Bbox[1])));
-            bsh_center = 0.5f * bsh_center;
-            bsh_center.W = 1.0f;
-
-            float radius = (0.5f * (cand.Bbox[1] - cand.Bbox[0])).Length;
-
-            return extFrustum.SphereVsFrustum(bsh_center.Xyz, radius);
+            Vector4 p1 = Vector4.Transform(new Vector4(cand.Bbox[0], 1.0f), mat);
+            Vector4 p2 = Vector4.Transform(new Vector4(cand.Bbox[1], 1.0f), mat);
             
+            Vector4 bsh_center = p1 + p2;
+            bsh_center = 0.5f * bsh_center;
+            bsh_center *= 1.0f/bsh_center.W;
+
+            float radius = (0.5f * (p2 - p1)).Length;
+            
+            //In the future I should add the original AABB as well, spheres look to work like a charm for now   
+            return extFrustum.SphereVsFrustum(bsh_center.Xyz, radius);
         }
 
         public void render()

@@ -13,10 +13,11 @@ namespace Model_Viewer
         public List<GMDL.model> objects = new List<GMDL.model>();
         public GMDL.model rootObject;
 
+        //Common Transforms
+        private Matrix4 rotMat, mvp;
 
         private Vector3 rot = new Vector3(0.0f, 0.0f, 0.0f);
-        private Vector3 target = new Vector3(0.0f, 0.0f, 0.0f);
-        private Camera cam = new Camera(60, ResourceMgmt.shader_programs[8], 0, false);
+        private Camera activeCam = new Camera(60, ResourceMgmt.shader_programs[8], 0, false);
 
         private float light_angle_y = 0.0f;
         private float light_angle_x = 0.0f;
@@ -28,6 +29,7 @@ namespace Model_Viewer
         private int mouse_y;
         //Control Identifier
         private int index;
+        private int occludedNum = 0;
 
         //Custom Palette
         private Dictionary<string,Dictionary<string,Vector4>> palette;
@@ -46,16 +48,21 @@ namespace Model_Viewer
         private System.ComponentModel.BackgroundWorker backgroundWorker1;
         private Form pform;
 
+        //Timer
+        public Timer t;
+
         //Constructor
         public CGLControl(int index,Form parent)
         {
             this.Load += new System.EventHandler(this.genericLoad);
             this.Paint += new System.Windows.Forms.PaintEventHandler(this.genericPaint);
             this.Resize += new System.EventHandler(this.genericResize);
-            this.MouseHover += new System.EventHandler(this.hover);
+            //this.MouseHover += new System.EventHandler(this.hover);
             this.MouseMove += new System.Windows.Forms.MouseEventHandler(this.genericMouseMove);
             this.MouseClick += new System.Windows.Forms.MouseEventHandler(this.CGLControl_MouseClick);
             this.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.generic_KeyDown);
+            this.Enter += new System.EventHandler(this.genericEnter);
+            this.Leave += new System.EventHandler(this.genericLeave);
             //Set properties
             this.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             this.MinimumSize = new System.Drawing.Size(128, 128);
@@ -64,7 +71,7 @@ namespace Model_Viewer
 
             //Set Camera position
             for (int i = 0; i < 20; i++)
-                cam.Move(0.0f, -0.1f, 0.0f);
+                activeCam.Move(0.0f, -0.1f, 0.0f);
             this.rot.Y = 131;
             this.light_angle_y = 190;
 
@@ -76,6 +83,39 @@ namespace Model_Viewer
 
             //Set parent form
             pform = parent;
+
+            //Control Timer
+            t = new Timer();
+            t.Tick += new System.EventHandler(timer_ticker);
+            t.Interval = 10;
+            t.Start();
+        }
+
+        public void unsubscribePaint()
+        {
+            this.Paint -= genericPaint;
+        }
+
+        //glControl Timer
+        private void timer_ticker(object sender, EventArgs e)
+        {
+            //Update common transforms
+            activeCam.aspect = (float)this.ClientSize.Width / this.ClientSize.Height;
+            activeCam.updateViewMatrix();
+            activeCam.updateFrustumPlanes();
+            //proj = Matrix4.CreatePerspectiveFieldOfView(-w, w, -h, h , znear, zfar);
+
+            Matrix4 Rotx = Matrix4.CreateRotationX(rot[0] * (float)Math.PI / 180.0f);
+            Matrix4 Roty = Matrix4.CreateRotationY(rot[1] * (float)Math.PI / 180.0f);
+            Matrix4 Rotz = Matrix4.CreateRotationZ(rot[2] * (float)Math.PI / 180.0f);
+            rotMat = Rotz * Roty * Rotx;
+            mvp = activeCam.viewMat; //Full mvp matrix
+
+            occludedNum = 0; //Reset Counter
+
+            //Simply invalidate the gl control
+            this.MakeCurrent();
+            this.Invalidate();
         }
 
         public void SetupItems()
@@ -130,7 +170,9 @@ namespace Model_Viewer
                     //Recalculate Textures
                     GL.DeleteTexture(m.material.fDiffuseMap.bufferID);
                     GL.DeleteTexture(m.material.fMaskMap.bufferID);
-                    
+                    GL.DeleteTexture(m.material.fNormalMap.bufferID);
+
+
                     m.material.prepTextures();
                     m.material.mixTextures();
                 }
@@ -141,86 +183,91 @@ namespace Model_Viewer
 
         private void render_scene()
         {
-            //this.MakeCurrent();
-            //GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            
             if (this.rootObject != null)
-                traverse_render(this.rootObject);
+                traverse_render(this.rootObject, 0);
 
         }
 
-        private void traverse_render(GMDL.model m)
+        private void genericEnter(object sender, EventArgs e)
         {
+            //Start Timer when the glControl gets focus
+            Debug.WriteLine("Entered Focus Control " + index);
             this.MakeCurrent();
+            t.Start();
+        }
 
-            for (int i = 0; i < m.shader_programs.Length; i++)
+        private void genericLeave(object sender, EventArgs e)
+        {
+            //Don't update the control when its not focused
+            Debug.WriteLine("Left Focus of Control "+ index);
+            t.Stop();
+        }
+
+        private void traverse_render(GMDL.model root, int program)
+        {
+
+            int active_program = root.shader_programs[program];
+
+            GL.UseProgram(active_program);
+
+            if (active_program == -1)
+                throw new ApplicationException("Shit program");
+
+            int loc;
+
+            loc = GL.GetUniformLocation(active_program, "worldMat");
+            Matrix4 wMat = root.worldMat;
+            GL.UniformMatrix4(loc, false, ref wMat);
+
+            //Send mvp to all shaders
+            loc = GL.GetUniformLocation(active_program, "mvp");
+            GL.UniformMatrix4(loc, false, ref mvp);
+
+            if (root.type == TYPES.MESH)
             {
-                int active_program = m.shader_programs[0];
-                GL.UseProgram(active_program);
-                if (active_program == -1)
-                {
-                    Debug.WriteLine("Shit program, Exiting");
-                    //throw new ApplicationException("Shit program");
-                    return;
-                }
 
-                Matrix4 look = cam.GetViewMatrix();
-                //Matrix4 look = Matrix4.Identity;
-                float aspect = (float)this.ClientSize.Width / this.ClientSize.Height;
-                Matrix4 proj = Matrix4.CreatePerspectiveFieldOfView(cam.fov, aspect,
-                                                                    0.1f, 300.0f);
-                int loc;
-                //Send LookAt matrix to all shaders
-                loc = GL.GetUniformLocation(active_program, "look");
-                GL.UniformMatrix4(loc, false, ref look);
-                //Send projection matrix to all shaders
-                loc = GL.GetUniformLocation(active_program, "proj");
-                GL.UniformMatrix4(loc, false, ref proj);
-                //Send theta to all shaders
-                loc = GL.GetUniformLocation(active_program, "theta");
-                GL.Uniform3(loc, this.rot);
-                //Send object world Matrix to all shaders
-                loc = GL.GetUniformLocation(active_program, "worldMat");
-                Matrix4 wMat = m.worldMat;
-                GL.UniformMatrix4(loc, false, ref wMat);
+                //Sent rotation matrix individually for light calculations
+                loc = GL.GetUniformLocation(active_program, "rotMat");
+                GL.UniformMatrix4(loc, false, ref rotMat);
 
-                if (active_program == ResourceMgmt.shader_programs[0])
-                {
-                    //Object program
-                    //Local Transformation is the same for all objects 
-                    //Pending - Personalize local matrix on each object
-                    loc = GL.GetUniformLocation(active_program, "scale");
-                    GL.Uniform1(loc, this.scale);
+                //Send DiffuseFlag
+                loc = GL.GetUniformLocation(active_program, "diffuseFlag");
+                GL.Uniform1(loc, RenderOptions.UseTextures);
 
-                    loc = GL.GetUniformLocation(active_program, "light");
+                //Object program
+                //Local Transformation is the same for all objects 
+                //Pending - Personalize local matrix on each object
+                loc = GL.GetUniformLocation(active_program, "scale");
+                GL.Uniform1(loc, this.scale);
 
-                    GL.Uniform3(loc, new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                                Math.Sin(this.light_angle_y * Math.PI / 180.0)),
-                                                    (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
-                                                    (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                                Math.Cos(this.light_angle_y * Math.PI / 180.0))));
+                loc = GL.GetUniformLocation(active_program, "light");
+                GL.Uniform3(loc, ResourceMgmt.GLlights[0].localPosition);
 
-                    //Upload joint transform data
-                    //Multiply matrices before sending them
-                    //float[] skinmats = Util.mulMatArrays(((GMDL.sharedVBO)m).vbo.invBMats, JMArray, 128);
-                    //loc = GL.GetUniformLocation(active_program, "skinMats");
-                    //GL.UniformMatrix4(loc, 128, false, skinmats);
+                //Upload Light Intensity
+                loc = GL.GetUniformLocation(active_program, "intensity");
+                GL.Uniform1(loc, 1.0f);
 
-                }
-                else if (active_program == ResourceMgmt.shader_programs[1])
-                {
-                    //Locator Program
-                }
-                GL.ClearColor(System.Drawing.Color.Black);
+                //Upload camera position as the light
+                //GL.Uniform3(loc, cam.Position);
+
+                //Apply frustum culling only for mesh objects
+                //root.render(program);
+                if (activeCam.frustum_occlude(root, rotMat)) root.render(program);
+                else occludedNum++;
+            }
+            else if (root.type == TYPES.LOCATOR || root.type == TYPES.SCENE || root.type == TYPES.JOINT || root.type == TYPES.LIGHT || root.type == TYPES.COLLISION)
+            {
+                //Locator Program
+                //TESTING
+                root.render(program);
             }
 
-            
-            //Render Object
-            m.render(0);
-            //Render Children
-            if (m.children!= null)
-                foreach (GMDL.model child in m.children)
-                    traverse_render(child);
+            //Cleanup
+
+            //Render children
+            foreach (GMDL.model child in root.children)
+                traverse_render(child, program);
+
         }
 
         private void genericLoad(object sender, EventArgs e)
@@ -256,8 +303,8 @@ namespace Model_Viewer
         private void genericMouseMove(object sender, MouseEventArgs e)
         {
             //Debug.WriteLine("Mouse moving on {0}", this.TabIndex);
-            //int delta_x = (int) (Math.Pow(cam.fov, 4) * (e.X - mouse_x));
-            //int delta_y = (int) (Math.Pow(cam.fov, 4) * (e.Y - mouse_y));
+            //int delta_x = (int) (Math.Pow(activeCam.fov, 4) * (e.X - mouse_x));
+            //int delta_y = (int) (Math.Pow(activeCam.fov, 4) * (e.Y - mouse_y));
             int delta_x = (e.X - mouse_x);
             int delta_y = (e.Y - mouse_y);
 
@@ -267,13 +314,12 @@ namespace Model_Viewer
             if (e.Button == MouseButtons.Left)
             {
                 //Debug.WriteLine("Deltas {0} {1} {2}", delta_x, delta_y, e.Button);
-                cam.AddRotation(delta_x, delta_y);
+                activeCam.AddRotation(delta_x, delta_y);
             }
 
             mouse_x = e.X;
             mouse_y = e.Y;
-            this.Invalidate();
-
+            
         }
 
         private void generic_KeyDown(object sender, PreviewKeyDownEventArgs e)
@@ -284,11 +330,11 @@ namespace Model_Viewer
                 //Local Transformation
                 case Keys.Q:
                     this.rot.Y -= 4.0f;
-                    //cam.AddRotation(-4.0f,0.0f);
+                    //activeCam.AddRotation(-4.0f,0.0f);
                     break;
                 case Keys.E:
                     this.rot.Y += 4.0f;
-                    //cam.AddRotation(4.0f, 0.0f);
+                    //activeCam.AddRotation(4.0f, 0.0f);
                     break;
                 case Keys.Z:
                     this.rot.X -= 4.0f;
@@ -298,22 +344,22 @@ namespace Model_Viewer
                     break;
                 //Camera Movement
                 case Keys.W:
-                    cam.Move(0.0f, 0.1f, 0.0f);
+                    activeCam.Move(0.0f, 0.1f, 0.0f);
                     break;
                 case Keys.S:
-                    cam.Move(0.0f, -0.1f, 0.0f);
+                    activeCam.Move(0.0f, -0.1f, 0.0f);
                     break;
                 case (Keys.D):
-                    cam.Move(+0.1f, 0.0f, 0.0f);
+                    activeCam.Move(+0.1f, 0.0f, 0.0f);
                     break;
                 case Keys.A:
-                    cam.Move(-0.1f, 0.0f, 0.0f);
+                    activeCam.Move(-0.1f, 0.0f, 0.0f);
                     break;
                 case (Keys.R):
-                    cam.Move(0.0f, 0.0f, 0.1f);
+                    activeCam.Move(0.0f, 0.0f, 0.1f);
                     break;
                 case Keys.F:
-                    cam.Move(0.0f, 0.0f, -0.1f);
+                    activeCam.Move(0.0f, 0.0f, -0.1f);
                     break;
                 //Light Rotation
                 case Keys.N:
@@ -340,7 +386,7 @@ namespace Model_Viewer
                     Debug.WriteLine("Not Implemented Yet");
                     break;
             }
-            this.Invalidate();
+
         }
 
         private void genericResize(object sender, EventArgs e)
@@ -497,6 +543,5 @@ namespace Model_Viewer
         }
 
     }
-
-
+    
 }

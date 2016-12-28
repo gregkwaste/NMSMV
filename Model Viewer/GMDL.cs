@@ -59,7 +59,7 @@ namespace GMDL
                 if (parent != null)
                 {
                     //Original working
-                    return Matrix4.Mult(this.localMat, parent.worldMat);
+                    return this.localMat * parent.worldMat;
                     //return this.localMat;
                 }
 
@@ -95,7 +95,7 @@ namespace GMDL
         public model parent;
         public int cIndex = 0;
         //Disposable Stuff
-        bool disposed = false;
+        public bool disposed = false;
         Microsoft.Win32.SafeHandles.SafeFileHandle handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(IntPtr.Zero, true);
 
         public static void vectofloatArray(float[] flist, List<Vector3> veclist)
@@ -199,8 +199,12 @@ namespace GMDL
                 handle.Dispose();
                 JMArray = null;
                 jointDict = null;
-                children = null;
+                
+                
                 //Free other resources here
+                if (children!=null)
+                    foreach (model c in children) c.Dispose();
+                children.Clear();
             }
 
             //Free unmanaged resources
@@ -208,10 +212,10 @@ namespace GMDL
             disposed = true;
         }
 
-        ~model()
-        {
-            Dispose(false);
-        }
+        //~model()
+        //{
+        //    Dispose(false);
+        //}
 
         
         public void delete()
@@ -422,6 +426,8 @@ namespace GMDL
             verts = null;
             indices = null;
             colors = null;
+            GL.DeleteBuffer(vertex_buffer_object);
+            GL.DeleteBuffer(element_buffer_object);
             base.Dispose(disposing);
         }
         
@@ -775,10 +781,6 @@ namespace GMDL
             loc = GL.GetUniformLocation(pass, "boneRemap");
             GL.Uniform1(loc, BoneRemap.Length, BoneRemap);
 
-            //Upload skinned status
-            loc = GL.GetUniformLocation(pass, "skinned");
-            GL.Uniform1(loc, skinned);
-
             //Upload joint transform data
             //Multiply matrices before sending them
             //Check if scene has the jointModel
@@ -860,18 +862,27 @@ namespace GMDL
             }
 
             int loc;
+            //Upload Material Flags here
+            //Reset
+            loc = GL.GetUniformLocation(pass, "matflags");
 
-            //Upload object ID
-            loc = GL.GetUniformLocation(pass, "id");
-            GL.Uniform1(loc, ID);
+            for (int i = 0; i < 64; i++)
+                GL.Uniform1(loc + i, 0.0f);
 
-            //Upload Default Color
-            loc = GL.GetUniformLocation(pass, "skinned");
-            GL.Uniform1(loc, this.skinned);
+            for (int i = 0; i < material.materialflags.Count; i++)
+                GL.Uniform1(loc + material.materialflags[i], 1.0f);
 
-            ////Upload Default Color
-            //loc = GL.GetUniformLocation(this.shader_programs[1], "color");
-            //GL.Uniform3(loc, this.color);
+            //Upload BoneRemap Information
+            loc = GL.GetUniformLocation(pass, "boneRemap");
+            GL.Uniform1(loc, BoneRemap.Length, BoneRemap);
+
+            //Upload joint transform data
+            //Multiply matrices before sending them
+            //Check if scene has the jointModel
+            float[] skinmats = Util.mulMatArrays(vbo.invBMats, scene.JMArray, 128);
+
+            loc = GL.GetUniformLocation(pass, "skinMats");
+            GL.UniformMatrix4(loc, 128, false, skinmats);
 
             //Render Elements
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
@@ -901,7 +912,7 @@ namespace GMDL
                 //Render Main
                 case 0:
                     //renderBsphere(program);
-                    renderBbox(program);
+                    //renderBbox(program);
                     renderMain(program);
                     break;
                 //Render Debug
@@ -1262,11 +1273,38 @@ namespace GMDL
 
         }
 
-    
+        public override void renderDebug(int pass)
+        {
+            GL.UseProgram(pass);
+            //Bind vertex buffer
+            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
+
+            for (int i = 0; i < 7; i++)
+            {
+                if (vbo.bufInfo[i] == null) continue;
+                bufInfo buf = vbo.bufInfo[i];
+                int pos = i;
+                GL.VertexAttribPointer(pos, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
+                GL.EnableVertexAttribArray(pos);
+            }
+
+            //Render Elements
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
+
+            GL.PolygonMode(MaterialFace.Front, PolygonMode.Point);
+            GL.DrawRangeElements(PrimitiveType.Points, vertrstart, vertrend,
+                batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
+
+            for (int i = 0; i < 7; i++)
+                GL.DisableVertexAttribArray(i);
+
+        }
+
     }
 
-    public class customVBO
+    public class customVBO: IDisposable
     {
+        private bool disposed = false;
         public int vertex_buffer_object;
         public int small_vertex_buffer_object;
         public int normal_buffer_object;
@@ -1407,21 +1445,45 @@ namespace GMDL
 
         }
 
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposed)
+                return;
+
+            if (disposing)
+            {
+                bufInfo.Clear();
+                jointData.Clear();
+                //Clear gl arrays
+                GL.DeleteBuffer(vertex_buffer_object);
+                GL.DeleteBuffer(small_vertex_buffer_object);
+                GL.DeleteBuffer(element_buffer_object);
+                GL.DeleteBuffer(color_buffer_object);
+                
+                //Free other resources here
+            }
+
+            //Free unmanaged resources
+            disposed = true;
+        }
 
         ~customVBO()
         {
-            //Release GL stuff
-            //GL.DeleteBuffer(vertex_buffer_object);
-            //GL.DeleteBuffer(element_buffer_object);
-
-            //Clear Lists
-            bufInfo.Clear();
-            jointData.Clear();
+            Dispose(false);
         }
+
+        
     }
 
-    public class GeomObject
+    public class GeomObject : IDisposable
     {
+        private bool disposed = false;
         //public List<Vector3> verts = new List<Vector3>();
         //public List<Vector3> normals = new List<Vector3>();
         //public List<Vector3> tangents = new List<Vector3>();
@@ -1446,14 +1508,16 @@ namespace GMDL
         public byte[] nbuffer;
         public byte[] ubuffer;
         public byte[] tbuffer;
-        public List<int[]> bIndices;
-        public List<float[]> bWeights;
-        public List<bufInfo> bufInfo;
+        public List<int[]> bIndices = new List<int[]>();
+        public List<float[]> bWeights = new List<float[]>();
+        public List<bufInfo> bufInfo = new List<GMDL.bufInfo>();
         public int[] offsets; //List to save strides according to meshdescr
         public int[] small_offsets; //Same thing for the small description
         public int[] boneRemap;
         public List<Vector3[]> bboxes = new List<Vector3[]>();
         public List<int> vstarts = new List<int>();
+
+        public customVBO vbo;
 
         //Joint info
         public List<JointBindingData> jointData = new List<JointBindingData>();
@@ -1485,6 +1549,40 @@ namespace GMDL
             return temp;
         }
 
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposed)
+                return;
+
+            if (disposing)
+            {
+                bIndices.Clear();
+                bWeights.Clear();
+                bufInfo.Clear();
+                bboxes.Clear();
+                vstarts.Clear();
+                //Clear vbo
+                if (vbo != null) vbo.Dispose();
+
+                //Free other resources here
+            }
+
+            //Free unmanaged resources
+            disposed = true;
+        }
+
+        ~GeomObject()
+        {
+            Dispose(false);
+        }
+
+        
     }
     
     public class bufInfo
@@ -1505,8 +1603,9 @@ namespace GMDL
         }
     }
 
-    public class Material
+    public class Material: IDisposable
     {
+        private bool disposed = false;
         public string name;
         public string type;
         public MatOpts opts;
@@ -1905,6 +2004,7 @@ namespace GMDL
             //Diffuse Output
             int out_tex_diffuse = GL.GenTexture();
             GL.BindTexture(TextureTarget.Texture2D, out_tex_diffuse);
+            //GL.TexImage2DMultisample(TextureTargetMultisample.Texture2D, 4, PixelInternalFormat.Rgba, texsize, texsize, false);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
@@ -1914,6 +2014,8 @@ namespace GMDL
 
             //Create New RenderBuffer for the diffuse
             int fb_diffuse = GL.GenFramebuffer();
+            int fb_draw = GL.GenFramebuffer();
+
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, fb_diffuse);
             //Attach Texture to this FBO
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, out_tex_diffuse, 0);
@@ -2090,12 +2192,12 @@ namespace GMDL
 
 
             //RENDERING PHASE
+            GL.Enable(EnableCap.Multisample);
             //GL.Enable(EnableCap.Blend);
             //GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
             //Render to the FBO
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, fb_diffuse);
             GL.DrawBuffers(3,  new DrawBuffersEnum[] { DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment2 });
-
             GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
 
             //Store Framebuffer to Disk
@@ -2141,12 +2243,53 @@ namespace GMDL
             fNormalMap.bufferID = out_tex_normal;
 
             //Bring Back screen
+            GL.Disable(EnableCap.Multisample);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
             GL.DisableVertexAttribArray(0);
             GL.DisableVertexAttribArray(1);
             GL.DeleteBuffer(quad_vbo);
             GL.DeleteBuffer(quad_ebo);
+            GL.DeleteFramebuffer(fb_diffuse);
         }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposed)
+                return;
+
+            if (disposing)
+            {
+                materialflags.Clear();
+                palette.Clear();
+                uniforms.Clear();
+                samplers.Clear();
+                reColourings.Clear();
+                //Texture lists should have been disposed from the dictionary
+                difftextures.Clear();
+                masktextures.Clear();
+                normaltextures.Clear();
+                if (fDiffuseMap != null) fDiffuseMap.Dispose();
+                if (fMaskMap != null) fMaskMap.Dispose();
+                if (fNormalMap != null) fNormalMap.Dispose();
+                //Free other resources here
+            }
+
+            //Free unmanaged resources
+            disposed = true;
+        }
+
+        ~Material()
+        {
+            Dispose(false);
+        }
+
+        
     }
     
     public class Uniform
@@ -2192,9 +2335,10 @@ namespace GMDL
         }
     }
 
-    public class Texture
+    public class Texture : IDisposable
     {
-        public int bufferID;
+        private bool disposed = false;
+        public int bufferID = -1;
         public string name;
         public int width;
         public int height;
@@ -2203,7 +2347,7 @@ namespace GMDL
         public PaletteOpt palOpt;
         public Vector4 procColor;
         public PixelFormat pf;
-        public DDSImage ddsImage;
+        //public DDSImage ddsImage;
         //Attach mask and normal textures to the diffuse
         public Texture mask;
         public Texture normal;
@@ -2216,7 +2360,7 @@ namespace GMDL
             if (!File.Exists(path))
                 throw new System.IO.FileNotFoundException();
             
-            ddsImage = new DDSImage(File.ReadAllBytes(Path.Combine(Model_Viewer.Util.dirpath, path)));
+            DDSImage ddsImage = new DDSImage(File.ReadAllBytes(Path.Combine(Model_Viewer.Util.dirpath, path)));
             name = path;
             Debug.WriteLine("Sampler Name Path " + path + " Width {0} Height {1}", ddsImage.header.dwWidth, ddsImage.header.dwHeight);
             width = ddsImage.header.dwWidth;
@@ -2246,10 +2390,39 @@ namespace GMDL
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
 
             GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, this.pif,
-                this.width, this.height, 0, this.ddsImage.header.dwPitchOrLinearSize, this.ddsImage.bdata);
-            
+                this.width, this.height, 0, ddsImage.header.dwPitchOrLinearSize, ddsImage.bdata);
+
+            ddsImage = null;
         }
-            
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposed)
+                return;
+
+            if (disposing)
+            {
+                if (bufferID != -1) GL.DeleteTexture(bufferID);
+                if (mask != null) mask.Dispose();
+                if (normal != null) normal.Dispose();
+                //Free other resources here
+            }
+
+            //Free unmanaged resources
+            disposed = true;
+        }
+
+        ~Texture()
+        {
+            Dispose(false);
+        }
+
     }
 
     public class Joint : model
@@ -2267,12 +2440,7 @@ namespace GMDL
             GL.GenBuffers(1, out element_buffer_object);
         }
 
-        //Deconstructor
-        protected override void Dispose(bool disposing)
-        {
-
-            base.Dispose(disposing);
-        }
+        
         
         //Empty stuff
         public override model Clone(scene scn)
@@ -2374,7 +2542,6 @@ namespace GMDL
             GL.DisableVertexAttribArray(1);
         }
 
-
         public override bool render(int pass)
         {
             if (this.renderable == false)
@@ -2400,6 +2567,24 @@ namespace GMDL
             }
 
             return true;
+        }
+
+        //DIsposal
+        protected override void Dispose(bool disposing)
+        {
+            if (disposed)
+                return;
+
+            if (disposing)
+            {
+                GL.DeleteBuffer(vertex_buffer_object);
+                GL.DeleteBuffer(element_buffer_object);
+                //Free other resources here
+                base.Dispose(true);
+            }
+
+            //Free unmanaged resources
+            disposed = true;
         }
 
     }

@@ -721,6 +721,10 @@ public static class GEOMMBIN {
         //Set geom interleaved
         geom.interleaved = true;
 
+
+        //Create the vbo
+        geom.vbo = new GMDL.customVBO(geom);
+        
         return geom;
 
     }
@@ -855,8 +859,20 @@ public static class GEOMMBIN {
         XmlElement geom = (XmlElement) sceneNodeData.ChildNodes[0].SelectSingleNode("Property[@name='Value']");
         geomfile = geom.GetAttribute("value");
         FileStream fs = new FileStream(Path.Combine(Util.dirpath, geomfile) + ".PC", FileMode.Open);
-        GMDL.GeomObject gobject = GEOMMBIN.Parse(fs);
-        GMDL.customVBO cvbo = new GMDL.customVBO(gobject);
+        GMDL.GeomObject gobject;
+        
+        if (!ResourceMgmt.GLgeoms.ContainsKey(geomfile))
+        {
+            
+            gobject = GEOMMBIN.Parse(fs);
+            ResourceMgmt.GLgeoms[geomfile] = gobject;
+        }
+        else
+        {
+            //Load from dict
+            gobject = ResourceMgmt.GLgeoms[geomfile];
+        }
+        
         fs.Close();
 
         //Random Generetor for colors
@@ -874,7 +890,7 @@ public static class GEOMMBIN {
         XmlElement children = (XmlElement)sceneNode.SelectSingleNode("Property[@name='Children']");
         foreach (XmlElement node in children)
         {
-            GMDL.model part = parseNode(node, cvbo, gobject, root, root);
+            GMDL.model part = parseNode(node, gobject, root, root);
             //If joint save it also to the jointmodels of the scene
             if (part.type == TYPES.JOINT)
                 root.jointModel.Add((GMDL.Joint) part);
@@ -884,7 +900,7 @@ public static class GEOMMBIN {
     }
 
        private static GMDL.model parseNode(XmlElement node, 
-           GMDL.customVBO cvbo, GMDL.GeomObject gobject, GMDL.model parent, GMDL.scene scene)
+           GMDL.GeomObject gobject, GMDL.model parent, GMDL.scene scene)
         {
         XmlElement attribs,childs,transform;
         transform = (XmlElement)node.SelectSingleNode("Property[@name='Transform']");
@@ -926,7 +942,7 @@ public static class GEOMMBIN {
             GMDL.sharedVBO so = new GMDL.sharedVBO();
 
             //Set cvbo
-            so.vbo = cvbo;
+            so.vbo = gobject.vbo;
             so.shader_programs = new int[] { ResourceMgmt.shader_programs[0],
                                              ResourceMgmt.shader_programs[5],
                                              ResourceMgmt.shader_programs[6]};
@@ -1003,7 +1019,7 @@ public static class GEOMMBIN {
                 //Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
-                    GMDL.model part = parseNode(childnode, cvbo, gobject, so, scene);
+                    GMDL.model part = parseNode(childnode, gobject, so, scene);
                     if (part.type == TYPES.JOINT)
                         so.scene.jointModel.Add((GMDL.Joint) part);
                     so.children.Add(part);
@@ -1038,7 +1054,7 @@ public static class GEOMMBIN {
                 //Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
-                    GMDL.model part = parseNode(childnode, cvbo, gobject, so, scene);
+                    GMDL.model part = parseNode(childnode, gobject, so, scene);
                     if (part.type == TYPES.JOINT)
                         so.scene.jointModel.Add((GMDL.Joint)part);
                     so.children.Add(part);
@@ -1074,7 +1090,7 @@ public static class GEOMMBIN {
                 //Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
-                    GMDL.model part = parseNode(childnode, cvbo, gobject, joint, scene);
+                    GMDL.model part = parseNode(childnode, gobject, joint, scene);
                     joint.children.Add(part);
                 }
             }
@@ -1111,7 +1127,7 @@ public static class GEOMMBIN {
             {
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
-                    GMDL.model part = parseNode(childnode, cvbo, gobject, so, scene);
+                    GMDL.model part = parseNode(childnode, gobject, so, scene);
                     //If joint save it also to the jointmodels of the scene
                     if (part.type == TYPES.JOINT)
                         so.jointModel.Add((GMDL.Joint)part);
@@ -1144,7 +1160,7 @@ public static class GEOMMBIN {
             if (collisionType == "MESH")
             {
                 //Set cvbo
-                so.vbo = cvbo;
+                so.vbo = gobject.vbo;
                 so.collisionType = (int)COLLISIONTYPES.MESH;
                 so.batchstart = int.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 so.batchcount = int.Parse(((XmlElement)attribs.ChildNodes[2].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
@@ -1173,7 +1189,10 @@ public static class GEOMMBIN {
             }
             else if (collisionType == "CAPSULE")
             {
-                Debug.WriteLine("CAPSULE NODE PARSING NOT IMPLEMENTED");
+                //Set cvbo
+                float radius = float.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                float height = float.Parse(((XmlElement)attribs.ChildNodes[2].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                so.vbo = (new Capsule(new Vector3(), height, radius)).getVBO();
             }
             else if (collisionType == "SPHERE")
             {
@@ -1197,7 +1216,7 @@ public static class GEOMMBIN {
             {
                 Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
-                    so.children.Add(parseNode(childnode, cvbo, gobject, so, scene));
+                    so.children.Add(parseNode(childnode, gobject, so, scene));
             }
             
             return so;
