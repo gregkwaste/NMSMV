@@ -17,7 +17,7 @@ namespace Model_Viewer
         private Matrix4 rotMat, mvp;
 
         private Vector3 rot = new Vector3(0.0f, 0.0f, 0.0f);
-        private Camera activeCam = new Camera(60, ResourceMgmt.shader_programs[8], 0, false);
+        private Camera activeCam;
 
         private float light_angle_y = 0.0f;
         private float light_angle_x = 0.0f;
@@ -38,6 +38,8 @@ namespace Model_Viewer
         private bool animationStatus = false;
         public List<GMDL.model> animScenes = new List<GMDL.model>();
         
+        //Control private ResourceManagement
+        public ResourceMgmt resMgmt = new ResourceMgmt();
 
         //Init-GUI Related
         private ContextMenuStrip contextMenuStrip1;
@@ -70,6 +72,7 @@ namespace Model_Viewer
 
 
             //Set Camera position
+            activeCam = new Camera(60, Util.resMgmt.shader_programs[8], 0, false);
             for (int i = 0; i < 20; i++)
                 activeCam.Move(0.0f, -0.1f, 0.0f);
             this.rot.Y = 131;
@@ -241,7 +244,7 @@ namespace Model_Viewer
                 GL.Uniform1(loc, this.scale);
 
                 loc = GL.GetUniformLocation(active_program, "light");
-                GL.Uniform3(loc, ResourceMgmt.GLlights[0].localPosition);
+                GL.Uniform3(loc, Util.resMgmt.GLlights[0].localPosition);
 
                 //Upload Light Intensity
                 loc = GL.GetUniformLocation(active_program, "intensity");

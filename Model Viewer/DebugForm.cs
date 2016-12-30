@@ -77,7 +77,7 @@ namespace Model_Viewer
 
         private void renderquad()
         {
-            GL.UseProgram(ResourceMgmt.shader_programs[3]);
+            GL.UseProgram(Util.resMgmt.shader_programs[3]);
             int quad_vbo;
             int quad_ebo;
 
@@ -214,7 +214,7 @@ namespace Model_Viewer
         private void renderTextures()
         {
 
-            int pass_program = ResourceMgmt.shader_programs[3];
+            int pass_program = Util.resMgmt.shader_programs[3];
 
             //BIND TEXTURES
             GMDL.Material material = part.material;

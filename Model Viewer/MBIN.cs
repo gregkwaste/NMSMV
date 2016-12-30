@@ -31,6 +31,7 @@ public enum TYPES
     COLLISION,
     SCENE,
     REFERENCE,
+    DECAL,
     UNKNOWN
 }
 
@@ -861,16 +862,16 @@ public static class GEOMMBIN {
         FileStream fs = new FileStream(Path.Combine(Util.dirpath, geomfile) + ".PC", FileMode.Open);
         GMDL.GeomObject gobject;
         
-        if (!ResourceMgmt.GLgeoms.ContainsKey(geomfile))
+        if (!Util.resMgmt.GLgeoms.ContainsKey(geomfile))
         {
             
             gobject = GEOMMBIN.Parse(fs);
-            ResourceMgmt.GLgeoms[geomfile] = gobject;
+            Util.resMgmt.GLgeoms[geomfile] = gobject;
         }
         else
         {
             //Load from dict
-            gobject = ResourceMgmt.GLgeoms[geomfile];
+            gobject = Util.resMgmt.GLgeoms[geomfile];
         }
         
         fs.Close();
@@ -882,9 +883,9 @@ public static class GEOMMBIN {
         GMDL.scene root = new GMDL.scene();
         root.name = scnName;
         root.type = TYPES.SCENE;
-        root.shader_programs = new int[]{ ResourceMgmt.shader_programs[1],
-                                        ResourceMgmt.shader_programs[5],
-                                        ResourceMgmt.shader_programs[6]};
+        root.shader_programs = new int[]{ Util.resMgmt.shader_programs[1],
+                                        Util.resMgmt.shader_programs[5],
+                                        Util.resMgmt.shader_programs[6]};
 
         //Store sections node
         XmlElement children = (XmlElement)sceneNode.SelectSingleNode("Property[@name='Children']");
@@ -943,9 +944,9 @@ public static class GEOMMBIN {
 
             //Set cvbo
             so.vbo = gobject.vbo;
-            so.shader_programs = new int[] { ResourceMgmt.shader_programs[0],
-                                             ResourceMgmt.shader_programs[5],
-                                             ResourceMgmt.shader_programs[6]};
+            so.shader_programs = new int[] { Util.resMgmt.shader_programs[0],
+                                             Util.resMgmt.shader_programs[5],
+                                             Util.resMgmt.shader_programs[6]};
             so.name = name;
             so.type = typeEnum;
             so.debuggable = true;
@@ -985,8 +986,8 @@ public static class GEOMMBIN {
             //Get Material
             string matname = ((XmlElement)attribs.ChildNodes[6].SelectSingleNode("Property[@name='Value']")).GetAttribute("value");
             //Check if material already in Resources
-            if (ResourceMgmt.GLmaterials.ContainsKey(matname))
-                so.material = ResourceMgmt.GLmaterials[matname];
+            if (Util.resMgmt.GLmaterials.ContainsKey(matname))
+                so.material = Util.resMgmt.GLmaterials[matname];
             else
             {
                 //Parse material file
@@ -1000,10 +1001,8 @@ public static class GEOMMBIN {
                 ms.Close();
                 so.material = mat;
                 //Store the material to the Resources
-                ResourceMgmt.GLmaterials[matname] = mat;
+                Util.resMgmt.GLmaterials[matname] = mat;
             }
-            
-            
 
             //Decide if its a skinned mesh or not
             //if (so.firstskinmat == so.lastskinmat)
@@ -1025,7 +1024,16 @@ public static class GEOMMBIN {
                     so.children.Add(part);
                 }
             }
-            
+
+            //Check if it is a decal object
+            if (so.material.materialflags.Contains(50) || so.material.materialflags.Contains(51))
+            {
+                //Change object type
+                so.type = TYPES.DECAL;
+                so.shader_programs[0] = Util.resMgmt.shader_programs[10];
+                Util.resMgmt.GLDecals.Add(so);
+            }
+
             return so;
         }
         else if (typeEnum == TYPES.LOCATOR)
@@ -1037,9 +1045,9 @@ public static class GEOMMBIN {
             so.name = name;
             so.type = typeEnum;
             //Set Shader Program
-            so.shader_programs = new int[]{     ResourceMgmt.shader_programs[1],
-                                                ResourceMgmt.shader_programs[5],
-                                                ResourceMgmt.shader_programs[6]};
+            so.shader_programs = new int[]{     Util.resMgmt.shader_programs[1],
+                                                Util.resMgmt.shader_programs[5],
+                                                Util.resMgmt.shader_programs[6]};
 
             //Get Transformation
             so.parent = parent;
@@ -1070,9 +1078,9 @@ public static class GEOMMBIN {
             //Set properties
             joint.name = name.ToUpper();
             joint.type = typeEnum;
-            joint.shader_programs = new int[]{ ResourceMgmt.shader_programs[2],
-                                               ResourceMgmt.shader_programs[5],
-                                               ResourceMgmt.shader_programs[6]};
+            joint.shader_programs = new int[]{ Util.resMgmt.shader_programs[2],
+                                               Util.resMgmt.shader_programs[5],
+                                               Util.resMgmt.shader_programs[6]};
             //Get Transformation
             joint.parent = parent;
             joint.scene = scene;
@@ -1144,9 +1152,9 @@ public static class GEOMMBIN {
             GMDL.Collision so = new GMDL.Collision();
 
             //Remove that after implemented all the different collision types
-            so.shader_programs = new int[] { ResourceMgmt.shader_programs[0],
-                                              ResourceMgmt.shader_programs[5],
-                                              ResourceMgmt.shader_programs[6]}; //Use Mesh program for collisions
+            so.shader_programs = new int[] { Util.resMgmt.shader_programs[0],
+                                              Util.resMgmt.shader_programs[5],
+                                              Util.resMgmt.shader_programs[6]}; //Use Mesh program for collisions
             so.debuggable = true;
             so.name = name + "_COLLISION";
             so.type = typeEnum;
@@ -1230,9 +1238,9 @@ public static class GEOMMBIN {
             so.name = name + "_UNKNOWN";
             so.type = TYPES.UNKNOWN;
             //Set Shader Program
-            so.shader_programs = new int[] { ResourceMgmt.shader_programs[1],
-                                             ResourceMgmt.shader_programs[5],
-                                             ResourceMgmt.shader_programs[6]};
+            so.shader_programs = new int[] { Util.resMgmt.shader_programs[1],
+                                             Util.resMgmt.shader_programs[5],
+                                             Util.resMgmt.shader_programs[6]};
 
             //Locator Objects don't have options
 

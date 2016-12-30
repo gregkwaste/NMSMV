@@ -80,6 +80,7 @@ namespace Model_Viewer
             this.mainglcontrolContext = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.getAltIDToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.exportToObjToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.getObjectTexturesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.menuStrip1.SuspendLayout();
             this.statusStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer2)).BeginInit();
@@ -743,23 +744,31 @@ namespace Model_Viewer
             // 
             this.mainglcontrolContext.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.getAltIDToolStripMenuItem,
-            this.exportToObjToolStripMenuItem});
+            this.exportToObjToolStripMenuItem,
+            this.getObjectTexturesToolStripMenuItem});
             this.mainglcontrolContext.Name = "mainglcontrolContext";
-            this.mainglcontrolContext.Size = new System.Drawing.Size(144, 48);
+            this.mainglcontrolContext.Size = new System.Drawing.Size(177, 92);
             // 
             // getAltIDToolStripMenuItem
             // 
             this.getAltIDToolStripMenuItem.Name = "getAltIDToolStripMenuItem";
-            this.getAltIDToolStripMenuItem.Size = new System.Drawing.Size(143, 22);
+            this.getAltIDToolStripMenuItem.Size = new System.Drawing.Size(176, 22);
             this.getAltIDToolStripMenuItem.Text = "Get AltID";
             this.getAltIDToolStripMenuItem.Click += new System.EventHandler(this.getAltIDToolStripMenuItem_Click);
             // 
             // exportToObjToolStripMenuItem
             // 
             this.exportToObjToolStripMenuItem.Name = "exportToObjToolStripMenuItem";
-            this.exportToObjToolStripMenuItem.Size = new System.Drawing.Size(143, 22);
+            this.exportToObjToolStripMenuItem.Size = new System.Drawing.Size(176, 22);
             this.exportToObjToolStripMenuItem.Text = "Export to Obj";
             this.exportToObjToolStripMenuItem.Click += new System.EventHandler(this.exportToObjToolStripMenuItem_Click);
+            // 
+            // getObjectTexturesToolStripMenuItem
+            // 
+            this.getObjectTexturesToolStripMenuItem.Name = "getObjectTexturesToolStripMenuItem";
+            this.getObjectTexturesToolStripMenuItem.Size = new System.Drawing.Size(176, 22);
+            this.getObjectTexturesToolStripMenuItem.Text = "Get Object Textures";
+            this.getObjectTexturesToolStripMenuItem.Click += new System.EventHandler(this.getObjectTexturesToolStripMenuItem_Click);
             // 
             // Form1
             // 
@@ -873,6 +882,7 @@ namespace Model_Viewer
         private GroupBox selMatInfo;
         private TextBox selMatName;
         private Label label5;
+        private ToolStripMenuItem getObjectTexturesToolStripMenuItem;
     }
 }
 

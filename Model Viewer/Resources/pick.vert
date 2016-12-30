@@ -12,12 +12,9 @@ layout(location=4) in vec4 bPosition; //bitangents
 layout(location=5) in vec4 blendIndices;
 layout(location=6) in vec4 blendWeights;
 
-uniform vec3 theta, pan, light;
-uniform int firstskinmat;
 uniform int boneRemap[256];
 uniform mat4 skinMats[128];
 uniform bool matflags[64];
-uniform int skinned;
 uniform int id;
 uniform mat4 mvp, worldMat;
 

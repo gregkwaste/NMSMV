@@ -28,6 +28,12 @@ namespace Model_Viewer
         public static readonly Random randgen = new Random();
         public static float[] JMarray = new float[128 * 16];
 
+        //Global ResourceMgmt Handle
+        public static ResourceMgmt resMgmt;
+
+        //Current GLControl Handle
+        public static GLControl activeControl;
+
         public static string dirpath;
         public static int procGenNum;
 

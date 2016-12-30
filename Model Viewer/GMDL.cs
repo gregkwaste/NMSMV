@@ -437,42 +437,38 @@ namespace GMDL
             //Debug.WriteLine("Rendering Locator {0}", this.name);
             //Debug.WriteLine("Rendering VBO Object here");
             //VBO RENDERING
-            {
-                int vpos, cpos;
-                int arraysize = sizeof(float) * 6 * 3;
-                //Vertex attribute
-                //Bind vertex buffer
-                GL.BindBuffer(BufferTarget.ArrayBuffer, this.vertex_buffer_object);
-                vpos = GL.GetAttribLocation(pass, "vPosition");
-                GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.Float, false, 0, 0);
-                GL.EnableVertexAttribArray(vpos);
+            GL.UseProgram(pass);
 
-                //Color Attribute
-                cpos = GL.GetAttribLocation(pass, "vcolor");
-                GL.VertexAttribPointer(cpos, 3, VertexAttribPointerType.Float, false, 0, (IntPtr)arraysize);
-                GL.EnableVertexAttribArray(cpos);
+            int arraysize = sizeof(float) * 6 * 3;
+            //Vertex attribute
+            //Bind vertex buffer
+            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vertex_buffer_object);
+            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, 0);
+            GL.EnableVertexAttribArray(0);
 
-                //Render Elements
-                //Bind elem buffer
-                GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.element_buffer_object);
-                GL.PointSize(10.0f);
-                //GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Point);
+            //Color Attribute
+            GL.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 0, (IntPtr)arraysize);
+            GL.EnableVertexAttribArray(1);
 
-                //GL.DrawElements(PrimitiveType.Points, 6, DrawElementsType.UnsignedInt, this.indices);
-                GL.DrawArrays(PrimitiveType.Lines, 0, 6);
-                //Debug.WriteLine("Locator Object {2} vpos {0} cpos {1} prog {3}", vpos, cpos, this.name, this.shader_program);
-                //Debug.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vertex_buffer_object,this.color_buffer_object);
+            //Render Elements
+            //Bind elem buffer
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.element_buffer_object);
+            GL.PointSize(10.0f);
+            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
+            //GL.DrawElements(PrimitiveType.Points, 6, DrawElementsType.UnsignedInt, this.indices);
+            GL.DrawArrays(PrimitiveType.Lines, 0, 6);
+            //Debug.WriteLine("Locator Object {2} vpos {0} cpos {1} prog {3}", vpos, cpos, this.name, this.shader_program);
+            //Debug.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vertex_buffer_object,this.color_buffer_object);
 
-                GL.DisableVertexAttribArray(vpos);
-                GL.DisableVertexAttribArray(cpos);
-            }
+            GL.DisableVertexAttribArray(0);
+            GL.DisableVertexAttribArray(1);
+            
         }
 
 
         public override bool render(int pass)
         {
 
-            int active_program = shader_programs[pass];
             if (this.renderable == false)
             {
                 //Debug.WriteLine("Not Renderable Locator");
@@ -1159,6 +1155,15 @@ namespace GMDL
             index += (uint) vertcount;
         }
 
+        //Deconstructor
+        protected override void Dispose(bool disposing)
+        {
+            if (material !=null) material.Dispose();
+            //vbo.Dispose(); I assume the the vbo's will be cleared with Resourcegmt cleanup
+            BoneRemap = null;
+            base.Dispose(disposing);
+        }
+
     }
 
     public class Collision : sharedVBO
@@ -1171,7 +1176,7 @@ namespace GMDL
             this.skinned = 0; //Collision objects are not skinned (at least for now)
             this.color = new Vector3(1.0f, 1.0f, 0.0f); //Set Yellow Color for collision objects
         }
-        
+
         public override bool render(int pass)
         {
             if (this.renderable == false || this.vbo == null || RenderOptions.RenderCollisions == false)
@@ -1205,33 +1210,26 @@ namespace GMDL
         public override void renderMain(int pass)
         {
             //Debug.WriteLine(this.name + this);
+            GL.UseProgram(pass);
 
             //Bind vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
 
-            List<int> vxattriblocs = new List<int>();
             for (int i = 0; i < 7; i++)
             {
                 if (vbo.bufInfo[i] == null) continue;
                 bufInfo buf = vbo.bufInfo[i];
-                int pos;
-                pos = GL.GetAttribLocation(pass, buf.sem_text);
-                GL.VertexAttribPointer(pos, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
-                GL.EnableVertexAttribArray(pos);
-                vxattriblocs.Add(pos);
+                GL.VertexAttribPointer(i, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
+                GL.EnableVertexAttribArray(i);
             }
 
-            //InverseBind Matrices
             int loc;
-            //loc = GL.GetUniformLocation(shader_program, "invBMs");
-            //GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.vbo.invBMats);
-
+            //Upload Material Flags here
             //Reset
+            loc = GL.GetUniformLocation(pass, "matflags");
+
             for (int i = 0; i < 64; i++)
-            {
-                loc = GL.GetUniformLocation(pass, "matflags[" + i.ToString() + "]");
-                GL.Uniform1(loc, 0.0f);
-            }
+                GL.Uniform1(loc + i, 0.0f);
 
             //Upload Default Color
             loc = GL.GetUniformLocation(pass, "color");
@@ -1246,9 +1244,8 @@ namespace GMDL
             GL.PointSize(5.0f);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
 
-            GL.PolygonMode(MaterialFace.Front, PolygonMode.Line);
-            GL.PolygonMode(MaterialFace.Back, PolygonMode.Line);
-
+            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+            
             if (collisionType == (int)COLLISIONTYPES.MESH)
             {
                 GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
@@ -1264,12 +1261,12 @@ namespace GMDL
                 GL.DrawRangeElements(PrimitiveType.Triangles, 0, vbo.vCount,
                 vbo.iCount, vbo.iType, IntPtr.Zero);
             }
-            
+
             //Debug.WriteLine("Normal Object {2} vpos {0} cpos {1} prog {3}", vpos, npos, this.name, this.shader_program);
             //Debug.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vbo.vertex_buffer_object, this.vbo.color_buffer_object);
 
-            foreach (int pos in vxattriblocs)
-                GL.DisableVertexAttribArray(pos);
+            for (int i = 0; i < 7; i++)
+                GL.DisableVertexAttribArray(i);
 
         }
 
@@ -1283,16 +1280,15 @@ namespace GMDL
             {
                 if (vbo.bufInfo[i] == null) continue;
                 bufInfo buf = vbo.bufInfo[i];
-                int pos = i;
-                GL.VertexAttribPointer(pos, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
-                GL.EnableVertexAttribArray(pos);
+                GL.VertexAttribPointer(i, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
+                GL.EnableVertexAttribArray(i);
             }
 
             //Render Elements
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
 
-            GL.PolygonMode(MaterialFace.Front, PolygonMode.Point);
-            GL.DrawRangeElements(PrimitiveType.Points, vertrstart, vertrend,
+            GL.PolygonMode(MaterialFace.Front, PolygonMode.Fill);
+            GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
                 batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
 
             for (int i = 0; i < 7; i++)
@@ -1641,12 +1637,18 @@ namespace GMDL
         public GMDL.Material Clone()
         {
             GMDL.Material newmat = new GMDL.Material();
-            
+
+            //Clone Samplers
+            for (int i = 0; i < samplers.Count; i++)
+                newmat.samplers.Add(samplers[i].Clone());
+
+            //Copy materialflags
+            for (int i=0;i<materialflags.Count;i++)
+                newmat.materialflags.Add(materialflags[i]);
+
             //Copy arrays
             for (int i = 0; i < 8; i++)
             {
-                newmat.samplers = this.samplers;
-                newmat.materialflags = this.materialflags;
                 //newmat.alphaLayersUsed = this.alphaLayersUsed;
                 //newmat.baseLayersUsed = this.baseLayersUsed;
                 //newmat.difftextures[i] = this.difftextures[i];
@@ -1671,6 +1673,11 @@ namespace GMDL
 
         public void prepTextures()
         {
+            if (name.Contains("Decal"))
+            {
+                Console.WriteLine("t");
+            }
+
             foreach (Sampler sam in samplers){
 
 
@@ -1710,7 +1717,6 @@ namespace GMDL
                             string partNameDiff = ((XmlElement)texList[i].SelectSingleNode(".//Property[@name='Diffuse']")).GetAttribute("value");
                             Debug.WriteLine(partNameDiff);
                         }
-
                     }
                         
 #endif
@@ -1755,7 +1761,7 @@ namespace GMDL
                         {
                             //Add White
                             baseLayersUsed[i] = 0.0f;
-                        } else if (!Model_Viewer.ResourceMgmt.GLtextures.ContainsKey(partNameDiff))
+                        } else if (!Util.resMgmt.GLtextures.ContainsKey(partNameDiff))
                         {
                             //Construct Texture paths
                             string pathDiff = Path.Combine(Util.dirpath, partNameDiff);
@@ -1767,7 +1773,7 @@ namespace GMDL
                                 tex.palOpt = palOpt;
                                 tex.procColor = palColor;
                                 //store to global dict
-                                Model_Viewer.ResourceMgmt.GLtextures[partNameDiff] = tex;
+                                Util.resMgmt.GLtextures[partNameDiff] = tex;
 
                                 //Save Texture to material
                                 this.difftextures[i] = tex;
@@ -1782,7 +1788,7 @@ namespace GMDL
                         } else
                         //Load texture from dict
                         {
-                            Texture tex = Model_Viewer.ResourceMgmt.GLtextures[partNameDiff];
+                            Texture tex = Util.resMgmt.GLtextures[partNameDiff];
                             //Save Texture to material
                             this.difftextures[i] = tex;
                             baseLayersUsed[i] = 1.0f;
@@ -1793,7 +1799,7 @@ namespace GMDL
                         {
                             //Skip
                             alphaLayersUsed[i] = 0.0f;
-                        } else if (!Model_Viewer.ResourceMgmt.GLtextures.ContainsKey(partNameMask))
+                        } else if (!Util.resMgmt.GLtextures.ContainsKey(partNameMask))
                         {
                             string pathMask = Path.Combine(Util.dirpath, partNameMask);
                             //Configure Mask
@@ -1801,7 +1807,7 @@ namespace GMDL
                             {
                                 Texture texmask = new Texture(pathMask);
                                 //store to global dict
-                                Model_Viewer.ResourceMgmt.GLtextures[partNameMask] = texmask;
+                                Util.resMgmt.GLtextures[partNameMask] = texmask;
                                 //Store Texture to material
                                 this.masktextures[i] = texmask;
                                 alphaLayersUsed[i] = 1.0f;
@@ -1816,7 +1822,7 @@ namespace GMDL
                         else
                         //Load texture from dict
                         {
-                            Texture tex = Model_Viewer.ResourceMgmt.GLtextures[partNameMask];
+                            Texture tex = Util.resMgmt.GLtextures[partNameMask];
                             //Store Texture to material
                             this.masktextures[i] = tex;
                             alphaLayersUsed[i] = 1.0f;
@@ -1828,7 +1834,7 @@ namespace GMDL
                         {
                             //Skip
 
-                        } else if (!Model_Viewer.ResourceMgmt.GLtextures.ContainsKey(partNameNormal))
+                        } else if (!Util.resMgmt.GLtextures.ContainsKey(partNameNormal))
                         {
                             string pathNormal = Path.Combine(Util.dirpath, partNameNormal);
                             
@@ -1836,7 +1842,7 @@ namespace GMDL
                             {
                                 Texture texnormal = new Texture(pathNormal);
                                 //store to global dict
-                                Model_Viewer.ResourceMgmt.GLtextures[partNameNormal] = texnormal;
+                                Util.resMgmt.GLtextures[partNameNormal] = texnormal;
                                 //Store Texture to material
                                 this.normaltextures[i] = texnormal;
                             }
@@ -1850,7 +1856,7 @@ namespace GMDL
                         else
                         //Load texture from dict
                         {
-                            Texture tex = Model_Viewer.ResourceMgmt.GLtextures[partNameNormal];
+                            Texture tex = Util.resMgmt.GLtextures[partNameNormal];
                             //Store Texture to material
                             this.normaltextures[i] = tex;
                         }
@@ -1864,9 +1870,9 @@ namespace GMDL
                     Debug.WriteLine("Proper Texture, Bullshiting for now");
                     //Handle Diffuse
                     if (sam.pathDiff != "")
-                        if (ResourceMgmt.GLtextures.ContainsKey(sam.pathDiff))
+                        if (Util.resMgmt.GLtextures.ContainsKey(sam.pathDiff))
                         {
-                            Texture tex = ResourceMgmt.GLtextures[sam.pathDiff];
+                            Texture tex = Util.resMgmt.GLtextures[sam.pathDiff];
                             difftextures[7] = tex;
                             baseLayersUsed[7] = 1.0f;
                         }
@@ -1878,15 +1884,15 @@ namespace GMDL
                             difftextures[7] = tex;
                             baseLayersUsed[7] = 1.0f;
                             //Store to resource
-                            ResourceMgmt.GLtextures[sam.pathDiff] = tex;
+                            Util.resMgmt.GLtextures[sam.pathDiff] = tex;
                         }
 
 
                     //Handle Mask
                     if (sam.pathMask != "" && sam.pathMask != null)
-                        if (ResourceMgmt.GLtextures.ContainsKey(sam.pathMask))
+                        if (Util.resMgmt.GLtextures.ContainsKey(sam.pathMask))
                         {
-                            Texture tex = ResourceMgmt.GLtextures[sam.pathMask];
+                            Texture tex = Util.resMgmt.GLtextures[sam.pathMask];
                             masktextures[7] = tex;
                             alphaLayersUsed[7] = 1.0f;
                         }
@@ -1898,14 +1904,14 @@ namespace GMDL
                             masktextures[7] = tex;
                             alphaLayersUsed[7] = 1.0f;
                             //Store to resource
-                            ResourceMgmt.GLtextures[sam.pathMask] = tex;
+                            Util.resMgmt.GLtextures[sam.pathMask] = tex;
                         }
 
                     //Handle Normal
                     if (sam.pathNormal != "" && sam.pathNormal != null)
-                        if (ResourceMgmt.GLtextures.ContainsKey(sam.pathNormal))
+                        if (Util.resMgmt.GLtextures.ContainsKey(sam.pathNormal))
                         {
-                            Texture tex = ResourceMgmt.GLtextures[sam.pathNormal];
+                            Texture tex = Util.resMgmt.GLtextures[sam.pathNormal];
                             normaltextures[7] = tex;
                         }
                         else
@@ -1917,7 +1923,7 @@ namespace GMDL
                                 tex.procColor = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
                                 normaltextures[7] = tex;
                                 //Store to resource
-                                ResourceMgmt.GLtextures[sam.pathNormal] = tex;
+                                Util.resMgmt.GLtextures[sam.pathNormal] = tex;
                             }
                             catch (System.IO.FileNotFoundException)
                             { 
@@ -1940,7 +1946,7 @@ namespace GMDL
             
 
             //SETUP QUAD
-            GL.UseProgram(ResourceMgmt.shader_programs[3]);
+            GL.UseProgram(Util.resMgmt.shader_programs[3]);
             int quad_vbo;
             int quad_ebo;
 
@@ -2062,7 +2068,7 @@ namespace GMDL
 
 
             //Upload Textures
-            int pass_program = ResourceMgmt.shader_programs[3];
+            int pass_program = Util.resMgmt.shader_programs[3];
 
             //BIND TEXTURES
             GMDL.Texture tex;
@@ -2089,8 +2095,8 @@ namespace GMDL
              * 
              */
 
-            Texture dMask = ResourceMgmt.GLtextures["default_mask.dds"];
-            Texture dDiff = ResourceMgmt.GLtextures["default.dds"];
+            Texture dMask = Util.resMgmt.GLtextures["default_mask.dds"];
+            Texture dDiff = Util.resMgmt.GLtextures["default.dds"];
 
             //Upload base Layers Used
             for (int i = 0; i < 8; i++)
@@ -2121,8 +2127,10 @@ namespace GMDL
             }
 
             //Seems like alphaChannel variable is set from the _F24_AOMAP flag
+            //^^^ AO Map flag probably does not fix the alpha situation.
+            //Decals don't have the flag but their textures contain alpha. For now I'm adding the Transparent flag on the check as well
             loc = GL.GetUniformLocation(pass_program, "hasAlphaChannel");
-            if (materialflags.Contains(23))
+            if (materialflags.Contains(23) || materialflags.Contains(8))
                 GL.Uniform1(loc, 1.0f);
             else
                 GL.Uniform1(loc, 0.0f);
@@ -2206,7 +2214,7 @@ namespace GMDL
             
             //Diffuse
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-#if DEBUG
+#if TEST
             GL.ReadPixels(0, 0, texsize, texsize, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             FileStream fs = new FileStream("framebuffer_raw_diffuse_" + name, FileMode.Create);
             BinaryWriter bw = new BinaryWriter(fs);
@@ -2219,7 +2227,7 @@ namespace GMDL
             
             
             GL.ReadBuffer(ReadBufferMode.ColorAttachment1);
-#if DEBUG
+#if TEST
             GL.ReadPixels(0, 0, texsize, texsize, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             fs = new FileStream("framebuffer_raw_mask_" + name, FileMode.Create);
             bw = new BinaryWriter(fs);
@@ -2231,7 +2239,7 @@ namespace GMDL
             fMaskMap.bufferID = out_tex_mask;
 
             GL.ReadBuffer(ReadBufferMode.ColorAttachment2);
-#if DEBUG
+#if TEST
             GL.ReadPixels(0, 0, texsize, texsize, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             fs = new FileStream("framebuffer_raw_normal_" + name, FileMode.Create);
             bw = new BinaryWriter(fs);
@@ -2271,9 +2279,16 @@ namespace GMDL
                 samplers.Clear();
                 reColourings.Clear();
                 //Texture lists should have been disposed from the dictionary
+                foreach (Texture t in difftextures)
+                    if (t!=null) t.Dispose();
                 difftextures.Clear();
+                foreach (Texture t in masktextures)
+                    if (t != null) t.Dispose();
                 masktextures.Clear();
+                foreach (Texture t in normaltextures)
+                    if (t != null) t.Dispose();
                 normaltextures.Clear();
+
                 if (fDiffuseMap != null) fDiffuseMap.Dispose();
                 if (fMaskMap != null) fMaskMap.Dispose();
                 if (fNormalMap != null) fNormalMap.Dispose();
@@ -2315,6 +2330,18 @@ namespace GMDL
         public string pathNormal = null;
         public bool proc = false;
         public List<Texture> procTextures = new List<Texture>();
+
+        public Sampler Clone()
+        {
+            Sampler newsampler = new Sampler();
+            newsampler.name = name;
+            newsampler.pathDiff = pathDiff;
+            newsampler.pathMask = pathMask;
+            newsampler.pathNormal = pathNormal;
+            newsampler.proc = proc;
+            return newsampler;
+
+        }
     }
 
     public class PaletteOpt
@@ -2638,8 +2665,8 @@ namespace GMDL
             //Bind elem buffer
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.element_buffer_object);
             GL.PointSize(10.0f);
-            //GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Point);
 
+            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
             GL.DrawArrays(PrimitiveType.Points, 0, indices.Length);
 
             //Draw only Joint Point
