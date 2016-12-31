@@ -34,6 +34,12 @@ namespace Model_Viewer
         //Current GLControl Handle
         public static GLControl activeControl;
 
+        //Temporarily store mvp matrix
+        public static Matrix4 mvp;
+
+        //Current Gbuffer
+        public static GBuffer gbuf;
+
         public static string dirpath;
         public static int procGenNum;
 

@@ -18,7 +18,6 @@ uniform vec3 theta, pan, light;
 uniform int firstskinmat;
 uniform int boneRemap[256];
 uniform mat4 skinMats[128];
-uniform int skinned;
 uniform bool matflags[64];
 uniform float scale;
 uniform mat4 mvp, rotMat, worldMat;
@@ -30,6 +29,7 @@ out vec2 uv0;
 out float l_distance;
 out mat3 TBN;
 out float bColor;
+out vec4 finalPos;
 
 void main()
 {
@@ -90,10 +90,13 @@ void main()
 		bColor = blendIndices.x/255.0;
 	    
 	    //gl_PointSize = 10.0;
-	    gl_Position = mvp * wPos;
+	    finalPos = wPos;
+        gl_Position = mvp * wPos;
         //gl_Position = mvp * worldMat * vPosition;
         
     } else {
-    	gl_Position = mvp * worldMat * vPosition;
+        finalPos = worldMat * vPosition;
+    	gl_Position = mvp * finalPos;
     }
+    
 }

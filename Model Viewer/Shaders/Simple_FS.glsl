@@ -26,9 +26,14 @@ in vec2 uv0;
 in float l_distance;
 in mat3 TBN;
 in float bColor;
+in vec4 finalPos;
 
 //Selected
 uniform int selected;
+
+//Deferred Shading outputs
+out vec4 outcolors[3];
+
 
 //Normal Decode Function
 vec3 DecodeNormalMap(vec4 lNormalTexVec4){
@@ -60,10 +65,24 @@ void main()
 		
 	float alpha;
 	alpha = diffTexColor.a;
+	
 	//Mask Checks
+	
+	//Check _F11_ALPHACUTOUT
+	if (matflags[10]) {
+		float maskalpha =  texture2D(maskTex, uv0).r;
+		if (1.0 - maskalpha <= 0.05) discard;
+	}
+
+	//Check _F9_TRANSPARENT
+	if (matflags[8]) {
+		if (alpha <= 0.05) discard;
+	}
+	
 	//Check _F24_AOMAP
- 	if (matflags[23] && (diffuseFlag > 0.0))
- 	 	diffTexColor.rgb *= texture2D(maskTex, uv0).r;
+ 	if ((matflags[23])  && (diffuseFlag > 0.0)){
+ 		diffTexColor.rgb *= alpha;
+ 	}
 	
 	bshininess = pow(max (dot (N, E), 0.0), 2.0);	
 	//Check _F03_NORMALMAP 63
@@ -75,7 +94,7 @@ void main()
   		bshininess = pow(max (dot (E, normalize(TBN * normal)), 0.0), 2.0);
   	}
 
-	ambient = 0.5 * ambient;
+	ambient = 0.85 * ambient;
 	vec3 diff;
 	
 	diff = intensity * lightColor * bshininess * diffTexColor.rgb; //(l_distance*l_distance);
@@ -84,11 +103,11 @@ void main()
     //if ((diffTexColor.r <0.0001) && (diffTexColor.g <0.0001) && (diffTexColor.b < 0.0001)) discard;
     
 
-    gl_FragColor = vec4(ambient + diff.xyz, 1.0);	
-    if (selected>0.0) gl_FragColor *= vec4(0.0, 2.0, 0.0, 1.0);
+
+    outcolors[0] = vec4(ambient + diff.xyz, 1.0);	
+    if (selected>0.0) outcolors[0] *= vec4(0.0, 2.0, 0.0, 1.0);
     //gl_FragColor = vec4(N, 1.0);
-    
 
-
-    
+    outcolors[1] = finalPos;
+    outcolors[2] = vec4(0.0, 1.0, 0.0, 1.0);
 }

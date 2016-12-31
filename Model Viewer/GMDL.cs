@@ -1298,6 +1298,166 @@ namespace GMDL
 
     }
 
+    public class Decal : sharedVBO
+    {
+        public int collisionType = -1;
+
+        //Custom constructor
+        public Decal() { }
+
+        public Decal(GMDL.sharedVBO root) {
+            //Copy attributes from root object
+            this.vertrend = root.vertrend;
+            this.vertrstart = root.vertrstart;
+            this.renderable = true; //Override Renderability
+            this.shader_programs = root.shader_programs;
+            this.type = root.type;
+            this.vbo = root.vbo;
+            this.name = root.name;
+            this.ID = root.ID;
+            //Clone transformation
+            this.localPosition = root.localPosition;
+            this.localRotation = root.localRotation;
+            this.localScale = root.localScale;
+            //Skinning Stuff
+            this.firstskinmat = root.firstskinmat;
+            this.lastskinmat = root.lastskinmat;
+            this.batchcount = root.batchcount;
+            this.batchstart = root.batchstart;
+            this.color = root.color;
+            this.material = root.material;
+            this.BoneRemap = root.BoneRemap;
+            this.skinned = root.skinned;
+            this.palette = root.palette;
+            this.cIndex = root.cIndex;
+            //animation data
+            this.jointDict = new Dictionary<string, model>();
+            this.cloneJointDict(ref this.jointDict, root.jointModel);
+            this.jointModel = new List<GMDL.Joint>();
+            //In sharedVBO objects, both root and all the children have the same scene
+            this.scene = root.scene;
+            this.children = root.children; //Just assign them by ref
+            
+        }
+
+        public override bool render(int pass)
+        {
+            if (this.renderable == false || this.vbo == null)
+            {
+                //Debug.WriteLine("Not Renderable");
+                return false;
+            }
+
+            int program;
+            //Render Object
+            switch (pass)
+            {
+                //Render Main
+                case 0:
+                    program = this.shader_programs[pass];
+                    renderMain(program);
+                    break;
+                default:
+                    //Do nothing otherwise
+                    break;
+            }
+
+            return true;
+        }
+
+        public override void renderMain(int pass)
+        {
+            //Debug.WriteLine(this.name + this);
+            GL.UseProgram(pass);
+
+            //Bind vertex buffer
+            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
+
+            for (int i = 0; i < 7; i++)
+            {
+                if (vbo.bufInfo[i] == null) continue;
+                bufInfo buf = vbo.bufInfo[i];
+                GL.VertexAttribPointer(i, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
+                GL.EnableVertexAttribArray(i);
+            }
+
+            int loc;
+            //Upload Material Flags here
+            //Reset
+            loc = GL.GetUniformLocation(pass, "matflags");
+
+            for (int i = 0; i < 64; i++)
+                GL.Uniform1(loc + i, 0.0f);
+
+            for (int i = 0; i < material.materialflags.Count; i++)
+                GL.Uniform1(loc + material.materialflags[i], 1.0f);
+
+            //Upload decalTexture
+
+            //BIND TEXTURES
+            int tex0Id = (int)TextureUnit.Texture0;
+            //Diffuse Texture
+            string test = "decalTex";
+            loc = GL.GetUniformLocation(pass, test);
+            GL.Uniform1(loc, tex0Id + 0); // I need to upload the texture unit number
+
+            GL.ActiveTexture((TextureUnit)(tex0Id + 0));
+            GL.BindTexture(TextureTarget.Texture2D, material.fDiffuseMap.bufferID);
+
+            //Depth Texture
+            test = "depthTex";
+            loc = GL.GetUniformLocation(pass, test);
+            GL.Uniform1(loc, tex0Id + 1); // I need to upload the texture unit number
+
+            GL.ActiveTexture((TextureUnit)(tex0Id + 1));
+            GL.BindTexture(TextureTarget.Texture2D, Util.gbuf.positions);
+
+            //Util.gbuf.dump();
+
+            //Render Elements
+            GL.PointSize(5.0f);
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
+
+            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
+
+
+            GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
+                batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
+
+
+            for (int i = 0; i < 7; i++)
+                GL.DisableVertexAttribArray(i);
+
+        }
+
+        public override void renderDebug(int pass)
+        {
+            GL.UseProgram(pass);
+            //Bind vertex buffer
+            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
+
+            for (int i = 0; i < 7; i++)
+            {
+                if (vbo.bufInfo[i] == null) continue;
+                bufInfo buf = vbo.bufInfo[i];
+                GL.VertexAttribPointer(i, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
+                GL.EnableVertexAttribArray(i);
+            }
+
+            //Render Elements
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
+
+            GL.PolygonMode(MaterialFace.Front, PolygonMode.Fill);
+            GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
+                batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
+
+            for (int i = 0; i < 7; i++)
+                GL.DisableVertexAttribArray(i);
+
+        }
+
+    }
+
     public class customVBO: IDisposable
     {
         private bool disposed = false;

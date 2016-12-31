@@ -206,6 +206,27 @@ namespace Model_Viewer
             this.mainScene = scene;
             this.childCounter++;
 
+            //REMOVE THAT SHIT
+
+            //Add Frustum cube
+            GMDL.Collision cube = new GMDL.Collision();
+            //cube.vbo = (new Capsule(new Vector3(), 14.0f, 2.0f)).getVBO();
+            cube.vbo = (new Box(1.0f, 1.0f, 1.0f)).getVBO();
+
+            //Create model
+            GMDL.Collision so = new GMDL.Collision();
+
+            //Remove that after implemented all the different collision types
+            cube.shader_programs = new int[] { Util.resMgmt.shader_programs[0],
+                                              Util.resMgmt.shader_programs[5],
+                                              Util.resMgmt.shader_programs[6]}; //Use Mesh program for collisions
+            cube.name = "FRUSTUM";
+            cube.collisionType = (int)COLLISIONTYPES.BOX;
+
+
+            scene.children.Add(cube);
+
+
             Util.setStatus("Creating Nodes...", this.toolStripStatusLabel1);
 
             //Debug.WriteLine("Objects Returned: {0}",oblist.Count);
@@ -315,13 +336,15 @@ namespace Model_Viewer
             Util.activeControl = glControl1;
             //Init Gbuffer
             gbuf = new GBuffer();
+            Util.gbuf = gbuf;
             
             scene.ID = this.childCounter;
 
 
             //Add Frustum cube
             GMDL.Collision cube = new GMDL.Collision();
-            cube.vbo = (new Capsule(new Vector3(), 14.0f, 2.0f)).getVBO();
+            //cube.vbo = (new Capsule(new Vector3(), 14.0f, 2.0f)).getVBO();
+            cube.vbo = (new Box(1.0f, 1.0f, 1.0f)).getVBO();
 
             //Create model
             GMDL.Collision so = new GMDL.Collision();
@@ -331,7 +354,7 @@ namespace Model_Viewer
                                               Util.resMgmt.shader_programs[5],
                                               Util.resMgmt.shader_programs[6]}; //Use Mesh program for collisions
             cube.name = "FRUSTUM";
-            cube.collisionType = (int) COLLISIONTYPES.CAPSULE;
+            cube.collisionType = (int) COLLISIONTYPES.BOX;
 
 
             scene.children.Add(cube);
@@ -514,7 +537,7 @@ namespace Model_Viewer
             Matrix4 Rotz = Matrix4.CreateRotationZ(rot[2] * (float) Math.PI / 180.0f);
             rotMat = Rotz * Roty * Rotx;
             mvp = activeCam.viewMat; //Full mvp matrix
-
+            Util.mvp = mvp;
             occludedNum = 0; //Reset Counter
 
             //Simply invalidate the gl control
@@ -571,11 +594,64 @@ namespace Model_Viewer
 
         private void render_decals()
         {
+            //gbuf.dump();
+            //GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            GL.Disable(EnableCap.DepthTest);
+            GL.Enable(EnableCap.Blend);
+            GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
 
 
+            int active_program = Util.resMgmt.shader_programs[10];
+            GL.UseProgram(active_program);
+            int loc;
+            Matrix4 temp;
+
+            //gbuf.dump();
+
+            //Upload inverse decat world matrix
             foreach (GMDL.model decal in Util.resMgmt.GLDecals)
+            {
+                GL.UseProgram(active_program);
+
+                //Upload mvp
+                loc = GL.GetUniformLocation(active_program, "mvp");
+                GL.UniformMatrix4(loc, false, ref mvp);
+
+                //Upload projection
+                loc = GL.GetUniformLocation(active_program, "proj");
+                GL.UniformMatrix4(loc, false, ref activeCam.projMat);
+
+
+                //Upload view
+                loc = GL.GetUniformLocation(active_program, "look");
+                GL.UniformMatrix4(loc, false, ref activeCam.lookMat);
+
+                //Upload projection matrix inverse
+                loc = GL.GetUniformLocation(active_program, "invProj");
+                temp = Matrix4.Invert(activeCam.projMat);
+                GL.UniformMatrix4(loc, false, ref temp);
+
+                //Upload view matrix inverse
+                loc = GL.GetUniformLocation(active_program, "invView");
+                temp = Matrix4.Invert(activeCam.lookMat);
+                GL.UniformMatrix4(loc, false, ref temp);
+
+                //Upload Inverse of decal Matrix
+                loc = GL.GetUniformLocation(active_program, "decalInvMat");
+                Matrix4 wMat = decal.worldMat;
+                Matrix4 decal_inv = Matrix4.Invert(wMat);
+                GL.UniformMatrix4(loc, false, ref decal_inv);
+
+                //Upload world decal Matrix
+                loc = GL.GetUniformLocation(active_program, "worldMat");
+                GL.UniformMatrix4(loc, false, ref wMat);
+                
+
                 decal.render(0);
-            
+            }
+
+            GL.Enable(EnableCap.DepthTest);
+            GL.Disable(EnableCap.Blend);
         }
 
         private void render_lights()
@@ -962,6 +1038,7 @@ namespace Model_Viewer
                     root.render(program);
                     break;
                 case (TYPES.DECAL):
+                    //root.render(program);
                     break;
                 default:
                     break;
@@ -1347,11 +1424,13 @@ namespace Model_Viewer
 
             //Debug.WriteLine(active_fbo);
             render_scene();
-            render_lights();
-            //render_cameras();
-            //render_decals();
-            //render_info();
             
+            render_decals();
+            
+            //render_cameras();
+            //render_lights();
+            //render_info();
+
             gbuf.stop();
             
             //Render Deferred
@@ -1797,13 +1876,12 @@ namespace Model_Viewer
             //Setup diffuse texture
             setup_texture(ref diffuse, 0);
             //Setup positions texture
-            setup_texture(ref normals, 1);
+            setup_texture(ref positions, 1);
             //Setup normals texture
-            setup_texture(ref positions, 2);
+            setup_texture(ref normals, 2);
             //Setup Depth texture
             setup_texture(ref depth, 10);
-
-
+            
             //Revert Back the fbo
             GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, 0);
         }
@@ -1823,17 +1901,26 @@ namespace Model_Viewer
                 //ColorAttachment0
                 case 10:
                     t = FramebufferAttachment.DepthAttachmentExt;
-                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent, size[0], size[1], 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
                     GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
                     GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-                    //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-                    //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent, size[0], size[1], 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
+                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+                    break;
+                //ColorAttachment1 Positions
+                case 1:
+                    t = FramebufferAttachment.ColorAttachment0Ext + attachment;
+                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba32f, size[0], size[1], 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
+                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
                     break;
                 default:
                     t = FramebufferAttachment.ColorAttachment0Ext + attachment;
                     GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, size[0], size[1], 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
                     GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
                     GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
                     break;
@@ -1857,17 +1944,43 @@ namespace Model_Viewer
             //Bind elem buffer
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, quad_ebo);
 
+            //Upload mvp matrix
+            int loc = GL.GetUniformLocation(program, "mvp");
+            GL.UniformMatrix4(loc, false, ref Util.mvp);
+
             //Upload the GBuffer textures
             int tex0_Id = (int)TextureUnit.Texture0;
+            loc = GL.GetUniformLocation(program, "diffuseTex");
+            GL.Uniform1(loc, tex0_Id);
+
+            //loc = GL.GetUniformLocation(program, "depthTex");
+            //GL.Uniform1(loc, tex0_Id + 1);
+
+            //loc = GL.GetUniformLocation(program, "diffuseTex");
+            //GL.Uniform1(loc, tex0_Id + 2);
+
+            
             GL.ActiveTexture((TextureUnit) tex0_Id);
             GL.BindTexture(TextureTarget.Texture2D, diffuse);
+
+            ////Positions Texture
+            //GL.ActiveTexture((TextureUnit) (tex0_Id + 1));
+            //GL.BindTexture(TextureTarget.Texture2D, depth);
+
+            ////Depth Texture
+            //GL.ActiveTexture((TextureUnit) (tex0_Id + 2));
+            //GL.BindTexture(TextureTarget.Texture2D, diffuse);
             
+
             //GL.BindTexture(TextureTarget.Texture2D, depth);
             //GL.ActiveTexture((TextureUnit) tex0_Id + 1);
 
             //Render quad
             GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
+            
+            
             GL.DisableVertexAttribArray(0);
+
             
         }
 
@@ -1877,21 +1990,23 @@ namespace Model_Viewer
             
             //Bind Gbuffer fbo
             GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, fbo);
-            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-            //GL.Enable(EnableCap.Texture2D);
+            GL.Enable(EnableCap.Texture2D);
             GL.Enable(EnableCap.DepthTest);
-
+            
             GL.Viewport(0, 0, size[0], size[1]);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
+            //GL.ClearTexImage(positions, 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
+            //GL.ClearTexImage(depth, 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
+            //GL.ClearTexImage(diffuse, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             
-            GL.DrawBuffers(1, new DrawBuffersEnum[] { DrawBuffersEnum.ColorAttachment0 });
+            GL.DrawBuffers(2, new DrawBuffersEnum[] { DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1 });
         }
 
         public void stop()
         {
             GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, 0);
-            //GL.Enable(EnableCap.Texture2D);
-            GL.Enable(EnableCap.DepthTest);
+            GL.Enable(EnableCap.Texture2D);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
         }
@@ -1901,10 +2016,11 @@ namespace Model_Viewer
         {
             FileStream fs;
             BinaryWriter bw;
-            byte[] pixels = new byte[4 * size[0] * size[1]];
+            byte[] pixels;
+            pixels = new byte[4 * size[0] * size[1]];
             Debug.WriteLine("Dumping Framebuffer textures " + size[0] + " " + size[1]);
             
-            //Save Diffuse Texture
+            //Save Diffuse Color
             GL.BindTexture(TextureTarget.Texture2D, diffuse);
             GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
 
@@ -1915,7 +2031,20 @@ namespace Model_Viewer
             bw.Close();
             fs.Close();
 
+            //Save Positions
+            pixels = new byte[16 * size[0] * size[1]];
+            GL.BindTexture(TextureTarget.Texture2D, positions);
+            GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.Float, pixels);
+
+            //Save to disk
+            fs = new FileStream("dump.color1", FileMode.Create, FileAccess.Write);
+            bw = new BinaryWriter(fs);
+            bw.Write(pixels);
+            bw.Close();
+            fs.Close();
+
             //Save Diffuse Texture
+            pixels = new byte[4 * size[0] * size[1]];
             GL.BindTexture(TextureTarget.Texture2D, depth);
             GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.DepthComponent, PixelType.Float, pixels);
 

@@ -92,14 +92,14 @@ vec4 MixMaskMaps(){
 vec4 MixDiffuseMaps(){
 	//Constants
 	float gBaseAlphaLayerXVec4[8];
-	gBaseAlphaLayerXVec4[0] = 1.0;
+	gBaseAlphaLayerXVec4[0] = 0.0;
 	gBaseAlphaLayerXVec4[1] = 0.0;
 	gBaseAlphaLayerXVec4[2] = 0.0;
-	gBaseAlphaLayerXVec4[3] = 0.0;
+	gBaseAlphaLayerXVec4[3] = 1.0;
 	gBaseAlphaLayerXVec4[4] = 0.0;
 	gBaseAlphaLayerXVec4[5] = 0.0;
 	gBaseAlphaLayerXVec4[6] = 0.0;
-	gBaseAlphaLayerXVec4[7] = 0.0;
+	gBaseAlphaLayerXVec4[7] = 1.0;
 
 	vec4 gAverageColourXVec4[8];
 	gAverageColourXVec4[0] = vec4(0.5, 0.5, 0.5, 1.0);
@@ -168,7 +168,8 @@ vec4 MixDiffuseMaps(){
 		for (int i=0; i<8; i++)
 			lFinalDiffColor.a = mix(lFinalDiffColor.a, lLayerXVec4[i].a, gBaseAlphaLayerXVec4[i]);
 	
-	return vec4(lFinalDiffColor.rgb, 1.0);
+	//return vec4(lFinalDiffColor.rgb, 1.0);
+	return vec4(lFinalDiffColor.rgb, lFinalDiffColor.a);
 }
 
 //Diffuse Color Mixing

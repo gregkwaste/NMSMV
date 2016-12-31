@@ -6,10 +6,13 @@ layout(location=0) in vec3 vPosition;
 layout(location=1) in vec3 vcolor;
 uniform mat4 mvp, worldMat;
 out vec3 color;
+out vec4 finalPos;
+
 
 void main()
 {
     //Set color
     color = vcolor;
-    gl_Position = mvp * worldMat * vec4(vPosition, 1.0);
+	finalPos = worldMat * vec4(vPosition, 1.0);
+    gl_Position = mvp * finalPos;
 }

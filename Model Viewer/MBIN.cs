@@ -1028,10 +1028,13 @@ public static class GEOMMBIN {
             //Check if it is a decal object
             if (so.material.materialflags.Contains(50) || so.material.materialflags.Contains(51))
             {
+                GMDL.Decal newso = new GMDL.Decal(so);
                 //Change object type
-                so.type = TYPES.DECAL;
-                so.shader_programs[0] = Util.resMgmt.shader_programs[10];
-                Util.resMgmt.GLDecals.Add(so);
+                newso.type = TYPES.DECAL;
+                newso.shader_programs[0] = Util.resMgmt.shader_programs[10];
+                
+                Util.resMgmt.GLDecals.Add(newso);
+                return newso;
             }
 
             return so;
