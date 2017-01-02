@@ -29,6 +29,11 @@ namespace Model_Viewer
             elem.InnerText = procGenNum.Value.ToString();
             settings.AppendChild(elem);
             xml.AppendChild(settings);
+            //Force ProcGEN
+            elem = xml.CreateElement("FORCEPROCGEN");
+            elem.InnerText = forceProcGen.Value.ToString();
+            settings.AppendChild(elem);
+            xml.AppendChild(settings);
 
             //Save
             xml.Save("settings.xml");
@@ -51,6 +56,7 @@ namespace Model_Viewer
                     textBox1_MouseClick(this, new MouseEventArgs(MouseButtons.Left, 1, 0, 0, 1));
                     //Set procGen Num explicitly
                     Util.procGenNum = 15;
+                    Util.forceProcGen = true;
                     //Save Settings automatically
                     if (!(textBox1.Text == ""))
                         button1_Click(this, new EventArgs());
@@ -65,13 +71,16 @@ namespace Model_Viewer
             XmlElement settings = (XmlElement) xml.SelectSingleNode("SETTINGS");
             XmlElement gamepath = (XmlElement) settings.SelectSingleNode("GAMEPATH");
             XmlElement pGenNum = (XmlElement)settings.SelectSingleNode("PROCGENNUM");
+            XmlElement forcepGen = (XmlElement)settings.SelectSingleNode("FORCEPROCGEN");
 
             //Set Gamepath
             textBox1.Text = gamepath.InnerText;
             Util.dirpath = gamepath.InnerText;
             //Set ProcGenNum
             procGenNum.Value = int.Parse(pGenNum.InnerText);
-            Util.procGenNum = int.Parse(pGenNum.InnerText);
+            forceProcGen.Value = int.Parse(forcepGen.InnerText);
+            Util.procGenNum = (int) procGenNum.Value;
+            Util.forceProcGen = ((int) forceProcGen.Value >0) ? true : false ;
 
             System.Diagnostics.Debug.WriteLine(gamepath.InnerText);
 

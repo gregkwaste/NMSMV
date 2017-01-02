@@ -42,6 +42,7 @@ namespace Model_Viewer
 
         public static string dirpath;
         public static int procGenNum;
+        public static bool forceProcGen;
 
         public static float[] mulMatArrays(float[] lmat1, float[] lmat2, int count)
         {
@@ -1294,7 +1295,7 @@ namespace Model_Viewer
     class ModelProcGen
     {
         //static Random randgen = new Random();
-        static Dictionary<string, string> procDecisions = new Dictionary<string, string>();
+        public static Dictionary<string, string> procDecisions = new Dictionary<string, string>();
 
         //Deprecated
         public static List<Selector> parse_level(XmlNode level)
@@ -1588,20 +1589,29 @@ namespace Model_Viewer
                 //Select descriptors
                 XmlElement descriptors = (XmlElement)el.SelectSingleNode(".//Property[@name='Textures']");
 
+                int sel;
                 if (descriptors.ChildNodes.Count > 0)
                 {
                     //Select one descriptor
                     XmlElement selNode = null;
                     //Check if option is in dictionary
                     if (procDecisions.ContainsKey(option))
-                        selNode = (XmlElement) descriptors.SelectSingleNode(".//Property[@value='" + procDecisions[option] + "']/parent::Property");
-
-                    if (selNode == null)
                     {
-                        int sel = Util.randgen.Next(0, descriptors.ChildNodes.Count);
-                        selNode = (XmlElement)descriptors.ChildNodes[sel];
+                        //Try to fetch the same texture
+                        selNode = (XmlElement)descriptors.SelectSingleNode(".//Property[@value='" + procDecisions[option] + "']/parent::Property");
+                        if (selNode == null)
+                        {
+                            //If there is no available option select a random one 
+                            sel = Util.randgen.Next(0, descriptors.ChildNodes.Count);
+                            selNode = (XmlElement)descriptors.ChildNodes[sel];
+                        }
+                        parts[layerid] = selNode;
+                        continue;
                     }
                     
+                    sel = Util.randgen.Next(0, descriptors.ChildNodes.Count);
+                    selNode = (XmlElement)descriptors.ChildNodes[sel];
+                        
                     //Add selection to parts
                     string partName = ((XmlElement)selNode.SelectSingleNode(".//Property[@name='Diffuse']")).GetAttribute("value");
                     //string partName = ((XmlElement)selNode.SelectSingleNode(".//Property[@name='Diffuse']")).GetAttribute("value");

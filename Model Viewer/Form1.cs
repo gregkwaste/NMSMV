@@ -40,7 +40,8 @@ namespace Model_Viewer
         private float light_intensity = 2.0f;
 
         //Common transforms
-        private Matrix4 rotMat, mvp;
+        private Matrix4 rotMat = Matrix4.Identity;
+        private Matrix4 mvp = Matrix4.Identity;
         private int occludedNum = 0;
 
         private float scale = 1.0f;
@@ -186,6 +187,7 @@ namespace Model_Viewer
             
             //Clear Form Resources
             Util.resMgmt.Cleanup();
+            ModelProcGen.procDecisions.Clear();
             //Add Defaults
             addDefaultTextures();
 
@@ -205,27 +207,6 @@ namespace Model_Viewer
             scene.ID = this.childCounter;
             this.mainScene = scene;
             this.childCounter++;
-
-            //REMOVE THAT SHIT
-
-            //Add Frustum cube
-            GMDL.Collision cube = new GMDL.Collision();
-            //cube.vbo = (new Capsule(new Vector3(), 14.0f, 2.0f)).getVBO();
-            cube.vbo = (new Box(1.0f, 1.0f, 1.0f)).getVBO();
-
-            //Create model
-            GMDL.Collision so = new GMDL.Collision();
-
-            //Remove that after implemented all the different collision types
-            cube.shader_programs = new int[] { Util.resMgmt.shader_programs[0],
-                                              Util.resMgmt.shader_programs[5],
-                                              Util.resMgmt.shader_programs[6]}; //Use Mesh program for collisions
-            cube.name = "FRUSTUM";
-            cube.collisionType = (int)COLLISIONTYPES.BOX;
-
-
-            scene.children.Add(cube);
-
 
             Util.setStatus("Creating Nodes...", this.toolStripStatusLabel1);
 
@@ -596,9 +577,10 @@ namespace Model_Viewer
         {
             //gbuf.dump();
             //GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            GL.Disable(EnableCap.DepthTest);
+            GL.Enable(EnableCap.DepthTest);
             GL.Enable(EnableCap.Blend);
             GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
+            //GL.DepthFunc(DepthFunction.Gequal);
 
 
             int active_program = Util.resMgmt.shader_programs[10];
@@ -609,8 +591,11 @@ namespace Model_Viewer
             //gbuf.dump();
 
             //Upload inverse decat world matrix
+            //for ( int i = 0;i< Math.Min(1, Util.resMgmt.GLDecals.Count); i++)
             foreach (GMDL.model decal in Util.resMgmt.GLDecals)
             {
+                //GMDL.Decal decal = (GMDL.Decal) Util.resMgmt.GLDecals[i];
+                //gbuf.dump();
                 GL.UseProgram(active_program);
 
                 //Upload mvp
@@ -648,9 +633,11 @@ namespace Model_Viewer
                 
 
                 decal.render(0);
-            }
 
-            GL.Enable(EnableCap.DepthTest);
+                //gbuf.dump();
+            }
+            //GL.DepthFunc(DepthFunction.Lequal);
+            //GL.Enable(EnableCap.DepthTest);
             GL.Disable(EnableCap.Blend);
         }
 
@@ -1001,6 +988,11 @@ namespace Model_Viewer
                     loc = GL.GetUniformLocation(active_program, "rotMat");
                     GL.UniformMatrix4(loc, false, ref rotMat);
 
+                    //Normal Matrix
+                    loc = GL.GetUniformLocation(active_program, "nMat");
+                    Matrix4 nMat = Matrix4.Invert(root.worldMat * rotMat);
+                    GL.UniformMatrix4(loc, false, ref nMat);
+
                     //Send DiffuseFlag
                     loc = GL.GetUniformLocation(active_program, "diffuseFlag");
                     GL.Uniform1(loc, RenderOptions.UseTextures);
@@ -1112,6 +1104,8 @@ namespace Model_Viewer
                 //Cleanup control resources
                 c.resMgmt.Cleanup();
             }
+
+            glControl1.MakeCurrent();
 
         }
 

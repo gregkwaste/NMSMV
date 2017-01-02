@@ -35,8 +35,11 @@
             this.textBox1 = new System.Windows.Forms.TextBox();
             this.label2 = new System.Windows.Forms.Label();
             this.folderBrowserDialog1 = new System.Windows.Forms.FolderBrowserDialog();
+            this.forceProcGen = new System.Windows.Forms.NumericUpDown();
+            this.label3 = new System.Windows.Forms.Label();
             this.groupBox1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.procGenNum)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.forceProcGen)).BeginInit();
             this.SuspendLayout();
             // 
             // label1
@@ -51,6 +54,8 @@
             // 
             // groupBox1
             // 
+            this.groupBox1.Controls.Add(this.forceProcGen);
+            this.groupBox1.Controls.Add(this.label3);
             this.groupBox1.Controls.Add(this.procGenNum);
             this.groupBox1.Controls.Add(this.button1);
             this.groupBox1.Controls.Add(this.textBox1);
@@ -59,7 +64,7 @@
             this.groupBox1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBox1.Location = new System.Drawing.Point(0, 0);
             this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(627, 139);
+            this.groupBox1.Size = new System.Drawing.Size(627, 211);
             this.groupBox1.TabIndex = 1;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Options";
@@ -89,7 +94,7 @@
             // 
             // button1
             // 
-            this.button1.Location = new System.Drawing.Point(179, 76);
+            this.button1.Location = new System.Drawing.Point(179, 120);
             this.button1.Name = "button1";
             this.button1.Size = new System.Drawing.Size(250, 57);
             this.button1.TabIndex = 2;
@@ -109,7 +114,7 @@
             // 
             this.label2.AutoSize = true;
             this.label2.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label2.Location = new System.Drawing.Point(12, 36);
+            this.label2.Location = new System.Drawing.Point(12, 39);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(156, 20);
             this.label2.TabIndex = 0;
@@ -119,11 +124,38 @@
             // 
             this.folderBrowserDialog1.Description = "Select Unpacked Files Folder";
             // 
+            // forceProcGen
+            // 
+            this.forceProcGen.Location = new System.Drawing.Point(217, 64);
+            this.forceProcGen.Maximum = new decimal(new int[] {
+            1,
+            0,
+            0,
+            0});
+            this.forceProcGen.Name = "forceProcGen";
+            this.forceProcGen.Size = new System.Drawing.Size(398, 20);
+            this.forceProcGen.TabIndex = 5;
+            this.forceProcGen.Value = new decimal(new int[] {
+            1,
+            0,
+            0,
+            0});
+            // 
+            // label3
+            // 
+            this.label3.AutoSize = true;
+            this.label3.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label3.Location = new System.Drawing.Point(12, 64);
+            this.label3.Name = "label3";
+            this.label3.Size = new System.Drawing.Size(117, 20);
+            this.label3.TabIndex = 4;
+            this.label3.Text = "Force ProcGen";
+            // 
             // SettingsForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(627, 139);
+            this.ClientSize = new System.Drawing.Size(627, 211);
             this.Controls.Add(this.groupBox1);
             this.Name = "SettingsForm";
             this.Text = "Settings";
@@ -131,6 +163,7 @@
             this.groupBox1.ResumeLayout(false);
             this.groupBox1.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.procGenNum)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.forceProcGen)).EndInit();
             this.ResumeLayout(false);
 
         }
@@ -144,5 +177,7 @@
         private System.Windows.Forms.Button button1;
         private System.Windows.Forms.NumericUpDown procGenNum;
         private System.Windows.Forms.Label label2;
+        private System.Windows.Forms.NumericUpDown forceProcGen;
+        private System.Windows.Forms.Label label3;
     }
 }

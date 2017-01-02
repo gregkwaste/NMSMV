@@ -15,7 +15,7 @@ namespace Model_Viewer
         public bool isActive = false;
         //Projection variables Set defaults
         public float fov;
-        public float zNear = 2.0f;
+        public float zNear = 0.5f;
         public float zFar = 1000.0f;
         public float aspect = 1.0f;
 
