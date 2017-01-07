@@ -1076,6 +1076,10 @@ namespace GMDL
             s.WriteLine("o " + this.name);
             //Get Verts
 
+            //Preset Matrices for faster export
+            Matrix4 wMat = this.worldMat;
+            Matrix4 nMat = Matrix4.Invert(Matrix4.Transpose(wMat));
+
             vbr.BaseStream.Seek(vbo.vx_size * vertrstart, SeekOrigin.Begin);
             for (int i = 0; i < vertcount; i++)
             {
@@ -1085,7 +1089,7 @@ namespace GMDL
                 //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
 
                 //Transform vector with worldMatrix
-                Vector4 v = new Vector4(Half.decompress(v1), Half.decompress(v2), Half.decompress(v3),1.0f);
+                Vector4 v = new Vector4(Half.decompress(v1), Half.decompress(v2), Half.decompress(v3), 1.0f);
                 v = Vector4.Transform(v, this.worldMat);
 
 
@@ -1102,12 +1106,16 @@ namespace GMDL
                 uint v2 = vbr.ReadUInt16();
                 uint v3 = vbr.ReadUInt16();
                 //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
+                //Transform normal with normalMatrix
+                Vector4 vN = new Vector4(Half.decompress(v1), Half.decompress(v2), Half.decompress(v3), 1.0f);
+                vN = Vector4.Transform(vN, nMat);
 
-                s.WriteLine("vn " + Half.decompress(v1).ToString() + " " + Half.decompress(v2).ToString() + " " + Half.decompress(v3).ToString());
+                s.WriteLine("vn " + vN.X.ToString() + " " + vN.Y.ToString() + " " + vN.Z.ToString());
                 vbr.BaseStream.Seek(this.vbo.vx_size - 0x6, SeekOrigin.Current);
             }
-            //Get UVs
-
+            //Get UVs, only for mesh objects
+            
+            
             vbr.BaseStream.Seek(vbo.uv0_stride + vbo.vx_size * vertrstart, SeekOrigin.Begin);
             for (int i = 0; i < vertcount; i++)
             {
@@ -1119,6 +1127,7 @@ namespace GMDL
                 s.WriteLine("vt " + Half.decompress(v1).ToString() + " " + Half.decompress(v2).ToString());
                 vbr.BaseStream.Seek(this.vbo.vx_size - 0x6, SeekOrigin.Current);
             }
+            
 
             //Some Options
             s.WriteLine("usemtl(null)");
@@ -1420,7 +1429,7 @@ namespace GMDL
             GL.Uniform1(loc, 1); // I need to upload the texture unit number
 
             GL.ActiveTexture((TextureUnit) (tex0Id + 1));
-            GL.BindTexture(TextureTarget.Texture2D, Util.gbuf.positions);
+            GL.BindTexture(TextureTarget.Texture2D, Util.gbuf.dump_pos);
 
             //Util.gbuf.dump();
 
@@ -2433,8 +2442,7 @@ namespace GMDL
 
             //Set Viewport
             GL.Viewport(0, 0, 1024, 1024);
-            GL.ClearColor(System.Drawing.Color.Black);
-            GL.Enable(EnableCap.Multisample);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             //GL.Disable(EnableCap.DepthTest);
             //GL.Enable(EnableCap.Blend);
             //GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
@@ -2447,7 +2455,7 @@ namespace GMDL
             
             //Diffuse
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-#if TEST
+#if DEBUG
             GL.ReadPixels(0, 0, texsize, texsize, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             FileStream fs = new FileStream("framebuffer_raw_diffuse_" + name, FileMode.Create);
             BinaryWriter bw = new BinaryWriter(fs);
@@ -2472,7 +2480,7 @@ namespace GMDL
             fMaskMap.bufferID = out_tex_mask;
 
             GL.ReadBuffer(ReadBufferMode.ColorAttachment2);
-#if DEBUG
+#if TEST
             GL.ReadPixels(0, 0, texsize, texsize, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             FileStream fs = new FileStream("framebuffer_raw_normal_" + name, FileMode.Create);
             BinaryWriter bw = new BinaryWriter(fs);
@@ -2484,7 +2492,7 @@ namespace GMDL
             fNormalMap.bufferID = out_tex_normal;
 
             //Bring Back screen
-            GL.Disable(EnableCap.Multisample);
+            //GL.Disable(EnableCap.Multisample);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
             GL.DisableVertexAttribArray(0);
             GL.DisableVertexAttribArray(1);

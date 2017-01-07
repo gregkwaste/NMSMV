@@ -10,7 +10,7 @@ namespace Model_Viewer
         public Vector3 Position = new Vector3(0.0f, 0.0f, 0.0f);
         public Vector3 Movement = new Vector3(0.0f, 0.0f, 0.0f);
         public Vector3 Orientation = new Vector3(0.0f, 0f, 0f);
-        public float MoveSpeed = 0.2f;
+        public float MoveSpeed = 0.02f;
         public float MouseSensitivity = 0.01f;
         public bool isActive = false;
         //Projection variables Set defaults

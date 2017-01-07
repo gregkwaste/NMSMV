@@ -930,7 +930,7 @@ public static class GEOMMBIN {
 
         //Notify
         Util.setStatus("Importing Scene: " + scene.name + " Part: " + name, strip);
-
+        Debug.WriteLine("Importing Scene: " + scene.name + " Part: " + name);
         TYPES typeEnum;
         string type = ((XmlElement)node.SelectSingleNode("Property[@name='Type']")).GetAttribute("value");
         Enum.TryParse<TYPES>(type, out typeEnum);

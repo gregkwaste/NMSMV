@@ -489,7 +489,7 @@ namespace Model_Viewer
             | System.Windows.Forms.AnchorStyles.Right)));
             this.numericUpDown3.Location = new System.Drawing.Point(121, 55);
             this.numericUpDown3.Maximum = new decimal(new int[] {
-            10,
+            30,
             0,
             0,
             0});
@@ -747,7 +747,7 @@ namespace Model_Viewer
             this.exportToObjToolStripMenuItem,
             this.getObjectTexturesToolStripMenuItem});
             this.mainglcontrolContext.Name = "mainglcontrolContext";
-            this.mainglcontrolContext.Size = new System.Drawing.Size(177, 92);
+            this.mainglcontrolContext.Size = new System.Drawing.Size(177, 70);
             // 
             // getAltIDToolStripMenuItem
             // 

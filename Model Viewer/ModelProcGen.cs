@@ -1031,6 +1031,72 @@ namespace Model_Viewer
                                                                             Vector3.Multiply(new Vector3 (129, 101, 101) , rbgFloat),
                                                                             Vector3.Multiply(new Vector3 (75, 59, 68) , rbgFloat),
                                                                             Vector3.Multiply(new Vector3 (101, 113, 129) , rbgFloat)};
+        public static readonly List<Vector3> Dirt = new List<Vector3> {
+                                                                            Vector3.Multiply(new Vector3 (175, 175, 175) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (160, 114, 87) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (169, 140, 119) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (143, 131, 150) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (215, 147, 87) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (214, 186, 99) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (147, 168, 181) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (154, 138, 97) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (162, 162, 162) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (141, 102, 79) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (157, 129, 109) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (131, 122, 138) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (201, 136, 81) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (201, 175, 93) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (140, 158, 172) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (130, 117, 81) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (145, 145, 145) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (128, 92, 73) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (139, 114, 97) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (118, 108, 124) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (181, 122, 73) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (180, 157, 83) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (126, 143, 157) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (113, 106, 68) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (150, 150, 150) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (118, 85, 68) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (144, 116, 103) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (122, 113, 130) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (184, 119, 81) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (185, 155, 93) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (133, 152, 162) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (98, 93, 60) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (127, 127, 127) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (147, 77, 66) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (122, 98, 87) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (103, 95, 110) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (159, 101, 69) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (159, 132, 79) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (113, 130, 140) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (141, 154, 97) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (105, 105, 105) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (126, 65, 56) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (101, 83, 73) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (87, 81, 91) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (134, 85, 61) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (135, 109, 67) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (95, 109, 115) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (118, 130, 81) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (87, 86, 86) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (111, 55, 49) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (85, 69, 63) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (73, 68, 77) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (112, 72, 53) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (112, 92, 58) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (80, 90, 96) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (97, 113, 68) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (74, 74, 74) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (100, 49, 43) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (73, 61, 57) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (63, 59, 66) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (94, 63, 48) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (95, 79, 52) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (69, 78, 84) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3 (84, 98, 60) , rbgFloat) };
+
         public static readonly List<Vector3> Scientific = new List<Vector3>
         { Vector3.Multiply(new Vector3 (255, 0, 255) , rbgFloat)};
 
@@ -1099,7 +1165,7 @@ namespace Model_Viewer
                     case ("Underbelly"):
                     case ("Paint"):
 
-                        //In those palettes colors are organize in group of 4 
+                        //In those palettes colors are organized in group of 4 
                         //So there is a total of 16 color ranges in the palette
                         //Chossing one range
                         rand = Util.randgen.Next(0, 16);
@@ -1137,6 +1203,7 @@ namespace Model_Viewer
                     case ("Sand"):
                     case ("Stone"):
                     case ("Wood"):
+                    case ("Dirt"):
                         rand = Util.randgen.Next(0, 16);
                         newPal[f.Name]["Primary"] = new Vector4(palette[(rand / 8) * 32 + rand % 8], 1.0f);
                         newPal[f.Name]["Alternative1"] = new Vector4(palette[(rand / 8) * 32 + rand % 8 + 1 * 8], 1.0f);

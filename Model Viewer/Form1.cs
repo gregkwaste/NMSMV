@@ -318,7 +318,9 @@ namespace Model_Viewer
             //Init Gbuffer
             gbuf = new GBuffer();
             Util.gbuf = gbuf;
-            
+
+            Console.WriteLine("GBuffer Setup Done, Last GL Error: " + GL.GetError());
+
             scene.ID = this.childCounter;
 
 
@@ -576,7 +578,6 @@ namespace Model_Viewer
         private void render_decals()
         {
             //gbuf.dump();
-            //GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             GL.Enable(EnableCap.DepthTest);
             GL.Enable(EnableCap.Blend);
             GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
@@ -588,14 +589,13 @@ namespace Model_Viewer
             int loc;
             Matrix4 temp;
 
-            //gbuf.dump();
+            gbuf.dump();
 
             //Upload inverse decat world matrix
             //for ( int i = 0;i< Math.Min(1, Util.resMgmt.GLDecals.Count); i++)
             foreach (GMDL.model decal in Util.resMgmt.GLDecals)
             {
                 //GMDL.Decal decal = (GMDL.Decal) Util.resMgmt.GLDecals[i];
-                //gbuf.dump();
                 GL.UseProgram(active_program);
 
                 //Upload mvp
@@ -637,7 +637,6 @@ namespace Model_Viewer
                 //gbuf.dump();
             }
             //GL.DepthFunc(DepthFunction.Lequal);
-            //GL.Enable(EnableCap.DepthTest);
             GL.Disable(EnableCap.Blend);
         }
 
@@ -708,7 +707,7 @@ namespace Model_Viewer
             int depth_rb = rbufs[1];
             int color_rb = rbufs[0];
 
-            Console.WriteLine("Last GL Error: " + GL.GetError());
+            Console.WriteLine("Selected Ob: Last GL Error: " + GL.GetError());
 
             GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, fb);
             //Bind color renderbuffer
@@ -801,7 +800,13 @@ namespace Model_Viewer
                     selMatName.Text = "NaN";
                     break;
             }
+
+            //Report
+            Debug.WriteLine(selectedOb.localRotation);
+            Debug.WriteLine(selectedOb.localPosition);
+            Debug.WriteLine(selectedOb.localScale);
             glControl1.Invalidate();
+
             
         }
 
@@ -1369,6 +1374,7 @@ namespace Model_Viewer
         {
             GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
             GL.ClearColor(System.Drawing.Color.Black);
+            GL.Enable(EnableCap.Multisample);
             GL.Enable(EnableCap.DepthTest);
             //glControl1.SwapBuffers();
             //glControl1.Invalidate();
@@ -1386,6 +1392,7 @@ namespace Model_Viewer
 
         private void setup_GLControl()
         {
+            //glControl1 = new GLControl(new OpenTK.Graphics.GraphicsMode(32, 24, 0, 16));
             glControl1 = new GLControl();
             glControl1.Size = new System.Drawing.Size(976, 645);
             this.glControl1.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
@@ -1413,22 +1420,26 @@ namespace Model_Viewer
                 return;
             glControl1.MakeCurrent();
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-
             gbuf.start();
 
             //Debug.WriteLine(active_fbo);
             render_scene();
-            
+
+            //Store the dumps
+            gbuf.dump();
+
+
             render_decals();
-            
+
             //render_cameras();
             //render_lights();
-            //render_info();
+            render_info();
 
-            gbuf.stop();
-            
+            //gbuf.stop();
+
             //Render Deferred
-            gbuf.render();
+            //gbuf.render();
+            gbuf.blit();
 
             glControl1.SwapBuffers();
             
@@ -1486,27 +1497,27 @@ namespace Model_Viewer
                 //Camera Movement
                 case Keys.W:
                     for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(0.0f, 0.1f, 0.0f);
+                        activeCam.Move(0.0f, 0.01f, 0.0f);
                     break;
                 case Keys.S:
                     for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(0.0f, -0.1f, 0.0f);
+                        activeCam.Move(0.0f, -0.01f, 0.0f);
                     break;
                 case (Keys.D):
                     for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(0.1f, 0.0f, 0.0f);
+                        activeCam.Move(0.01f, 0.0f, 0.0f);
                     break;
                 case Keys.A:
                     for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(-0.1f, 0.0f, 0.0f);
+                        activeCam.Move(-0.01f, 0.0f, 0.0f);
                     break;
                 case (Keys.R):
                     for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(0.0f, 0.0f, 0.1f);
+                        activeCam.Move(0.0f, 0.0f, 0.01f);
                     break;
                 case Keys.F:
                     for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(0.0f, 0.0f, -0.1f);
+                        activeCam.Move(0.0f, 0.0f, -0.01f);
                     break;
                 //Light Rotation
                 case Keys.N:
@@ -1735,6 +1746,7 @@ namespace Model_Viewer
             //This function tries to save to disk the selected objects textures - if any
             gbuf.dump();
 
+
             if (selectedOb == null) return;
             if (selectedOb.material == null) return;
 
@@ -1785,6 +1797,12 @@ namespace Model_Viewer
     public class GBuffer
     {
         public int fbo = -1;
+        //Dump fbo stuff
+        public int dump_fbo;
+        public int dump_diff;
+        public int dump_pos;
+        public int dump_depth;
+
         public int diff_rbo;
         public int depth_rbo;
         public int diffuse = -1;
@@ -1794,6 +1812,7 @@ namespace Model_Viewer
         public int quad_vbo, quad_ebo;
         public int program = -1;
         public int[] size;
+        private int msaa_samples = 4;
         
         public GBuffer()
         {
@@ -1843,25 +1862,38 @@ namespace Model_Viewer
             
             //Init the FBO
             fbo = GL.Ext.GenFramebuffer();
-            
+
+            Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+
             int[] rbufs = new int[2];
             GL.Ext.GenRenderbuffers(2, rbufs);
             depth_rbo = rbufs[1];
             diff_rbo = rbufs[0];
 
-            Console.WriteLine("Last GL Error: " + GL.GetError());
+            Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
 
             GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, fbo);
             //Bind color renderbuffer
             GL.Ext.BindRenderbuffer(RenderbufferTarget.RenderbufferExt, diff_rbo);
-            GL.Ext.RenderbufferStorage(RenderbufferTarget.RenderbufferExt, RenderbufferStorage.Rgba8, size[0], size[1]);
+            //Normal Version
+            //GL.Ext.RenderbufferStorage(RenderbufferTarget.RenderbufferExt, RenderbufferStorage.Rgba8, size[0], size[1]);
+            //Multisampling version
+            GL.Ext.RenderbufferStorageMultisample(RenderbufferTarget.RenderbufferExt, msaa_samples, RenderbufferStorage.Rgb8, size[0], size[1]);
             GL.Ext.FramebufferRenderbuffer(FramebufferTarget.FramebufferExt, FramebufferAttachment.ColorAttachment0Ext, RenderbufferTarget.RenderbufferExt, diff_rbo);
+            
+            Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+
 
             GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, fbo);
             //Bind depth renderbuffer
             GL.Ext.BindRenderbuffer(RenderbufferTarget.RenderbufferExt, depth_rbo);
-            GL.Ext.RenderbufferStorage(RenderbufferTarget.RenderbufferExt, RenderbufferStorage.DepthComponent, size[0], size[1]);
+            //Normal Version
+            //GL.Ext.RenderbufferStorage(RenderbufferTarget.RenderbufferExt, RenderbufferStorage.DepthComponent, size[0], size[1]);
+            //Multisampling version
+            GL.Ext.RenderbufferStorageMultisample(RenderbufferTarget.RenderbufferExt, msaa_samples, RenderbufferStorage.DepthComponent, size[0], size[1]);
             GL.Ext.FramebufferRenderbuffer(FramebufferTarget.FramebufferExt, FramebufferAttachment.DepthAttachmentExt, RenderbufferTarget.RenderbufferExt, depth_rbo);
+
+            Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
 
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
@@ -1875,9 +1907,59 @@ namespace Model_Viewer
             setup_texture(ref normals, 2);
             //Setup Depth texture
             setup_texture(ref depth, 10);
-            
+
+
+            //Setup dump_fbo
+            setup_dump();
+
+
+
             //Revert Back the fbo
             GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, 0);
+        }
+
+        public void setup_dump()
+        {
+            //Create Intermediate Framebuffer
+            dump_fbo = GL.Ext.GenFramebuffer();
+            dump_diff = GL.GenTexture();
+            dump_pos = GL.GenTexture();
+            dump_depth = GL.GenTexture();
+
+            //Setup Textures
+            GL.BindTexture(TextureTarget.Texture2D, dump_diff);
+            Console.WriteLine("Dump, Last GL Error: " + GL.GetError());
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, size[0], size[1], 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+
+            GL.BindTexture(TextureTarget.Texture2D, dump_pos);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba32f, size[0], size[1], 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+
+            GL.BindTexture(TextureTarget.Texture2D, dump_depth);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent, size[0], size[1], 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+
+            GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, dump_fbo);
+
+            Console.WriteLine("Dump, Last GL Error: " + GL.GetError());
+            GL.Ext.FramebufferTexture2D(FramebufferTarget.FramebufferExt, FramebufferAttachment.ColorAttachment0Ext, TextureTarget.Texture2D, dump_diff, 0);
+            Console.WriteLine("Dump, Last GL Error: " + GL.GetError());
+            GL.Ext.FramebufferTexture2D(FramebufferTarget.FramebufferExt, FramebufferAttachment.ColorAttachment1Ext, TextureTarget.Texture2D, dump_pos, 0);
+            Console.WriteLine("Dump, Last GL Error: " + GL.GetError());
+            GL.Ext.FramebufferTexture2D(FramebufferTarget.FramebufferExt, FramebufferAttachment.DepthAttachmentExt, TextureTarget.Texture2D, dump_depth, 0);
+            Console.WriteLine("Dump, Last GL Error: " + GL.GetError());
+
+            
         }
 
         public void setup_texture(ref int handle, int attachment)
@@ -1886,42 +1968,58 @@ namespace Model_Viewer
             if (handle != -1) GL.DeleteTexture(handle);
             handle = GL.GenTexture();
 
-            GL.BindTexture(TextureTarget.Texture2D, handle);
+            GL.BindTexture(TextureTarget.Texture2DMultisample, handle);
             
             //Bind to class fbo
             FramebufferAttachment t;
             switch (attachment)
             {
-                //ColorAttachment0
+                //Depth Case
                 case 10:
                     t = FramebufferAttachment.DepthAttachmentExt;
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent, size[0], size[1], 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+                    //GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent, size[0], size[1], 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
+                    GL.TexImage2DMultisample(TextureTargetMultisample.Texture2DMultisample, msaa_samples, PixelInternalFormat.DepthComponent, size[0], size[1], true);
+                    //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+                    //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+                    //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+                    //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+
+                    GL.BindFramebuffer(FramebufferTarget.FramebufferExt, fbo);
+                    GL.Ext.FramebufferTexture2D(FramebufferTarget.FramebufferExt, t, TextureTarget.Texture2DMultisample, handle, 0);
+                    Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+
                     break;
                 //ColorAttachment1 Positions
                 case 1:
                     t = FramebufferAttachment.ColorAttachment0Ext + attachment;
-                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba32f, size[0], size[1], 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+                    //GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba32f, size[0], size[1], 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
+                    GL.TexImage2DMultisample(TextureTargetMultisample.Texture2DMultisample, msaa_samples, PixelInternalFormat.Rgba32f, size[0], size[1], true);
+                    //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+                    //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+                    //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+                    //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+                    GL.BindFramebuffer(FramebufferTarget.FramebufferExt, fbo);
+                    GL.Ext.FramebufferTexture2D(FramebufferTarget.FramebufferExt, t, TextureTarget.Texture2DMultisample, handle, 0);
+                    Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+
                     break;
                 default:
                     t = FramebufferAttachment.ColorAttachment0Ext + attachment;
-                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, size[0], size[1], 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+                    //GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, size[0], size[1], 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+                    GL.TexImage2DMultisample(TextureTargetMultisample.Texture2DMultisample, msaa_samples, PixelInternalFormat.Rgba8, size[0], size[1], true);
+
+                    GL.BindFramebuffer(FramebufferTarget.FramebufferExt, fbo);
+                    GL.Ext.FramebufferTexture2D(FramebufferTarget.FramebufferExt, t, TextureTarget.Texture2DMultisample, handle, 0);
+                    
+                    //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+                    //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+                    //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+                    //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+                    Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
                     break;
             }
 
-            GL.BindFramebuffer(FramebufferTarget.FramebufferExt, fbo);
-            GL.FramebufferTexture2D(FramebufferTarget.FramebufferExt, t, TextureTarget.Texture2D, handle, 0);
+           
         }
 
         public void render()
@@ -1984,6 +2082,7 @@ namespace Model_Viewer
             
             //Bind Gbuffer fbo
             GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, fbo);
+            GL.Enable(EnableCap.Multisample); //not making any difference probably needs to be removed
             GL.Enable(EnableCap.Texture2D);
             GL.Enable(EnableCap.DepthTest);
             
@@ -2005,29 +2104,64 @@ namespace Model_Viewer
 
         }
 
+        public void blit()
+        {
+            //Blit can replace the render & stop funtions
+            //Simply resolves and copies the ms offscreen fbo to the default framebuffer without any need to render the textures and to any other post proc effects
+            //I guess that I don't need the textures as well, when I'm rendering like this
+            GL.Ext.BindFramebuffer(FramebufferTarget.ReadFramebuffer, fbo);
+            GL.Ext.BindFramebuffer(FramebufferTarget.DrawFramebuffer, 0);
+            GL.Ext.BlitFramebuffer(0, 0, size[0], size[1], 
+                                   0, 0, size[0], size[1], 
+                                   ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit, 
+                                   BlitFramebufferFilter.Nearest);
+        }
+
+        public void dump_blit()
+        {
+            //Setup View
+            GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, dump_fbo);
+            GL.Viewport(0, 0, size[0], size[1]);
+            GL.DrawBuffers(2, new DrawBuffersEnum[] { DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1 });
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
+            //Resolving Buffers
+            GL.Ext.BindFramebuffer(FramebufferTarget.ReadFramebuffer, fbo);
+            GL.Ext.BindFramebuffer(FramebufferTarget.DrawFramebuffer, dump_fbo);
+            GL.Ext.BlitFramebuffer(0, 0, size[0], size[1],
+                                   0, 0, size[0], size[1], 
+                                   ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit, 
+                                   BlitFramebufferFilter.Nearest);
+
+            Console.WriteLine("Dump, Last GL Error: " + GL.GetError());
+        }
+
 
         public void dump()
         {
+            //Bind Buffers
+            //Resolving Buffers
+            GL.Ext.BindFramebuffer(FramebufferTarget.ReadFramebuffer, fbo);
+            GL.Ext.BindFramebuffer(FramebufferTarget.DrawFramebuffer, dump_fbo);
+            
             FileStream fs;
             BinaryWriter bw;
             byte[] pixels;
             pixels = new byte[4 * size[0] * size[1]];
-            Debug.WriteLine("Dumping Framebuffer textures " + size[0] + " " + size[1]);
-            
-            //Save Diffuse Color
-            GL.BindTexture(TextureTarget.Texture2D, diffuse);
-            GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
+            //Debug.WriteLine("Dumping Framebuffer textures " + size[0] + " " + size[1]);
 
-            //Save to disk
-            fs = new FileStream("dump.color0", FileMode.Create, FileAccess.Write);
-            bw = new BinaryWriter(fs);
-            bw.Write(pixels);
-            bw.Close();
-            fs.Close();
+            //Read Color1
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment1);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment1);
+            GL.Ext.BlitFramebuffer(0, 0, size[0], size[1],
+                                   0, 0, size[0], size[1],
+                                   ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit,
+                                   BlitFramebufferFilter.Nearest);
 
+#if TEST
             //Save Positions
             pixels = new byte[16 * size[0] * size[1]];
-            GL.BindTexture(TextureTarget.Texture2D, positions);
+            GL.BindTexture(TextureTarget.Texture2D, dump_pos);
             GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.Float, pixels);
 
             //Save to disk
@@ -2037,9 +2171,9 @@ namespace Model_Viewer
             bw.Close();
             fs.Close();
 
-            //Save Diffuse Texture
+            //Save Depth Texture
             pixels = new byte[4 * size[0] * size[1]];
-            GL.BindTexture(TextureTarget.Texture2D, depth);
+            GL.BindTexture(TextureTarget.Texture2D, dump_depth);
             GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.DepthComponent, PixelType.Float, pixels);
 
             //Save to disk
@@ -2048,6 +2182,36 @@ namespace Model_Viewer
             bw.Write(pixels);
             bw.Close();
             fs.Close();
+
+#endif
+
+            //Read Color0
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+            GL.Ext.BlitFramebuffer(0, 0, size[0], size[1],
+                                   0, 0, size[0], size[1],
+                                   ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit,
+                                   BlitFramebufferFilter.Nearest);
+
+            //Save Diffuse Color
+            GL.BindTexture(TextureTarget.Texture2D, dump_diff);
+            GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
+
+#if TEST
+            //Save to disk
+            fs = new FileStream("dump.color0", FileMode.Create, FileAccess.Write);
+            bw = new BinaryWriter(fs);
+            bw.Write(pixels);
+            bw.Close();
+            fs.Close();
+#endif
+            
+
+            //Rebind Gbuffer fbo
+            GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, fbo);
+            //GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+            //GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+
         }
 
         public void Cleanup()
