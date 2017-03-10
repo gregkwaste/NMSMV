@@ -91,6 +91,12 @@
     <Compile Include="CGLControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Include="GamepadHandler.cs" />
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
     <Compile Include="XYZControl.cs">
       <SubType>Component</SubType>
     </Compile>
@@ -102,11 +108,6 @@
     <Compile Include="GLPrimitives.cs" />
     <Compile Include="GLShaderHelper.cs" />
     <Compile Include="GLSL_Preprocessor.cs" />
-    <Compile Include="Properties\Resources.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
-      <DependentUpon>Resources.resx</DependentUpon>
-    </Compile>
     <Compile Include="TreeStuff.cs" />
     <Compile Include="DDSImage.cs" />
     <Compile Include="AboutForm.cs">
@@ -171,6 +172,8 @@
     <None Include="Resources\locator.vert" />
     <None Include="Resources\pick.frag" />
     <None Include="Resources\pick.vert" />
+    <None Include="Resources\tess.tcs" />
+    <None Include="Resources\tess.tes" />
     <None Include="Resources\text.frag" />
     <None Include="Resources\text.vert" />
     <Resource Include="Resources\joint.frag" />
@@ -199,7 +202,6 @@
       <Install>false</Install>
     </BootstrapperPackage>
   </ItemGroup>
-  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

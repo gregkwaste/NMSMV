@@ -768,9 +768,11 @@ namespace GMDL
             }
 
             int loc;
+
             //Upload Material Flags here
             //Reset
             loc = GL.GetUniformLocation(pass, "matflags");
+            //loc = 11;
 
             for (int i = 0; i < 64; i++)
                 GL.Uniform1(loc + i, 0.0f);
@@ -778,21 +780,27 @@ namespace GMDL
             for (int i = 0; i < material.materialflags.Count; i++)
                 GL.Uniform1(loc + material.materialflags[i], 1.0f);
             
-            //Upload BoneRemap Information
-            loc = GL.GetUniformLocation(pass, "boneRemap");
-            GL.Uniform1(loc, BoneRemap.Length, BoneRemap);
-
+            
             //Upload joint transform data
             //Multiply matrices before sending them
             //Check if scene has the jointModel
-            float[] skinmats = Util.mulMatArrays(vbo.invBMats, scene.JMArray, 128);
+            if (skinned > 0.0f)
+            {
+                //Upload BoneRemap Information
+                loc = GL.GetUniformLocation(pass, "boneRemap");
+                GL.Uniform1(loc, BoneRemap.Length, BoneRemap);
 
-            loc = GL.GetUniformLocation(pass, "skinMats");
-            GL.UniformMatrix4(loc, 128, false, skinmats);
+                float[] skinmats = Util.mulMatArrays(vbo.invBMats, scene.JMArray, 128);
+                loc = GL.GetUniformLocation(pass, "skinMats");
+
+                GL.UniformMatrix4(331, 128, false, skinmats);
+
+            }
+            
 
             //Upload Light Flag
-            loc = GL.GetUniformLocation(pass, "useLighting");
-            GL.Uniform1(loc, 1.0f);
+            //loc = GL.GetUniformLocation(pass, "useLighting");
+            //GL.Uniform1(loc, 1.0f);
 
             //Upload Selected Flag
             loc = GL.GetUniformLocation(pass, "selected");
@@ -801,25 +809,19 @@ namespace GMDL
             //BIND TEXTURES
             int tex0Id = (int)TextureUnit.Texture0;
             //Diffuse Texture
-            string test = "diffuseTex";
-            loc = GL.GetUniformLocation(pass, test);
-            GL.Uniform1(loc, 0); // I need to upload the texture unit number
+            GL.Uniform1(460, 0); // I need to upload the texture unit number
 
             GL.ActiveTexture((TextureUnit) (tex0Id + 0));
             GL.BindTexture(TextureTarget.Texture2D, material.fDiffuseMap.bufferID);
 
             //Mask Texture
-            test = "maskTex";
-            loc = GL.GetUniformLocation(pass, test);
-            GL.Uniform1(loc, 1); // I need to upload the texture unit number
+            GL.Uniform1(461, 1); // I need to upload the texture unit number
 
             GL.ActiveTexture((TextureUnit) (tex0Id + 1));
             GL.BindTexture(TextureTarget.Texture2D, material.fMaskMap.bufferID);
 
             //Normal Texture
-            test = "normalTex";
-            loc = GL.GetUniformLocation(pass, test);
-            GL.Uniform1(loc, 2); // I need to upload the texture unit number
+            GL.Uniform1(462, 2); // I need to upload the texture unit number
 
             GL.ActiveTexture((TextureUnit) (tex0Id + 2));
             GL.BindTexture(TextureTarget.Texture2D, material.fNormalMap.bufferID);
@@ -1861,11 +1863,6 @@ namespace GMDL
         {
             foreach (Sampler sam in samplers){
 
-                if(this.name == "EagleHead_Mat")
-                {
-                    Debug.WriteLine("b");
-                }
-
                 string[] split = sam.pathDiff.Split('.');
                 //Construct main filename
                 string temp = "";
@@ -2143,7 +2140,7 @@ namespace GMDL
 
             //Reverse Lists
 
-
+            //Console.WriteLine("PrepTextures, Last GL Error: " + GL.GetError());
 
         }
 
@@ -2213,13 +2210,15 @@ namespace GMDL
             //Diffuse Output
             int out_tex_diffuse = GL.GenTexture();
             GL.BindTexture(TextureTarget.Texture2D, out_tex_diffuse);
-            //GL.TexImage2DMultisample(TextureTargetMultisample.Texture2D, 4, PixelInternalFormat.Rgba, texsize, texsize, false);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 4.0f);
+            
             //NULL means reserve texture memory, but texels are undefined
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, texsize, texsize, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+            //GL.Ext.GenerateMipmap(GenerateMipmapTarget.Texture2D);
 
             //Create New RenderBuffer for the diffuse
             int fb_diffuse = GL.GenFramebuffer();
@@ -2235,13 +2234,17 @@ namespace GMDL
             //Mask Output
             int out_tex_mask = GL.GenTexture();
             GL.BindTexture(TextureTarget.Texture2D, out_tex_mask);
+            //NULL means reserve texture memory, but texels are undefined
+            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureLodBias, -0.2f);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-            //NULL means reserve texture memory, but texels are undefined
+            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 4.0f);
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, texsize, texsize, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
 
+            //GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+            
             //Create New RenderBuffer for the diffuse
             //Attach Texture to this FBO
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment1, TextureTarget.Texture2D, out_tex_mask, 0);
@@ -2253,13 +2256,16 @@ namespace GMDL
             //Normal Output
             int out_tex_normal = GL.GenTexture();
             GL.BindTexture(TextureTarget.Texture2D, out_tex_normal);
+            //NULL means reserve texture memory, but texels are undefined
+            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureLodBias, -0.2f);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-            //NULL means reserve texture memory, but texels are undefined
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 4.0f);
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, texsize, texsize, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
-
+            //GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+            
             //Create New RenderBuffer for the diffuse
             //Attach Texture to this FBO
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment2, TextureTarget.Texture2D, out_tex_normal, 0);
@@ -2276,7 +2282,7 @@ namespace GMDL
             GMDL.Texture tex;
             int loc;
 
-            Debug.WriteLine("Rendering Textures of : " + name);
+            //Debug.WriteLine("Rendering Textures of : " + name);
             //If there are samples defined, there are diffuse textures for sure
 
             //GL.Enable(EnableCap.Blend);
@@ -2352,23 +2358,24 @@ namespace GMDL
             else
                 GL.Uniform1(loc, 0.0f);
 
-
             //MASKS
             //Upload alpha Layers Used
-            for (int i = 0; i < 8; i++)
-            {
-                int active_id = i;
-                loc = GL.GetUniformLocation(pass_program, "lalphaLayersUsed[" + active_id.ToString() + "]");
-                GL.Uniform1(loc, alphaLayersUsed[active_id]);
-            }
+            //for (int i = 0; i < 8; i++)
+            //{
+            //    int active_id = i;
+            //    loc = GL.GetUniformLocation(pass_program, "lalphaLayersUsed[" + active_id.ToString() + "]");
+            //    GL.Uniform1(loc, alphaLayersUsed[active_id]);
+            //}
 
             //Upload Mask Textures -- Alpha Masks???
-            loc = GL.GetUniformLocation(pass_program, "m_lbaseLayersUsed");
-            for (int i = 0; i < 8; i++)
-            {
-                if (masktextures[i] != null) GL.Uniform1(loc + i, 1.0f);
-                else GL.Uniform1(loc + i, 0.0f);
-            }
+            //Mask Mixing mixes r channels without alpha
+            //loc = GL.GetUniformLocation(pass_program, "m_lbaseLayersUsed");
+            //for (int i = 0; i < 8; i++)
+            //{
+            //    if (masktextures[i] != null) GL.Uniform1(loc + i, 1.0f);
+            //    else GL.Uniform1(loc + i, 0.0f);
+            //}
+
             for (int i = 0; i < 8; i++)
             {
                 int active_id = i;
@@ -2379,7 +2386,7 @@ namespace GMDL
                     tex = dDiff;
 
 
-                //Upload diffuse Texture
+                //Upload mask Texture
                 string sem = "maskTex[" + active_id.ToString() + "]";
                 //Get Texture location
                 loc = GL.GetUniformLocation(pass_program, sem);
@@ -2434,14 +2441,13 @@ namespace GMDL
                 GL.Uniform4(loc, reColourings[active_id][0], reColourings[active_id][1], reColourings[active_id][2], reColourings[active_id][3]);
             }
 
-
             //RENDERING PHASE
             //Render to the FBO
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, fb_diffuse);
             GL.DrawBuffers(3, new DrawBuffersEnum[] { DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment2 });
 
             //Set Viewport
-            GL.Viewport(0, 0, 1024, 1024);
+            GL.Viewport(0, 0, texsize, texsize);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             //GL.Disable(EnableCap.DepthTest);
             //GL.Enable(EnableCap.Blend);
@@ -2449,13 +2455,17 @@ namespace GMDL
             
             GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
 
+            //Console.WriteLine("MixTextures5, Last GL Error: " + GL.GetError());
+
             //Store Framebuffer to Disk
             byte[] pixels = new byte[4 * texsize * texsize];
             //GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
             
             //Diffuse
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-#if DEBUG
+            //GL.BindTexture(TextureTarget.Texture2D, out_tex_diffuse);
+            //GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+#if TEST
             GL.ReadPixels(0, 0, texsize, texsize, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             FileStream fs = new FileStream("framebuffer_raw_diffuse_" + name, FileMode.Create);
             BinaryWriter bw = new BinaryWriter(fs);
@@ -2468,6 +2478,8 @@ namespace GMDL
             
             
             GL.ReadBuffer(ReadBufferMode.ColorAttachment1);
+            //GL.BindTexture(TextureTarget.Texture2D, out_tex_mask);
+            //GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
 #if TEST
             GL.ReadPixels(0, 0, texsize, texsize, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             fs = new FileStream("framebuffer_raw_mask_" + name, FileMode.Create);
@@ -2478,8 +2490,11 @@ namespace GMDL
 #endif
             //Store Texture to material
             fMaskMap.bufferID = out_tex_mask;
+        
 
             GL.ReadBuffer(ReadBufferMode.ColorAttachment2);
+            //GL.BindTexture(TextureTarget.Texture2D, out_tex_normal);
+            //GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
 #if TEST
             GL.ReadPixels(0, 0, texsize, texsize, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             FileStream fs = new FileStream("framebuffer_raw_normal_" + name, FileMode.Create);
@@ -2499,6 +2514,7 @@ namespace GMDL
             GL.DeleteBuffer(quad_vbo);
             GL.DeleteBuffer(quad_ebo);
             GL.DeleteFramebuffer(fb_diffuse);
+            
         }
 
         public void Dispose()
@@ -2520,15 +2536,7 @@ namespace GMDL
                 samplers.Clear();
                 reColourings.Clear();
                 //Texture lists should have been disposed from the dictionary
-                foreach (Texture t in difftextures)
-                    if (t!=null) t.Dispose();
-                difftextures.Clear();
-                foreach (Texture t in masktextures)
-                    if (t != null) t.Dispose();
-                masktextures.Clear();
-                foreach (Texture t in normaltextures)
-                    if (t != null) t.Dispose();
-                normaltextures.Clear();
+                cleanupOriginals();
 
                 if (fDiffuseMap != null) fDiffuseMap.Dispose();
                 if (fMaskMap != null) fMaskMap.Dispose();
@@ -2545,6 +2553,19 @@ namespace GMDL
             Dispose(false);
         }
 
+        public void cleanupOriginals()
+        {
+            foreach (Texture t in difftextures)
+                if (t != null) t.Dispose();
+            difftextures.Clear();
+            foreach (Texture t in masktextures)
+                if (t != null) t.Dispose();
+            masktextures.Clear();
+            foreach (Texture t in normaltextures)
+                if (t != null) t.Dispose();
+            normaltextures.Clear();
+
+        }
         
     }
     
@@ -2625,10 +2646,16 @@ namespace GMDL
         //Path Initializer
         public Texture(string path)
         {
+            DDSImage ddsImage;
             if (!File.Exists(path))
+            {
                 throw new System.IO.FileNotFoundException();
-            
-            DDSImage ddsImage = new DDSImage(File.ReadAllBytes(Path.Combine(Model_Viewer.Util.dirpath, path)));
+                //path = "default.dds";
+            }
+            else path = Path.Combine(Model_Viewer.Util.dirpath, path);
+
+            ddsImage = new DDSImage(File.ReadAllBytes(path));
+
             name = path;
             Debug.WriteLine("Sampler Name Path " + path + " Width {0} Height {1}", ddsImage.header.dwWidth, ddsImage.header.dwHeight);
             width = ddsImage.header.dwWidth;
@@ -2644,6 +2671,10 @@ namespace GMDL
                     pif = PixelInternalFormat.CompressedRgbaS3tcDxt5Ext;
                     containsAlphaMap = true;
                     break;
+                case (0x32495441): //ATI2A2XY
+                    pif = PixelInternalFormat.CompressedRgRgtc2;
+                    containsAlphaMap = true;
+                    break;
                 default:
                     throw new ApplicationException("Unimplemented Pixel format");
             }
@@ -2652,13 +2683,19 @@ namespace GMDL
             //Upload to GPU
             bufferID = GL.GenTexture();
             GL.BindTexture(TextureTarget.Texture2D, bufferID);
+            GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, this.pif,
+                this.width, this.height, 0, ddsImage.header.dwPitchOrLinearSize, ddsImage.bdata);
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureLodBias, -0.2f);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
+            
+            
 
-            GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, this.pif,
-                this.width, this.height, 0, ddsImage.header.dwPitchOrLinearSize, ddsImage.bdata);
+
+
 
             ddsImage = null;
         }

@@ -276,6 +276,7 @@ public static class MATERIALMBIN
         //Read Data Type
         charbuffer = br.ReadChars(0x48);
         //Read Directory Type
+        br.BaseStream.Seek(0x60, SeekOrigin.Begin);
         charbuffer = br.ReadChars(0x80);
         string matname = new string(charbuffer);
         
@@ -985,9 +986,11 @@ public static class GEOMMBIN {
 
             //Get Material
             string matname = ((XmlElement)attribs.ChildNodes[6].SelectSingleNode("Property[@name='Value']")).GetAttribute("value");
+            string[] split = matname.Split('\\');
+            string matkey = split[split.Length - 1];
             //Check if material already in Resources
-            if (Util.resMgmt.GLmaterials.ContainsKey(matname))
-                so.material = Util.resMgmt.GLmaterials[matname];
+            if (Util.resMgmt.GLmaterials.ContainsKey(matkey))
+                so.material = Util.resMgmt.GLmaterials[matkey];
             else
             {
                 //Parse material file
@@ -1001,12 +1004,17 @@ public static class GEOMMBIN {
                 ms.Close();
                 so.material = mat;
                 //Store the material to the Resources
-                Util.resMgmt.GLmaterials[matname] = mat;
+                Util.resMgmt.GLmaterials[matkey] = mat;
             }
 
             //Decide if its a skinned mesh or not
-            //if (so.firstskinmat == so.lastskinmat)
-            //    so.skinned = 0;
+            so.skinned = 0;
+            foreach (int ui in so.material.materialflags)
+            {
+                if (ui == 1) so.skinned = 1;
+            }
+              
+            
             
             //Configure boneRemap properly
             so.BoneRemap = new int[so.lastskinmat - so.firstskinmat];
@@ -1115,14 +1123,14 @@ public static class GEOMMBIN {
             //Getting Scene MBIN file
             XmlElement opt = ((XmlElement)attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']"));
             string path = Path.GetFullPath(Path.Combine(Util.dirpath, opt.GetAttribute("value")));
-
+            string exmlPath = Util.getExmlPath(path);
             //Debug.WriteLine("Loading Scene " + path);
             XmlDocument newXml = new XmlDocument(); 
             //Parse MBIN to xml
-            if (!File.Exists(Util.getExmlPath(path)))
+            if (!Util.compareFileSizes(path,exmlPath))
                 Util.MbinToExml(path, Util.getExmlPath(path));
             
-            newXml.Load(Util.getExmlPath(path));
+            newXml.Load(exmlPath);
 
             //Read new Scene
             GMDL.scene so = LoadObjects(newXml);

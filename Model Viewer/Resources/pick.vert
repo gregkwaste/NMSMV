@@ -12,11 +12,15 @@ layout(location=4) in vec4 bPosition; //bitangents
 layout(location=5) in vec4 blendIndices;
 layout(location=6) in vec4 blendWeights;
 
-uniform int boneRemap[256];
-uniform mat4 skinMats[128];
-uniform bool matflags[64];
+layout(location=11) uniform bool matflags[64];
+layout(location=75) uniform int boneRemap[256];
+layout(location=331) uniform mat4 skinMats[128];
 uniform int id;
-uniform mat4 mvp, worldMat;
+
+layout(location=7) uniform mat4 mvp;
+layout(location=8) uniform mat4 nMat;
+layout(location=9) uniform mat4 rotMat;
+layout(location=10) uniform mat4 worldMat;
 
 flat out int object_id;
 

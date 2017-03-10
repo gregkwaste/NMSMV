@@ -31,8 +31,8 @@ public class FontGL
     {
         alphabet = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
 
-        foreach (char c in alphabet)
-            Debug.WriteLine(c);
+        //foreach (char c in alphabet)
+        //    Debug.WriteLine(c);
 
         //Character Settings for font
         cw = 50;
@@ -109,7 +109,6 @@ public class FontGL
         for (int i = 0; i < clength; i++)
         {
             char c = alphabet[i];
-            Debug.WriteLine(c);
             int x_id = i % 10;
             int y_id = i / 10;
 
@@ -171,8 +170,9 @@ public class FontGL
             glph.pos[1] = new Vector2(((float)br_x) / im.width,
                                       ((float)br_y) / im.height);
 
-            Debug.WriteLine("TL Corner " + tl_x + " " + tl_y);
-            Debug.WriteLine("BR Corner " + br_x + " " + br_y);
+            //Debug.WriteLine("TL Corner " + tl_x + " " + tl_y);
+            //Debug.WriteLine("BR Corner " + br_x + " " + br_y);
+            
             //Store to dict
             char_dict[c] = glph;
 

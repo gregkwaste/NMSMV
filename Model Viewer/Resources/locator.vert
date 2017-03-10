@@ -4,7 +4,11 @@
 
 layout(location=0) in vec3 vPosition;
 layout(location=1) in vec3 vcolor;
-uniform mat4 mvp, worldMat;
+layout(location=7) uniform mat4 mvp;
+layout(location=8) uniform mat4 nMat;
+layout(location=9) uniform mat4 rotMat;
+layout(location=10) uniform mat4 worldMat;
+
 out vec3 color;
 out vec4 finalPos;
 

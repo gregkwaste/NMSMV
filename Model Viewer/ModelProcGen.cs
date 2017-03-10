@@ -81,9 +81,75 @@ namespace Model_Viewer
             array[offset + 15] = mat.M44;
         }
 
+
+        //Check files
+        public static bool compareFileSizes(string filepath1, string filepath2)
+        {
+            if (!File.Exists(filepath1)) return false;
+            if (!File.Exists(filepath2)) return false;
+
+            var f1 = new FileStream(filepath1, FileMode.Open);
+            var f2 = new FileStream(filepath2, FileMode.Open);
+            var l1 = f1.Length;
+            var l2 = f2.Length;
+            f1.Close();
+            f2.Close();
+
+            if (l1 != l2) return false;
+
+            return true;
+        }
+
+        public static bool compareFilesHash(string filepath1, string filepath2)
+        {
+            using (var reader1 = new System.IO.FileStream(filepath1, System.IO.FileMode.Open, System.IO.FileAccess.Read))
+            {
+                using (var reader2 = new System.IO.FileStream(filepath2, System.IO.FileMode.Open, System.IO.FileAccess.Read))
+                {
+                    byte[] hash1;
+                    byte[] hash2;
+
+                    using (var md51 = new System.Security.Cryptography.MD5CryptoServiceProvider())
+                    {
+                        md51.ComputeHash(reader1);
+                        hash1 = md51.Hash;
+                    }
+
+                    using (var md52 = new System.Security.Cryptography.MD5CryptoServiceProvider())
+                    {
+                        md52.ComputeHash(reader2);
+                        hash2 = md52.Hash;
+                    }
+
+                    int j = 0;
+                    for (j = 0; j < hash1.Length; j++)
+                    {
+                        if (hash1[j] != hash2[j])
+                        {
+                            break;
+                        }
+                    }
+
+                    if (j == hash1.Length)
+                    {
+                        return true;
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+        
+
+
+
         //Convert Path to EXML
         public static string getExmlPath(string path)
         {
+            //Fix Path incase of reference
+            path = path.Replace('/', '\\');
             string[] split = path.Split('.');
             string newpath = "";
             //for (int i = 0; i < split.Length - 1; i++)
@@ -116,6 +182,7 @@ namespace Model_Viewer
 
     public static class Palettes
     {
+        public static int activeID = -1;
         public static readonly float rbgFloat = 0.003921f;
         public static readonly List<Vector3> Paint = new List<Vector3> { Vector3.Multiply(new Vector3 (230, 230, 230) , rbgFloat),
                                                                         Vector3.Multiply(new Vector3 (255, 223, 181) , rbgFloat),
@@ -1097,6 +1164,71 @@ namespace Model_Viewer
                                                                             Vector3.Multiply(new Vector3 (69, 78, 84) , rbgFloat),
                                                                             Vector3.Multiply(new Vector3 (84, 98, 60) , rbgFloat) };
 
+        public static readonly List<Vector3> Plastic = new List<Vector3> {Vector3.Multiply(new Vector3(206, 148, 157) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(228, 253, 158) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(255, 255, 159) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(224, 181, 241) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(172, 189, 239) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(196, 134, 128) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(195, 126, 143) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(247, 211, 183) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(204, 147, 173) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(165, 121, 83) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(253, 244, 157) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(241, 173, 241) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(180, 220, 244) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(236, 122, 106) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(195, 126, 156) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(134, 182, 237) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(204, 147, 198) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(135, 145, 134) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(245, 196, 137) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(247, 211, 148) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(192, 250, 250) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(239, 152, 114) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(130, 131, 134) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(176, 152, 235) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(202, 105, 232) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(103, 109, 116) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(239, 154, 124) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(179, 173, 238) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(184, 250, 208) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(240, 164, 117) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(214, 96, 233) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(139, 203, 152) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(143, 97, 229) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(152, 248, 198) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(206, 150, 149) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(240, 161, 165) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(199, 199, 198) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(245, 199, 129) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(150, 81, 228) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(192, 128, 93) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(149, 145, 202) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(234, 200, 207) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(131, 138, 101) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(241, 167, 141) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(229, 253, 180) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(252, 241, 144) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(137, 136, 140) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(159, 137, 211) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(144, 156, 203) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(137, 151, 164) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(194, 250, 202) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(254, 252, 174) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(158, 204, 141) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(255, 255, 150) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(219, 191, 172) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(174, 165, 146) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(248, 215, 213) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(132, 210, 241) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(255, 255, 255) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(234, 165, 116) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(177, 178, 179) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(237, 253, 147) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(104, 120, 130) , rbgFloat),
+                                                                            Vector3.Multiply(new Vector3(124, 123, 111) , rbgFloat) };
+
         public static readonly List<Vector3> Scientific = new List<Vector3>
         { Vector3.Multiply(new Vector3 (255, 0, 255) , rbgFloat)};
 
@@ -1139,7 +1271,7 @@ namespace Model_Viewer
         {
             Dictionary<string, Dictionary<string, Vector4>> newPal;
             newPal = new Dictionary<string, Dictionary<string, Vector4>>();
-
+            
             Type t = typeof(Palettes);
             FieldInfo[] fields = t.GetFields(System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
             foreach (FieldInfo f in fields)
@@ -1179,7 +1311,7 @@ namespace Model_Viewer
                         newPal[f.Name]["Alternative4"] = new Vector4(palette[4 * rand + 3], 1.0f);
 
                         //Explicitly Set unique to completely random color
-                        rand = Util.randgen.Next(0, 64);
+                        //rand = Util.randgen.Next(0, 64);
                         newPal[f.Name]["Unique"] = newPal[f.Name]["Primary"];
 
                         //Force None to Primary
@@ -1229,12 +1361,72 @@ namespace Model_Viewer
                         newPal[f.Name]["Alternative2"] = new Vector4(palette[0], 1.0f);
                         newPal[f.Name]["Alternative3"] = new Vector4(palette[0], 1.0f);
                         break;
-                    default:
-                        throw new ApplicationException("Missing Palette " + f.Name);
+                    case ("Plastic"):
                         //Chose 1/64 random color
                         rand = Util.randgen.Next(0, 64);
                         newPal[f.Name]["Primary"] = new Vector4(palette[rand], 1.0f);
-                        //newPal[f.Name]["None"] = palette[rand];
+                        break;
+
+                    default:
+                        throw new ApplicationException("Missing Palette " + f.Name);
+                        break;
+                }
+            }
+            return newPal;
+        }
+
+        public static Dictionary<string, Dictionary<string, Vector4>> createPaletteUID()
+        {
+            Dictionary<string, Dictionary<string, Vector4>> newPal;
+            newPal = new Dictionary<string, Dictionary<string, Vector4>>();
+            //Select unique ID
+            int UID = Util.randgen.Next(0, 64);
+
+
+
+            Type t = typeof(Palettes);
+            FieldInfo[] fields = t.GetFields(System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
+            foreach (FieldInfo f in fields)
+            {
+                //Check field type
+                if (f.FieldType != typeof(List<Vector3>))
+                    continue;
+                //Get palette
+                List<Vector3> palette = (List<Vector3>)f.GetValue(null);
+
+                //Add palette to dictionary
+                newPal[f.Name] = new Dictionary<string, Vector4>();
+                //Add None option
+                newPal[f.Name]["None"] = new Vector4(0.0f, 0.0f, 0.0f, 0.0f);
+
+                int rand = UID;
+                switch (f.Name)
+                {
+                    //New Palettes
+                    case ("Scientific"):
+                    case ("ScientificAlt"):
+                    case ("Trader"):
+                    case ("TraderAlt"):
+                    case ("Warrior"):
+                    case ("WarriorAlt"):
+                        newPal[f.Name]["Primary"] = new Vector4(palette[0], 1.0f);
+                        newPal[f.Name]["Alternative1"] = new Vector4(palette[0], 1.0f);
+                        newPal[f.Name]["Alternative2"] = new Vector4(palette[0], 1.0f);
+                        newPal[f.Name]["Alternative3"] = new Vector4(palette[0], 1.0f);
+                        break;
+                    default:
+                        newPal[f.Name]["Primary"] = new Vector4(palette[rand], 1.0f);
+                        newPal[f.Name]["Alternative1"] = new Vector4(palette[rand], 1.0f);
+                        newPal[f.Name]["Alternative2"] = new Vector4(palette[rand], 1.0f);
+                        newPal[f.Name]["Alternative3"] = new Vector4(palette[rand], 1.0f);
+                        //Used By plants
+                        newPal[f.Name]["MatchGround"] = new Vector4(palette[rand], 1.0f);
+                        //I have no idea where the fuck the 5th color comes from
+                        newPal[f.Name]["Alternative4"] = new Vector4(palette[rand], 1.0f);
+
+                        //Explicitly Set unique to completely random color
+                        //rand = Util.randgen.Next(0, 64);
+                        newPal[f.Name]["Unique"] = newPal[f.Name]["Primary"];
                         break;
                 }
             }
@@ -1354,7 +1546,8 @@ namespace Model_Viewer
         {
             //Initialize the palette everytime this is called
             paletteSel = new Dictionary<string, Dictionary<string, Vector4>>();
-            paletteSel = createPalette();
+            //paletteSel = createPalette();
+            paletteSel = createPaletteUID();
         }
     }
 

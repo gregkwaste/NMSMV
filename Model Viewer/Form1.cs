@@ -49,6 +49,10 @@ namespace Model_Viewer
         //Mouse Pos
         private int mouse_x;
         private int mouse_y;
+        //Gamepad
+        private int gamepadID = -1;
+        private GamepadHandler gpHandler;
+
 
         public int childCounter = 0;
 
@@ -177,14 +181,14 @@ namespace Model_Viewer
 
             //Initialize Palettes
             Model_Viewer.Palettes.set_palleteColors();
-            
+
             t.Stop();
             this.glControl1.Paint -= this.glControl1_Paint;
             this.mainScene.Dispose(); //Prevent rendering
             this.mainScene = null;
             t.Start();
             RightSplitter.Panel1.Controls.Clear();
-            
+
             //Clear Form Resources
             Util.resMgmt.Cleanup();
             ModelProcGen.procDecisions.Clear();
@@ -235,6 +239,12 @@ namespace Model_Viewer
             glControl1.Update();
             glControl1.Invalidate();
 
+            //Cleanup Materials
+            foreach (GMDL.Material mat in Util.resMgmt.GLmaterials.Values)
+            {
+                //mat.cleanupOriginals();
+            }
+
             Util.setStatus("Ready", this.toolStripStatusLabel1);
         }
 
@@ -255,55 +265,55 @@ namespace Model_Viewer
             ggs = GLSL_Preprocessor.Parser("Shaders/Simple_GS.glsl");
             ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FSEmpty.glsl");
 
-            GLShaderHelper.CreateShaders(vvs, ffs, ggs, out vertex_shader_ob,
+            GLShaderHelper.CreateShaders(vvs, ffs, ggs, "","", out vertex_shader_ob,
                     out fragment_shader_ob, out Util.resMgmt.shader_programs[5]);
 
             //Main Shader
             vvs = GLSL_Preprocessor.Parser("Shaders/Simple_VS.glsl");
             ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FS.glsl");
-            GLShaderHelper.CreateShaders(vvs, ffs, "", out vertex_shader_ob,
+            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
                     out fragment_shader_ob, out Util.resMgmt.shader_programs[0]);
 
             //Texture Mixing Shaders
             vvs = GLSL_Preprocessor.Parser("Shaders/pass_VS.glsl");
             ffs = GLSL_Preprocessor.Parser("Shaders/pass_FS.glsl");
-            GLShaderHelper.CreateShaders(vvs, ffs, "", out vertex_shader_ob,
+            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
                     out fragment_shader_ob, out Util.resMgmt.shader_programs[3]);
 
             //GBuffer Shaders
             vvs = GLSL_Preprocessor.Parser("Shaders/Gbuffer_VS.glsl");
             ffs = GLSL_Preprocessor.Parser("Shaders/Gbuffer_FS.glsl");
-            GLShaderHelper.CreateShaders(vvs, ffs, "", out vertex_shader_ob,
+            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
                     out fragment_shader_ob, out Util.resMgmt.shader_programs[9]);
 
             //Decal Shaders
             vvs = GLSL_Preprocessor.Parser("Shaders/decal_VS.glsl");
             ffs = GLSL_Preprocessor.Parser("Shaders/Decal_FS.glsl");
-            GLShaderHelper.CreateShaders(vvs, ffs, "", out vertex_shader_ob,
+            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
                     out fragment_shader_ob, out Util.resMgmt.shader_programs[10]);
 
             //Locator Shaders
-            GLShaderHelper.CreateShaders(Resources.locator_vert, Resources.locator_frag, "", out vertex_shader_ob,
+            GLShaderHelper.CreateShaders(Resources.locator_vert, Resources.locator_frag, "", "", "", out vertex_shader_ob,
                 out fragment_shader_ob, out Util.resMgmt.shader_programs[1]);
             
             //Joint Shaders
-            GLShaderHelper.CreateShaders(Resources.joint_vert, Resources.joint_frag, "", out vertex_shader_ob,
+            GLShaderHelper.CreateShaders(Resources.joint_vert, Resources.joint_frag, "", "", "", out vertex_shader_ob,
                 out fragment_shader_ob, out Util.resMgmt.shader_programs[2]);
 
             //Text Shaders
-            GLShaderHelper.CreateShaders(Resources.text_vert, Resources.text_frag, "", out vertex_shader_ob,
+            GLShaderHelper.CreateShaders(Resources.text_vert, Resources.text_frag, "", "", "", out vertex_shader_ob,
                 out fragment_shader_ob, out Util.resMgmt.shader_programs[4]);
 
             //Picking Shaders
-            GLShaderHelper.CreateShaders(Resources.pick_vert, Resources.pick_frag, "", out vertex_shader_ob,
+            GLShaderHelper.CreateShaders(Resources.pick_vert, Resources.pick_frag, "", "", "", out vertex_shader_ob,
                 out fragment_shader_ob, out Util.resMgmt.shader_programs[6]);
 
             //Light Shaders
-            GLShaderHelper.CreateShaders(Resources.light_vert, Resources.light_frag, "", out vertex_shader_ob,
+            GLShaderHelper.CreateShaders(Resources.light_vert, Resources.light_frag, "", "", "", out vertex_shader_ob,
                 out fragment_shader_ob, out Util.resMgmt.shader_programs[7]);
 
             //Camera Shaders
-            GLShaderHelper.CreateShaders(Resources.camera_vert, Resources.camera_frag, "", out vertex_shader_ob,
+            GLShaderHelper.CreateShaders(Resources.camera_vert, Resources.camera_frag, "", "", "", out vertex_shader_ob,
                 out fragment_shader_ob, out Util.resMgmt.shader_programs[8]);
             
             
@@ -357,8 +367,13 @@ namespace Model_Viewer
             for (int i = 0; i < 2; i++)
             {
                 var caps = OpenTK.Input.GamePad.GetCapabilities(i);
-                Debug.WriteLine(caps);
+                if (caps.GamePadType == OpenTK.Input.GamePadType.Unknown) break;
+                gamepadID = i;
+                Debug.WriteLine(caps + caps.GetType().Name);
             }
+            //Setup GamePad Handler
+            gpHandler = new GamepadHandler(gamepadID);
+
 
             //Load Settings
             Settings.loadSettings();
@@ -437,6 +452,26 @@ namespace Model_Viewer
 
         }
 
+        private void gamepadController()
+        {
+            //This Method handles and controls the gamepad input
+            //Move camera
+            //Debug.WriteLine(gpHandler.getAxsState(0, 0));
+            //Debug.WriteLine(gpHandler.getBtnState(1) - gpHandler.getBtnState(0));
+            //Debug.WriteLine(gpHandler.getAxsState(0, 1));
+            for (int i = 0; i < movement_speed; i++)
+                activeCam.Move(gpHandler.getAxsState(0, 0),
+                               gpHandler.getAxsState(0, 1),
+                               (gpHandler.getBtnState(1) - gpHandler.getBtnState(0) ));
+            //Rotate Camera
+            //for (int i = 0; i < movement_speed; i++)
+            activeCam.AddRotation(-3.0f * gpHandler.getAxsState(1, 0), 3.0f *gpHandler.getAxsState(1, 1));
+
+
+
+        }
+
+
         private void setupFont()
         {
             font = new FontGL();
@@ -509,6 +544,12 @@ namespace Model_Viewer
         //glControl Timer
         private void timer_ticker(object sender, EventArgs e)
         {
+            //Handle Gamepad Input
+            gpHandler.updateState();
+            //Debug.WriteLine(gpHandler.getAxsState(0, 0).ToString() + " " +  gpHandler.getAxsState(0, 1).ToString());
+            //gpHandler.reportButtons();
+            gamepadController(); //Move camera according to input
+
             //Update common transforms
             activeCam.aspect = (float)glControl1.ClientSize.Width / glControl1.ClientSize.Height;
             activeCam.updateViewMatrix();
@@ -524,7 +565,7 @@ namespace Model_Viewer
             occludedNum = 0; //Reset Counter
 
             //Simply invalidate the gl control
-            glControl1.MakeCurrent();
+            //glControl1.MakeCurrent();
             glControl1.Invalidate();
         }
 
@@ -715,6 +756,8 @@ namespace Model_Viewer
             GL.Ext.RenderbufferStorage(RenderbufferTarget.RenderbufferExt, RenderbufferStorage.Rgba8, tex_w, tex_h);
             GL.Ext.FramebufferRenderbuffer(FramebufferTarget.FramebufferExt, FramebufferAttachment.ColorAttachment0Ext, RenderbufferTarget.RenderbufferExt, color_rb);
 
+            Console.WriteLine("Selected Ob: Last GL Error: " + GL.GetError());
+
             GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, fb);
             //Bind depth renderbuffer
             GL.Ext.BindRenderbuffer(RenderbufferTarget.RenderbufferExt, depth_rb);
@@ -722,16 +765,23 @@ namespace Model_Viewer
             GL.Ext.FramebufferRenderbuffer(FramebufferTarget.FramebufferExt, FramebufferAttachment.DepthAttachmentExt, RenderbufferTarget.RenderbufferExt, depth_rb);
             GL.Ext.FramebufferTexture(FramebufferTarget.FramebufferExt, FramebufferAttachment.DepthAttachmentExt, depth_tex, 0);
 
+            Console.WriteLine("Selected Ob: Last GL Error: " + GL.GetError());
+
             //Draw Scene
             GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, fb);//Now render objects with the picking program
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+            GL.Viewport(0, 0, tex_w, tex_h);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            
+
+            Console.WriteLine("Selected Ob: Last GL Error: " + GL.GetError());
+
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
                 Debug.WriteLine("MALAKIES STO FRAMEBUFFER" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
             if (this.mainScene != null) traverse_render(this.mainScene, 2);
+
+            Console.WriteLine("Selected Ob: Last GL Error: " + GL.GetError());
 
             //Store Framebuffer to Disk
             byte[] pixels = new byte[4 * tex_w * tex_h];
@@ -740,6 +790,8 @@ namespace Model_Viewer
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             //GL.CopyTexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent, 0, 0, tex_w, tex_h, 0);
             GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.DepthComponent, PixelType.Float, pixels);
+            Console.WriteLine("Selected Ob: Last GL Error: " + GL.GetError());
+
             FileStream fs = new FileStream("depthTexture", FileMode.Create);
             BinaryWriter bw = new BinaryWriter(fs);
             bw.Write(pixels);
@@ -959,13 +1011,12 @@ namespace Model_Viewer
 
 
             //Global stuff
-            loc = GL.GetUniformLocation(active_program, "worldMat");
+            //loc = GL.GetUniformLocation(active_program, "worldMat");
             Matrix4 wMat = root.worldMat;
-            GL.UniformMatrix4(loc, false, ref wMat);
+            GL.UniformMatrix4(10, false, ref wMat); //WORLD MATRIX
 
             //Send mvp to all shaders
-            loc = GL.GetUniformLocation(active_program, "mvp");
-            GL.UniformMatrix4(loc, false, ref mvp);
+            GL.UniformMatrix4(7, false, ref mvp); //MVP
 
 
             switch (program)
@@ -990,13 +1041,13 @@ namespace Model_Viewer
             {
                 case (TYPES.MESH):
                     //Sent rotation matrix individually for light calculations
-                    loc = GL.GetUniformLocation(active_program, "rotMat");
-                    GL.UniformMatrix4(loc, false, ref rotMat);
+                    //loc = GL.GetUniformLocation(active_program, "rotMat");
+                    GL.UniformMatrix4(9, false, ref rotMat); //ROTATION MATRIX
 
                     //Normal Matrix
-                    loc = GL.GetUniformLocation(active_program, "nMat");
+                    //loc = GL.GetUniformLocation(active_program, "nMat");
                     Matrix4 nMat = Matrix4.Invert(root.worldMat * rotMat);
-                    GL.UniformMatrix4(loc, false, ref nMat);
+                    GL.UniformMatrix4(8, false, ref nMat); //NORMAL MATRIX
 
                     //Send DiffuseFlag
                     loc = GL.GetUniformLocation(active_program, "diffuseFlag");
@@ -1107,6 +1158,7 @@ namespace Model_Viewer
                 c.rootObject.Dispose(); //Prevent rendering
                 c.rootObject = null;
                 //Cleanup control resources
+                Debug.WriteLine("Cleaning Up control Resources");
                 c.resMgmt.Cleanup();
             }
 
@@ -1427,8 +1479,6 @@ namespace Model_Viewer
 
             //Store the dumps
             gbuf.dump();
-
-
             render_decals();
 
             //render_cameras();
@@ -1928,7 +1978,7 @@ namespace Model_Viewer
 
             //Setup Textures
             GL.BindTexture(TextureTarget.Texture2D, dump_diff);
-            Console.WriteLine("Dump, Last GL Error: " + GL.GetError());
+            
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, size[0], size[1], 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
@@ -1951,13 +2001,13 @@ namespace Model_Viewer
 
             GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, dump_fbo);
 
-            Console.WriteLine("Dump, Last GL Error: " + GL.GetError());
+            //Console.WriteLine("Dump, Last GL Error: " + GL.GetError());
             GL.Ext.FramebufferTexture2D(FramebufferTarget.FramebufferExt, FramebufferAttachment.ColorAttachment0Ext, TextureTarget.Texture2D, dump_diff, 0);
-            Console.WriteLine("Dump, Last GL Error: " + GL.GetError());
+            //Console.WriteLine("Dump, Last GL Error: " + GL.GetError());
             GL.Ext.FramebufferTexture2D(FramebufferTarget.FramebufferExt, FramebufferAttachment.ColorAttachment1Ext, TextureTarget.Texture2D, dump_pos, 0);
-            Console.WriteLine("Dump, Last GL Error: " + GL.GetError());
+            //Console.WriteLine("Dump, Last GL Error: " + GL.GetError());
             GL.Ext.FramebufferTexture2D(FramebufferTarget.FramebufferExt, FramebufferAttachment.DepthAttachmentExt, TextureTarget.Texture2D, dump_depth, 0);
-            Console.WriteLine("Dump, Last GL Error: " + GL.GetError());
+            //Console.WriteLine("Dump, Last GL Error: " + GL.GetError());
 
             
         }
@@ -1986,7 +2036,7 @@ namespace Model_Viewer
 
                     GL.BindFramebuffer(FramebufferTarget.FramebufferExt, fbo);
                     GL.Ext.FramebufferTexture2D(FramebufferTarget.FramebufferExt, t, TextureTarget.Texture2DMultisample, handle, 0);
-                    Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+                    //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
 
                     break;
                 //ColorAttachment1 Positions
@@ -2000,7 +2050,7 @@ namespace Model_Viewer
                     //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
                     GL.BindFramebuffer(FramebufferTarget.FramebufferExt, fbo);
                     GL.Ext.FramebufferTexture2D(FramebufferTarget.FramebufferExt, t, TextureTarget.Texture2DMultisample, handle, 0);
-                    Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+                    //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
 
                     break;
                 default:
@@ -2015,7 +2065,7 @@ namespace Model_Viewer
                     //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
                     //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
                     //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
-                    Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+                    //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
                     break;
             }
 
@@ -2085,7 +2135,10 @@ namespace Model_Viewer
             GL.Enable(EnableCap.Multisample); //not making any difference probably needs to be removed
             GL.Enable(EnableCap.Texture2D);
             GL.Enable(EnableCap.DepthTest);
-            
+            GL.PatchParameter(PatchParameterFloat.PatchDefaultInnerLevel, new float[] { 2.0f });
+            GL.PatchParameter(PatchParameterFloat.PatchDefaultOuterLevel, new float[] { 4.0f, 4.0f, 4.0f });
+            GL.PatchParameter(PatchParameterInt.PatchVertices, 3);
+
             GL.Viewport(0, 0, size[0], size[1]);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
@@ -2133,7 +2186,7 @@ namespace Model_Viewer
                                    ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit, 
                                    BlitFramebufferFilter.Nearest);
 
-            Console.WriteLine("Dump, Last GL Error: " + GL.GetError());
+            //Console.WriteLine("Dump, Last GL Error: " + GL.GetError());
         }
 
 
@@ -2144,10 +2197,10 @@ namespace Model_Viewer
             GL.Ext.BindFramebuffer(FramebufferTarget.ReadFramebuffer, fbo);
             GL.Ext.BindFramebuffer(FramebufferTarget.DrawFramebuffer, dump_fbo);
             
-            FileStream fs;
-            BinaryWriter bw;
-            byte[] pixels;
-            pixels = new byte[4 * size[0] * size[1]];
+            //FileStream fs;
+            //BinaryWriter bw;
+            //byte[] pixels;
+            //pixels = new byte[4 * size[0] * size[1]];
             //Debug.WriteLine("Dumping Framebuffer textures " + size[0] + " " + size[1]);
 
             //Read Color1
@@ -2193,11 +2246,12 @@ namespace Model_Viewer
                                    ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit,
                                    BlitFramebufferFilter.Nearest);
 
+#if TEST
             //Save Diffuse Color
             GL.BindTexture(TextureTarget.Texture2D, dump_diff);
             GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
 
-#if TEST
+
             //Save to disk
             fs = new FileStream("dump.color0", FileMode.Create, FileAccess.Write);
             bw = new BinaryWriter(fs);
@@ -2205,7 +2259,7 @@ namespace Model_Viewer
             bw.Close();
             fs.Close();
 #endif
-            
+
 
             //Rebind Gbuffer fbo
             GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, fbo);

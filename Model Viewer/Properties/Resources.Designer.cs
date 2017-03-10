@@ -86,13 +86,13 @@ namespace Model_Viewer.Properties {
         /// */
         ///layout(location=0) in vec4 vPosition;
         ///layout(location=1) in vec4 nPosition; //normals
-        ///uniform mat4 self_proj, self_look;
-        ///uniform mat4 mvp;
+        ///uniform mat4 self_mvp, mvp;
         ///
         /////Outputs
         ///void main()
         ///{
-        ///    gl_Position = mvp * inverse(self_proj* self_look) * vPosition;
+        ///    gl_Position = mvp * inverse(self_mvp) * vPosition;
+        ///	gl_Position = gl_Position * 1.0f/gl_Position.w;
         ///}.
         /// </summary>
         internal static string camera_vert {
@@ -161,24 +161,12 @@ namespace Model_Viewer.Properties {
         ///   Looks up a localized string similar to #version 330
         ///
         ///layout(location=0) in vec4 vPosition;
-        ///uniform mat4 look, proj;
-        ///uniform vec3 theta;
+        ///uniform mat4 mvp;
         ///
         ///void main()
         ///{
-        ///	vec3 angles = radians( theta );
-        ///    vec3 c = cos( angles );
-        ///    vec3 s = sin( angles );
-        ///    
-        ///	// Remeber: thse matrices are column-major
-        ///    mat4 rx = mat4( 1.0,  0.0,  0.0, 0.0,
-        ///            		0.0,  c.x,  s.x, 0.0,
-        ///            		0.0, -s.x,  c.x, 0.0,
-        ///            		0.0,  0.0,  0.0, 1.0 );
-        ///
-        ///    mat4 ry = mat4( c.y, 0.0, -s.y, 0.0,
-        ///            0.0, 1.0,  0.0, 0.0,
-        ///            s.y [rest of string was truncated]&quot;;.
+        ///	gl_Position = mvp * vPosition;
+        ///} .
         /// </summary>
         internal static string light_vert {
             get {
@@ -189,9 +177,15 @@ namespace Model_Viewer.Properties {
         /// <summary>
         ///   Looks up a localized string similar to /* Copies incoming fragment color without change. */
         ///in vec3 color;
+        ///in vec4 finalPos;
+        ///
+        ///out vec4 outcolors[3];
         ///void main()
         ///{	
-        ///	gl_FragColor = vec4(color, 1.0);
+        ///	outcolors[0] = vec4(color, 1.0);
+        ///	outcolors[1] = finalPos;
+        ///	outcolors[2] = vec4(1.0, 1.0, 1.0, 1.0);
+        ///
         ///}.
         /// </summary>
         internal static string locator_frag {
@@ -205,16 +199,19 @@ namespace Model_Viewer.Properties {
         ///#extension GL_ARB_explicit_uniform_location : enable
         ///#extension GL_ARB_separate_shader_objects : enable
         ///
-        ///layout(location=0) in vec4 vPosition;
+        ///layout(location=0) in vec3 vPosition;
         ///layout(location=1) in vec3 vcolor;
         ///uniform mat4 mvp, worldMat;
         ///out vec3 color;
+        ///out vec4 finalPos;
+        ///
         ///
         ///void main()
         ///{
         ///    //Set color
         ///    color = vcolor;
-        ///    gl_Position = mvp * worldMat * vPosition;
+        ///	finalPos = worldMat * vec4(vPosition, 1.0);
+        ///    gl_Position = mvp * finalPos;
         ///}.
         /// </summary>
         internal static string locator_vert {
@@ -268,6 +265,62 @@ namespace Model_Viewer.Properties {
         internal static string pick_vert {
             get {
                 return ResourceManager.GetString("pick_vert", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to //-- TessControl
+        ///
+        ///layout(vertices = 3) out;
+        ///in vec3 vPosition[];
+        ///out vec3 tcPosition[];
+        ///uniform float TessLevelInner;
+        ///uniform float TessLevelOuter;
+        ///
+        ///#define ID gl_InvocationID
+        ///
+        ///void main()
+        ///{
+        ///    tcPosition[ID] = vPosition[ID];
+        ///    if (ID == 0) {
+        ///        gl_TessLevelInner[0] = TessLevelInner;
+        ///        gl_TessLevelOuter[0] = TessLevelOuter;
+        ///        gl_TessLevelOuter[1] = TessLevelOuter;
+        ///        gl_TessLevelOuter[2] = TessLevelOuter;
+        ///    }
+        ///}
+        ///.
+        /// </summary>
+        internal static string tess_tcs {
+            get {
+                return ResourceManager.GetString("tess_tcs", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to -- TessEval
+        ///
+        ///layout(triangles, equal_spacing, cw) in;
+        ///in vec3 tcPosition[];
+        ///out vec3 tePosition;
+        ///out vec3 tePatchDistance;
+        ///uniform mat4 Projection;
+        ///uniform mat4 Modelview;
+        ///
+        ///void main()
+        ///{
+        ///    vec3 p0 = gl_TessCoord.x * tcPosition[0];
+        ///    vec3 p1 = gl_TessCoord.y * tcPosition[1];
+        ///    vec3 p2 = gl_TessCoord.z * tcPosition[2];
+        ///    tePatchDistance = gl_TessCoord;
+        ///    tePosition = normalize(p0 + p1 + p2);
+        ///    gl_Position = Projection * Modelview * vec4(tePosition, 1);
+        ///}
+        ///.
+        /// </summary>
+        internal static string tess_tes {
+            get {
+                return ResourceManager.GetString("tess_tes", resourceCulture);
             }
         }
         
