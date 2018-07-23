@@ -341,10 +341,10 @@ namespace Model_Viewer
             this.numericUpDown5.TabIndex = 15;
             this.numericUpDown5.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             this.numericUpDown5.Value = new decimal(new int[] {
-            3000,
+            600,
             0,
             0,
-            65536});
+            0});
             this.numericUpDown5.ValueChanged += new System.EventHandler(this.numericUpDown5_ValueChanged);
             // 
             // zNear_Label
@@ -380,7 +380,7 @@ namespace Model_Viewer
             this.numericUpDown4.TabIndex = 13;
             this.numericUpDown4.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             this.numericUpDown4.Value = new decimal(new int[] {
-            10,
+            2,
             0,
             0,
             65536});
@@ -468,7 +468,7 @@ namespace Model_Viewer
             65536});
             this.numericUpDown2.Location = new System.Drawing.Point(121, 29);
             this.numericUpDown2.Maximum = new decimal(new int[] {
-            50,
+            500,
             0,
             0,
             0});
@@ -489,7 +489,7 @@ namespace Model_Viewer
             | System.Windows.Forms.AnchorStyles.Right)));
             this.numericUpDown3.Location = new System.Drawing.Point(121, 55);
             this.numericUpDown3.Maximum = new decimal(new int[] {
-            30,
+            500,
             0,
             0,
             0});
@@ -503,7 +503,7 @@ namespace Model_Viewer
             this.numericUpDown3.TabIndex = 9;
             this.numericUpDown3.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             this.numericUpDown3.Value = new decimal(new int[] {
-            1,
+            10,
             0,
             0,
             0});
@@ -780,7 +780,7 @@ namespace Model_Viewer
             this.Controls.Add(this.menuStrip1);
             this.MainMenuStrip = this.menuStrip1;
             this.Name = "Form1";
-            this.Text = "No Man\'s Model Viewer v0.70";
+            this.Text = "No Man\'s Model Viewer v0.71";
             this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.Form1_FormClosed);
             this.Load += new System.EventHandler(this.Form1_Load);
             this.menuStrip1.ResumeLayout(false);

@@ -78,6 +78,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="2sComplement.cs" />
     <Compile Include="AnimationSelectForm.cs">
       <SubType>Form</SubType>
     </Compile>

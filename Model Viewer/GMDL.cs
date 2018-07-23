@@ -247,7 +247,7 @@ namespace GMDL
 
         public void animate()
         {
-            //Debug.WriteLine("Setting Frame Index {0}", frameIndex);
+            //Console.WriteLine("Setting Frame Index {0}", frameIndex);
             GMDL.AnimNodeFrameData frame = new GMDL.AnimNodeFrameData();
             frame = animMeta.frameData.frames[frameCounter];
 
@@ -263,7 +263,7 @@ namespace GMDL
                     if (node.transIndex < frame.translations.Count - 1)
                         ((GMDL.model)jointDict[node.name]).localPosition = frame.translations[node.transIndex];
                 }
-                //Debug.WriteLine("Node " + node.name+ " {0} {1} {2}",node.rotIndex,node.transIndex,node.scaleIndex);
+                //Console.WriteLine("Node " + node.name+ " {0} {1} {2}",node.rotIndex,node.transIndex,node.scaleIndex);
             }
 
             //Update JMArrays
@@ -439,8 +439,8 @@ namespace GMDL
 
         private void renderMain(int pass)
         {
-            //Debug.WriteLine("Rendering Locator {0}", this.name);
-            //Debug.WriteLine("Rendering VBO Object here");
+            //Console.WriteLine("Rendering Locator {0}", this.name);
+            //Console.WriteLine("Rendering VBO Object here");
             //VBO RENDERING
             GL.UseProgram(pass);
 
@@ -462,8 +462,8 @@ namespace GMDL
             
             //GL.DrawElements(PrimitiveType.Points, 6, DrawElementsType.UnsignedInt, this.indices);
             GL.DrawArrays(PrimitiveType.Lines, 0, 6);
-            //Debug.WriteLine("Locator Object {2} vpos {0} cpos {1} prog {3}", vpos, cpos, this.name, this.shader_program);
-            //Debug.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vertex_buffer_object,this.color_buffer_object);
+            //Console.WriteLine("Locator Object {2} vpos {0} cpos {1} prog {3}", vpos, cpos, this.name, this.shader_program);
+            //Console.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vertex_buffer_object,this.color_buffer_object);
 
             GL.DisableVertexAttribArray(0);
             GL.DisableVertexAttribArray(1);
@@ -476,7 +476,7 @@ namespace GMDL
 
             if (this.renderable == false)
             {
-                //Debug.WriteLine("Not Renderable Locator");
+                //Console.WriteLine("Not Renderable Locator");
                 return false;
             }
 
@@ -531,6 +531,11 @@ namespace GMDL
         public int batchcount = 0;
         public int firstskinmat = 0;
         public int lastskinmat = 0;
+        //New stuff Properties
+        public int lod_level = 0;
+        public int boundhullstart = 0;
+        public int boundhullend = 0;
+        
         public int skinned = 1;
         //Accurate boneRemap
         public int[] BoneRemap;
@@ -902,7 +907,7 @@ namespace GMDL
         {
             if (this.renderable == false)
             {
-                //Debug.WriteLine("Not Renderable");
+                //Console.WriteLine("Not Renderable");
                 return false;
             }
 
@@ -1006,8 +1011,8 @@ namespace GMDL
             GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
                 batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
 
-            //Debug.WriteLine("Normal Object {2} vpos {0} cpos {1} prog {3}", vpos, npos, this.name, this.shader_program);
-            //Debug.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vbo.vertex_buffer_object, this.vbo.color_buffer_object);
+            //Console.WriteLine("Normal Object {2} vpos {0} cpos {1} prog {3}", vpos, npos, this.name, this.shader_program);
+            //Console.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vbo.vertex_buffer_object, this.vbo.color_buffer_object);
 
             GL.DisableVertexAttribArray(vpos);
             GL.DisableVertexAttribArray(bI);
@@ -1033,13 +1038,17 @@ namespace GMDL
             //Skinning Stuff
             copy.firstskinmat = this.firstskinmat;
             copy.lastskinmat = this.lastskinmat;
+            copy.BoneRemap = this.BoneRemap;
+            copy.skinned = this.skinned;
+            //Render Tris
             copy.batchcount = this.batchcount;
             copy.batchstart = this.batchstart;
+            //Bound Hulls
+            copy.boundhullstart = this.boundhullstart;
+            copy.boundhullend = this.boundhullend;
             copy.color = this.color;
             if (this.material != null)
                 copy.material = this.material.Clone();
-            copy.BoneRemap = this.BoneRemap;
-            copy.skinned = this.skinned;
             copy.palette = this.palette;
             copy.cIndex = this.cIndex;
             //animation data
@@ -1068,6 +1077,9 @@ namespace GMDL
 
         public void writeGeomToStream(StreamWriter s, ref uint index)
         {
+            //For testing DO NOT EXPORT COLLISION OBJECTS
+            if (this.type == TYPES.COLLISION) return;
+            
             int vertcount = this.vertrend - this.vertrstart + 1;
             MemoryStream vms = new MemoryStream(this.vbo.geomVbuf);
             MemoryStream ims = new MemoryStream(this.vbo.geomIbuf);
@@ -1075,7 +1087,7 @@ namespace GMDL
             BinaryReader ibr = new BinaryReader(ims);
             //Start Writing
             //Object name
-            s.WriteLine("o " + this.name);
+            s.WriteLine("o " + name);
             //Get Verts
 
             //Preset Matrices for faster export
@@ -1085,52 +1097,145 @@ namespace GMDL
             vbr.BaseStream.Seek(vbo.vx_size * vertrstart, SeekOrigin.Begin);
             for (int i = 0; i < vertcount; i++)
             {
-                uint v1 = vbr.ReadUInt16();
-                uint v2 = vbr.ReadUInt16();
-                uint v3 = vbr.ReadUInt16();
-                //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
+                Vector4 v;
+                VertexAttribPointerType ntype = vbo.bufInfo[0].type;
+                int v_section_bytes = 0;
 
-                //Transform vector with worldMatrix
-                Vector4 v = new Vector4(Half.decompress(v1), Half.decompress(v2), Half.decompress(v3), 1.0f);
+                switch (ntype)
+                {
+                    case VertexAttribPointerType.HalfFloat:
+                        uint v1 = vbr.ReadUInt16();
+                        uint v2 = vbr.ReadUInt16();
+                        uint v3 = vbr.ReadUInt16();
+                        //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
+
+                        //Transform vector with worldMatrix
+                        v = new Vector4(Half.decompress(v1), Half.decompress(v2), Half.decompress(v3), 1.0f);
+                        v_section_bytes = 6;
+                        break;
+                    case VertexAttribPointerType.Float: //This is used in my custom vbos
+                        float f1 = vbr.ReadSingle();
+                        float f2 = vbr.ReadSingle();
+                        float f3 = vbr.ReadSingle();
+                        //Transform vector with worldMatrix
+                        v = new Vector4(f1, f2, f3, 1.0f);
+                        v_section_bytes = 12;
+                        break;
+                    default:
+                        throw new Exception("Unimplemented Vertex Type");
+                }
+
+                
                 v = Vector4.Transform(v, this.worldMat);
-
-
+                
                 //s.WriteLine("v " + Half.decompress(v1).ToString() + " "+ Half.decompress(v2).ToString() + " " + Half.decompress(v3).ToString());
                 s.WriteLine("v " + v.X.ToString() + " " + v.Y.ToString() + " " + v.Z.ToString());
-                vbr.BaseStream.Seek(this.vbo.vx_size - 0x6, SeekOrigin.Current);
+                vbr.BaseStream.Seek(this.vbo.vx_size - v_section_bytes, SeekOrigin.Current);
             }
             //Get Normals
 
             vbr.BaseStream.Seek(vbo.n_stride + vbo.vx_size * vertrstart, SeekOrigin.Begin);
             for (int i = 0; i < vertcount; i++)
             {
-                uint v1 = vbr.ReadUInt16();
-                uint v2 = vbr.ReadUInt16();
-                uint v3 = vbr.ReadUInt16();
+                Vector4 vN;
+                VertexAttribPointerType ntype = vbo.bufInfo[2].type;
+                int n_section_bytes = 0;
+
+                
+
+                switch (ntype)
+                {
+                    case (VertexAttribPointerType.Float):
+                        float f1, f2, f3;
+                        f1 = vbr.ReadSingle();
+                        f2 = vbr.ReadSingle();
+                        f3 = vbr.ReadSingle();
+                        vN = new Vector4(f1, f2, f3, 1.0f);
+                        n_section_bytes = 12;
+                        break;
+                    case (VertexAttribPointerType.HalfFloat):
+                        uint v1, v2, v3, v4;
+                        v1 = vbr.ReadUInt16();
+                        v2 = vbr.ReadUInt16();
+                        v3 = vbr.ReadUInt16();
+                        vN = new Vector4(Half.decompress(v1), Half.decompress(v2), Half.decompress(v3), 1.0f);
+                        n_section_bytes = 6;
+                        break;
+                    case (VertexAttribPointerType.Int2101010Rev):
+                        int i1, i2, i3, i4;
+                        uint value;
+                        byte[] a32 = new byte[4];
+                        a32 = vbr.ReadBytes(4);
+
+                        //Big Endian
+                        //Array.Reverse(a32);
+                        value =  BitConverter.ToUInt32(a32, 0);
+                        //Convert Values
+                        //i1 = Convert.ToInt32((value >> 00) & 0x3FF);
+                        i1 = _2sComplement.toInt((value >> 00) & 0x3FF, 10);
+                        //i2 = Convert.ToInt32((value >> 10) & 0x3FF);
+                        i2 = _2sComplement.toInt((value >> 10) & 0x3FF, 10);
+                        //i3 = Convert.ToInt32((value >> 20) & 0x3FF);
+                        i3 = _2sComplement.toInt((value >> 20) & 0x3FF, 10);
+                        //i4 = Convert.ToInt32((value >> 30) & 0x3FF);
+                        i4 = _2sComplement.toInt((value >> 30) & 0x3FF, 10);
+
+                        //Convert Values
+                        //i4 = _2sComplement.toInt((value >> 00) & 0x003, 02);
+                        //i3 = _2sComplement.toInt((value >> 02) & 0x3FF, 10);
+                        //i2 = _2sComplement.toInt((value >> 12) & 0x3FF, 10);
+                        //i1 = _2sComplement.toInt((value >> 22) & 0x3FF, 10);
+                        Debug.WriteLine("{0}, {1}, {2}", i1, i2, i3);
+
+                        vN = new Vector4(Convert.ToSingle(i1) / 512.0f,
+                                         Convert.ToSingle(i2) / 512.0f,
+                                         Convert.ToSingle(i3) / 512.0f,
+                                         1.0f);
+                        //(Convert.ToSingle(v4) - 1.5f) / 1.5f);
+                        n_section_bytes = 4;
+                        //Debug.WriteLine(vN);
+                        break;
+                    default:
+                        throw new Exception("UNIMPLEMENTED NORMAL TYPE. PLEASE REPORT");
+                }
+                
                 //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
                 //Transform normal with normalMatrix
-                Vector4 vN = new Vector4(Half.decompress(v1), Half.decompress(v2), Half.decompress(v3), 1.0f);
+                
+
                 vN = Vector4.Transform(vN, nMat);
 
                 s.WriteLine("vn " + vN.X.ToString() + " " + vN.Y.ToString() + " " + vN.Z.ToString());
-                vbr.BaseStream.Seek(this.vbo.vx_size - 0x6, SeekOrigin.Current);
+                vbr.BaseStream.Seek(this.vbo.vx_size - n_section_bytes, SeekOrigin.Current);
             }
             //Get UVs, only for mesh objects
             
-            
-            vbr.BaseStream.Seek(vbo.uv0_stride + vbo.vx_size * vertrstart, SeekOrigin.Begin);
+            vbr.BaseStream.Seek(Math.Max(vbo.uv0_stride,0) + vbo.vx_size * vertrstart, SeekOrigin.Begin);
             for (int i = 0; i < vertcount; i++)
             {
-                uint v1 = vbr.ReadUInt16();
-                uint v2 = vbr.ReadUInt16();
-                uint v3 = vbr.ReadUInt16();
-                //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
+                float uv1, uv2, uv3;
+                Vector2 uv;
+                int uv_section_bytes = 0;
+                if (vbo.uv0_stride != -1) //Check if uvs exist
+                {
+                    uint v1 = vbr.ReadUInt16();
+                    uint v2 = vbr.ReadUInt16();
+                    uint v3 = vbr.ReadUInt16();
+                    //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
+                    uv = new Vector2(Half.decompress(v1), Half.decompress(v2));
+                    uv_section_bytes = 0x6;
+                }
+                else
+                {
+                    uv = new Vector2(0.0f, 0.0f);
+                    uv_section_bytes = this.vbo.vx_size;
+                }
 
-                s.WriteLine("vt " + Half.decompress(v1).ToString() + " " + Half.decompress(v2).ToString());
-                vbr.BaseStream.Seek(this.vbo.vx_size - 0x6, SeekOrigin.Current);
+                s.WriteLine("vt " + uv.X.ToString() + " " + (1.0 - uv.Y).ToString());
+                vbr.BaseStream.Seek(this.vbo.vx_size - uv_section_bytes, SeekOrigin.Current);
             }
-            
 
+            
             //Some Options
             s.WriteLine("usemtl(null)");
             s.WriteLine("s off");
@@ -1155,17 +1260,24 @@ namespace GMDL
                     f3 = ibr.ReadUInt32();
                 }
 
-                if (!start)
-                    fstart = f1; start = true;
+                if (!start && this.type != TYPES.COLLISION)
+                    { fstart = f1; start = true; }
+                else if (!start && this.type == TYPES.COLLISION)
+                {
+                    fstart = 0; start = true;
+                }
 
                 uint f11, f22, f33;
                 f11 = f1 - fstart + index;
                 f22 = f2 - fstart + index;
                 f33 = f3 - fstart + index;
 
+               
                 s.WriteLine("f " + f11.ToString() + "/" + f11.ToString() + "/" + f11.ToString() + " "
-                                 + f22.ToString() + "/" + f22.ToString() + "/" + f22.ToString() + " "
-                                 + f33.ToString() + "/" + f33.ToString() + "/" + f33.ToString() + " ");
+                                + f22.ToString() + "/" + f22.ToString() + "/" + f22.ToString() + " "
+                                + f33.ToString() + "/" + f33.ToString() + "/" + f33.ToString() + " ");
+               
+                    
             }
             index += (uint) vertcount;
         }
@@ -1196,7 +1308,7 @@ namespace GMDL
         {
             if (this.renderable == false || this.vbo == null || RenderOptions.RenderCollisions == false)
             {
-                //Debug.WriteLine("Not Renderable");
+                //Console.WriteLine("Not Renderable");
                 return false;
             }
 
@@ -1224,7 +1336,7 @@ namespace GMDL
 
         public override void renderMain(int pass)
         {
-            //Debug.WriteLine(this.name + this);
+            //Console.WriteLine(this.name + this);
             GL.UseProgram(pass);
 
             //Bind vertex buffer
@@ -1279,8 +1391,8 @@ namespace GMDL
 
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
 
-            //Debug.WriteLine("Normal Object {2} vpos {0} cpos {1} prog {3}", vpos, npos, this.name, this.shader_program);
-            //Debug.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vbo.vertex_buffer_object, this.vbo.color_buffer_object);
+            //Console.WriteLine("Normal Object {2} vpos {0} cpos {1} prog {3}", vpos, npos, this.name, this.shader_program);
+            //Console.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vbo.vertex_buffer_object, this.vbo.color_buffer_object);
 
             for (int i = 0; i < 7; i++)
                 GL.DisableVertexAttribArray(i);
@@ -1361,7 +1473,7 @@ namespace GMDL
         {
             if (this.renderable == false || this.vbo == null)
             {
-                //Debug.WriteLine("Not Renderable");
+                //Console.WriteLine("Not Renderable");
                 return false;
             }
 
@@ -1384,7 +1496,7 @@ namespace GMDL
 
         public override void renderMain(int pass)
         {
-            //Debug.WriteLine(this.name + this);
+            //Console.WriteLine(this.name + this);
             GL.UseProgram(pass);
 
             //Bind vertex buffer
@@ -1574,7 +1686,7 @@ namespace GMDL
             //GL.GenBuffers(1, out color_buffer_object);
             //GL.GenBuffers(1, out element_buffer_object);
             //GL.GenBuffers(1, out bIndices_buffer_object);
-            Debug.WriteLine(GL.GetError());
+            Console.WriteLine(GL.GetError());
 
             int size;
             //Upload vertex buffer
@@ -1619,7 +1731,7 @@ namespace GMDL
             //    //bIndices[4 * i + 2] = br.ReadByte();
             //    //bIndices[4 * i + 3] = br.ReadByte();
 
-            //    Debug.WriteLine("Indices {0} {1} {2} {3}", br.ReadByte(), br.ReadByte(), br.ReadByte(), br.ReadByte());
+            //    Console.WriteLine("Indices {0} {1} {2} {3}", br.ReadByte(), br.ReadByte(), br.ReadByte(), br.ReadByte());
             //    ms.Position += geom.vx_size - 4;
             //}
 
@@ -1699,6 +1811,7 @@ namespace GMDL
         public int[] small_offsets; //Same thing for the small description
         public int[] boneRemap;
         public List<Vector3[]> bboxes = new List<Vector3[]>();
+        public List<Vector3> bhullverts = new List<Vector3>();
         public List<int> vstarts = new List<int>();
 
         public customVBO vbo;
@@ -1717,7 +1830,7 @@ namespace GMDL
             temp.X = Half.decompress(val1);
             temp.Y = Half.decompress(val2);
             temp.Z = Half.decompress(val3);
-            //Debug.WriteLine("half {0} {1} {2}", temp[0],temp[1],temp[2]);
+            //Console.WriteLine("half {0} {1} {2}", temp[0],temp[1],temp[2]);
             return temp;
         }
 
@@ -1885,7 +1998,7 @@ namespace GMDL
                 //Detect Procedural Texture
                 if (File.Exists(texMbin))
                 {
-                    Debug.WriteLine("Procedural Texture Detected: " + texMbin);
+                    Console.WriteLine("Procedural Texture Detected: " + texMbin);
                     sam.proc = true;
                     //Convert to exml
                     if (!File.Exists(texMbinexml))
@@ -1894,24 +2007,24 @@ namespace GMDL
                     //Parse exml now
                     XmlDocument descrXml = new XmlDocument();
                     descrXml.Load(texMbinexml);
-                    XmlElement root = (XmlElement)descrXml.ChildNodes[1];
+                    XmlElement root = (XmlElement)descrXml.ChildNodes[2];
 
                     List<XmlElement> texList = new List<XmlElement>(8);
                     for (int i = 0; i < 8; i++) texList.Add(null);
                     ModelProcGen.parse_procTexture(ref texList, root);
 
 #if DEBUG
-                    Debug.WriteLine("Proc Texture Selection");
+                    Console.WriteLine("Proc Texture Selection");
                     for (int i = 0; i < 8; i++) {
                         if (texList[i] != null)
                         {
                             string partNameDiff = ((XmlElement)texList[i].SelectSingleNode(".//Property[@name='Diffuse']")).GetAttribute("value");
-                            Debug.WriteLine(partNameDiff);
+                            Console.WriteLine(partNameDiff);
                         }
                     }
                         
 #endif
-                    Debug.WriteLine("Proc Textures");
+                    Console.WriteLine("Proc Textures");
 
                     for (int i = 7; i > 0; i--)
                     {
@@ -1975,7 +2088,7 @@ namespace GMDL
                             catch (System.IO.FileNotFoundException)
                             {
                                 //Texture Not Found Continue
-                                Debug.WriteLine("Diffuse Texture " + pathDiff + " Not Found, Appending White Tex");
+                                Console.WriteLine("Diffuse Texture " + pathDiff + " Not Found, Appending White Tex");
                                 baseLayersUsed[i] = 0.0f;
                             }
                         } else
@@ -2009,7 +2122,7 @@ namespace GMDL
                             catch (System.IO.FileNotFoundException)
                             {
                                 //Mask Texture not found
-                                Debug.WriteLine("Mask Texture " + pathMask + " Not Found");
+                                Console.WriteLine("Mask Texture " + pathMask + " Not Found");
                                 alphaLayersUsed[i] = 0.0f;
                             }
                         }
@@ -2043,7 +2156,7 @@ namespace GMDL
                             catch (System.IO.FileNotFoundException)
                             {
                                 //Normal Texture not found
-                                Debug.WriteLine("Normal Texture " + pathNormal + " Not Found");
+                                Console.WriteLine("Normal Texture " + pathNormal + " Not Found");
                             }
 
                         }
@@ -2062,7 +2175,7 @@ namespace GMDL
                 else
                 {
                     int active_id = 0;
-                    Debug.WriteLine("Proper Texture, Bullshiting for now");
+                    Console.WriteLine("Proper Texture, Bullshiting for now");
                     //Handle Diffuse
                     if (sam.pathDiff != "")
                         if (Util.resMgmt.GLtextures.ContainsKey(sam.pathDiff))
@@ -2229,7 +2342,7 @@ namespace GMDL
 
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer) != FramebufferErrorCode.FramebufferComplete)
-                Debug.WriteLine("MALAKIES STO FRAMEBUFFER");
+                Console.WriteLine("MALAKIES STO FRAMEBUFFER");
 
             //Mask Output
             int out_tex_mask = GL.GenTexture();
@@ -2251,7 +2364,7 @@ namespace GMDL
 
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer) != FramebufferErrorCode.FramebufferComplete)
-                Debug.WriteLine("MALAKIES STO FRAMEBUFFER");
+                Console.WriteLine("MALAKIES STO FRAMEBUFFER");
 
             //Normal Output
             int out_tex_normal = GL.GenTexture();
@@ -2272,7 +2385,7 @@ namespace GMDL
 
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer) != FramebufferErrorCode.FramebufferComplete)
-                Debug.WriteLine("MALAKIES STO FRAMEBUFFER");
+                Console.WriteLine("MALAKIES STO FRAMEBUFFER");
 
 
             //Upload Textures
@@ -2282,7 +2395,7 @@ namespace GMDL
             GMDL.Texture tex;
             int loc;
 
-            //Debug.WriteLine("Rendering Textures of : " + name);
+            //Console.WriteLine("Rendering Textures of : " + name);
             //If there are samples defined, there are diffuse textures for sure
 
             //GL.Enable(EnableCap.Blend);
@@ -2657,7 +2770,7 @@ namespace GMDL
             ddsImage = new DDSImage(File.ReadAllBytes(path));
 
             name = path;
-            Debug.WriteLine("Sampler Name Path " + path + " Width {0} Height {1}", ddsImage.header.dwWidth, ddsImage.header.dwHeight);
+            Console.WriteLine("Sampler Name Path " + path + " Width {0} Height {1}", ddsImage.header.dwWidth, ddsImage.header.dwHeight);
             width = ddsImage.header.dwWidth;
             height = ddsImage.header.dwHeight;
             switch (ddsImage.header.ddspf.dwFourCC)
@@ -2850,7 +2963,7 @@ namespace GMDL
         {
             if (this.renderable == false)
             {
-                //Debug.WriteLine("Not Renderable");
+                //Console.WriteLine("Not Renderable");
                 return false;
             }
             if (this.children.Count == 0)
@@ -3142,16 +3255,16 @@ namespace GMDL
             fs.Seek(0xC, SeekOrigin.Current);
             uint staticFrameOff = (uint)fs.Position;
 
-            Debug.WriteLine("Animation File");
-            Debug.WriteLine("Frames {0} Nodes {1}", frameCount, nodeCount);
-            Debug.WriteLine("Parsing Nodes NodeOffset {0}", nodeOffset);
+            Console.WriteLine("Animation File");
+            Console.WriteLine("Frames {0} Nodes {1}", frameCount, nodeCount);
+            Console.WriteLine("Parsing Nodes NodeOffset {0}", nodeOffset);
 
             fs.Seek(nodeOffset, SeekOrigin.Begin);
             NodeData nodedata = new NodeData();
             nodedata.parseNodes(fs, nodeCount);
             nodeData = nodedata;
 
-            Debug.WriteLine("Parsing Animation Frame Data Offset {0}", animeFrameDataOff);
+            Console.WriteLine("Parsing Animation Frame Data Offset {0}", animeFrameDataOff);
             fs.Seek(animeFrameDataOff, SeekOrigin.Begin);
             AnimFrameData framedata = new AnimFrameData();
             framedata.Load(fs, frameCount);

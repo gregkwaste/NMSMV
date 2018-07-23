@@ -77,7 +77,7 @@
             this.label6.Name = "label6";
             this.label6.Size = new System.Drawing.Size(343, 31);
             this.label6.TabIndex = 2;
-            this.label6.Text = "Version 0.55";
+            this.label6.Text = "Version 0.71-HEAVILY TESTING-";
             this.label6.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // label3

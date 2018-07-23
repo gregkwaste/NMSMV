@@ -137,7 +137,7 @@ namespace Model_Viewer
 
         private void openToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Debug.WriteLine("Opening File");
+            Console.WriteLine("Opening File");
             DialogResult res = openFileDialog1.ShowDialog();
             if (res == DialogResult.Cancel)
                 return;
@@ -147,7 +147,7 @@ namespace Model_Viewer
 
             var split = filename.Split('.');
             var ext = split[split.Length - 1].ToUpper();
-            Debug.WriteLine(ext);
+            Console.WriteLine(ext);
 
             if (ext != "MBIN" & ext != "EXML")
             {
@@ -162,14 +162,19 @@ namespace Model_Viewer
                 exmlPath = Util.getExmlPath(filename);
 
                 //Parse the Scene XML file
-                Debug.WriteLine("Parsing SCENE XML");
+                Console.WriteLine("Parsing SCENE XML");
 
                 //Convert only if file does not exist
+#if DEBUG
+                Console.WriteLine("-DEBUG- Forcing EXML Conversion");
+                Util.MbinToExml(filename, exmlPath);
+#else
                 if (!File.Exists(exmlPath))
                 {
-                    Debug.WriteLine("Exml does not exist");
+                    Console.WriteLine("Exml does not exist");
                     Util.MbinToExml(filename, exmlPath);
                 }
+#endif
             }
 
             //Set global resMgmt to form resMgmt
@@ -214,7 +219,7 @@ namespace Model_Viewer
 
             Util.setStatus("Creating Nodes...", this.toolStripStatusLabel1);
 
-            //Debug.WriteLine("Objects Returned: {0}",oblist.Count);
+            //Console.WriteLine("Objects Returned: {0}",oblist.Count);
             MyTreeNode node = new MyTreeNode(scene.name);
             node.Checked = true;
             node.model = this.mainScene;
@@ -250,6 +255,14 @@ namespace Model_Viewer
 
         private void Form1_Load(object sender, EventArgs e)
         {
+            //Redirect console output to file if Release Mode
+#if !DEBUG 
+            FileStream filestream = new FileStream("out.txt", FileMode.Create);
+            var streamwriter = new StreamWriter(filestream);
+            streamwriter.AutoFlush = true;
+            Console.SetOut(streamwriter);
+            Console.SetError(streamwriter);
+#endif
             if (!this.glloaded)
                 return;
             
@@ -369,7 +382,7 @@ namespace Model_Viewer
                 var caps = OpenTK.Input.GamePad.GetCapabilities(i);
                 if (caps.GamePadType == OpenTK.Input.GamePadType.Unknown) break;
                 gamepadID = i;
-                Debug.WriteLine(caps + caps.GetType().Name);
+                Console.WriteLine(caps + caps.GetType().Name);
             }
             //Setup GamePad Handler
             gpHandler = new GamepadHandler(gamepadID);
@@ -396,10 +409,10 @@ namespace Model_Viewer
             toolStripStatusLabel1.Text = "Ready";
 
             //Query GL Extensions
-            Debug.WriteLine("OPENGL AVAILABLE EXTENSIONS:");
+            Console.WriteLine("OPENGL AVAILABLE EXTENSIONS:");
             string[] ext = GL.GetString(StringName.Extensions).Split(' ');
             foreach (string s in ext)
-                Debug.WriteLine(s);
+                Console.WriteLine(s);
 
 
             //Load default textures
@@ -441,7 +454,7 @@ namespace Model_Viewer
             if (time.TotalMilliseconds > 1000)
             {
                 float fps = 1000.0f * frames / (float)time.TotalMilliseconds;
-                //Debug.WriteLine("{0} {1}", frames, fps);
+                //Console.WriteLine("{0} {1}", frames, fps);
                 //Reset
                 frames = 0;
                 oldtime = now;
@@ -456,9 +469,9 @@ namespace Model_Viewer
         {
             //This Method handles and controls the gamepad input
             //Move camera
-            //Debug.WriteLine(gpHandler.getAxsState(0, 0));
-            //Debug.WriteLine(gpHandler.getBtnState(1) - gpHandler.getBtnState(0));
-            //Debug.WriteLine(gpHandler.getAxsState(0, 1));
+            //Console.WriteLine(gpHandler.getAxsState(0, 0));
+            //Console.WriteLine(gpHandler.getBtnState(1) - gpHandler.getBtnState(0));
+            //Console.WriteLine(gpHandler.getAxsState(0, 1));
             for (int i = 0; i < movement_speed; i++)
                 activeCam.Move(gpHandler.getAxsState(0, 0),
                                gpHandler.getAxsState(0, 1),
@@ -546,7 +559,7 @@ namespace Model_Viewer
         {
             //Handle Gamepad Input
             gpHandler.updateState();
-            //Debug.WriteLine(gpHandler.getAxsState(0, 0).ToString() + " " +  gpHandler.getAxsState(0, 1).ToString());
+            //Console.WriteLine(gpHandler.getAxsState(0, 0).ToString() + " " +  gpHandler.getAxsState(0, 1).ToString());
             //gpHandler.reportButtons();
             gamepadController(); //Move camera according to input
 
@@ -571,8 +584,8 @@ namespace Model_Viewer
 
         private void render_scene()
         {
-            //Debug.WriteLine("Rendering Scene Cam Position : {0}", this.activeCam.Position);
-            //Debug.WriteLine("Rendering Scene Cam Orientation: {0}", this.activeCam.Orientation);
+            //Console.WriteLine("Rendering Scene Cam Position : {0}", this.activeCam.Position);
+            //Console.WriteLine("Rendering Scene Cam Orientation: {0}", this.activeCam.Orientation);
             GL.CullFace(CullFaceMode.Back);
 
             //Render only the first scene for now
@@ -777,7 +790,7 @@ namespace Model_Viewer
 
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
-                Debug.WriteLine("MALAKIES STO FRAMEBUFFER" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
+                Console.WriteLine("MALAKIES STO FRAMEBUFFER" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
             if (this.mainScene != null) traverse_render(this.mainScene, 2);
 
@@ -792,15 +805,16 @@ namespace Model_Viewer
             GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.DepthComponent, PixelType.Float, pixels);
             Console.WriteLine("Selected Ob: Last GL Error: " + GL.GetError());
 
+#if DEBUG
             FileStream fs = new FileStream("depthTexture", FileMode.Create);
             BinaryWriter bw = new BinaryWriter(fs);
             bw.Write(pixels);
             fs.Flush();
             fs.Close();
 
-#if DEBUG
+
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-            Debug.WriteLine("Saving Picking Buffer. Dimensions: " + tex_w + " " + tex_h);
+            Console.WriteLine("Saving Picking Buffer. Dimensions: " + tex_w + " " + tex_h);
             GL.ReadPixels(0, 0, tex_w, tex_h, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             fs = new FileStream("pickBuffer", FileMode.Create);
             bw = new BinaryWriter(fs);
@@ -811,7 +825,7 @@ namespace Model_Viewer
 
             //Pick object here :)
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-            Debug.WriteLine("Selecting Object at Position: " + p.X + " " + (tex_h -p.Y));
+            Console.WriteLine("Selecting Object at Position: " + p.X + " " + (tex_h -p.Y));
             byte[] buffer = new byte[4];
             GL.ReadPixels(p.X, tex_h - p.Y, 1, 1, PixelFormat.Rgba, PixelType.UnsignedByte, buffer);
 
@@ -854,9 +868,9 @@ namespace Model_Viewer
             }
 
             //Report
-            Debug.WriteLine(selectedOb.localRotation);
-            Debug.WriteLine(selectedOb.localPosition);
-            Debug.WriteLine(selectedOb.localScale);
+            Console.WriteLine(selectedOb.localRotation);
+            Console.WriteLine(selectedOb.localPosition);
+            Console.WriteLine(selectedOb.localScale);
             glControl1.Invalidate();
 
             
@@ -886,7 +900,7 @@ namespace Model_Viewer
 
         private void treeView1_AfterCheck(object sender, TreeViewEventArgs e)
         {
-            //Debug.WriteLine("{0} {1}", e.Node.Checked, e.Node.Index);
+            //Console.WriteLine("{0} {1}", e.Node.Checked, e.Node.Index);
             //Toggle Renderability of node
             traverse_oblist_rs(((MyTreeNode)e.Node).model, "renderable", e.Node.Checked);
             //Handle Children in treeview
@@ -963,7 +977,7 @@ namespace Model_Viewer
                     MyTreeNode node = new MyTreeNode(child.name);
                     node.model = child; //Reference model
 
-                    //Debug.WriteLine("Testing Geom {0}  Node {1}", child.Index, node.Index);
+                    //Console.WriteLine("Testing Geom {0}  Node {1}", child.Index, node.Index);
                     node.Checked = true;
                     parent.Nodes.Add(node);
                     traverse_oblist(child, node);
@@ -982,7 +996,7 @@ namespace Model_Viewer
         {
             if (root.ID == id)
             {
-                Debug.WriteLine("Object Found: " + root.name + " ID: " + root.ID);
+                Console.WriteLine("Object Found: " + root.name + " ID: " + root.ID);
                 setObjectField<T>(field, root, value);
                 return root;
             }
@@ -1104,7 +1118,7 @@ namespace Model_Viewer
         {
             foreach (TreeNode node in coll)
             {
-                //Debug.WriteLine(node.Text + " " + text + " {0}", node.Text == text);
+                //Console.WriteLine(node.Text + " " + text + " {0}", node.Text == text);
                 if (node.Text == text)
                 {
                     return node;
@@ -1145,7 +1159,7 @@ namespace Model_Viewer
 
         private void procWinCLose(object sender, EventArgs e)
         {
-            Debug.WriteLine("procwin closing");
+            Console.WriteLine("procwin closing");
             //This function applies specifically to the structure of the procgen window
             //Get glcontrol table
             Form vpwin = (Form)sender;
@@ -1158,7 +1172,7 @@ namespace Model_Viewer
                 c.rootObject.Dispose(); //Prevent rendering
                 c.rootObject = null;
                 //Cleanup control resources
-                Debug.WriteLine("Cleaning Up control Resources");
+                Console.WriteLine("Cleaning Up control Resources");
                 c.resMgmt.Cleanup();
             }
 
@@ -1186,7 +1200,7 @@ namespace Model_Viewer
             descrpath += ".DESCRIPTOR.MBIN";
 
             string exmlPath = Util.getExmlPath(descrpath);
-            Debug.WriteLine("Opening " + descrpath);
+            Console.WriteLine("Opening " + descrpath);
 
             //Check if Descriptor exists at all
             if (!File.Exists(descrpath))
@@ -1200,7 +1214,7 @@ namespace Model_Viewer
             //Convert only if file does not exist
             if (!File.Exists(exmlPath))
             {
-                Debug.WriteLine("Exml does not exist, Converting...");
+                Console.WriteLine("Exml does not exist, Converting...");
                 //Convert Descriptor MBIN to exml
                 Util.MbinToExml(descrpath, exmlPath);
             }
@@ -1208,7 +1222,7 @@ namespace Model_Viewer
             //Parse exml now
             XmlDocument descrXml = new XmlDocument();
             descrXml.Load(exmlPath);
-            XmlElement root = (XmlElement) descrXml.ChildNodes[1].ChildNodes[0];
+            XmlElement root = (XmlElement) descrXml.ChildNodes[2].ChildNodes[0];
 
             //List<GMDL.model> allparts = new List<GMDL.model>();
 
@@ -1296,7 +1310,7 @@ namespace Model_Viewer
                 List<string> parts = new List<string>();
                 ModelProcGen.parse_descriptor(ref parts, root);
 
-                Debug.WriteLine(String.Join(" ", parts.ToArray()));
+                Console.WriteLine(String.Join(" ", parts.ToArray()));
                 GMDL.model m;
                 m = ModelProcGen.get_procgen_parts(ref parts, this.mainScene);
                 //----PROC GENERATION END----
@@ -1320,7 +1334,7 @@ namespace Model_Viewer
             //        List<string> parts = new List<string>();
             //        ModelProcGen.parse_descriptor(ref parts, root);
 
-            //        Debug.WriteLine(String.Join(" ", parts.ToArray()));
+            //        Console.WriteLine(String.Join(" ", parts.ToArray()));
             //        GMDL.model m;
             //        m = ModelProcGen.get_procgen_parts(ref parts, this.mainScene);
             //        //----PROC GENERATION END----
@@ -1352,7 +1366,7 @@ namespace Model_Viewer
         private void openAnimationToolStripMenuItem_Click(object sender, EventArgs e)
         {
             //Opening Animation File
-            Debug.WriteLine("Opening File");
+            Console.WriteLine("Opening File");
 
             AnimationSelectForm aform = new AnimationSelectForm(this);
             aform.Show();
@@ -1430,8 +1444,8 @@ namespace Model_Viewer
             GL.Enable(EnableCap.DepthTest);
             //glControl1.SwapBuffers();
             //glControl1.Invalidate();
-            Debug.WriteLine("GL Cleared");
-            Debug.WriteLine(GL.GetError());
+            Console.WriteLine("GL Cleared");
+            Console.WriteLine(GL.GetError());
 
             this.glloaded = true;
 
@@ -1474,7 +1488,7 @@ namespace Model_Viewer
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             gbuf.start();
 
-            //Debug.WriteLine(active_fbo);
+            //Console.WriteLine(active_fbo);
             render_scene();
 
             //Store the dumps
@@ -1497,7 +1511,7 @@ namespace Model_Viewer
             ////Draw scene
             //Update Joystick 
 
-            //Debug.WriteLine("Painting Control");
+            //Console.WriteLine("Painting Control");
         }
 
         private void glControl1_Resize(object sender, EventArgs e)
@@ -1506,7 +1520,7 @@ namespace Model_Viewer
                 return;
             if (glControl1.ClientSize.Height == 0)
                 glControl1.ClientSize = new System.Drawing.Size(glControl1.ClientSize.Width, 1);
-            Debug.WriteLine("GLControl Resizing");
+            Console.WriteLine("GLControl Resizing");
             gbuf.resize(glControl1.ClientSize.Width, glControl1.ClientSize.Height);
             GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
             
@@ -1515,7 +1529,7 @@ namespace Model_Viewer
 
         private void glControl1_KeyDown(object sender, PreviewKeyDownEventArgs e)
         {
-            //Debug.WriteLine("Key pressed {0}",e.KeyCode);
+            //Console.WriteLine("Key pressed {0}",e.KeyCode);
             switch (e.KeyCode)
             {
                 //Translations
@@ -1637,12 +1651,12 @@ namespace Model_Viewer
                     numericUpDown5.Value = (decimal) activeCam.zFar;
                     numericUpDown5.ValueChanged += this.numericUpDown5_ValueChanged;
 
-                    //Debug.WriteLine(activeCam.GetViewMatrix());
+                    //Console.WriteLine(activeCam.GetViewMatrix());
                     
                     break;
 
                 default:
-                    //Debug.WriteLine("Not Implemented Yet");
+                    //Console.WriteLine("Not Implemented Yet");
                     return;
             }
             //glControl1.Invalidate();
@@ -1661,7 +1675,7 @@ namespace Model_Viewer
 
             if (e.Button == MouseButtons.Left)
             {
-                //Debug.WriteLine("Deltas {0} {1} {2}", delta_x, delta_y, e.Button);
+                //Console.WriteLine("Deltas {0} {1} {2}", delta_x, delta_y, e.Button);
                 activeCam.AddRotation(delta_x, delta_y);
             }
 
@@ -1674,7 +1688,7 @@ namespace Model_Viewer
         {
             if (Math.Abs(e.Delta) > 0)
             {
-                //Debug.WriteLine("Wheel Delta {0}", e.Delta);
+                //Console.WriteLine("Wheel Delta {0}", e.Delta);
                 int sign = e.Delta / Math.Abs(e.Delta);
                 int newval = (int)numericUpDown1.Value + sign;
                 newval = (int)Math.Min(Math.Max(newval, numericUpDown1.Minimum), numericUpDown1.Maximum);
@@ -1696,14 +1710,14 @@ namespace Model_Viewer
         private void glControl1_Enter(object sender, EventArgs e)
         {
             //Start Timer when the glControl gets focus
-            Debug.WriteLine("ENtered Focus");
+            Console.WriteLine("ENtered Focus");
             t.Start();
         }
 
         private void glControl1_Leave(object sender, EventArgs e)
         {
             //Don't update the control when its not focused
-            Debug.WriteLine("Left Focus");
+            Console.WriteLine("Left Focus");
             if (newButton1.status)
                 t.Stop();
         }
@@ -1724,19 +1738,19 @@ namespace Model_Viewer
         private void getAltIDToolStripMenuItem_Click(object sender, EventArgs e)
         {
             List<string> altId = new List<string>();
-            Debug.WriteLine(this.treeView1.Nodes[0].Text);
+            Console.WriteLine(this.treeView1.Nodes[0].Text);
             traverse_oblist_altid(ref altId, this.treeView1.Nodes[0]);
             string finalalt = "";
             for (int i = 0; i < altId.Count; i++)
                 finalalt += altId[i] + " ";
-            //Debug.WriteLine(finalalt);
+            //Console.WriteLine(finalalt);
             Clipboard.SetText(finalalt);
             Util.setStatus("AltID Copied to clipboard.", toolStripStatusLabel1);
         }
 
         private void exportToObjToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Debug.WriteLine("Exporting to obj");
+            Console.WriteLine("Exporting to obj");
             SaveFileDialog sv = new SaveFileDialog();
             sv.Filter = "OBJ Files | *.obj";
             sv.DefaultExt = "obj";
@@ -1755,6 +1769,8 @@ namespace Model_Viewer
             findGeoms(mainScene, obj, ref index);
 
             obj.Close();
+
+            Console.WriteLine("Scene successfully converted!");
 
         }
 
@@ -1779,7 +1795,7 @@ namespace Model_Viewer
 
         private void treeView1_NodeMouseClick(object sender, TreeNodeMouseClickEventArgs e)
         {
-            Debug.WriteLine("Clicked");
+            Console.WriteLine("Clicked");
             selectedOb = ((MyTreeNode)e.Node).model;
             loadSelectedObect();
             //Deselect everything first
@@ -1947,7 +1963,7 @@ namespace Model_Viewer
 
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
-                Debug.WriteLine("MALAKIES STO FRAMEBUFFER" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
+                Console.WriteLine("MALAKIES STO FRAMEBUFFER" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
             //Setup diffuse texture
             setup_texture(ref diffuse, 0);
@@ -2201,7 +2217,7 @@ namespace Model_Viewer
             //BinaryWriter bw;
             //byte[] pixels;
             //pixels = new byte[4 * size[0] * size[1]];
-            //Debug.WriteLine("Dumping Framebuffer textures " + size[0] + " " + size[1]);
+            //Console.WriteLine("Dumping Framebuffer textures " + size[0] + " " + size[1]);
 
             //Read Color1
             GL.ReadBuffer(ReadBufferMode.ColorAttachment1);

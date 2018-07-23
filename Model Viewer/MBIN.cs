@@ -69,15 +69,15 @@ public static class SCENEMBIN
         uint section_offset = (uint)fs.Position + br.ReadUInt32();
         fs.Seek(0x4, SeekOrigin.Current);
         uint section_count = br.ReadUInt32();
-        //Debug.WriteLine("Section Count: {0}",section_count);
+        //Console.WriteLine("Section Count: {0}",section_count);
         fs.Seek(0x4, SeekOrigin.Current);
 
         //Geometry File Name
         fs.Seek(geometry_file_offset+ 0x20, SeekOrigin.Begin);
         charbuffer = br.ReadChars(0x100);
         string geometry_file_name = new string(charbuffer);
-        //Debug.WriteLine(geometry_file_name);
-        //Debug.WriteLine(" ");
+        //Console.WriteLine(geometry_file_name);
+        //Console.WriteLine(" ");
 
         XmlElement el, root;
         root = xml.CreateElement("ROOT");
@@ -407,8 +407,10 @@ public static class MATERIALMBIN
 
         root.AppendChild(mat);
         xml.AppendChild(root);
-        
+
+#if DEBUG
         xml.Save("testmat.xml");
+#endif
         return xml;
     }
     
@@ -419,7 +421,7 @@ public static class MATERIALMBIN
 
         //Find MaterialNode
         XmlNode node = xml.SelectSingleNode("/ROOT/MATERIAL");
-        Debug.WriteLine(node);
+        Console.WriteLine(node);
         mat.name = node.SelectSingleNode(".//NAME").InnerText;
         mat.type = node.SelectSingleNode(".//CLASS").InnerText;
 
@@ -501,20 +503,21 @@ public static class GEOMMBIN {
     public static GMDL.GeomObject Parse(FileStream fs)
     {
         BinaryReader br = new BinaryReader(fs);
-        Debug.WriteLine("Parsing MBIN");
+        Console.WriteLine("Parsing MBIN");
 
         fs.Seek(0x60, SeekOrigin.Begin);
 
         var vert_num = br.ReadInt32();
         var indices_num = br.ReadInt32();
         var indices_flag = br.ReadInt32();
+        var collision_index_count = br.ReadInt32();
 
-        Debug.WriteLine("Model Vertices: {0}", vert_num);
-        Debug.WriteLine("Model Indices: {0}", indices_num);
-        Debug.WriteLine("Indices Flag: {0}", indices_flag);
+        Console.WriteLine("Model Vertices: {0}", vert_num);
+        Console.WriteLine("Model Indices: {0}", indices_num);
+        Console.WriteLine("Indices Flag: {0}", indices_flag);
+        Console.WriteLine("Collision Index Count: {0}", collision_index_count);
 
         //Joint Bindings
-        fs.Seek(0x4, SeekOrigin.Current);
         var jointbindingOffset = fs.Position + br.ReadInt32();
         fs.Seek(0x4, SeekOrigin.Current);
         var jointCount = br.ReadInt32();
@@ -538,6 +541,13 @@ public static class GEOMMBIN {
         fs.Seek(0x4, SeekOrigin.Current);
         //VertEnds
         fs.Seek(0x10, SeekOrigin.Current);
+
+        //Bound Hull Vert start
+        fs.Seek(0x10, SeekOrigin.Current);
+        
+        //Bound Hull Vert end
+        fs.Seek(0x10, SeekOrigin.Current);
+
         //MatrixLayouts
         fs.Seek(0x10, SeekOrigin.Current);
 
@@ -547,42 +557,44 @@ public static class GEOMMBIN {
         var bboxmaxoffset = fs.Position + br.ReadInt32();
         fs.Seek(0xC, SeekOrigin.Current);
 
+        //Bound Hull Verts
+        var bhulloffset = fs.Position + br.ReadInt64();
+        fs.Seek(0x8, SeekOrigin.Current);
+
 
         var lod_count = br.ReadInt32();
         var vx_type = br.ReadInt32();
-        Debug.WriteLine("Buffer Count: {0} VxType {1}", lod_count, vx_type);
+        Console.WriteLine("Buffer Count: {0} VxType {1}", lod_count, vx_type);
         fs.Seek(0x8, SeekOrigin.Current);
-        var mesh_descr_offset = fs.Position + br.ReadInt32();
-        fs.Seek(0x4, SeekOrigin.Current);
+        var mesh_descr_offset = fs.Position + br.ReadInt64();
         var buf_count = br.ReadInt32();
-        fs.Seek(0x4, SeekOrigin.Current);
+        fs.Seek(0x4, SeekOrigin.Current); //Skipping a 1
 
         //Parse Small Vertex Layout Info
         var small_bufcount = br.ReadInt32();
         var small_vx_type = br.ReadInt32();
-        Debug.WriteLine("Small Buffer Count: {0} VxType {1}", small_bufcount, small_vx_type);
+        Console.WriteLine("Small Buffer Count: {0} VxType {1}", small_bufcount, small_vx_type);
         fs.Seek(0x8, SeekOrigin.Current);
         var small_mesh_descr_offset = fs.Position + br.ReadInt32();
         fs.Seek(0x4, SeekOrigin.Current);
         br.ReadInt32(); //Skip second buf count
-        fs.Seek(0x4, SeekOrigin.Current);
+        fs.Seek(0x4, SeekOrigin.Current); //Skipping a 1
 
         //fs.Seek(0x20, SeekOrigin.Current); //Second lod offsets
 
         //Get primary geom offsets
-        var indices_offset = fs.Position + br.ReadInt32();
-        fs.Seek(0xC, SeekOrigin.Current);
-        var verts_offset = fs.Position + br.ReadInt32();
-        fs.Seek(0xC, SeekOrigin.Current);
-        var small_verts_offset = fs.Position + br.ReadInt32();
-        fs.Seek(0xC, SeekOrigin.Current);
+        var indices_offset = fs.Position + br.ReadInt64();
+        fs.Seek(0x8, SeekOrigin.Current); //Skip Section Sizes and a 1
+        var verts_offset = fs.Position + br.ReadInt64();
+        fs.Seek(0x8, SeekOrigin.Current); //Skip Section Sizes and a 1
+        var small_verts_offset = fs.Position + br.ReadInt64();
+        fs.Seek(0x8, SeekOrigin.Current); //Skip Section Sizes and a 1
 
         //fs.Seek(0x10, SeekOrigin.Current);
 
         /*
          * No Need to get any vx starts and ends since they 
          * are passed through the scene files
-         * 
          * 
          * */
 
@@ -642,6 +654,15 @@ public static class GEOMMBIN {
             br.ReadBytes(4);
         }
 
+        //Get BoundHullStarts
+        //TODO : Recheck and fix that shit
+        //fs.Seek(bboxminoffset, SeekOrigin.Begin);
+        //for (int i = 0; i < partcount; i++)
+        //{
+        //    geom.bhullverts[i] = new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
+        //    br.ReadBytes(4);
+        //}
+
         //Get indices buffer
         fs.Seek(indices_offset, SeekOrigin.Begin);
         geom.ibuffer = new byte[indices_num * geom.indicesLength];
@@ -686,7 +707,7 @@ public static class GEOMMBIN {
         //Get Descr
         mesh_desc = getDescr(ref mesh_offsets, buf_count);
 
-        Debug.WriteLine("Mesh Description: " + mesh_desc);
+        Console.WriteLine("Mesh Description: " + mesh_desc);
 
         //Store description
         geom.mesh_descr = mesh_desc;
@@ -715,7 +736,7 @@ public static class GEOMMBIN {
         //Get Small Descr
         small_mesh_desc = getDescr(ref small_mesh_offsets, small_bufcount);
 
-        Debug.WriteLine("Small Mesh Description: " + small_mesh_desc);
+        Console.WriteLine("Small Mesh Description: " + small_mesh_desc);
 
         //Store description
         geom.small_mesh_descr = small_mesh_desc;
@@ -778,7 +799,7 @@ public static class GEOMMBIN {
             case (0x8D9F):
                 return OpenTK.Graphics.OpenGL.VertexAttribPointerType.Int2101010Rev;
             default:
-                Debug.WriteLine("Unknown VERTEX SECTION TYPE-----------------------------------");
+                Console.WriteLine("Unknown VERTEX SECTION TYPE-----------------------------------");
                 throw new ApplicationException("NEW VERTEX SECTION TYPE. FIX IT ASSHOLE...");
                 //return OpenTK.Graphics.OpenGL4.VertexAttribPointerType.UnsignedByte;
         }
@@ -794,7 +815,7 @@ public static class GEOMMBIN {
             case (0x1401):
                 return 1;
             default:
-                Debug.WriteLine("Unknown VERTEX SECTION TYPE-----------------------------------");
+                Console.WriteLine("Unknown VERTEX SECTION TYPE-----------------------------------");
                 return 1;
         }
     }
@@ -845,15 +866,15 @@ public static class GEOMMBIN {
 
     public static GMDL.scene LoadObjects(XmlDocument xml)
     {
-        Debug.WriteLine("Loading Objects from XML");
+        Console.WriteLine("Loading Objects from XML");
         //Get TkSceneNodeData
-        XmlElement sceneNode = (XmlElement)xml.ChildNodes[1];
+        XmlElement sceneNode = (XmlElement) xml.ChildNodes[2];
         XmlElement sceneName = (XmlElement) sceneNode.SelectSingleNode("Property[@name='Name']");
 
         string[] split = sceneName.GetAttribute("value").Split('\\');
         string scnName = split[split.Length - 1];
         Util.setStatus("Importing Scene: " + scnName, strip);
-        //Debug.WriteLine("Importing Scene: " + scnName);
+        Console.WriteLine("Importing Scene: " + scnName);
         //Get Geometry File
         XmlElement sceneNodeData = (XmlElement)sceneNode.SelectSingleNode("Property[@name='Attributes']");
         //Parse geometry once
@@ -931,14 +952,14 @@ public static class GEOMMBIN {
 
         //Notify
         Util.setStatus("Importing Scene: " + scene.name + " Part: " + name, strip);
-        Debug.WriteLine("Importing Scene: " + scene.name + " Part: " + name);
+        Console.WriteLine("Importing Scene: " + scene.name + " Part: " + name);
         TYPES typeEnum;
         string type = ((XmlElement)node.SelectSingleNode("Property[@name='Type']")).GetAttribute("value");
         Enum.TryParse<TYPES>(type, out typeEnum);
 
         if (typeEnum == TYPES.MESH)
         {
-            Debug.WriteLine("Mesh Detected " + name);
+            Console.WriteLine("Mesh Detected " + name);
 
             //Create model
             GMDL.sharedVBO so = new GMDL.sharedVBO();
@@ -956,7 +977,7 @@ public static class GEOMMBIN {
             so.color[1] = Model_Viewer.Util.randgen.Next(255) / 255.0f;
             so.color[2] = Model_Viewer.Util.randgen.Next(255) / 255.0f;
 
-            Debug.WriteLine("Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]);
+            Console.WriteLine("Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]);
             //Get Options
             so.batchstart = int.Parse(((XmlElement) attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
             so.batchcount = int.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
@@ -964,7 +985,10 @@ public static class GEOMMBIN {
             so.vertrend = int.Parse(((XmlElement)attribs.ChildNodes[3].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
             so.firstskinmat = int.Parse(((XmlElement)attribs.ChildNodes[4].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
             so.lastskinmat = int.Parse(((XmlElement)attribs.ChildNodes[5].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-            Debug.WriteLine("Batch Start {0} Count {1} ", so.batchstart, so.batchcount);
+            so.lod_level = int.Parse(((XmlElement)attribs.ChildNodes[6].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+            so.boundhullstart = int.Parse(((XmlElement)attribs.ChildNodes[7].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+            so.boundhullend = int.Parse(((XmlElement)attribs.ChildNodes[8].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+            Console.WriteLine("Batch Start {0} Count {1} ", so.batchstart, so.batchcount);
 
             //Find id within the vbo
             int iid = -1;
@@ -985,7 +1009,7 @@ public static class GEOMMBIN {
             so.init(String.Join(",",transforms));
 
             //Get Material
-            string matname = ((XmlElement)attribs.ChildNodes[6].SelectSingleNode("Property[@name='Value']")).GetAttribute("value");
+            string matname = ((XmlElement)attribs.ChildNodes[9].SelectSingleNode("Property[@name='Value']")).GetAttribute("value");
             string[] split = matname.Split('\\');
             string matkey = split[split.Length - 1];
             //Check if material already in Resources
@@ -995,6 +1019,7 @@ public static class GEOMMBIN {
             {
                 //Parse material file
                 FileStream ms = new FileStream(Path.Combine(Model_Viewer.Util.dirpath, matname), FileMode.Open);
+                Console.WriteLine("Parsing Material File");
                 GMDL.Material mat = MATERIALMBIN.ParseXml(MATERIALMBIN.Parse(ms));
                 //Load default form palette on init
                 mat.palette = Model_Viewer.Palettes.paletteSel;
@@ -1023,7 +1048,7 @@ public static class GEOMMBIN {
             
             if (childs != null)
             {
-                //Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
+                //Console.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
                     GMDL.model part = parseNode(childnode, gobject, so, scene);
@@ -1049,7 +1074,7 @@ public static class GEOMMBIN {
         }
         else if (typeEnum == TYPES.LOCATOR)
         {
-            Debug.WriteLine("Locator Detected");
+            Console.WriteLine("Locator Detected");
             GMDL.locator so = new GMDL.locator();
             //Set Properties
             //Testingso.Name = name + "_LOC";
@@ -1070,7 +1095,7 @@ public static class GEOMMBIN {
             //take care of children
             if (childs != null)
             {
-                //Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
+                //Console.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
                     GMDL.model part = parseNode(childnode, gobject, so, scene);
@@ -1084,7 +1109,7 @@ public static class GEOMMBIN {
         }
         else if (typeEnum == TYPES.JOINT)
         {
-            Debug.WriteLine("Joint Detected");
+            Console.WriteLine("Joint Detected");
             GMDL.Joint joint = new GMDL.Joint();
             //Set properties
             joint.name = name.ToUpper();
@@ -1106,7 +1131,7 @@ public static class GEOMMBIN {
             //Handle Children
             if (childs != null)
             {
-                //Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
+                //Console.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
                 {
                     GMDL.model part = parseNode(childnode, gobject, joint, scene);
@@ -1119,12 +1144,12 @@ public static class GEOMMBIN {
         else if (typeEnum == TYPES.REFERENCE)
         {
             //Another Scene file referenced
-            Debug.WriteLine("Reference Detected");
+            Console.WriteLine("Reference Detected");
             //Getting Scene MBIN file
             XmlElement opt = ((XmlElement)attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']"));
             string path = Path.GetFullPath(Path.Combine(Util.dirpath, opt.GetAttribute("value")));
             string exmlPath = Util.getExmlPath(path);
-            //Debug.WriteLine("Loading Scene " + path);
+            //Console.WriteLine("Loading Scene " + path);
             XmlDocument newXml = new XmlDocument(); 
             //Parse MBIN to xml
             if (!Util.compareFileSizes(path,exmlPath))
@@ -1175,7 +1200,7 @@ public static class GEOMMBIN {
             string collisionType = ((XmlElement)attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']")).GetAttribute("value").ToUpper();
             
 
-            Debug.WriteLine("Collision Detected " + name + "TYPE: " + collisionType);
+            Console.WriteLine("Collision Detected " + name + "TYPE: " + collisionType);
             if (collisionType == "MESH")
             {
                 //Set cvbo
@@ -1189,7 +1214,7 @@ public static class GEOMMBIN {
                 so.lastskinmat = int.Parse(((XmlElement)attribs.ChildNodes[6].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
             } else if (collisionType == "CYLINDER")
             {
-                //Debug.WriteLine("CYLINDER NODE PARSING NOT IMPLEMENTED");
+                //Console.WriteLine("CYLINDER NODE PARSING NOT IMPLEMENTED");
                 //Set cvbo
                 float radius = float.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 float height = float.Parse(((XmlElement)attribs.ChildNodes[2].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
@@ -1199,12 +1224,19 @@ public static class GEOMMBIN {
             }
             else if (collisionType == "BOX")
             {
-                //Debug.WriteLine("BOX NODE PARSING NOT IMPLEMENTED");
+                //Console.WriteLine("BOX NODE PARSING NOT IMPLEMENTED");
                 //Set cvbo
                 float width  = float.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 float height = float.Parse(((XmlElement)attribs.ChildNodes[2].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 float depth  = float.Parse(((XmlElement)attribs.ChildNodes[3].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 so.vbo = (new Box(width, height, depth)).getVBO();
+                so.collisionType = (int)COLLISIONTYPES.BOX;
+                //Set general vbo properties
+                so.batchstart = 0;
+                so.batchcount = 36;
+                so.vertrstart = 0;
+                so.vertrend = 8-1;
+
             }
             else if (collisionType == "CAPSULE")
             {
@@ -1218,14 +1250,19 @@ public static class GEOMMBIN {
                 //Set cvbo
                 float radius = float.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 so.vbo = (new Sphere(new Vector3(), radius)).getVBO();
+                so.collisionType = (int)COLLISIONTYPES.SPHERE;
+                so.batchstart = 0;
+                so.batchcount = 600;
+                so.vertrstart = 0;
+                so.vertrend = 121 - 1;
             }
             else
             {
-                Debug.WriteLine("NEW COLLISION TYPE: " + collisionType);
+                Console.WriteLine("NEW COLLISION TYPE: " + collisionType);
             }
 
 
-            Debug.WriteLine("Batch Start {0} Count {1} ", so.batchstart, so.batchcount);
+            Console.WriteLine("Batch Start {0} Count {1} ", so.batchstart, so.batchcount);
 
             so.parent = parent;
             so.init(String.Join(",", transforms));
@@ -1233,7 +1270,7 @@ public static class GEOMMBIN {
             //Collision probably has no children biut I'm leaving that code here
             if (childs != null)
             {
-                Debug.WriteLine("Children Count {0}", childs.ChildNodes.Count);
+                Console.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                 foreach (XmlElement childnode in childs.ChildNodes)
                     so.children.Add(parseNode(childnode, gobject, so, scene));
             }
@@ -1243,7 +1280,7 @@ public static class GEOMMBIN {
         }
         else
         {
-            Debug.WriteLine("Unknown Type, {0}", type);
+            Console.WriteLine("Unknown Type, {0}", type);
             GMDL.locator so = new GMDL.locator();
             //Set Properties
             so.name = name + "_UNKNOWN";

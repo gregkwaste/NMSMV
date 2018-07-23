@@ -1,3 +1,4 @@
+#version 330
 /* Copies incoming fragment color without change. */
 in vec3 color;
 in vec4 finalPos;
