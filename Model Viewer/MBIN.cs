@@ -44,6 +44,23 @@ public enum COLLISIONTYPES
     CAPSULE    
 }
 
+public class meshMetaData
+{
+    public string name;
+    public ulong hash;
+    public uint vs_size;
+    public uint vs_abs_offset;
+    public uint is_size;
+    public uint is_abs_offset;
+}
+
+public class meshData
+{
+    public ulong hash;
+    public byte[] vs_buffer;
+    public byte[] is_buffer;
+}
+
 public static class SCENEMBIN
 {
     public static XmlDocument Parse(FileStream fs)
@@ -251,7 +268,7 @@ public static class MATERIALMBIN
         _F50_DISABLE_POSTPROCESS,
         _F51_DECAL_DIFFUSE,
         _F52_DECAL_NORMAL,
-        _F53_,
+        _F53_COLOURISABLE,
         _F54_,
         _F55_,
         _F56_,
@@ -387,7 +404,7 @@ public static class MATERIALMBIN
             string samplName = (new string(charbuffer)).Trim('\0');
             charbuffer = br.ReadChars(0x80);
             string samplfile = (new string(charbuffer)).Trim('\0');
-            fs.Seek(0xC8 - 0xA0, SeekOrigin.Current);
+            fs.Seek(0xD8 - 0xA0, SeekOrigin.Current);
 
             XmlElement prop = xml.CreateElement("PROPERTY");
             prop.SetAttribute("NAME", "CLASS");
@@ -419,50 +436,61 @@ public static class MATERIALMBIN
         //Make new material
         GMDL.Material mat = new GMDL.Material();
 
-        //Find MaterialNode
-        XmlNode node = xml.SelectSingleNode("/ROOT/MATERIAL");
-        Console.WriteLine(node);
-        mat.name = node.SelectSingleNode(".//NAME").InnerText;
-        mat.type = node.SelectSingleNode(".//CLASS").InnerText;
 
-        XmlElement opt;
+        XmlElement rootNode = (XmlElement) xml.ChildNodes[2];
+        String matName = ((XmlElement) rootNode.SelectSingleNode("Property[@name='Name']")).GetAttribute("value");
+        String matClass = ((XmlElement) rootNode.SelectSingleNode("Property[@name='Class']")).GetAttribute("value");
+        //Load Options
+
         GMDL.MatOpts opts = new GMDL.MatOpts();
-        opt = (XmlElement) node.SelectSingleNode(".//PROPERTY[@NAME='TRANSPARENCY']");
-        opts.transparency = int.Parse(opt.GetAttribute("VALUE"));
-        opt = (XmlElement)node.SelectSingleNode(".//PROPERTY[@NAME='CASTSHADOW']");
-        opts.castshadow = bool.Parse(opt.GetAttribute("VALUE"));
-        opt = (XmlElement)node.SelectSingleNode(".//PROPERTY[@NAME='DISABLETESTZ']");
-        opts.disableTestz = bool.Parse(opt.GetAttribute("VALUE"));
-        opt = (XmlElement)node.SelectSingleNode(".//PROPERTY[@NAME='LINK']");
-        opts.link = opt.GetAttribute("VALUE");
-        opt = (XmlElement)node.SelectSingleNode(".//PROPERTY[@NAME='SHADER']");
-        opts.shadername = opt.GetAttribute("VALUE");
-
+        opts.transparency = int.Parse(((XmlElement) rootNode.SelectSingleNode("Property[@name='TransparencyLayerID']")).GetAttribute("value"));
+        opts.castshadow = bool.Parse(((XmlElement) rootNode.SelectSingleNode("Property[@name='CastShadow']")).GetAttribute("value"));
+        opts.disableTestz = bool.Parse(((XmlElement) rootNode.SelectSingleNode("Property[@name='DisableZTest']")).GetAttribute("value"));
+        opts.link = ((XmlElement)rootNode.SelectSingleNode("Property[@name='Link']")).GetAttribute("value");
+        opts.shadername = ((XmlElement)rootNode.SelectSingleNode("Property[@name='Shader']")).GetAttribute("value");
         mat.opts = opts;
 
         //Get MaterialFlags
-        opt = (XmlElement)node.SelectSingleNode(".//MATERIALFLAGS");
-        foreach (XmlElement n in opt.ChildNodes)
-            mat.materialflags.Add((int) MATERIALFLAGS.Parse(typeof(MATERIALFLAGS), n.InnerText));
+        XmlElement matflagsNode = ((XmlElement)rootNode.SelectSingleNode("Property[@name='Flags']"));
+        foreach (XmlElement n in matflagsNode.ChildNodes)
+        {
+            string flag = ((XmlElement) n.SelectSingleNode("Property[@name='MaterialFlag']")).GetAttribute("value");
+            mat.materialflags.Add((int) MATERIALFLAGS.Parse(typeof(MATERIALFLAGS), flag));
+        }
+
         //Get Uniforms
-        opt = (XmlElement)node.SelectSingleNode(".//UNIFORMS");
-        foreach (XmlElement n in opt.ChildNodes)
+        XmlElement matuniformsNode = ((XmlElement)rootNode.SelectSingleNode("Property[@name='Uniforms']"));
+        foreach (XmlElement n in matuniformsNode.ChildNodes)
         {
             GMDL.Uniform un = new GMDL.Uniform();
-            un.name = n.GetAttribute("NAME");
+            un.name = ((XmlElement) n.SelectSingleNode("Property[@name='Name']")).GetAttribute("value");
+            XmlElement valuesNode = (XmlElement) n.SelectSingleNode("Property[@name='Values']");
             Vector4 vec = new Vector4();
-            vec.X = float.Parse(n.GetAttribute("VALUE").Split(',')[0], System.Globalization.CultureInfo.InvariantCulture);
-            vec.Y = float.Parse(n.GetAttribute("VALUE").Split(',')[1], System.Globalization.CultureInfo.InvariantCulture);
-            vec.Z = float.Parse(n.GetAttribute("VALUE").Split(',')[2], System.Globalization.CultureInfo.InvariantCulture);
-            vec.W = float.Parse(n.GetAttribute("VALUE").Split(',')[3], System.Globalization.CultureInfo.InvariantCulture);
+            vec.X = float.Parse(((XmlElement)valuesNode.SelectSingleNode("Property[@name='x']")).GetAttribute("value"),
+                System.Globalization.CultureInfo.InvariantCulture);
+            vec.Y = float.Parse(((XmlElement)valuesNode.SelectSingleNode("Property[@name='y']")).GetAttribute("value"),
+                System.Globalization.CultureInfo.InvariantCulture);
+            vec.Z = float.Parse(((XmlElement)valuesNode.SelectSingleNode("Property[@name='z']")).GetAttribute("value"),
+                System.Globalization.CultureInfo.InvariantCulture);
+            vec.W = float.Parse(((XmlElement)valuesNode.SelectSingleNode("Property[@name='t']")).GetAttribute("value"),
+                System.Globalization.CultureInfo.InvariantCulture);
             un.value = vec;
             mat.uniforms.Add(un);
         }
-        //Get Samplers
-        opt = (XmlElement)node.SelectSingleNode(".//SAMPLERS");
-        //Find Diffuse Sampler
-        GMDL.Sampler sampl = null;
 
+        //Get Samplers
+        XmlElement matsamplersNode = ((XmlElement)rootNode.SelectSingleNode("Property[@name='Samplers']"));
+        foreach (XmlElement n in matsamplersNode.ChildNodes)
+        {
+            GMDL.Sampler sampl = new GMDL.Sampler();
+            
+            sampl.name = ((XmlElement) n.SelectSingleNode("Property[@name='Name']")).GetAttribute("value");
+            sampl.map = ((XmlElement)n.SelectSingleNode("Property[@name='Map']")).GetAttribute("value");
+            mat.samplers.Add(sampl);
+        }
+
+
+        /* oLD WAY
         foreach (XmlElement n in opt.ChildNodes)
         {
             XmlElement sn;
@@ -486,9 +514,10 @@ public static class MATERIALMBIN
             }
             
         }
+        
 
         if (sampl !=null) mat.samplers.Add(sampl);
-
+        */
 
         return mat;
     }
@@ -585,18 +614,12 @@ public static class GEOMMBIN {
         //Get primary geom offsets
         var indices_offset = fs.Position + br.ReadInt64();
         fs.Seek(0x8, SeekOrigin.Current); //Skip Section Sizes and a 1
-        var verts_offset = fs.Position + br.ReadInt64();
-        fs.Seek(0x8, SeekOrigin.Current); //Skip Section Sizes and a 1
-        var small_verts_offset = fs.Position + br.ReadInt64();
-        fs.Seek(0x8, SeekOrigin.Current); //Skip Section Sizes and a 1
+
+        var meshMetaData_offset = fs.Position + br.ReadInt64();
+        var meshMetaData_counter = br.ReadInt32();
+        fs.Seek(0x4, SeekOrigin.Current); //Skip Section Sizes and a 1
 
         //fs.Seek(0x10, SeekOrigin.Current);
-
-        /*
-         * No Need to get any vx starts and ends since they 
-         * are passed through the scene files
-         * 
-         * */
 
         //Initialize geometry object
         var geom = new GMDL.GeomObject();
@@ -624,6 +647,9 @@ public static class GEOMMBIN {
         {
             GMDL.JointBindingData jdata = new GMDL.JointBindingData();
             jdata.Load(fs);
+            //Copy inverted Matrix to local variable
+            Array.Copy(jdata.convertMat(), 0, geom.invBMats, 16 * i, 16);
+            //Store the struct
             geom.jointData.Add(jdata);
         }
 
@@ -668,17 +694,21 @@ public static class GEOMMBIN {
         geom.ibuffer = new byte[indices_num * geom.indicesLength];
         fs.Read(geom.ibuffer, 0, indices_num * geom.indicesLength);
 
-        //Get vx buffer
-        fs.Seek(verts_offset, SeekOrigin.Begin);
-        geom.vbuffer = new byte[vert_num * vx_type];
-        fs.Read(geom.vbuffer, 0, vert_num * vx_type);
-
-        //Get small_vx buffer
-        fs.Seek(small_verts_offset, SeekOrigin.Begin);
-        geom.small_vbuffer = new byte[vert_num * small_vx_type];
-        fs.Read(geom.small_vbuffer, 0, vert_num * small_vx_type);
-
-
+        //Get MeshMetaData
+        fs.Seek(meshMetaData_offset, SeekOrigin.Begin);
+        for (int i = 0; i < meshMetaData_counter; i++)
+        {
+            meshMetaData mmd = new meshMetaData();
+            mmd.name = Util.read_string(br, 0x80);
+            mmd.hash = br.ReadUInt64();
+            mmd.vs_size = br.ReadUInt32();
+            mmd.vs_abs_offset = br.ReadUInt32();
+            mmd.is_size = br.ReadUInt32();
+            mmd.is_abs_offset = br.ReadUInt32();
+            geom.meshMetaDataDict[mmd.hash] = mmd;
+            Console.WriteLine(mmd.name);
+        }
+        
         //Get main mesh description
         fs.Seek(mesh_descr_offset, SeekOrigin.Begin);
         var mesh_desc = "";
@@ -745,8 +775,37 @@ public static class GEOMMBIN {
         geom.interleaved = true;
 
 
-        //Create the vbo
-        geom.vbo = new GMDL.customVBO(geom);
+        //Try to fetch the geometry.data.mbin file in order to fetch the streams
+        string gstream_path = "";
+        string[] split = fs.Name.Split('.');
+        for (int i = 0; i < split.Length - 2; i++)
+            gstream_path += split[i] + ".";
+        gstream_path += "DATA.MBIN.PC";
+
+        //Check if file exists
+        if (!File.Exists(gstream_path))
+            throw new IOException("Geometry Stream File Missing. Check your fucking files...");
+
+        //Fetch streams from the gstream file based on the metadatafile
+        FileStream gs_fs = new FileStream(gstream_path, FileMode.Open);
+        
+        foreach (KeyValuePair<ulong, meshMetaData> pair in geom.meshMetaDataDict)
+        {
+            meshMetaData mmd = pair.Value;
+            meshData md = new meshData();
+            md.vs_buffer = new byte[mmd.vs_size];
+            md.is_buffer = new byte[mmd.is_size];
+            
+            //Fetch Buffers
+            gs_fs.Seek((int) mmd.vs_abs_offset, SeekOrigin.Begin);
+            gs_fs.Read(md.vs_buffer, 0, (int) mmd.vs_size);
+            gs_fs.Seek((int) mmd.is_abs_offset, SeekOrigin.Begin);
+            gs_fs.Read(md.is_buffer, 0, (int) mmd.is_size);
+
+            geom.meshDataDict[mmd.hash] = md;
+        }
+
+        gs_fs.Close();
         
         return geom;
 
@@ -876,7 +935,7 @@ public static class GEOMMBIN {
         Util.setStatus("Importing Scene: " + scnName, strip);
         Console.WriteLine("Importing Scene: " + scnName);
         //Get Geometry File
-        XmlElement sceneNodeData = (XmlElement)sceneNode.SelectSingleNode("Property[@name='Attributes']");
+        XmlElement sceneNodeData = (XmlElement) sceneNode.SelectSingleNode("Property[@name='Attributes']");
         //Parse geometry once
         string geomfile;
         XmlElement geom = (XmlElement) sceneNodeData.ChildNodes[0].SelectSingleNode("Property[@name='Value']");
@@ -886,7 +945,6 @@ public static class GEOMMBIN {
         
         if (!Util.resMgmt.GLgeoms.ContainsKey(geomfile))
         {
-            
             gobject = GEOMMBIN.Parse(fs);
             Util.resMgmt.GLgeoms[geomfile] = gobject;
         }
@@ -905,12 +963,12 @@ public static class GEOMMBIN {
         GMDL.scene root = new GMDL.scene();
         root.name = scnName;
         root.type = TYPES.SCENE;
-        root.shader_programs = new int[]{ Util.resMgmt.shader_programs[1],
-                                        Util.resMgmt.shader_programs[5],
-                                        Util.resMgmt.shader_programs[6]};
+        root.shader_programs = new int[] {Util.resMgmt.shader_programs[1],
+                                          Util.resMgmt.shader_programs[5],
+                                          Util.resMgmt.shader_programs[6]};
 
         //Store sections node
-        XmlElement children = (XmlElement)sceneNode.SelectSingleNode("Property[@name='Children']");
+        XmlElement children = (XmlElement) sceneNode.SelectSingleNode("Property[@name='Children']");
         foreach (XmlElement node in children)
         {
             GMDL.model part = parseNode(node, gobject, root, root);
@@ -922,13 +980,13 @@ public static class GEOMMBIN {
         return root;
     }
 
-       private static GMDL.model parseNode(XmlElement node, 
-           GMDL.GeomObject gobject, GMDL.model parent, GMDL.scene scene)
-        {
-        XmlElement attribs,childs,transform;
-        transform = (XmlElement)node.SelectSingleNode("Property[@name='Transform']");
-        attribs = (XmlElement)node.SelectSingleNode("Property[@name='Attributes']");
-        childs = (XmlElement)node.SelectSingleNode("Property[@name='Children']");
+    private static GMDL.model parseNode(XmlElement node, 
+        GMDL.GeomObject gobject, GMDL.model parent, GMDL.scene scene)
+    {
+        XmlElement attribs, childs, transform;
+        transform = (XmlElement) node.SelectSingleNode("Property[@name='Transform']");
+        attribs = (XmlElement) node.SelectSingleNode("Property[@name='Attributes']");
+        childs = (XmlElement) node.SelectSingleNode("Property[@name='Children']");
 
         //Load Transforms
         //Get Transformation
@@ -962,13 +1020,8 @@ public static class GEOMMBIN {
             Console.WriteLine("Mesh Detected " + name);
 
             //Create model
-            GMDL.sharedVBO so = new GMDL.sharedVBO();
+            GMDL.meshModel so = new GMDL.meshModel();
 
-            //Set cvbo
-            so.vbo = gobject.vbo;
-            so.shader_programs = new int[] { Util.resMgmt.shader_programs[0],
-                                             Util.resMgmt.shader_programs[5],
-                                             Util.resMgmt.shader_programs[6]};
             so.name = name;
             so.type = typeEnum;
             so.debuggable = true;
@@ -979,37 +1032,45 @@ public static class GEOMMBIN {
 
             Console.WriteLine("Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]);
             //Get Options
-            so.batchstart = int.Parse(((XmlElement) attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-            so.batchcount = int.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-            so.vertrstart = int.Parse(((XmlElement)attribs.ChildNodes[2].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-            so.vertrend = int.Parse(((XmlElement)attribs.ChildNodes[3].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-            so.firstskinmat = int.Parse(((XmlElement)attribs.ChildNodes[4].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-            so.lastskinmat = int.Parse(((XmlElement)attribs.ChildNodes[5].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-            so.lod_level = int.Parse(((XmlElement)attribs.ChildNodes[6].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-            so.boundhullstart = int.Parse(((XmlElement)attribs.ChildNodes[7].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-            so.boundhullend = int.Parse(((XmlElement)attribs.ChildNodes[8].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-            Console.WriteLine("Batch Start {0} Count {1} ", so.batchstart, so.batchcount);
+            so.batchstart_physics = int.Parse(Util.GetPropValue(Util.GetChildWithProp(attribs, "Name", "BATCHSTARTPHYSI"), "Value"));
+            so.vertrstart_physics = int.Parse(Util.GetPropValue(Util.GetChildWithProp(attribs, "Name", "VERTRSTARTPHYSI"), "Value"));
+            so.vertrend_physics = int.Parse(Util.GetPropValue(Util.GetChildWithProp(attribs, "Name", "VERTRENDPHYSICS"), "Value"));
+            so.batchstart_graphics = int.Parse(Util.GetPropValue(Util.GetChildWithProp(attribs, "Name", "BATCHSTARTGRAPH"), "Value"));
+            so.batchcount = int.Parse(Util.GetPropValue(Util.GetChildWithProp(attribs, "Name", "BATCHCOUNT"), "Value"));
+            so.vertrstart_graphics = int.Parse(Util.GetPropValue(Util.GetChildWithProp(attribs, "Name", "VERTRSTARTGRAPH"), "Value"));
+            so.vertrend_graphics = int.Parse(Util.GetPropValue(Util.GetChildWithProp(attribs, "Name", "VERTRENDGRAPHIC"), "Value"));
+            so.firstskinmat = int.Parse(Util.GetPropValue(Util.GetChildWithProp(attribs, "Name", "FIRSTSKINMAT"), "Value"));
+            so.lastskinmat = int.Parse(Util.GetPropValue(Util.GetChildWithProp(attribs, "Name", "LASTSKINMAT"), "Value"));
+            so.lod_level = int.Parse(Util.GetPropValue(Util.GetChildWithProp(attribs, "Name", "LODLEVEL"), "Value"));
+            so.boundhullstart = int.Parse(Util.GetPropValue(Util.GetChildWithProp(attribs, "Name", "BOUNDHULLST"), "Value"));
+            so.boundhullend = int.Parse(Util.GetPropValue(Util.GetChildWithProp(attribs, "Name", "BOUNDHULLED"), "Value"));
+            //Get Hash
+            so.hash = ulong.Parse(Util.GetPropValue(Util.GetChildWithProp(attribs, "Name", "HASH"), "Value"));
+            Console.WriteLine("Batch Physics Start {0} Count {1} Vertex Physics {2} - {3}", 
+                so.batchstart_physics, so.batchcount, so.vertrstart_physics, so.vertrend_physics);
 
             //Find id within the vbo
             int iid = -1;
             for (int i = 0; i < gobject.vstarts.Count; i++)
-                if (gobject.vstarts[i] == so.vertrstart)
+                if (gobject.vstarts[i] == so.vertrstart_physics)
                 {
                     iid = i;
                     break;
                 }
-                
+
+            so.shader_programs = new int[] { Util.resMgmt.shader_programs[0],
+                                             Util.resMgmt.shader_programs[5],
+                                             Util.resMgmt.shader_programs[6]};
             
-
-
             so.Bbox = gobject.bboxes[iid];
             so.setupBSphere();
             so.parent = parent;
             so.scene = scene;
+            so.gobject = gobject; //Store the gobject for easier access of uniforms
             so.init(String.Join(",",transforms));
 
             //Get Material
-            string matname = ((XmlElement)attribs.ChildNodes[9].SelectSingleNode("Property[@name='Value']")).GetAttribute("value");
+            string matname = Util.GetPropValue(Util.GetChildWithProp(attribs, "Name", "MATERIAL"), "Value");
             string[] split = matname.Split('\\');
             string matkey = split[split.Length - 1];
             //Check if material already in Resources
@@ -1018,33 +1079,53 @@ public static class GEOMMBIN {
             else
             {
                 //Parse material file
-                FileStream ms = new FileStream(Path.Combine(Model_Viewer.Util.dirpath, matname), FileMode.Open);
+                //Testing
+                if (matname.Contains("HELMET1_"))
+                    Console.WriteLine("Test");
                 Console.WriteLine("Parsing Material File");
-                GMDL.Material mat = MATERIALMBIN.ParseXml(MATERIALMBIN.Parse(ms));
-                //Load default form palette on init
-                mat.palette = Model_Viewer.Palettes.paletteSel;
+                string mat_path = Path.GetFullPath(Path.Combine(Util.dirpath, matname));
+                string mat_exmlPath = Path.GetFullPath(Util.getExmlPath(mat_path));
+                //Console.WriteLine("Loading Scene " + path);
+                
+                //Check if path exists
+                if (File.Exists(mat_path))
+                {
+                    if (!File.Exists(mat_exmlPath))
+                        Util.MbinToExml(mat_path, mat_exmlPath);
 
-                mat.prepTextures();
-                mat.mixTextures();
-                ms.Close();
-                so.material = mat;
-                //Store the material to the Resources
-                Util.resMgmt.GLmaterials[matkey] = mat;
+                    XmlDocument newXml = new XmlDocument();
+                    newXml.Load(mat_exmlPath);
+                    GMDL.Material mat = MATERIALMBIN.ParseXml(newXml);
+                    //Load default form palette on init
+                    mat.palette = Model_Viewer.Palettes.paletteSel;
+
+                    mat.prepTextures();
+                    mat.mixTextures();
+                    so.material = mat;
+                    //Store the material to the Resources
+                    Util.resMgmt.GLmaterials[matkey] = mat;
+                }
             }
 
             //Decide if its a skinned mesh or not
             so.skinned = 0;
             foreach (int ui in so.material.materialflags)
             {
-                if (ui == 1) so.skinned = 1;
+                if (ui == 1)
+                {
+                    so.skinned = 1;
+                    break;
+                }
             }
-              
+
+            //Generate Vao's
+            so.main_Vao = gobject.getMainVao(so);
             
             
             //Configure boneRemap properly
             so.BoneRemap = new int[so.lastskinmat - so.firstskinmat];
             for (int i = 0; i < so.lastskinmat - so.firstskinmat; i++)
-                so.BoneRemap[i] = so.vbo.boneRemap[so.firstskinmat + i];
+                so.BoneRemap[i] = gobject.boneRemap[so.firstskinmat + i];
             
             if (childs != null)
             {
@@ -1148,39 +1229,61 @@ public static class GEOMMBIN {
             //Getting Scene MBIN file
             XmlElement opt = ((XmlElement)attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']"));
             string path = Path.GetFullPath(Path.Combine(Util.dirpath, opt.GetAttribute("value")));
-            string exmlPath = Util.getExmlPath(path);
+            string exmlPath = Path.GetFullPath(Util.getFullExmlPath(path));
+            //string exmlPath = Path.GetFullPath(Util.getExmlPath(path));
             //Console.WriteLine("Loading Scene " + path);
-            XmlDocument newXml = new XmlDocument(); 
             //Parse MBIN to xml
-            if (!Util.compareFileSizes(path,exmlPath))
-                Util.MbinToExml(path, Util.getExmlPath(path));
-            
-            newXml.Load(exmlPath);
 
-            //Read new Scene
-            GMDL.scene so = LoadObjects(newXml);
-            so.parent = parent;
-            so.scene = null;
-            //Override Name
-            so.name = name;
-            //Override transforms
-            so.init(String.Join(",", transforms));
-            
-            //Handle Children
-            if (childs != null)
-            {
-                foreach (XmlElement childnode in childs.ChildNodes)
+            //Check if path exists
+            if (File.Exists(path)) {
+                if (!File.Exists(exmlPath))
+                    Util.MbinToExml(path, exmlPath);
+
+                XmlDocument newXml = new XmlDocument();
+                newXml.Load(exmlPath);
+                //Read new Scene
+                GMDL.scene so = LoadObjects(newXml);
+                so.parent = parent;
+                so.scene = null;
+                //Override Name
+                so.name = name;
+                //Override transforms
+                so.init(String.Join(",", transforms));
+
+                //Handle Children
+                if (childs != null)
                 {
-                    GMDL.model part = parseNode(childnode, gobject, so, scene);
-                    //If joint save it also to the jointmodels of the scene
-                    if (part.type == TYPES.JOINT)
-                        so.jointModel.Add((GMDL.Joint)part);
-                    so.children.Add(part);
+                    foreach (XmlElement childnode in childs.ChildNodes)
+                    {
+                        GMDL.model part = parseNode(childnode, gobject, so, scene);
+                        //If joint save it also to the jointmodels of the scene
+                        if (part.type == TYPES.JOINT)
+                            so.jointModel.Add((GMDL.Joint)part);
+                        so.children.Add(part);
+                    }
                 }
-            }
 
-            //Load Objects from new xml
-            return so;
+                //Load Objects from new xml
+                return so;
+
+
+            } else {
+                Console.WriteLine("Reference Missing");
+                GMDL.locator so = new GMDL.locator();
+                //Set Properties
+                so.name = name + "_UNKNOWN";
+                so.type = TYPES.UNKNOWN;
+                //Set Shader Program
+                so.shader_programs = new int[] { Util.resMgmt.shader_programs[1],
+                                             Util.resMgmt.shader_programs[5],
+                                             Util.resMgmt.shader_programs[6]};
+
+                //Locator Objects don't have options
+
+                //take care of children
+                return so;
+            }
+            
         }
         else if (typeEnum == TYPES.COLLISION)
         {
@@ -1203,22 +1306,36 @@ public static class GEOMMBIN {
             Console.WriteLine("Collision Detected " + name + "TYPE: " + collisionType);
             if (collisionType == "MESH")
             {
+                so.collisionType = (int) COLLISIONTYPES.MESH;
+                so.batchstart_physics = int.Parse(((XmlElement)attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                so.vertrstart_physics = int.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                so.vertrend_physics = int.Parse(((XmlElement)attribs.ChildNodes[2].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                so.batchstart_graphics = int.Parse(((XmlElement)attribs.ChildNodes[3].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                so.batchcount = int.Parse(((XmlElement)attribs.ChildNodes[4].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                so.vertrstart_graphics = int.Parse(((XmlElement)attribs.ChildNodes[5].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                so.vertrend_graphics = int.Parse(((XmlElement)attribs.ChildNodes[6].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                so.firstskinmat = int.Parse(((XmlElement)attribs.ChildNodes[7].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                so.lastskinmat = int.Parse(((XmlElement)attribs.ChildNodes[8].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+
+                //Find id within the vbo
+                int iid = -1;
+                for (int i = 0; i < gobject.vstarts.Count; i++)
+                    if (gobject.vstarts[i] == so.vertrstart_physics)
+                    {
+                        iid = i;
+                        break;
+                    }
+
                 //Set cvbo
-                so.vbo = gobject.vbo;
-                so.collisionType = (int)COLLISIONTYPES.MESH;
-                so.batchstart = int.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-                so.batchcount = int.Parse(((XmlElement)attribs.ChildNodes[2].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-                so.vertrstart = int.Parse(((XmlElement)attribs.ChildNodes[3].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-                so.vertrend = int.Parse(((XmlElement)attribs.ChildNodes[4].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-                so.firstskinmat = int.Parse(((XmlElement)attribs.ChildNodes[5].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-                so.lastskinmat = int.Parse(((XmlElement)attribs.ChildNodes[6].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
+                so.main_Vao = gobject.getMainVao(so);
+            
             } else if (collisionType == "CYLINDER")
             {
                 //Console.WriteLine("CYLINDER NODE PARSING NOT IMPLEMENTED");
                 //Set cvbo
                 float radius = float.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 float height = float.Parse(((XmlElement)attribs.ChildNodes[2].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-                so.vbo = (new Cylinder(radius,height)).getVBO();
+                so.main_Vao = (new Cylinder(radius,height)).getVAO();
                 so.collisionType = (int)COLLISIONTYPES.CYLINDER;
 
             }
@@ -1229,13 +1346,13 @@ public static class GEOMMBIN {
                 float width  = float.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 float height = float.Parse(((XmlElement)attribs.ChildNodes[2].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 float depth  = float.Parse(((XmlElement)attribs.ChildNodes[3].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-                so.vbo = (new Box(width, height, depth)).getVBO();
+                so.main_Vao = (new Box(width, height, depth)).getVAO();
                 so.collisionType = (int)COLLISIONTYPES.BOX;
                 //Set general vbo properties
-                so.batchstart = 0;
+                so.batchstart_graphics = 0;
                 so.batchcount = 36;
-                so.vertrstart = 0;
-                so.vertrend = 8-1;
+                so.vertrstart_graphics = 0;
+                so.vertrend_graphics = 8-1;
 
             }
             else if (collisionType == "CAPSULE")
@@ -1243,18 +1360,23 @@ public static class GEOMMBIN {
                 //Set cvbo
                 float radius = float.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
                 float height = float.Parse(((XmlElement)attribs.ChildNodes[2].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-                so.vbo = (new Capsule(new Vector3(), height, radius)).getVBO();
+                so.main_Vao = (new Capsule(new Vector3(), height, radius)).getVAO();
+                so.collisionType = (int) COLLISIONTYPES.CAPSULE;
+                so.batchstart_graphics = 0;
+                so.batchcount = 726;
+                so.vertrstart_graphics = 0;
+                so.vertrend_graphics = 144 - 1;
             }
             else if (collisionType == "SPHERE")
             {
                 //Set cvbo
                 float radius = float.Parse(((XmlElement)attribs.ChildNodes[1].SelectSingleNode("Property[@name='Value']")).GetAttribute("value"));
-                so.vbo = (new Sphere(new Vector3(), radius)).getVBO();
+                so.main_Vao = (new Sphere(new Vector3(), radius)).getVAO();
                 so.collisionType = (int)COLLISIONTYPES.SPHERE;
-                so.batchstart = 0;
+                so.batchstart_graphics = 0;
                 so.batchcount = 600;
-                so.vertrstart = 0;
-                so.vertrend = 121 - 1;
+                so.vertrstart_graphics = 0;
+                so.vertrend_graphics = 121 - 1;
             }
             else
             {
@@ -1262,7 +1384,8 @@ public static class GEOMMBIN {
             }
 
 
-            Console.WriteLine("Batch Start {0} Count {1} ", so.batchstart, so.batchcount);
+            Console.WriteLine("Batch Start {0} Count {1} ", 
+                so.batchstart_physics, so.batchcount);
 
             so.parent = parent;
             so.init(String.Join(",", transforms));

@@ -15,6 +15,7 @@ namespace GMDL
         public abstract bool render(int pass);
         public abstract GMDL.model Clone(GMDL.scene scn);
         public GMDL.scene scene;
+        public GeomObject gobject;
         public GLControl pcontrol;
         public bool renderable = true;
         public bool debuggable = false;
@@ -30,6 +31,8 @@ namespace GMDL
 
         //Animation Stuff
         public float[] JMArray = (float[]) Util.JMarray.Clone();
+        public float[] skinMats = new float[256 * 16];
+
         public List<GMDL.Joint> jointModel = new List<GMDL.Joint>();
         public Dictionary<string, model> jointDict = new Dictionary<string, model>();
         public AnimeMetaData animMeta = null;
@@ -385,7 +388,7 @@ namespace GMDL
             int b_size = verts.Length * sizeof(float) / 3;
             byte[] verts_b = new byte[b_size];
             
-            Buffer.BlockCopy(verts, 0, verts_b, 0, b_size);
+            System.Buffer.BlockCopy(verts, 0, verts_b, 0, b_size);
             //verts = new Vector3[6];
             //verts[0] = new Vector3(vlen, 0.0f, 0.0f);
             //verts[1] = new Vector3(-vlen, 0.0f, 0.0f);
@@ -523,11 +526,31 @@ namespace GMDL
         }
     }
 
-    public class sharedVBO : model
+    //USE THAT SHIT AND REMOVE ALL THE BIND CALLS FROM THE VBO
+    public class mainVAO
     {
-        public int vertrstart = 0;
-        public int vertrend = 0;
-        public int batchstart = 0;
+        public int rendermode;
+        //VAO IDs
+        public int vao_id;
+        //VBO IDs
+        public int vertex_buffer_object;
+        public int small_vertex_buffer_object;
+        public int element_buffer_object;
+
+        public void mainVao()
+        {
+            //Default Constructor
+        }
+    }
+
+    public class meshModel : model
+    {
+        public int vertrstart_physics = 0;
+        public int vertrend_physics = 0;
+        public int vertrstart_graphics = 0;
+        public int vertrend_graphics = 0;
+        public int batchstart_physics = 0;
+        public int batchstart_graphics = 0;
         public int batchcount = 0;
         public int firstskinmat = 0;
         public int lastskinmat = 0;
@@ -537,10 +560,13 @@ namespace GMDL
         public int boundhullend = 0;
         
         public int skinned = 1;
+        public ulong hash = 0xFFFFFFFF;
         //Accurate boneRemap
         public int[] BoneRemap;
-        public customVBO vbo;
-        public customVBO sph_vbo;
+        public mainVAO main_Vao;
+        public mainVAO debug_Vao;
+        public mainVAO pick_Vao;
+        public mainVAO bsh_Vao;
 
         public Vector3 color = new Vector3();
         //public bool renderable = true;
@@ -558,9 +584,10 @@ namespace GMDL
             float radius = (0.5f * (Bbox[1] - Bbox[0])).Length;
 
             //Create Sphere vbo
-            sph_vbo = new Sphere(bsh_center.Xyz, radius).getVBO();
+            bsh_Vao = new Sphere(bsh_center.Xyz, radius).getVAO();
         }
 
+        /* obsolete?!?!?!?
         public float[] getBindRotMats
         {
             get
@@ -595,6 +622,7 @@ namespace GMDL
                 return jMats;
             }
         }
+        
         public float[] getBindTransMats
         {
             get
@@ -612,51 +640,7 @@ namespace GMDL
                 return trans;
             }
         }
-
-        public void renderBsphere(int pass)
-        {
-            GL.UseProgram(pass);
-
-            //Render the sphere
-            //Bind vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, sph_vbo.vertex_buffer_object);
-
-            for (int i = 0; i < 7; i++)
-            {
-                if (sph_vbo.bufInfo[i] == null) continue;
-                bufInfo buf = sph_vbo.bufInfo[i];
-                GL.VertexAttribPointer(i, buf.count, buf.type, false, sph_vbo.vx_size, buf.stride);
-                GL.EnableVertexAttribArray(i);
-            }
-
-            //Reset
-            int loc;
-            for (int i = 0; i < 64; i++)
-            {
-                loc = GL.GetUniformLocation(pass, "matflags[" + i.ToString() + "]");
-                GL.Uniform1(loc, 0.0f);
-            }
-
-            //Upload Default Color
-            loc = GL.GetUniformLocation(pass, "color");
-            GL.Uniform3(loc, this.color);
-
-            //Upload Light Flag
-            loc = GL.GetUniformLocation(pass, "useLighting");
-            GL.Uniform1(loc, 0.0f);
-
-            //Render Elements
-            GL.PointSize(5.0f);
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, sph_vbo.element_buffer_object);
-
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
-            GL.DrawRangeElements(PrimitiveType.Triangles, 0, sph_vbo.vCount,
-            sph_vbo.iCount, sph_vbo.iType, IntPtr.Zero);
-
-            for (int i = 0; i < 7; i++)
-                GL.DisableVertexAttribArray(i);
-
-        }
+        */
 
         public void renderBbox(int pass)
         {
@@ -761,19 +745,9 @@ namespace GMDL
         public virtual void renderMain(int pass)
         {
             GL.UseProgram(pass);
-            //Bind vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
 
-            for (int i = 0; i < 7; i++)
-            {
-                if (vbo.bufInfo[i] == null) continue;
-                bufInfo buf = vbo.bufInfo[i];
-                GL.VertexAttribPointer(i, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
-                GL.EnableVertexAttribArray(i);
-            }
-
+            //Step 1 Upload uniform variables
             int loc;
-
             //Upload Material Flags here
             //Reset
             loc = GL.GetUniformLocation(pass, "matflags");
@@ -781,27 +755,20 @@ namespace GMDL
 
             for (int i = 0; i < 64; i++)
                 GL.Uniform1(loc + i, 0.0f);
-            
+
             for (int i = 0; i < material.materialflags.Count; i++)
                 GL.Uniform1(loc + material.materialflags[i], 1.0f);
-            
-            
+
             //Upload joint transform data
             //Multiply matrices before sending them
             //Check if scene has the jointModel
             if (skinned > 0.0f)
             {
                 //Upload BoneRemap Information
-                loc = GL.GetUniformLocation(pass, "boneRemap");
-                GL.Uniform1(loc, BoneRemap.Length, BoneRemap);
-
-                float[] skinmats = Util.mulMatArrays(vbo.invBMats, scene.JMArray, 128);
-                loc = GL.GetUniformLocation(pass, "skinMats");
-
-                GL.UniformMatrix4(331, 128, false, skinmats);
-
+                GL.Uniform1(75, BoneRemap.Length, BoneRemap);
+                Util.mulMatArrays(skinMats, gobject.invBMats, scene.JMArray, 256);
+                GL.UniformMatrix4(331, 128, false, skinMats);
             }
-            
 
             //Upload Light Flag
             //loc = GL.GetUniformLocation(pass, "useLighting");
@@ -816,19 +783,19 @@ namespace GMDL
             //Diffuse Texture
             GL.Uniform1(460, 0); // I need to upload the texture unit number
 
-            GL.ActiveTexture((TextureUnit) (tex0Id + 0));
+            GL.ActiveTexture((TextureUnit)(tex0Id + 0));
             GL.BindTexture(TextureTarget.Texture2D, material.fDiffuseMap.bufferID);
 
             //Mask Texture
             GL.Uniform1(461, 1); // I need to upload the texture unit number
 
-            GL.ActiveTexture((TextureUnit) (tex0Id + 1));
+            GL.ActiveTexture((TextureUnit)(tex0Id + 1));
             GL.BindTexture(TextureTarget.Texture2D, material.fMaskMap.bufferID);
 
             //Normal Texture
             GL.Uniform1(462, 2); // I need to upload the texture unit number
 
-            GL.ActiveTexture((TextureUnit) (tex0Id + 2));
+            GL.ActiveTexture((TextureUnit)(tex0Id + 2));
             GL.BindTexture(TextureTarget.Texture2D, material.fNormalMap.bufferID);
 
 
@@ -841,34 +808,21 @@ namespace GMDL
             //Upload Default Color
             loc = GL.GetUniformLocation(pass, "color");
             GL.Uniform3(loc, this.color);
-            
+
+
+            //Step 2 Bind & Render Vao
             //Render Elements
-            GL.PointSize(5.0f);
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
-
+            GL.BindVertexArray(main_Vao.vao_id);
             GL.PolygonMode(MaterialFace.FrontAndBack, RenderOptions.RENDERMODE);
-            GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
-                batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
+            GL.DrawElements(PrimitiveType.Triangles, batchcount, DrawElementsType.UnsignedShort, (IntPtr) 0);
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
-
-            for (int i=0;i<7;i++)
-                GL.DisableVertexAttribArray(i);
+            GL.BindVertexArray(0);
         }
 
-        public  virtual void renderDebug(int pass)
+        public virtual void renderDebug(int pass)
         {
             GL.UseProgram(pass);
-            //Bind vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
-
-            for (int i = 0; i < 7; i++)
-            {
-                if (vbo.bufInfo[i] == null) continue;
-                bufInfo buf = vbo.bufInfo[i];
-                GL.VertexAttribPointer(i, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
-                GL.EnableVertexAttribArray(i);
-            }
-
+            //Step 1: Upload Uniforms
             int loc;
             //Upload Material Flags here
             //Reset
@@ -883,24 +837,20 @@ namespace GMDL
             //Upload BoneRemap Information
             loc = GL.GetUniformLocation(pass, "boneRemap");
             GL.Uniform1(loc, BoneRemap.Length, BoneRemap);
-
+            
             //Upload joint transform data
             //Multiply matrices before sending them
             //Check if scene has the jointModel
-            float[] skinmats = Util.mulMatArrays(vbo.invBMats, scene.JMArray, 128);
+            Util.mulMatArrays(skinMats, gobject.invBMats, scene.JMArray, 256);
 
             loc = GL.GetUniformLocation(pass, "skinMats");
-            GL.UniformMatrix4(loc, 128, false, skinmats);
+            GL.UniformMatrix4(loc, 256, false, skinMats);
 
-            //Render Elements
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
 
-            GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
-                batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
-
-            for (int i = 0; i< 7; i++)
-                GL.DisableVertexAttribArray(i);
-
+            //Step 2: Render VAO
+            GL.BindVertexArray(main_Vao.vao_id);
+            GL.DrawElements(PrimitiveType.Triangles, batchcount, DrawElementsType.UnsignedShort, (IntPtr)0);
+            GL.BindVertexArray(0);
         }
 
         public override bool render(int pass)
@@ -938,6 +888,7 @@ namespace GMDL
             return true;
         }
 
+        /* OBSOLETE
         private void rendersmall()
         {
             //Bind vertex buffer
@@ -946,7 +897,7 @@ namespace GMDL
             int vpos, bI, bW;
             //Vertex attribute
             vpos = GL.GetAttribLocation(this.shader_programs[0], "vPosition");
-            int vstride = vbo.vx_size * vertrstart;
+            int vstride = vbo.vx_size * vertrstart_graphics;
             GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.small_vx_size, vbo.small_vx_stride);
             GL.EnableVertexAttribArray(vpos);
 
@@ -982,10 +933,10 @@ namespace GMDL
             //Upload joint transform data
             //Multiply matrices before sending them
             //Check if scene has the jointModel
-            float[] skinmats = Util.mulMatArrays(vbo.invBMats, scene.JMArray, 128);
+            float[] skinmats = Util.mulMatArrays(vbo.invBMats, scene.JMArray, 256);
 
             loc = GL.GetUniformLocation(shader_programs[0], "skinMats");
-            GL.UniformMatrix4(loc, 128, false, skinmats);
+            GL.UniformMatrix4(loc, 256, false, skinmats);
 
             //Upload procedural sampler flag
             loc = GL.GetUniformLocation(shader_programs[0], "procFlag");
@@ -1008,8 +959,8 @@ namespace GMDL
 
             GL.PolygonMode(MaterialFace.Front, RenderOptions.RENDERMODE);
             GL.PolygonMode(MaterialFace.Back, RenderOptions.RENDERMODE);
-            GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
-                batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
+            GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart_graphics, vertrend_graphics,
+                batchcount, vbo.iType, (IntPtr)(batchstart_graphics * vbo.iLength));
 
             //Console.WriteLine("Normal Object {2} vpos {0} cpos {1} prog {3}", vpos, npos, this.name, this.shader_program);
             //Console.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vbo.vertex_buffer_object, this.vbo.color_buffer_object);
@@ -1019,16 +970,22 @@ namespace GMDL
             GL.DisableVertexAttribArray(bW);
 
         }
+        */
 
         public override GMDL.model Clone(GMDL.scene scn)
         {
-            GMDL.sharedVBO copy = new GMDL.sharedVBO();
-            copy.vertrend = this.vertrend;
-            copy.vertrstart = this.vertrstart;
+            GMDL.meshModel copy = new GMDL.meshModel();
+            copy.vertrstart_graphics = this.vertrstart_graphics;
+            copy.vertrstart_physics = this.vertrstart_physics;
+            copy.vertrend_graphics = this.vertrend_graphics;
+            copy.vertrend_physics = this.vertrend_physics;
+            
             copy.renderable = true; //Override Renderability
             copy.shader_programs = this.shader_programs;
             copy.type = this.type;
-            copy.vbo = this.vbo;
+            copy.main_Vao = main_Vao;
+            copy.debug_Vao = debug_Vao;
+            copy.pick_Vao = pick_Vao;
             copy.name = this.name;
             copy.ID = this.ID;
             //Clone transformation
@@ -1042,7 +999,8 @@ namespace GMDL
             copy.skinned = this.skinned;
             //Render Tris
             copy.batchcount = this.batchcount;
-            copy.batchstart = this.batchstart;
+            copy.batchstart_graphics = this.batchstart_graphics;
+            copy.batchstart_physics = this.batchstart_physics;
             //Bound Hulls
             copy.boundhullstart = this.boundhullstart;
             copy.boundhullend = this.boundhullend;
@@ -1057,6 +1015,7 @@ namespace GMDL
             copy.jointModel = new List<GMDL.Joint>();
             //In sharedVBO objects, both this and all the children have the same scene
             copy.scene = scn;
+            copy.gobject = gobject; //Leave geometry file intact, no need to copy anything here
             foreach (GMDL.model child in this.jointModel)
             {
                 GMDL.model nChild = child.Clone(scn);
@@ -1080,9 +1039,9 @@ namespace GMDL
             //For testing DO NOT EXPORT COLLISION OBJECTS
             if (this.type == TYPES.COLLISION) return;
             
-            int vertcount = this.vertrend - this.vertrstart + 1;
-            MemoryStream vms = new MemoryStream(this.vbo.geomVbuf);
-            MemoryStream ims = new MemoryStream(this.vbo.geomIbuf);
+            int vertcount = this.vertrend_graphics - this.vertrstart_graphics + 1;
+            MemoryStream vms = new MemoryStream(gobject.meshDataDict[hash].vs_buffer);
+            MemoryStream ims = new MemoryStream(gobject.meshDataDict[hash].is_buffer);
             BinaryReader vbr = new BinaryReader(vms);
             BinaryReader ibr = new BinaryReader(ims);
             //Start Writing
@@ -1094,11 +1053,11 @@ namespace GMDL
             Matrix4 wMat = this.worldMat;
             Matrix4 nMat = Matrix4.Invert(Matrix4.Transpose(wMat));
 
-            vbr.BaseStream.Seek(vbo.vx_size * vertrstart, SeekOrigin.Begin);
+            vbr.BaseStream.Seek(0, SeekOrigin.Begin);
             for (int i = 0; i < vertcount; i++)
             {
                 Vector4 v;
-                VertexAttribPointerType ntype = vbo.bufInfo[0].type;
+                VertexAttribPointerType ntype = gobject.bufInfo[0].type;
                 int v_section_bytes = 0;
 
                 switch (ntype)
@@ -1130,18 +1089,16 @@ namespace GMDL
                 
                 //s.WriteLine("v " + Half.decompress(v1).ToString() + " "+ Half.decompress(v2).ToString() + " " + Half.decompress(v3).ToString());
                 s.WriteLine("v " + v.X.ToString() + " " + v.Y.ToString() + " " + v.Z.ToString());
-                vbr.BaseStream.Seek(this.vbo.vx_size - v_section_bytes, SeekOrigin.Current);
+                vbr.BaseStream.Seek(gobject.vx_size - v_section_bytes, SeekOrigin.Current);
             }
             //Get Normals
 
-            vbr.BaseStream.Seek(vbo.n_stride + vbo.vx_size * vertrstart, SeekOrigin.Begin);
+            vbr.BaseStream.Seek(gobject.offsets[2] + 0, SeekOrigin.Begin);
             for (int i = 0; i < vertcount; i++)
             {
                 Vector4 vN;
-                VertexAttribPointerType ntype = vbo.bufInfo[2].type;
+                VertexAttribPointerType ntype = gobject.bufInfo[2].type;
                 int n_section_bytes = 0;
-
-                
 
                 switch (ntype)
                 {
@@ -1206,17 +1163,17 @@ namespace GMDL
                 vN = Vector4.Transform(vN, nMat);
 
                 s.WriteLine("vn " + vN.X.ToString() + " " + vN.Y.ToString() + " " + vN.Z.ToString());
-                vbr.BaseStream.Seek(this.vbo.vx_size - n_section_bytes, SeekOrigin.Current);
+                vbr.BaseStream.Seek(gobject.vx_size - n_section_bytes, SeekOrigin.Current);
             }
             //Get UVs, only for mesh objects
             
-            vbr.BaseStream.Seek(Math.Max(vbo.uv0_stride,0) + vbo.vx_size * vertrstart, SeekOrigin.Begin);
+            vbr.BaseStream.Seek(Math.Max(gobject.offsets[1], 0) + gobject.vx_size * vertrstart_graphics, SeekOrigin.Begin);
             for (int i = 0; i < vertcount; i++)
             {
                 float uv1, uv2, uv3;
                 Vector2 uv;
                 int uv_section_bytes = 0;
-                if (vbo.uv0_stride != -1) //Check if uvs exist
+                if (gobject.offsets[1] != -1) //Check if uvs exist
                 {
                     uint v1 = vbr.ReadUInt16();
                     uint v2 = vbr.ReadUInt16();
@@ -1228,11 +1185,11 @@ namespace GMDL
                 else
                 {
                     uv = new Vector2(0.0f, 0.0f);
-                    uv_section_bytes = this.vbo.vx_size;
+                    uv_section_bytes = gobject.vx_size;
                 }
 
                 s.WriteLine("vt " + uv.X.ToString() + " " + (1.0 - uv.Y).ToString());
-                vbr.BaseStream.Seek(this.vbo.vx_size - uv_section_bytes, SeekOrigin.Current);
+                vbr.BaseStream.Seek(gobject.vx_size - uv_section_bytes, SeekOrigin.Current);
             }
 
             
@@ -1241,13 +1198,13 @@ namespace GMDL
             s.WriteLine("s off");
 
             //Get indices
-            ibr.BaseStream.Seek(this.vbo.iLength * this.batchstart, SeekOrigin.Begin);
+            ibr.BaseStream.Seek(0, SeekOrigin.Begin);
             bool start = false;
             uint fstart = 0;
             for (int i = 0; i < batchcount/3; i++)
             {
                 uint f1, f2, f3;
-                if (this.vbo.iLength == 2)
+                if (gobject.indicesLength == 2)
                 {
                     f1 = ibr.ReadUInt16();
                     f2 = ibr.ReadUInt16();
@@ -1293,7 +1250,7 @@ namespace GMDL
 
     }
 
-    public class Collision : sharedVBO
+    public class Collision : meshModel
     {
         public int collisionType = -1;
 
@@ -1306,7 +1263,7 @@ namespace GMDL
 
         public override bool render(int pass)
         {
-            if (this.renderable == false || this.vbo == null || RenderOptions.RenderCollisions == false)
+            if (this.renderable == false || this.main_Vao == null || RenderOptions.RenderCollisions == false)
             {
                 //Console.WriteLine("Not Renderable");
                 return false;
@@ -1339,17 +1296,7 @@ namespace GMDL
             //Console.WriteLine(this.name + this);
             GL.UseProgram(pass);
 
-            //Bind vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
-
-            for (int i = 0; i < 7; i++)
-            {
-                if (vbo.bufInfo[i] == null) continue;
-                bufInfo buf = vbo.bufInfo[i];
-                GL.VertexAttribPointer(i, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
-                GL.EnableVertexAttribArray(i);
-            }
-
+            //Step 1: Upload Uniforms
             int loc;
             //Upload Material Flags here
             //Reset
@@ -1367,26 +1314,30 @@ namespace GMDL
             loc = GL.GetUniformLocation(pass, "useLighting");
             GL.Uniform1(loc, 0.0f);
 
-            //Render Elements
+            //Step 2: Render Elements
             GL.PointSize(5.0f);
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
-
+            GL.BindVertexArray(main_Vao.vao_id);
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
             
             if (collisionType == (int)COLLISIONTYPES.MESH)
             {
-                GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
-                batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
+                GL.DrawElements(PrimitiveType.Triangles, batchcount,
+               DrawElementsType.UnsignedShort, IntPtr.Zero);
             }
             else if (collisionType == (int)COLLISIONTYPES.BOX)
             {
-                GL.DrawRangeElements(PrimitiveType.Triangles, 0, vbo.vCount,
-                vbo.iCount, vbo.iType, IntPtr.Zero);
+                GL.DrawElements(PrimitiveType.Triangles, batchcount,
+               DrawElementsType.UnsignedShort, IntPtr.Zero);
+            }
+            else if (collisionType == (int)COLLISIONTYPES.CAPSULE)
+            {
+                GL.DrawElements(PrimitiveType.Triangles, batchcount,
+               DrawElementsType.UnsignedShort, IntPtr.Zero);
             }
             else
             {
-                GL.DrawRangeElements(PrimitiveType.Triangles, 0, vbo.vCount,
-                vbo.iCount, vbo.iType, IntPtr.Zero);
+                GL.DrawElements(PrimitiveType.Triangles, batchcount,
+               DrawElementsType.UnsignedShort, IntPtr.Zero);
             }
 
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
@@ -1394,54 +1345,40 @@ namespace GMDL
             //Console.WriteLine("Normal Object {2} vpos {0} cpos {1} prog {3}", vpos, npos, this.name, this.shader_program);
             //Console.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vbo.vertex_buffer_object, this.vbo.color_buffer_object);
 
-            for (int i = 0; i < 7; i++)
-                GL.DisableVertexAttribArray(i);
-
+            GL.BindVertexArray(0);
         }
 
         public override void renderDebug(int pass)
         {
             GL.UseProgram(pass);
-            //Bind vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
-
-            for (int i = 0; i < 7; i++)
-            {
-                if (vbo.bufInfo[i] == null) continue;
-                bufInfo buf = vbo.bufInfo[i];
-                GL.VertexAttribPointer(i, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
-                GL.EnableVertexAttribArray(i);
-            }
 
             //Render Elements
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
-
+            GL.BindVertexArray(main_Vao.vao_id);
             GL.PolygonMode(MaterialFace.Front, PolygonMode.Fill);
-            GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
-                batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
-
-            for (int i = 0; i < 7; i++)
-                GL.DisableVertexAttribArray(i);
-
+            GL.DrawElements(PrimitiveType.Triangles, batchcount,
+               DrawElementsType.UnsignedShort, IntPtr.Zero);
+            GL.BindVertexArray(0);
         }
 
     }
 
-    public class Decal : sharedVBO
+    public class Decal : meshModel
     {
         public int collisionType = -1;
 
         //Custom constructor
         public Decal() { }
 
-        public Decal(GMDL.sharedVBO root) {
+        public Decal(GMDL.meshModel root) {
             //Copy attributes from root object
-            this.vertrend = root.vertrend;
-            this.vertrstart = root.vertrstart;
+            this.vertrend_graphics = root.vertrend_graphics;
+            this.vertrend_physics = root.vertrend_physics;
+            this.vertrstart_graphics = root.vertrstart_graphics;
+            this.vertrstart_physics = root.vertrstart_physics;
             this.renderable = true; //Override Renderability
             this.shader_programs = root.shader_programs;
             this.type = root.type;
-            this.vbo = root.vbo;
+            this.main_Vao = root.main_Vao;
             this.name = root.name;
             this.ID = root.ID;
             //Clone transformation
@@ -1452,7 +1389,8 @@ namespace GMDL
             this.firstskinmat = root.firstskinmat;
             this.lastskinmat = root.lastskinmat;
             this.batchcount = root.batchcount;
-            this.batchstart = root.batchstart;
+            this.batchstart_graphics = root.batchstart_graphics;
+            this.batchstart_physics = root.batchstart_physics;
             this.color = root.color;
             this.material = root.material;
             this.BoneRemap = root.BoneRemap;
@@ -1471,7 +1409,7 @@ namespace GMDL
 
         public override bool render(int pass)
         {
-            if (this.renderable == false || this.vbo == null)
+            if (this.renderable == false || this.main_Vao == null)
             {
                 //Console.WriteLine("Not Renderable");
                 return false;
@@ -1499,17 +1437,7 @@ namespace GMDL
             //Console.WriteLine(this.name + this);
             GL.UseProgram(pass);
 
-            //Bind vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
-
-            for (int i = 0; i < 7; i++)
-            {
-                if (vbo.bufInfo[i] == null) continue;
-                bufInfo buf = vbo.bufInfo[i];
-                GL.VertexAttribPointer(i, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
-                GL.EnableVertexAttribArray(i);
-            }
-
+            //Step 1: Upload Uniforms
             int loc;
             //Upload Material Flags here
             //Reset
@@ -1547,42 +1475,25 @@ namespace GMDL
 
             //Util.gbuf.dump();
 
-            //Render Elements
+            //Step 2: Render Elements
             GL.PointSize(5.0f);
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
-
-            GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
-                batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
-
-
-            for (int i = 0; i < 7; i++)
-                GL.DisableVertexAttribArray(i);
-
+            GL.BindVertexArray(main_Vao.vao_id);
+            GL.DrawElements(PrimitiveType.Triangles, batchcount,
+               DrawElementsType.UnsignedShort, IntPtr.Zero);
+            GL.BindVertexArray(0);
         }
 
         public override void renderDebug(int pass)
         {
             GL.UseProgram(pass);
-            //Bind vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.vertex_buffer_object);
+            //Step 1: Upload Uniforms
 
-            for (int i = 0; i < 7; i++)
-            {
-                if (vbo.bufInfo[i] == null) continue;
-                bufInfo buf = vbo.bufInfo[i];
-                GL.VertexAttribPointer(i, buf.count, buf.type, false, this.vbo.vx_size, buf.stride);
-                GL.EnableVertexAttribArray(i);
-            }
-
-            //Render Elements
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
-
-            GL.PolygonMode(MaterialFace.Front, PolygonMode.Fill);
-            GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart, vertrend,
-                batchcount, vbo.iType, (IntPtr)(batchstart * vbo.iLength));
-
-            for (int i = 0; i < 7; i++)
-                GL.DisableVertexAttribArray(i);
+            //Step 2: Render Elements
+            GL.PointSize(5.0f);
+            GL.BindVertexArray(main_Vao.vao_id);
+            GL.DrawElements(PrimitiveType.Triangles, batchcount,
+               DrawElementsType.UnsignedShort, IntPtr.Zero);
+            GL.BindVertexArray(0);
 
         }
 
@@ -1593,11 +1504,7 @@ namespace GMDL
         private bool disposed = false;
         public int vertex_buffer_object;
         public int small_vertex_buffer_object;
-        public int normal_buffer_object;
         public int element_buffer_object;
-        public int color_buffer_object;
-        //Testing
-        public int bIndices_buffer_object;
 
         public List<JointBindingData> jointData;
         public List<GMDL.bufInfo> bufInfo;
@@ -1626,18 +1533,16 @@ namespace GMDL
         public byte[] geomVbuf;
         public byte[] geomIbuf;
 
-
-
         public customVBO()
         {
         }
 
-        public customVBO(GeomObject geom)
+        public customVBO(GeomObject geom, int streamID)
         {
-            this.LoadFromGeom(geom);
+            this.LoadFromGeom(geom, streamID);
         }
 
-        public void LoadFromGeom(GeomObject geom)
+        public void LoadFromGeom(GeomObject geom, int streamID)
         {
             //Set essential parameters
             this.vx_size = geom.vx_size;
@@ -1653,10 +1558,10 @@ namespace GMDL
             this.small_blendI_stride = geom.small_offsets[5];
             this.blendW_stride = geom.offsets[6];
             this.small_blendW_stride = geom.small_offsets[6];
-            this.vCount = (int)geom.vertCount;
+            this.vCount = (int) geom.vertCount;
             this.iCount = (int) geom.indicesCount;
             this.trisCount = (int) geom.indicesCount / 3;
-            this.iLength = (int)geom.indicesLength;
+            this.iLength = (int) geom.indicesLength;
             this.boneRemap = geom.boneRemap;
             this.geomVbuf = geom.vbuffer;
             this.geomIbuf = geom.ibuffer;
@@ -1667,53 +1572,7 @@ namespace GMDL
                 this.iType = DrawElementsType.UnsignedInt;
             //Set Joint Data
             this.jointData = geom.jointData;
-            invBMats = new float[128 * 16];
-            //Copy inverted Matrix to local variable
-            for (int i = 0; i < jointData.Count; i++)
-                Array.Copy(jointData[i].convertMat(), 0, invBMats, 16 * i, 16);
-
-            int[] vbo_buffers = new int[5];
-            GL.GenBuffers(5, vbo_buffers);
-
-            vertex_buffer_object = vbo_buffers[0];
-            small_vertex_buffer_object = vbo_buffers[1];
-            color_buffer_object = vbo_buffers[2];
-            element_buffer_object = vbo_buffers[3];
-            bIndices_buffer_object = vbo_buffers[4];
-
-            //GL.GenBuffers(1, out vertex_buffer_object);
-            //GL.GenBuffers(1, out small_vertex_buffer_object);
-            //GL.GenBuffers(1, out color_buffer_object);
-            //GL.GenBuffers(1, out element_buffer_object);
-            //GL.GenBuffers(1, out bIndices_buffer_object);
-            Console.WriteLine(GL.GetError());
-
-            int size;
-            //Upload vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vertex_buffer_object);
-            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr) (geom.vx_size * geom.vertCount),
-                geom.vbuffer, BufferUsageHint.StaticDraw);
-            GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize,
-                out size);
-            if (size != geom.vx_size * geom.vertCount)
-                throw new ApplicationException(String.Format("Problem with vertex buffer"));
-
-            //Upload small vertex buffer
-            if (geom.small_vx_size != -1)
-            {
-                GL.BindBuffer(BufferTarget.ArrayBuffer, small_vertex_buffer_object);
-                GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)(geom.small_vx_size * geom.vertCount),
-                    geom.small_vbuffer, BufferUsageHint.StaticDraw);
-                GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize,
-                    out size);
-                if (size != geom.small_vx_size * geom.vertCount)
-                    throw new ApplicationException(String.Format("Problem with small vertex buffer"));
-            }
-
-            //Upload index buffer
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, element_buffer_object);
-            GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr)(geom.indicesLength * geom.indicesCount), geom.ibuffer, BufferUsageHint.StaticDraw);
-
+            
             ////Explicitly Parse BlendIndices
             //int offset = blendI_stride;
             //int[] bIndices = new int[geom.vertCount * 4];
@@ -1760,8 +1619,6 @@ namespace GMDL
                 GL.DeleteBuffer(vertex_buffer_object);
                 GL.DeleteBuffer(small_vertex_buffer_object);
                 GL.DeleteBuffer(element_buffer_object);
-                GL.DeleteBuffer(color_buffer_object);
-                
                 //Free other resources here
             }
 
@@ -1813,12 +1670,13 @@ namespace GMDL
         public List<Vector3[]> bboxes = new List<Vector3[]>();
         public List<Vector3> bhullverts = new List<Vector3>();
         public List<int> vstarts = new List<int>();
-
-        public customVBO vbo;
-
+        public Dictionary<ulong, meshMetaData> meshMetaDataDict = new Dictionary<ulong, meshMetaData>();
+        public Dictionary<ulong, meshData> meshDataDict = new Dictionary<ulong, meshData>();
+        
         //Joint info
         public List<JointBindingData> jointData = new List<JointBindingData>();
-        
+        public float[] invBMats = new float[256 * 16];
+
         public Vector3 get_vec3_half(BinaryReader br)
         {
             Vector3 temp;
@@ -1846,6 +1704,135 @@ namespace GMDL
             return temp;
         }
 
+
+        //Fetch main VAO
+        public mainVAO getMainVao(meshModel so)
+        {
+            mainVAO vao = new mainVAO();
+
+            //Generate VAO
+            vao.vao_id = GL.GenVertexArray();
+            GL.BindVertexArray(vao.vao_id);
+            
+            //Generate VBOs
+            int[] vbo_buffers = new int[3];
+            GL.GenBuffers(3, vbo_buffers);
+
+            int vertex_buffer_object = vbo_buffers[0];
+            int small_vertex_buffer_object = vbo_buffers[1];
+            int element_buffer_object = vbo_buffers[2];
+
+            //Bind vertex buffer
+            int size;
+            //Upload Vertex Buffer
+            GL.BindBuffer(BufferTarget.ArrayBuffer, vertex_buffer_object);
+            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr) meshMetaDataDict[so.hash].vs_size,
+                meshDataDict[so.hash].vs_buffer, BufferUsageHint.StaticDraw);
+            GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize,
+                out size);
+            if (size != vx_size * (so.vertrend_graphics + 1))
+                throw new ApplicationException(String.Format("Problem with vertex buffer"));
+
+
+            //Assign VertexAttribPointers
+            for (int i = 0; i < 7; i++)
+            {
+                if (this.bufInfo[i] == null) continue;
+                bufInfo buf = this.bufInfo[i];
+                GL.VertexAttribPointer(i, buf.count, buf.type, false, this.vx_size, buf.stride);
+                GL.EnableVertexAttribArray(i);
+            }
+
+            /* SKIP SMALL VERTEX BUFFER FOR NOW
+            //Upload small vertex buffer
+            if (small_vx_size != -1)
+            {
+                GL.BindBuffer(BufferTarget.ArrayBuffer, small_vertex_buffer_object);
+                GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)(small_vx_size * geom.vertCount),
+                    small_vbuffer, BufferUsageHint.StaticDraw);
+                GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize,
+                    out size);
+                if (size != small_vx_size * geom.vertCount)
+                    throw new ApplicationException(String.Format("Problem with small vertex buffer"));
+            }
+
+            */
+
+            //Upload index buffer
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, element_buffer_object);
+            GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr) meshMetaDataDict[so.hash].is_size, 
+                meshDataDict[so.hash].is_buffer, BufferUsageHint.StaticDraw);
+            GL.GetBufferParameter(BufferTarget.ElementArrayBuffer, BufferParameterName.BufferSize,
+                out size);
+            Console.WriteLine(GL.GetError());
+            if (size != meshMetaDataDict[so.hash].is_size)
+                throw new ApplicationException(String.Format("Problem with vertex buffer"));
+
+
+            //Unbind
+            GL.BindVertexArray(0);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
+            for (int i = 0; i < 7; i++)
+                GL.DisableVertexAttribArray(i);
+
+            return vao;
+        }
+        
+        public mainVAO getMainVao()
+        {
+            mainVAO vao = new mainVAO();
+
+            //Generate VAO
+            vao.vao_id = GL.GenVertexArray();
+            GL.BindVertexArray(vao.vao_id);
+
+            //Generate VBOs
+            int[] vbo_buffers = new int[3];
+            GL.GenBuffers(2, vbo_buffers);
+
+            int vertex_buffer_object = vbo_buffers[0];
+            int element_buffer_object = vbo_buffers[1];
+
+            Console.WriteLine(GL.GetError());
+            
+            //Bind vertex buffer
+            int size;
+            //Upload Vertex Buffer
+            GL.BindBuffer(BufferTarget.ArrayBuffer, vertex_buffer_object);
+            GL.BufferData(BufferTarget.ArrayBuffer, vbuffer.Length,
+                vbuffer, BufferUsageHint.StaticDraw);
+            GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize,
+                out size);
+            if (size != vbuffer.Length)
+                throw new ApplicationException(String.Format("Problem with vertex buffer"));
+
+            //Upload index buffer
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, element_buffer_object);
+            GL.BufferData(BufferTarget.ElementArrayBuffer, ibuffer.Length,
+                ibuffer, BufferUsageHint.StaticDraw);
+
+            //Assign VertexAttribPointers
+            for (int i = 0; i < 7; i++)
+            {
+                if (this.bufInfo[i] == null) continue;
+                bufInfo buf = this.bufInfo[i];
+                GL.VertexAttribPointer(i, buf.count, buf.type, false, this.vx_size, buf.stride);
+                GL.EnableVertexAttribArray(i);
+            }
+
+            //Unbind
+            GL.BindVertexArray(0);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
+            
+            for (int i = 0; i < 7; i++)
+                GL.DisableVertexAttribArray(i);
+
+            return vao;
+        }
+
+
         public void Dispose()
         {
             Dispose(true);
@@ -1864,10 +1851,12 @@ namespace GMDL
                 bufInfo.Clear();
                 bboxes.Clear();
                 vstarts.Clear();
-                //Clear vbo
-                if (vbo != null) vbo.Dispose();
 
-                //Free other resources here
+                //Clear buffers
+                foreach (KeyValuePair<ulong, meshMetaData> pair in meshMetaDataDict)
+                    meshDataDict[pair.Key] = null;
+
+                GC.Collect();
             }
 
             //Free unmanaged resources
@@ -1881,7 +1870,7 @@ namespace GMDL
 
         
     }
-    
+
     public class bufInfo
     {
         public int semantic;
@@ -1976,7 +1965,12 @@ namespace GMDL
         {
             foreach (Sampler sam in samplers){
 
-                string[] split = sam.pathDiff.Split('.');
+                //Testing
+                if (sam.map.Contains("HELMET_1"))
+                {
+                    Console.WriteLine("Test");
+                }
+                string[] split = sam.map.Split('.');
                 //Construct main filename
                 string temp = "";
                 for (int i = 0; i < split.Length - 1; i++)
@@ -2177,30 +2171,30 @@ namespace GMDL
                     int active_id = 0;
                     Console.WriteLine("Proper Texture, Bullshiting for now");
                     //Handle Diffuse
-                    if (sam.pathDiff != "")
-                        if (Util.resMgmt.GLtextures.ContainsKey(sam.pathDiff))
+                    if (sam.map != "")
+                        if (Util.resMgmt.GLtextures.ContainsKey(sam.map))
                         {
-                            Texture tex = Util.resMgmt.GLtextures[sam.pathDiff];
+                            Texture tex = Util.resMgmt.GLtextures[sam.map];
                             difftextures[active_id] = tex;
                             baseLayersUsed[active_id] = 1.0f;
                         }
                         else
                         {
-                            Texture tex = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.pathDiff));
+                            Texture tex = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.map));
                             tex.palOpt = new PaletteOpt(false);
                             tex.procColor = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
                             difftextures[active_id] = tex;
                             baseLayersUsed[active_id] = 1.0f;
                             //Store to resource
-                            Util.resMgmt.GLtextures[sam.pathDiff] = tex;
+                            Util.resMgmt.GLtextures[sam.map] = tex;
                         }
 
 
                     //Handle Mask
-                    if (sam.pathMask != "" && sam.pathMask != null)
-                        if (Util.resMgmt.GLtextures.ContainsKey(sam.pathMask))
+                    if (sam.map != "" && sam.map != null)
+                        if (Util.resMgmt.GLtextures.ContainsKey(sam.map))
                         {
-                            Texture tex = Util.resMgmt.GLtextures[sam.pathMask];
+                            Texture tex = Util.resMgmt.GLtextures[sam.map];
                             masktextures[active_id] = tex;
                             alphaLayersUsed[active_id] = 1.0f;
                         }
@@ -2212,32 +2206,32 @@ namespace GMDL
                         //}
                         else
                         {
-                            Texture tex = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.pathMask));
+                            Texture tex = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.map));
                             tex.palOpt = new PaletteOpt(false);
                             tex.procColor = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
                             masktextures[active_id] = tex;
                             alphaLayersUsed[active_id] = 1.0f;
                             //Store to resource
-                            Util.resMgmt.GLtextures[sam.pathMask] = tex;
+                            Util.resMgmt.GLtextures[sam.map] = tex;
                         }
 
                     //Handle Normal
-                    if (sam.pathNormal != "" && sam.pathNormal != null)
-                        if (Util.resMgmt.GLtextures.ContainsKey(sam.pathNormal))
+                    if (sam.map != "" && sam.map != null)
+                        if (Util.resMgmt.GLtextures.ContainsKey(sam.map))
                         {
-                            Texture tex = Util.resMgmt.GLtextures[sam.pathNormal];
+                            Texture tex = Util.resMgmt.GLtextures[sam.map];
                             normaltextures[active_id] = tex;
                         }
                         else
                         {
                             try
                             {
-                                Texture tex = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.pathNormal));
+                                Texture tex = new Texture(Path.Combine(Model_Viewer.Util.dirpath, sam.map));
                                 tex.palOpt = new PaletteOpt(false);
                                 tex.procColor = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
                                 normaltextures[active_id] = tex;
                                 //Store to resource
-                                Util.resMgmt.GLtextures[sam.pathNormal] = tex;
+                                Util.resMgmt.GLtextures[sam.map] = tex;
                             }
                             catch (System.IO.FileNotFoundException)
                             { 
@@ -2700,19 +2694,21 @@ namespace GMDL
     public class Sampler
     {
         public string name;
-        public string pathDiff;
-        public string pathMask = null;
-        public string pathNormal = null;
+        public string map;
+        //public string pathDiff;
+        //public string pathMask = null;
+        //public string pathNormal = null;
         public bool proc = false;
-        public List<Texture> procTextures = new List<Texture>();
+        //public List<Texture> procTextures = new List<Texture>();
 
         public Sampler Clone()
         {
             Sampler newsampler = new Sampler();
             newsampler.name = name;
-            newsampler.pathDiff = pathDiff;
-            newsampler.pathMask = pathMask;
-            newsampler.pathNormal = pathNormal;
+            newsampler.map = map;
+            //newsampler.pathDiff = pathDiff;
+            //newsampler.pathMask = pathMask;
+            //newsampler.pathNormal = pathNormal;
             newsampler.proc = proc;
             return newsampler;
 
@@ -2744,7 +2740,7 @@ namespace GMDL
         public string name;
         public int width;
         public int height;
-        public PixelInternalFormat pif;
+        public InternalFormat pif;
         public bool containsAlphaMap;
         public PaletteOpt palOpt;
         public Vector4 procColor;
@@ -2762,10 +2758,12 @@ namespace GMDL
             DDSImage ddsImage;
             if (!File.Exists(path))
             {
-                throw new System.IO.FileNotFoundException();
-                //path = "default.dds";
+                //throw new System.IO.FileNotFoundException();
+                Console.WriteLine("Texture {0} Missing. Using default.dds", path);
+                path = "default.dds";
             }
-            else path = Path.Combine(Model_Viewer.Util.dirpath, path);
+            else
+                path = Path.Combine(Model_Viewer.Util.dirpath, path);
 
             ddsImage = new DDSImage(File.ReadAllBytes(path));
 
@@ -2777,17 +2775,32 @@ namespace GMDL
             {
                 //DXT1
                 case (0x31545844):
-                    pif = PixelInternalFormat.CompressedRgbaS3tcDxt1Ext;
+                    pif = InternalFormat.CompressedRgbaS3tcDxt1Ext;
                     containsAlphaMap = false;
                     break;
                 case (0x35545844):
-                    pif = PixelInternalFormat.CompressedRgbaS3tcDxt5Ext;
+                    pif = InternalFormat.CompressedRgbaS3tcDxt5Ext;
                     containsAlphaMap = true;
                     break;
                 case (0x32495441): //ATI2A2XY
-                    pif = PixelInternalFormat.CompressedRgRgtc2;
+                    pif = InternalFormat.CompressedRgRgtc2;
                     containsAlphaMap = true;
                     break;
+                //DXT10 HEADER
+                case (0x30315844):
+                    {
+                        switch (ddsImage.header10.dxgiFormat)
+                        {
+                            case (DXGI_FORMAT.DXGI_FORMAT_BC7_UNORM):
+                                pif = InternalFormat.CompressedRgbaBptcUnorm;
+                                containsAlphaMap = true;
+                                break;
+                            default:
+                                throw new ApplicationException("Unimplemented DX10 Texture Pixel format");
+                        }
+                        
+                        break;
+                    }
                 default:
                     throw new ApplicationException("Unimplemented Pixel format");
             }
@@ -3326,7 +3339,6 @@ namespace GMDL
         public float[] convertMat()
         {
             float[] fmat = new float[16];
-
             fmat[0] = this.invBindMatrix.M11;
             fmat[1] = this.invBindMatrix.M12;
             fmat[2] = this.invBindMatrix.M13;
@@ -3350,6 +3362,7 @@ namespace GMDL
     }
 
 }
+
 
 
 

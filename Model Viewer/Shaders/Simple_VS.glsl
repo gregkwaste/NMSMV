@@ -14,13 +14,19 @@ layout(location=5) in vec4 blendIndices;
 layout(location=6) in vec4 blendWeights;
 
 
-uniform vec3 theta, pan, light;
+layout(location=7) uniform mat4 mvp;
+layout(location=8) uniform mat4 nMat;
+layout(location=9) uniform mat4 rotMat;
+layout(location=10) uniform mat4 worldMat;
+
+uniform vec3 light;
 uniform int firstskinmat;
-uniform int boneRemap[256];
-uniform mat4 skinMats[128];
-uniform bool matflags[64];
 uniform float scale;
-uniform mat4 mvp, rotMat, worldMat;
+
+layout(location=11) uniform bool matflags[64];
+layout(location=75) uniform int boneRemap[256];
+layout(location=331) uniform mat4 skinMats[128];
+
 
 //Outputs
 out vec3 E;
@@ -30,6 +36,7 @@ out float l_distance;
 out mat3 TBN;
 out float bColor;
 out vec4 finalPos;
+out vec4 finalNormal;
 
 void main()
 {
@@ -42,14 +49,14 @@ void main()
     //nvectors[2] = nPosition.xyz;
 	// Remeber: thse matrices are column-major
     
-    mat4 nMat = transpose(inverse(rotMat));
+    //mat4 nMat = transpose(inverse(rotMat * worldMat));
     //mat4 nMat = rotMat;
     
-    N = normalize(nMat * vec4(nPosition.xyz, 0.0)).xyz;
+    N = normalize(nMat * nPosition).xyz;
     
     //gl_FrontColor = gl_Color;
-    E = (rotMat * (light4 - vPosition)).xyz; //Light vector
-    l_distance = distance(vPosition.xyz, light);
+    E = (rotMat * (light4 - worldMat * vPosition)).xyz; //Light vector
+    l_distance = distance((worldMat * vPosition).xyz, light);
     //E = - ((vPosition-light4)).xyz; //Light vector
     E = normalize(E);
     //E = - rotMat(vPosition-light4).xyz; //Light vector
@@ -98,5 +105,5 @@ void main()
         finalPos = worldMat * vPosition;
     	gl_Position = mvp * finalPos;
     }
-    
+
 }

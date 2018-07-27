@@ -58,8 +58,9 @@ namespace KUtility {
 					Read_DDS_HEADER(header, r);
 
 					if (((header.ddspf.dwFlags & DDPF_FOURCC) != 0) && (header.ddspf.dwFourCC == FOURCC_DX10 /*DX10*/)) {
-						throw new Exception("DX10 not supported yet!");
-					}
+                        header10 = new DDS_HEADER_DXT10();
+                        Read_DDS_HEADER10(header10, r);
+                    }
 
 					int mipMapCount = 1;
 					if ((header.dwFlags & DDSD_MIPMAPCOUNT) != 0) 
@@ -333,6 +334,15 @@ namespace KUtility {
 			h.dwReserved2 = r.ReadInt32();
 		}
 
+        private void Read_DDS_HEADER10(DDS_HEADER_DXT10 h, BinaryReader r)
+        {
+            h.dxgiFormat = (DXGI_FORMAT) r.ReadInt32();
+            h.resourceDimension = (D3D10_RESOURCE_DIMENSION) r.ReadInt32();
+            h.miscFlag = r.ReadUInt32();
+            h.arraySize = r.ReadUInt32();
+            h.miscFlags2 = r.ReadUInt32();
+        }
+
 		private void Read_DDS_PIXELFORMAT(DDS_PIXELFORMAT p, BinaryReader r) {
 			p.dwSize = r.ReadInt32();
 			p.dwFlags = r.ReadInt32();
@@ -374,7 +384,7 @@ namespace KUtility {
 		public D3D10_RESOURCE_DIMENSION resourceDimension;
 		public uint miscFlag;
 		public uint arraySize;
-		public uint reserved;
+		public uint miscFlags2;
 	}
 
 	public class DDS_PIXELFORMAT {

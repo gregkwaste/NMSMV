@@ -493,7 +493,7 @@ namespace Model_Viewer
             if (m.type == TYPES.MESH || m.type==TYPES.COLLISION)
             {
                 //Get converted text
-                GMDL.sharedVBO me = (GMDL.sharedVBO) m;
+                GMDL.meshModel me = (GMDL.meshModel) m;
                 me.writeGeomToStream(s, ref index);
 
             }

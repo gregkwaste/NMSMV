@@ -81,8 +81,9 @@ namespace Model_Viewer
         public GMDL.AnimeMetaData meta = new GMDL.AnimeMetaData();
 
         //Joint Array for shader
-        public float[] JMArray = new float[128 * 16];
-        //public float[] JColors = new float[128 * 3];
+        //TEST public float[] JMArray = new float[256 * 16];
+        
+        //public float[] JColors = new float[256 * 3];
 
         //Selected Object
         public GMDL.model selectedOb;
@@ -265,7 +266,20 @@ namespace Model_Viewer
 #endif
             if (!this.glloaded)
                 return;
+
+            //Query GL Extensions
+            Console.WriteLine("OPENGL AVAILABLE EXTENSIONS:");
+            string[] ext = GL.GetString(StringName.Extensions).Split(' ');
+            foreach (string s in ext)
+            {
+                if (s.Contains("explicit"))
+                    Console.WriteLine(s);
+            }
+                
+
+
             
+
             //Set global resMgmt to form resMgmt
             Util.resMgmt = resMgmt;
 
@@ -350,7 +364,7 @@ namespace Model_Viewer
             //Add Frustum cube
             GMDL.Collision cube = new GMDL.Collision();
             //cube.vbo = (new Capsule(new Vector3(), 14.0f, 2.0f)).getVBO();
-            cube.vbo = (new Box(1.0f, 1.0f, 1.0f)).getVBO();
+            cube.main_Vao = (new Box(1.0f, 1.0f, 1.0f)).getVAO();
 
             //Create model
             GMDL.Collision so = new GMDL.Collision();
@@ -401,19 +415,12 @@ namespace Model_Viewer
             GEOMMBIN.strip = this.toolStripStatusLabel1;
 
             //Set Default JMarray
-            for (int i = 0; i < 128; i++)
+            for (int i = 0; i < 256; i++)
                 Util.insertMatToArray(Util.JMarray, i * 16, Matrix4.Identity);
 
             int maxfloats;
             GL.GetInteger(GetPName.MaxVertexUniformVectors, out maxfloats);
             toolStripStatusLabel1.Text = "Ready";
-
-            //Query GL Extensions
-            Console.WriteLine("OPENGL AVAILABLE EXTENSIONS:");
-            string[] ext = GL.GetString(StringName.Extensions).Split(' ');
-            foreach (string s in ext)
-                Console.WriteLine(s);
-
 
             //Load default textures
             addDefaultTextures();
@@ -606,7 +613,7 @@ namespace Model_Viewer
             GL.Clear(ClearBufferMask.DepthBufferBit);
             GL.Enable(EnableCap.Blend);
             GL.Disable(EnableCap.DepthTest);
-            GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
+            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
 
 
             GL.UseProgram(Util.resMgmt.shader_programs[4]);
@@ -634,7 +641,7 @@ namespace Model_Viewer
             //gbuf.dump();
             GL.Enable(EnableCap.DepthTest);
             GL.Enable(EnableCap.Blend);
-            GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
+            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             //GL.DepthFunc(DepthFunction.Gequal);
 
 
@@ -836,7 +843,7 @@ namespace Model_Viewer
             traverse_oblist_rs(this.mainScene, "selected", 0);
             
             //Try to find object
-            selectedOb = (GMDL.sharedVBO) traverse_oblist_field<int>(this.mainScene, ob_id, "selected", 1);
+            selectedOb = (GMDL.meshModel) traverse_oblist_field<int>(this.mainScene, ob_id, "selected", 1);
             if (selectedOb !=null) loadSelectedObect(); //Update the Form
 
             //Restore Rendering Buffer
@@ -1779,9 +1786,9 @@ namespace Model_Viewer
             if (m.type == TYPES.MESH || m.type ==TYPES.COLLISION)
             {
                 //Get converted text
-                GMDL.sharedVBO me = (GMDL.sharedVBO)m;
+                GMDL.meshModel me = (GMDL.meshModel) m;
                 me.writeGeomToStream(s, ref index);
-
+            
             }
             foreach (GMDL.model c in m.children)
                 if (c.renderable) findGeoms(c, s, ref index);

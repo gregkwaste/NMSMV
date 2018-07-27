@@ -33,7 +33,8 @@ namespace Model_Viewer
                 line = line.TrimStart(new char[] { ' ' });
 
                 //Check for preprocessor directives
-                if (line.StartsWith("#include")){
+                if (line.StartsWith("#include"))
+                {
                     split = line.Split(' ');
 
                     if (split.Length != 2)
@@ -46,6 +47,8 @@ namespace Model_Viewer
 
                     outline = Parser(npath);
                 }
+                //Skip Comments
+                else if (line.StartsWith("///")) continue;
 
                 //Finally append the parsed text
                 text += outline + '\n';

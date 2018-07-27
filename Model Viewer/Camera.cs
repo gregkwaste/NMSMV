@@ -32,14 +32,14 @@ namespace Model_Viewer
 
 
         //Rendering Stuff
-        public GMDL.customVBO vbo;
+        public GMDL.mainVAO vao;
         public int program;
 
         public Camera(int angle, int program, int mode, bool cull)
         {
             //Set fov on init
             this.setFOV(angle);
-            vbo = (new Box(1.0f, 1.0f, 1.0f)).getVBO();
+            vao = (new Box(1.0f, 1.0f, 1.0f)).getVAO();
             this.program = program;
             this.type = mode;
             this.culling = cull;
@@ -174,23 +174,11 @@ namespace Model_Viewer
         public void render()
         {
             GL.UseProgram(program);
-
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vbo.vertex_buffer_object);
-
-            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, 0);
-            GL.EnableVertexAttribArray(0);
-
             //Render Elements
-            //Bind elem buffer
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, vbo.element_buffer_object);
-            GL.PointSize(10.0f);
-
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
-
-            GL.DrawRangeElements(PrimitiveType.Triangles, 0, vbo.vCount,
-                vbo.iCount, vbo.iType, IntPtr.Zero);
-
-            GL.DisableVertexAttribArray(0);
+            GL.BindVertexArray(vao.vao_id);
+            GL.PolygonMode(MaterialFace.Front, PolygonMode.Fill);
+            GL.DrawArrays(PrimitiveType.Triangles, 0, 12);
+            GL.BindVertexArray(0);
         }
 
         

@@ -26,7 +26,7 @@ namespace Model_Viewer
     public static class Util
     {
         public static readonly Random randgen = new Random();
-        public static float[] JMarray = new float[128 * 16];
+        public static float[] JMarray = new float[256 * 16];
 
         //Global ResourceMgmt Handle
         public static ResourceMgmt resMgmt;
@@ -57,6 +57,19 @@ namespace Model_Viewer
             }
 
             return res;
+        }
+
+        public static void mulMatArrays(float[] dest, float[] lmat1, float[] lmat2, int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                int off = 16 * i;
+                for (int j = 0; j < 4; j++)
+                    for (int k = 0; k < 4; k++)
+                        for (int m = 0; m < 4; m++)
+                            dest[off + 4 * j + k] += lmat1[off + 4 * j + m] * lmat2[off + 4 * m + k];
+            }
+
         }
 
         //Add matrix to JMArray
@@ -160,6 +173,35 @@ namespace Model_Viewer
 
             return "Temp\\" + newpath;
         }
+
+        public static string getFullExmlPath(string path)
+        {
+            //Get Relative path again
+            string tpath = path.Replace(Util.dirpath, "").TrimStart('\\');
+            
+            //Fix Path incase of reference
+            tpath = tpath.Replace('/', '\\');
+            string[] split = tpath.Split('\\');
+            string filename = split[split.Length - 1];
+
+            string[] f_name_split = filename.Split('.');
+            //Assemble new f_name
+            string newfilename = "";
+            for (int i=0;i<f_name_split.Length - 1; i++)
+            {
+                newfilename += f_name_split[i] + ".";
+            }
+            newfilename += "exml";
+            
+            string newpath = "";
+            //Get main name
+            for (int i = 0; i < split.Length - 1; i++)
+                newpath += split[i] + "_";
+            
+            newpath += newfilename;
+
+            return "Temp\\" + newpath;
+        }
         //MbinCompiler Caller
         public static void MbinToExml(string path, string output)
         {
@@ -177,6 +219,48 @@ namespace Model_Viewer
             strip.Invalidate();
             strip.GetCurrentParent().Refresh();
         }
+
+        //Parse a string of n and terminate if it is a null terminated string
+        public static String read_string(BinaryReader br, int n)
+        {
+            string s = "";
+            bool exit = true;
+            long off = br.BaseStream.Position;
+            while (exit)
+            {
+                Char c = br.ReadChar();
+                if (c == 0)
+                    exit = false;
+                else
+                    s += c;
+            }
+
+            br.BaseStream.Seek(off + 0x80, SeekOrigin.Begin);
+            return s;
+        }
+
+        //XMLElement Documents
+        public static XmlElement GetChildWithProp(XmlElement root, string field, string value)
+        {
+            for (int i = 0; i < root.ChildNodes.Count; i++)
+            {
+                XmlElement test = (XmlElement) root.ChildNodes[i].SelectSingleNode("Property[@name='"+ field +"']");
+                if (test != null)
+                {
+                    if (test.GetAttribute("value") == value)
+                        return (XmlElement) root.ChildNodes[i];
+                }
+            }
+
+            return null;
+        }
+
+        public static string GetPropValue(XmlElement root, string field)
+        {
+            XmlElement test = (XmlElement)root.SelectSingleNode("Property[@name='" + field + "']");
+            return test.GetAttribute("value");
+        }
+
     }
 
 
@@ -1312,6 +1396,9 @@ namespace Model_Viewer
         public static readonly List<Vector3> WarriorAlt = new List<Vector3>
         { Vector3.Multiply(new Vector3 (255, 255, 0) , rbgFloat)};
 
+        public static readonly List<Vector3> Custom_Head = new List<Vector3>
+        { Vector3.Multiply(new Vector3 (255, 0, 0) , rbgFloat)};
+
         //Palette Selection
         public static Dictionary<string,Dictionary<string,Vector4>> paletteSel;
         
@@ -1422,6 +1509,7 @@ namespace Model_Viewer
                     case ("TraderAlt"):
                     case ("Warrior"):
                     case ("WarriorAlt"):
+                    case ("Custom_Head"):
                         newPal[f.Name]["Primary"] = new Vector4(palette[0], 1.0f);
                         newPal[f.Name]["Alternative1"] = new Vector4(palette[0], 1.0f);
                         newPal[f.Name]["Alternative2"] = new Vector4(palette[0], 1.0f);
@@ -1475,6 +1563,7 @@ namespace Model_Viewer
                     case ("TraderAlt"):
                     case ("Warrior"):
                     case ("WarriorAlt"):
+                    case ("Custom_Head"):
                         newPal[f.Name]["Primary"] = new Vector4(palette[0], 1.0f);
                         newPal[f.Name]["Alternative1"] = new Vector4(palette[0], 1.0f);
                         newPal[f.Name]["Alternative2"] = new Vector4(palette[0], 1.0f);
@@ -1901,11 +1990,11 @@ namespace Model_Viewer
 
         public static void parse_procTexture(ref List<XmlElement> parts, XmlElement root)
         {
-
+            XmlElement layerNode = (XmlElement)root.SelectSingleNode("Property[@name='Layers']");
             //foreach (XmlElement el in root.ChildNodes)
-            for (int i=0;i<root.ChildNodes.Count;i++)
+            for (int i=0;i<layerNode.ChildNodes.Count;i++)
             {
-                XmlElement el = (XmlElement) root.ChildNodes[i];
+                XmlElement el = (XmlElement) layerNode.ChildNodes[i];
                 string layername = el.GetAttribute("name");
                 //Old Parsing
                 //int layerid = 9 - int.Parse(layername.Split(new string[] { "Layer" }, StringSplitOptions.None)[1]) - 1;

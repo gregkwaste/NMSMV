@@ -79,7 +79,7 @@ namespace Model_Viewer
 
         }
 
-        public GMDL.customVBO getVBO()
+        public GMDL.mainVAO getVAO()
         {
             GMDL.GeomObject geom = new GMDL.GeomObject();
 
@@ -117,9 +117,9 @@ namespace Model_Viewer
             geom.vbuffer = new byte[4 * verts.Length];
             Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, geom.vbuffer.Length);
 
-            GMDL.customVBO vbo = new GMDL.customVBO(geom);
+            GMDL.mainVAO vao = geom.getMainVao();
             
-            return vbo;
+            return vao;
         }
 
     }
@@ -202,7 +202,7 @@ namespace Model_Viewer
 
         }
 
-        public GMDL.customVBO getVBO()
+        public GMDL.mainVAO getVAO()
         {
             GMDL.GeomObject geom = new GMDL.GeomObject();
 
@@ -240,9 +240,9 @@ namespace Model_Viewer
             geom.vbuffer = new byte[4 * verts.Length];
             Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, geom.vbuffer.Length);
 
-            GMDL.customVBO vbo = new GMDL.customVBO(geom);
+            GMDL.mainVAO vao = geom.getMainVao();
 
-            return vbo;
+            return vao;
         }
 
     }
@@ -348,7 +348,7 @@ namespace Model_Viewer
         
         }
 
-        public GMDL.customVBO getVBO()
+        public GMDL.mainVAO getVAO()
         {
             GMDL.GeomObject geom = new GMDL.GeomObject();
 
@@ -386,9 +386,9 @@ namespace Model_Viewer
             geom.vbuffer = new byte[4 * verts.Length];
             Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, geom.vbuffer.Length);
 
-            GMDL.customVBO vbo = new GMDL.customVBO(geom);
+            GMDL.mainVAO vao = geom.getMainVao();
 
-            return vbo;
+            return vao;
         }
     }
 
@@ -454,7 +454,7 @@ namespace Model_Viewer
 
         }
 
-        public GMDL.customVBO getVBO()
+        public GMDL.mainVAO getVAO()
         {
             GMDL.GeomObject geom = new GMDL.GeomObject();
 
@@ -482,9 +482,10 @@ namespace Model_Viewer
 
             geom.mesh_descr = "vn";
             geom.offsets[0] = 0;
+            geom.offsets[2] = 0;
             geom.bufInfo[0] = new GMDL.bufInfo(0, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "vPosition");
             geom.bufInfo[2] = new GMDL.bufInfo(2, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "nPosition");
-            geom.offsets[2] = 0;
+            
 
             //Set Buffers
             geom.ibuffer = new byte[4 * indices.Length];
@@ -492,9 +493,9 @@ namespace Model_Viewer
             geom.vbuffer = new byte[4 * verts.Length];
             Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, geom.vbuffer.Length);
 
-            GMDL.customVBO vbo = new GMDL.customVBO(geom);
-
-            return vbo;
+            GMDL.mainVAO vao = geom.getMainVao();
+            
+            return vao;
         }
     }
 
