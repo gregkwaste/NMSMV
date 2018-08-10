@@ -13,7 +13,7 @@ using Model_Viewer.Properties;
 //Custom imports
 using GLHelpers;
 using gImage;
-
+using System.Linq;
 
 namespace Model_Viewer
 {
@@ -34,44 +34,27 @@ namespace Model_Viewer
         private Vector3 eye_up = new Vector3(0.0f, 1.0f, 0.0f);
         private Camera activeCam;
 
-        private float light_angle_y = 0.0f;
-        private float light_angle_x = 0.0f;
-        private float light_distance = 5.0f;
-        private float light_intensity = 2.0f;
-
         //Common transforms
         private Matrix4 rotMat = Matrix4.Identity;
         private Matrix4 mvp = Matrix4.Identity;
         private int occludedNum = 0;
 
         private float scale = 1.0f;
-        private int movement_speed = 1;
+        
         //Mouse Pos
         private int mouse_x;
         private int mouse_y;
-        //Gamepad
-        private int gamepadID = -1;
-        private GamepadHandler gpHandler;
-
-
+       
         public int childCounter = 0;
 
         //Shader objects
         int vertex_shader_ob;
         int fragment_shader_ob;
 
-        //Setup Timer to invalidate the viewport
-        private Timer t;
-
-        //Debug Font
-        FontGL font;
-        public List<GLText> texObs = new List<GLText>();
-        
         public List<GMDL.model> animScenes = new List<GMDL.model>();
         //Deprecated
         //private List<GMDL.model> vboobjects = new List<GMDL.model>();
         //private GMDL.model rootObject;
-        private GMDL.scene mainScene;
         private XmlDocument xmlDoc = new XmlDocument();
         private Dictionary<string, int> index_dict = new Dictionary<string, int>();
         private OrderedDictionary joint_dict = new OrderedDictionary();
@@ -92,16 +75,9 @@ namespace Model_Viewer
         private string mainFilePath;
         //Private Settings Window
         private SettingsForm Settings = new SettingsForm();
-        //Private fps Counter
-        private int frames = 0;
-        private DateTime oldtime;
-
-        //Form private ResourceManagement
-        private ResourceMgmt resMgmt = new ResourceMgmt();
-
-        //Global Gbuffer
-        private GBuffer gbuf;
-
+        
+        //Custom defined GLControl
+        private CGLControl glcontrol1;
 
 
         public Form1()
@@ -109,7 +85,7 @@ namespace Model_Viewer
             //Custom stuff
             this.xyzControl1 = new XYZControl("worldPosition");
             this.xyzControl2 = new XYZControl("localPosition");
-
+            
             InitializeComponent();
 
             this.rightFlowPanel.Controls.Add(xyzControl2);
@@ -156,66 +132,33 @@ namespace Model_Viewer
                 return;
             }
 
-            //If the file is already an exml there is no need for conversions
-            string exmlPath = filename;
-            if (!(ext == "EXML"))
-            {
-                exmlPath = Util.getExmlPath(filename);
-
-                //Parse the Scene XML file
-                Console.WriteLine("Parsing SCENE XML");
-
-                //Convert only if file does not exist
-#if DEBUG
-                Console.WriteLine("-DEBUG- Forcing EXML Conversion");
-                Util.MbinToExml(filename, exmlPath);
-#else
-                if (!File.Exists(exmlPath))
-                {
-                    Console.WriteLine("Exml does not exist");
-                    Util.MbinToExml(filename, exmlPath);
-                }
-#endif
-            }
-
-            //Set global resMgmt to form resMgmt
-            Util.resMgmt = resMgmt;
-
-
-            //Open exml
-            this.xmlDoc.Load(exmlPath);
-
             //Initialize Palettes
             Model_Viewer.Palettes.set_palleteColors();
 
-            t.Stop();
-            this.glControl1.Paint -= this.glControl1_Paint;
-            this.mainScene.Dispose(); //Prevent rendering
-            this.mainScene = null;
-            t.Start();
+            //this.glcontrol1.Paint -= this.glControl1_Paint;
+            glcontrol1.t.Stop();
+            glcontrol1.rootObject.Dispose(); //Prevent rendering
+            glcontrol1.rootObject = null;
+            glcontrol1.t.Start();
             RightSplitter.Panel1.Controls.Clear();
 
             //Clear Form Resources
-            Util.resMgmt.Cleanup();
+            glcontrol1.resMgmt.Cleanup();
             ModelProcGen.procDecisions.Clear();
-            //Add Defaults
-            addDefaultTextures();
-
-            setup_GLControl();
-
+            
             //Reset the activeControl and create new gbuffer
-            Util.activeControl = glControl1;
-            //Init Gbuffer
-            //gbuf = new GBuffer();
+            Util.activeControl = glcontrol1;
 
-            RightSplitter.Panel1.Controls.Add(glControl1);
+            //Reload Default Resources
+            glcontrol1.setupControlParameters();
 
-            glControl1.Update();
-            glControl1.MakeCurrent();
-            GMDL.scene scene;
-            scene = GEOMMBIN.LoadObjects(this.xmlDoc);
+            RightSplitter.Panel1.Controls.Add(glcontrol1);
+
+            glcontrol1.Update();
+            glcontrol1.MakeCurrent();
+            GMDL.scene scene = GEOMMBIN.LoadObjects(filename);
             scene.ID = this.childCounter;
-            this.mainScene = scene;
+            glcontrol1.rootObject = scene;
             this.childCounter++;
 
             Util.setStatus("Creating Nodes...", this.toolStripStatusLabel1);
@@ -223,7 +166,7 @@ namespace Model_Viewer
             //Console.WriteLine("Objects Returned: {0}",oblist.Count);
             MyTreeNode node = new MyTreeNode(scene.name);
             node.Checked = true;
-            node.model = this.mainScene;
+            node.model = scene;
             //Clear index dictionary
             index_dict.Clear();
             joint_dict.Clear();
@@ -234,19 +177,22 @@ namespace Model_Viewer
             index_dict[scene.name] = this.childCounter;
             this.childCounter += 1;
             //Set indices and TreeNodes 
-            traverse_oblist(this.mainScene, node);
+            traverse_oblist(scene, node);
+            //Load joints
+            glcontrol1.findAnimScenes();
             //Add root to treeview
             treeView1.Nodes.Clear();
             treeView1.Nodes.Add(node);
             GC.Collect();
 
-            glControl1_Resize(new object(), null); //Try to call resize event
+            //glControl1_Resize(new object(), null); //Try to call resize event
+            //glcontrol1.Resize();
 
-            glControl1.Update();
-            glControl1.Invalidate();
+            glcontrol1.Update();
+            glcontrol1.Invalidate();
 
             //Cleanup Materials
-            foreach (GMDL.Material mat in Util.resMgmt.GLmaterials.Values)
+            foreach (GMDL.Material mat in Util.activeResMgmt.GLmaterials.Values)
             {
                 //mat.cleanupOriginals();
             }
@@ -264,102 +210,31 @@ namespace Model_Viewer
             Console.SetOut(streamwriter);
             Console.SetError(streamwriter);
 #endif
-            if (!this.glloaded)
-                return;
 
-            //Query GL Extensions
-            Console.WriteLine("OPENGL AVAILABLE EXTENSIONS:");
-            string[] ext = GL.GetString(StringName.Extensions).Split(' ');
-            foreach (string s in ext)
-            {
-                if (s.Contains("explicit"))
-                    Console.WriteLine(s);
-            }
-                
-
-
+            setupGLControl();
             
+            //Load NMSTemplate Enumerators
+            loadNMSEnums();
 
-            //Set global resMgmt to form resMgmt
-            Util.resMgmt = resMgmt;
+            //Set active components
+            Util.activeResMgmt = glcontrol1.resMgmt;
+            Util.activeControl = glcontrol1;
 
-            //Populate shader list
-            Util.resMgmt.shader_programs = new int[11];
-            string vvs, ggs, ffs;
-            //Geometry Shader
-            //Compile Object Shaders
-            vvs = GLSL_Preprocessor.Parser("Shaders/Simple_VSEmpty.glsl");
-            ggs = GLSL_Preprocessor.Parser("Shaders/Simple_GS.glsl");
-            ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FSEmpty.glsl");
-
-            GLShaderHelper.CreateShaders(vvs, ffs, ggs, "","", out vertex_shader_ob,
-                    out fragment_shader_ob, out Util.resMgmt.shader_programs[5]);
-
-            //Main Shader
-            vvs = GLSL_Preprocessor.Parser("Shaders/Simple_VS.glsl");
-            ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FS.glsl");
-            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out Util.resMgmt.shader_programs[0]);
-
-            //Texture Mixing Shaders
-            vvs = GLSL_Preprocessor.Parser("Shaders/pass_VS.glsl");
-            ffs = GLSL_Preprocessor.Parser("Shaders/pass_FS.glsl");
-            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out Util.resMgmt.shader_programs[3]);
-
-            //GBuffer Shaders
-            vvs = GLSL_Preprocessor.Parser("Shaders/Gbuffer_VS.glsl");
-            ffs = GLSL_Preprocessor.Parser("Shaders/Gbuffer_FS.glsl");
-            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out Util.resMgmt.shader_programs[9]);
-
-            //Decal Shaders
-            vvs = GLSL_Preprocessor.Parser("Shaders/decal_VS.glsl");
-            ffs = GLSL_Preprocessor.Parser("Shaders/Decal_FS.glsl");
-            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out Util.resMgmt.shader_programs[10]);
-
-            //Locator Shaders
-            GLShaderHelper.CreateShaders(Resources.locator_vert, Resources.locator_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out Util.resMgmt.shader_programs[1]);
-            
-            //Joint Shaders
-            GLShaderHelper.CreateShaders(Resources.joint_vert, Resources.joint_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out Util.resMgmt.shader_programs[2]);
-
-            //Text Shaders
-            GLShaderHelper.CreateShaders(Resources.text_vert, Resources.text_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out Util.resMgmt.shader_programs[4]);
-
-            //Picking Shaders
-            GLShaderHelper.CreateShaders(Resources.pick_vert, Resources.pick_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out Util.resMgmt.shader_programs[6]);
-
-            //Light Shaders
-            GLShaderHelper.CreateShaders(Resources.light_vert, Resources.light_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out Util.resMgmt.shader_programs[7]);
-
-            //Camera Shaders
-            GLShaderHelper.CreateShaders(Resources.camera_vert, Resources.camera_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out Util.resMgmt.shader_programs[8]);
-            
+            //Compile Shaders
+            compileShaders();
             
             GMDL.scene scene = new GMDL.scene();
             scene.type = TYPES.SCENE;
-            scene.shader_programs = new int[] { Util.resMgmt.shader_programs[1],
-                                                Util.resMgmt.shader_programs[5],
-                                                Util.resMgmt.shader_programs[6]};
+            scene.shader_programs = new int[] { Util.activeResMgmt.shader_programs[1],
+                                                Util.activeResMgmt.shader_programs[5],
+                                                Util.activeResMgmt.shader_programs[6]};
 
 
-            Util.activeControl = glControl1;
-            //Init Gbuffer
-            gbuf = new GBuffer();
-            Util.gbuf = gbuf;
+            if (!this.glloaded)
+                return;
 
-            Console.WriteLine("GBuffer Setup Done, Last GL Error: " + GL.GetError());
-
+            
             scene.ID = this.childCounter;
-
 
             //Add Frustum cube
             GMDL.Collision cube = new GMDL.Collision();
@@ -370,16 +245,16 @@ namespace Model_Viewer
             GMDL.Collision so = new GMDL.Collision();
 
             //Remove that after implemented all the different collision types
-            cube.shader_programs = new int[] { Util.resMgmt.shader_programs[0],
-                                              Util.resMgmt.shader_programs[5],
-                                              Util.resMgmt.shader_programs[6]}; //Use Mesh program for collisions
+            cube.shader_programs = new int[] { Util.activeResMgmt.shader_programs[0],
+                                               Util.activeResMgmt.shader_programs[5],
+                                               Util.activeResMgmt.shader_programs[6]}; //Use Mesh program for collisions
             cube.name = "FRUSTUM";
             cube.collisionType = (int) COLLISIONTYPES.BOX;
 
 
             scene.children.Add(cube);
 
-            this.mainScene = scene;
+            glcontrol1.rootObject = scene;
             this.childCounter++;
             MyTreeNode node = new MyTreeNode("ORIGIN");
             node.model = scene;
@@ -395,50 +270,52 @@ namespace Model_Viewer
             {
                 var caps = OpenTK.Input.GamePad.GetCapabilities(i);
                 if (caps.GamePadType == OpenTK.Input.GamePadType.Unknown) break;
-                gamepadID = i;
+                Util.gamepadID = i;
                 Console.WriteLine(caps + caps.GetType().Name);
             }
-            //Setup GamePad Handler
-            gpHandler = new GamepadHandler(gamepadID);
-
+            
+            //Setup GamePad Handler for the control
+            glcontrol1.gpHandler = new GamepadHandler(Util.gamepadID);
 
             //Load Settings
             Settings.loadSettings();
 
-            //Setup the update timer
-            t = new Timer();
-            t.Interval = 5;
-            t.Tick += new EventHandler(timer_ticker);
-            t.Start();
+            //Setup GL Control once shaders have been successfully compiled
+            //Setup Lights, Cameras, Default Textures, Gbuffer
+            glcontrol1.setupControlParameters();
+            //Apply custom positioning attributes
+            glcontrol1.Dock = DockStyle.Fill;
 
+            //Set global gbuffer
+            Util.gbuf = glcontrol1.gbuf;
+            
             //Set GEOMMBIN statusStrip
             GEOMMBIN.strip = this.toolStripStatusLabel1;
 
             //Set Default JMarray
             for (int i = 0; i < 256; i++)
-                Util.insertMatToArray(Util.JMarray, i * 16, Matrix4.Identity);
+                Util.insertMatToArray16(Util.JMarray, i * 16, Matrix4.Identity);
 
             int maxfloats;
             GL.GetInteger(GetPName.MaxVertexUniformVectors, out maxfloats);
             toolStripStatusLabel1.Text = "Ready";
 
-            //Load default textures
-            addDefaultTextures();
+           //Load font
+            glcontrol1.font = setupFont();
 
-            //Load default Lights
-            addDefaultLights();
+            //Add some text for rendering
+            glcontrol1.texObs.Add(glcontrol1.font.renderText("Greetings", new Vector2(0.02f, 0.0f), scale));
+            glcontrol1.texObs.Add(glcontrol1.font.renderText(occludedNum.ToString(), new Vector2(1.0f, 0.0f), 1.0f));
 
-            //Load font
-            setupFont();
 
 
             //Add 2 Cams
             Camera cam;
-            cam = new Camera(50, Util.resMgmt.shader_programs[8], 0, true);
-            Util.resMgmt.GLCameras.Add(cam);
+            cam = new Camera(50, Util.activeResMgmt.shader_programs[8], 0, true);
+            Util.activeResMgmt.GLCameras.Add(cam);
             //cam = new Camera(50, ResourceMgmt.shader_programs[8], 0, false);
             //ResourceMgmt.GLCameras.Add(cam);
-            activeCam = Util.resMgmt.GLCameras[0];
+            activeCam = Util.activeResMgmt.GLCameras[0];
             activeCam.isActive = true;
 
             
@@ -452,49 +329,20 @@ namespace Model_Viewer
 
         }
 
-        private void fps()
+        
+        private void setupGLControl()
         {
-            //Get FPS
-            DateTime now = DateTime.UtcNow;
-            TimeSpan time = now - oldtime;
 
-            if (time.TotalMilliseconds > 1000)
-            {
-                float fps = 1000.0f * frames / (float)time.TotalMilliseconds;
-                //Console.WriteLine("{0} {1}", frames, fps);
-                //Reset
-                frames = 0;
-                oldtime = now;
-                texObs[0] = font.renderText("FPS: " + Math.Round(fps, 1).ToString(), new Vector2(1.3f, 0.0f), 0.75f);
-            }
-            else
-                frames += 1;
-
+            glcontrol1 = new CGLControl();
+            RightSplitter.Panel1.Controls.Add(glcontrol1);
+            glcontrol1.Update();
+            glcontrol1.MakeCurrent();
+            this.glloaded = true;
         }
 
-        private void gamepadController()
+        private FontGL setupFont()
         {
-            //This Method handles and controls the gamepad input
-            //Move camera
-            //Console.WriteLine(gpHandler.getAxsState(0, 0));
-            //Console.WriteLine(gpHandler.getBtnState(1) - gpHandler.getBtnState(0));
-            //Console.WriteLine(gpHandler.getAxsState(0, 1));
-            for (int i = 0; i < movement_speed; i++)
-                activeCam.Move(gpHandler.getAxsState(0, 0),
-                               gpHandler.getAxsState(0, 1),
-                               (gpHandler.getBtnState(1) - gpHandler.getBtnState(0) ));
-            //Rotate Camera
-            //for (int i = 0; i < movement_speed; i++)
-            activeCam.AddRotation(-3.0f * gpHandler.getAxsState(1, 0), 3.0f *gpHandler.getAxsState(1, 1));
-
-
-
-        }
-
-
-        private void setupFont()
-        {
-            font = new FontGL();
+            FontGL font = new FontGL();
 
             //Test BMP Image Class
             //BMPImage bm = new BMPImage("courier.bmp");
@@ -506,7 +354,7 @@ namespace Model_Viewer
             //Testing some inits
             font.initFromImage(bm);
             font.tex = bm.GLid;
-            font.program = Util.resMgmt.shader_programs[4];
+            font.program = Util.activeResMgmt.shader_programs[4];
 
             //Set default settings
             float scale = 0.75f;
@@ -514,126 +362,84 @@ namespace Model_Viewer
             font.width = scale * 0.20f;
             font.height = scale * 0.35f;
 
-            //Add some text for rendering
-            texObs.Add(font.renderText("Greetings", new Vector2(0.02f, 0.0f), scale));
-            texObs.Add(font.renderText(occludedNum.ToString(), new Vector2(1.0f, 0.0f), 1.0f));
+            return font;
         }
 
-        private void addDefaultTextures()
+        private void compileShaders()
         {
-            string execpath = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
-            //Add Default textures
-            //White tex
-            string texpath = Path.Combine(execpath, "default.dds");
-            GMDL.Texture tex = new GMDL.Texture(texpath);
-            Util.resMgmt.GLtextures["default.dds"] = tex;
-            //Transparent Mask
-            texpath = Path.Combine(execpath, "default_mask.dds");
-            tex = new GMDL.Texture(texpath);
-            Util.resMgmt.GLtextures["default_mask.dds"] = tex;
-
-        }
-
-        //Light Functions
-
-        private void addDefaultLights()
-        {
-            //Add one and only light for now
-            GMDL.Light light = new GMDL.Light();
-            light.shader_programs = new int[] { Util.resMgmt.shader_programs[7] };
-            light.localPosition = new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                            Math.Sin(this.light_angle_y * Math.PI / 180.0)),
-                                                (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
-                                                (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                            Math.Cos(this.light_angle_y * Math.PI / 180.0)));
-
-            Util.resMgmt.GLlights.Add(light);
-        }
-
-        private void updateLightPosition(int light_id)
-        {
-            GMDL.Light light = (GMDL.Light)Util.resMgmt.GLlights[light_id];
-            light.updatePosition(new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                            Math.Sin(this.light_angle_y * Math.PI / 180.0)),
-                                                (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
-                                                (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                            Math.Cos(this.light_angle_y * Math.PI / 180.0))));
-        }
-
-
-        //glControl Timer
-        private void timer_ticker(object sender, EventArgs e)
-        {
-            //Handle Gamepad Input
-            gpHandler.updateState();
-            //Console.WriteLine(gpHandler.getAxsState(0, 0).ToString() + " " +  gpHandler.getAxsState(0, 1).ToString());
-            //gpHandler.reportButtons();
-            gamepadController(); //Move camera according to input
-
-            //Update common transforms
-            activeCam.aspect = (float)glControl1.ClientSize.Width / glControl1.ClientSize.Height;
-            activeCam.updateViewMatrix();
-            activeCam.updateFrustumPlanes();
-            //proj = Matrix4.CreatePerspectiveFieldOfView(-w, w, -h, h , znear, zfar);
-
-            Matrix4 Rotx = Matrix4.CreateRotationX(rot[0] * (float) Math.PI / 180.0f);
-            Matrix4 Roty = Matrix4.CreateRotationY(rot[1] * (float) Math.PI / 180.0f);
-            Matrix4 Rotz = Matrix4.CreateRotationZ(rot[2] * (float) Math.PI / 180.0f);
-            rotMat = Rotz * Roty * Rotx;
-            mvp = activeCam.viewMat; //Full mvp matrix
-            Util.mvp = mvp;
-            occludedNum = 0; //Reset Counter
-
-            //Simply invalidate the gl control
-            //glControl1.MakeCurrent();
-            glControl1.Invalidate();
-        }
-
-        private void render_scene()
-        {
-            //Console.WriteLine("Rendering Scene Cam Position : {0}", this.activeCam.Position);
-            //Console.WriteLine("Rendering Scene Cam Orientation: {0}", this.activeCam.Orientation);
-            GL.CullFace(CullFaceMode.Back);
-
-            //Render only the first scene for now
-            
-            if (this.mainScene != null)
+            //Query GL Extensions
+            Console.WriteLine("OPENGL AVAILABLE EXTENSIONS:");
+            string[] ext = GL.GetString(StringName.Extensions).Split(' ');
+            foreach (string s in ext)
             {
-                //Drawing Phase
-                traverse_render(this.mainScene, 0);
-                //Drawing Debug
-                if (RenderOptions.RenderDebug) traverse_render(this.mainScene, 1);
+                if (s.Contains("explicit"))
+                    Console.WriteLine(s);
+                if (s.Contains("16"))
+                    Console.WriteLine(s);
             }
 
-        }
+            //Query maximum buffer sizes
+            Console.WriteLine("MaxUniformBlock Size {0}", GL.GetInteger(GetPName.MaxUniformBlockSize));
 
-        private void render_info()
-        {
-            glControl1.MakeCurrent();
-            GL.Clear(ClearBufferMask.DepthBufferBit);
-            GL.Enable(EnableCap.Blend);
-            GL.Disable(EnableCap.DepthTest);
-            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            //Populate shader list
+            Util.activeResMgmt.shader_programs = new int[11];
+            string vvs, ggs, ffs;
+            //Geometry Shader
+            //Compile Object Shaders
+            vvs = GLSL_Preprocessor.Parser("Shaders/Simple_VSEmpty.glsl");
+            ggs = GLSL_Preprocessor.Parser("Shaders/Simple_GS.glsl");
+            ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FSEmpty.glsl");
 
+            GLShaderHelper.CreateShaders(vvs, ffs, ggs, "", "", out vertex_shader_ob,
+                    out fragment_shader_ob, out Util.activeResMgmt.shader_programs[5]);
 
-            GL.UseProgram(Util.resMgmt.shader_programs[4]);
+            //Picking Shaders
+            GLShaderHelper.CreateShaders(Resources.pick_vert, Resources.pick_frag, "", "", "", out vertex_shader_ob,
+                out fragment_shader_ob, out Util.activeResMgmt.shader_programs[6]);
 
-            //Load uniforms
-            int loc;
-            loc = GL.GetUniformLocation(Util.resMgmt.shader_programs[4], "w");
-            GL.Uniform1(loc, (float)glControl1.Width);
-            loc = GL.GetUniformLocation(Util.resMgmt.shader_programs[4], "h");
-            GL.Uniform1(loc, (float)glControl1.Height);
+            //Main Shader
+            vvs = GLSL_Preprocessor.Parser("Shaders/Simple_VS.glsl");
+            ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FS.glsl");
+            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
+                    out fragment_shader_ob, out Util.activeResMgmt.shader_programs[0]);
 
-            fps();
-            texObs[1]=font.renderText(occludedNum.ToString(), new Vector2(1.0f, 0.0f), 0.75f);
-            //Render Text Objects
-            foreach (GLText t in texObs)
-                t.render();
+            //Texture Mixing Shaders
+            vvs = GLSL_Preprocessor.Parser("Shaders/pass_VS.glsl");
+            ffs = GLSL_Preprocessor.Parser("Shaders/pass_FS.glsl");
+            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
+                    out fragment_shader_ob, out Util.activeResMgmt.shader_programs[3]);
 
-            GL.Disable(EnableCap.Blend);
-            GL.Enable(EnableCap.DepthTest);
+            //GBuffer Shaders
+            vvs = GLSL_Preprocessor.Parser("Shaders/Gbuffer_VS.glsl");
+            ffs = GLSL_Preprocessor.Parser("Shaders/Gbuffer_FS.glsl");
+            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
+                    out fragment_shader_ob, out Util.activeResMgmt.shader_programs[9]);
 
+            //Decal Shaders
+            vvs = GLSL_Preprocessor.Parser("Shaders/decal_VS.glsl");
+            ffs = GLSL_Preprocessor.Parser("Shaders/Decal_FS.glsl");
+            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
+                    out fragment_shader_ob, out Util.activeResMgmt.shader_programs[10]);
+
+            //Locator Shaders
+            GLShaderHelper.CreateShaders(Resources.locator_vert, Resources.locator_frag, "", "", "", out vertex_shader_ob,
+                out fragment_shader_ob, out Util.activeResMgmt.shader_programs[1]);
+
+            //Joint Shaders
+            GLShaderHelper.CreateShaders(Resources.joint_vert, Resources.joint_frag, "", "", "", out vertex_shader_ob,
+                out fragment_shader_ob, out Util.activeResMgmt.shader_programs[2]);
+
+            //Text Shaders
+            GLShaderHelper.CreateShaders(Resources.text_vert, Resources.text_frag, "", "", "", out vertex_shader_ob,
+                out fragment_shader_ob, out Util.activeResMgmt.shader_programs[4]);
+
+            //Light Shaders
+            GLShaderHelper.CreateShaders(Resources.light_vert, Resources.light_frag, "", "", "", out vertex_shader_ob,
+                out fragment_shader_ob, out Util.activeResMgmt.shader_programs[7]);
+
+            //Camera Shaders
+            GLShaderHelper.CreateShaders(Resources.camera_vert, Resources.camera_frag, "", "", "", out vertex_shader_ob,
+                out fragment_shader_ob, out Util.activeResMgmt.shader_programs[8]);
         }
 
         private void render_decals()
@@ -645,18 +451,18 @@ namespace Model_Viewer
             //GL.DepthFunc(DepthFunction.Gequal);
 
 
-            int active_program = Util.resMgmt.shader_programs[10];
+            int active_program = Util.activeResMgmt.shader_programs[10];
             GL.UseProgram(active_program);
             int loc;
             Matrix4 temp;
 
-            gbuf.dump();
+            glcontrol1.gbuf.dump();
 
             //Upload inverse decat world matrix
-            //for ( int i = 0;i< Math.Min(1, Util.resMgmt.GLDecals.Count); i++)
-            foreach (GMDL.model decal in Util.resMgmt.GLDecals)
+            //for ( int i = 0;i< Math.Min(1, this.resMgmt.GLDecals.Count); i++)
+            foreach (GMDL.model decal in Util.activeResMgmt.GLDecals)
             {
-                //GMDL.Decal decal = (GMDL.Decal) Util.resMgmt.GLDecals[i];
+                //GMDL.Decal decal = (GMDL.Decal) this.resMgmt.GLDecals[i];
                 GL.UseProgram(active_program);
 
                 //Upload mvp
@@ -703,7 +509,7 @@ namespace Model_Viewer
 
         private void render_lights()
         {
-            int active_program = Util.resMgmt.shader_programs[7];
+            int active_program = Util.activeResMgmt.shader_programs[7];
 
             GL.UseProgram(active_program);
             int loc;
@@ -711,13 +517,13 @@ namespace Model_Viewer
             loc = GL.GetUniformLocation(active_program, "mvp");
             GL.UniformMatrix4(loc, false, ref mvp);
             
-            foreach (GMDL.model light in Util.resMgmt.GLlights)
+            foreach (GMDL.model light in Util.activeResMgmt.GLlights)
                 light.render(0);
         }
 
         private void render_cameras()
         {
-            int active_program = Util.resMgmt.shader_programs[8];
+            int active_program = Util.activeResMgmt.shader_programs[8];
 
             GL.UseProgram(active_program);
             int loc;
@@ -727,7 +533,7 @@ namespace Model_Viewer
             GL.UniformMatrix4(loc, false, ref cam_mvp);
             //Send object world Matrix to all shaders
 
-            foreach (Camera cam in Util.resMgmt.GLCameras)
+            foreach (Camera cam in Util.activeResMgmt.GLCameras)
             {
                 //Upload uniforms
                 loc = GL.GetUniformLocation(active_program, "self_mvp");
@@ -748,8 +554,8 @@ namespace Model_Viewer
 
             //First of all clear the color buffer
             //Create the texture to render to
-            int tex_w = glControl1.Width;
-            int tex_h = glControl1.Height;
+            int tex_w = glcontrol1.Width;
+            int tex_h = glcontrol1.Height;
 
             //Create Frame and renderbuffers
             int fb = GL.Ext.GenFramebuffer();
@@ -799,7 +605,7 @@ namespace Model_Viewer
             if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
                 Console.WriteLine("MALAKIES STO FRAMEBUFFER" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
-            if (this.mainScene != null) traverse_render(this.mainScene, 2);
+            if (glcontrol1.rootObject != null) traverse_render(glcontrol1.rootObject, 2);
 
             Console.WriteLine("Selected Ob: Last GL Error: " + GL.GetError());
 
@@ -840,10 +646,10 @@ namespace Model_Viewer
             int ob_id = (buffer[1] << 8) | buffer[0];
 
             //Deselect everything first
-            traverse_oblist_rs(this.mainScene, "selected", 0);
+            traverse_oblist_rs(glcontrol1.rootObject, "selected", 0);
             
             //Try to find object
-            selectedOb = (GMDL.meshModel) traverse_oblist_field<int>(this.mainScene, ob_id, "selected", 1);
+            selectedOb = (GMDL.meshModel) traverse_oblist_field<int>(glcontrol1.rootObject, ob_id, "selected", 1);
             if (selectedOb !=null) loadSelectedObect(); //Update the Form
 
             //Restore Rendering Buffer
@@ -878,7 +684,7 @@ namespace Model_Viewer
             Console.WriteLine(selectedOb.localRotation);
             Console.WriteLine(selectedOb.localPosition);
             Console.WriteLine(selectedOb.localScale);
-            glControl1.Invalidate();
+            glcontrol1.Invalidate();
 
             
         }
@@ -888,21 +694,21 @@ namespace Model_Viewer
         {
             
             activeCam.setFOV((int)Math.Max(1, numericUpDown1.Value));
-            glControl1.Invalidate();
+            glcontrol1.Invalidate();
         }
 
         //Znear
         private void numericUpDown4_ValueChanged(object sender, EventArgs e)
         {
             activeCam.zNear = (float)this.numericUpDown4.Value;
-            glControl1.Invalidate();
+            glcontrol1.Invalidate();
         }
 
         //Zfar
         private void numericUpDown5_ValueChanged(object sender, EventArgs e)
         {
             activeCam.zFar = (float)this.numericUpDown5.Value;
-            glControl1.Invalidate();
+            glcontrol1.Invalidate();
         }
 
         private void treeView1_AfterCheck(object sender, TreeViewEventArgs e)
@@ -917,7 +723,7 @@ namespace Model_Viewer
                     node.Checked = e.Node.Checked;
             }
 
-            glControl1.Invalidate();
+            glcontrol1.Invalidate();
         }
 
         private bool setObjectField<T>(string field, GMDL.model ob, T value)
@@ -940,9 +746,9 @@ namespace Model_Viewer
         //Light Distance
         private void numericUpDown2_ValueChanged(object sender, EventArgs e)
         {
-            light_distance = (float)numericUpDown2.Value;
-            updateLightPosition(0);
-            glControl1.Invalidate();
+            Util.activeControl.light_distance = (float)numericUpDown2.Value;
+            Util.activeControl.updateLightPosition(0);
+            Util.activeControl.Invalidate();
         }
 
         private void traverse_oblist_altid(ref List<string> alt, TreeNode parent)
@@ -967,13 +773,6 @@ namespace Model_Viewer
 
             //At this point LoadObjects should have properly parsed the skeleton if any
             //I can init the joint matrix array 
-            if (ob.jointModel.Count > 0)
-            {
-                ob.traverse_joints(ob.jointModel);
-                this.animScenes.Add(ob); //Add scene to animscenes
-            }
-
-
 
             if (ob.children.Count > 0)
             {
@@ -1081,11 +880,11 @@ namespace Model_Viewer
                     GL.Uniform1(loc, this.scale);
 
                     loc = GL.GetUniformLocation(active_program, "light");
-                    GL.Uniform3(loc, Util.resMgmt.GLlights[0].localPosition);
+                    GL.Uniform3(loc, Util.activeResMgmt.GLlights[0].localPosition);
 
                     //Upload Light Intensity
                     loc = GL.GetUniformLocation(active_program, "intensity");
-                    GL.Uniform1(loc, light_intensity);
+                    GL.Uniform1(loc, Util.activeControl.light_intensity);
 
                     //Upload camera position as the light
                     //GL.Uniform3(loc, cam.Position);
@@ -1183,7 +982,7 @@ namespace Model_Viewer
                 c.resMgmt.Cleanup();
             }
 
-            glControl1.MakeCurrent();
+            glcontrol1.MakeCurrent();
 
         }
 
@@ -1305,13 +1104,10 @@ namespace Model_Viewer
                 //n.MakeCurrent(); //Make current
 
                 //Prepare control Resource Object
-                Util.resMgmt = n.resMgmt;
-                n.resMgmt.shader_programs = this.resMgmt.shader_programs; //Copy the same shader programs
+                n.resMgmt.shader_programs = this.glcontrol1.resMgmt.shader_programs; //Copy the same shader programs
                 //n.resMgmt.GLgeoms = this.resMgmt.GLgeoms;
                 //readd textures
-                addDefaultLights();
-                addDefaultTextures();
-                n.resMgmt.GLCameras = this.resMgmt.GLCameras;
+                n.setupControlParameters();
                 
                 //----PROC GENERATION START----
                 List<string> parts = new List<string>();
@@ -1319,12 +1115,10 @@ namespace Model_Viewer
 
                 Console.WriteLine(String.Join(" ", parts.ToArray()));
                 GMDL.model m;
-                m = ModelProcGen.get_procgen_parts(ref parts, this.mainScene);
+                m = ModelProcGen.get_procgen_parts(ref parts, glcontrol1.rootObject);
                 //----PROC GENERATION END----
 
                 n.rootObject = m;
-                n.shader_programs = Util.resMgmt.shader_programs;
-
                 n.SetupItems();
                 table.Controls.Add(n, i%rowspan, i/rowspan);
                 n.Invalidate();
@@ -1361,14 +1155,7 @@ namespace Model_Viewer
             vpwin.Show();
             
         }
-
-        private void resumeTicker(object sender, EventArgs e)
-        {
-            Form1 f = ((ProcGenForm) sender).parentForm;
-            //Start the timer
-            f.t.Start();
-        }
-
+        
         //Animation file Open
         private void openAnimationToolStripMenuItem_Click(object sender, EventArgs e)
         {
@@ -1412,13 +1199,14 @@ namespace Model_Viewer
             }
             newButton1.status = !newButton1.status;
             newButton1.Invalidate();
-            glControl1.Focus();
+            glcontrol1.Focus();
         }
 
         private void backgroundWorker1_ProgressChanged(object sender, System.ComponentModel.ProgressChangedEventArgs e)
         {
             foreach (GMDL.model s in animScenes)
-                if (s.animMeta != null) s.animate();
+                if (typeof(GMDL.scene).IsInstanceOfType(s))
+                    if (((GMDL.scene) s).animMeta != null) ((GMDL.scene) s).animate();
         }
 
         //MenuBar Stuff
@@ -1438,310 +1226,9 @@ namespace Model_Viewer
         private void numericUpDown3_ValueChanged(object sender, EventArgs e)
         {
             NumericUpDown s = (NumericUpDown)sender;
-            movement_speed = (int) s.Value;
-        }
-
-
-        //GLCONTROL METHODS
-        private void glControl_Load(object sender, EventArgs e)
-        {
-            GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
-            GL.ClearColor(System.Drawing.Color.Black);
-            GL.Enable(EnableCap.Multisample);
-            GL.Enable(EnableCap.DepthTest);
-            //glControl1.SwapBuffers();
-            //glControl1.Invalidate();
-            Console.WriteLine("GL Cleared");
-            Console.WriteLine(GL.GetError());
-
-            this.glloaded = true;
-
-            //Set mouse pos
-            mouse_x = 0;
-            mouse_y = 0;
-
-            glControl1.Invalidate();
-        }
-
-        private void setup_GLControl()
-        {
-            //glControl1 = new GLControl(new OpenTK.Graphics.GraphicsMode(32, 24, 0, 16));
-            glControl1 = new GLControl();
-            glControl1.Size = new System.Drawing.Size(976, 645);
-            this.glControl1.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
-            this.glControl1.BackColor = System.Drawing.Color.Black;
-            this.glControl1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.glControl1.Location = new System.Drawing.Point(0, 0);
-            this.glControl1.MinimumSize = new System.Drawing.Size(256, 256);
-            this.glControl1.VSync = true;
-            this.glControl1.Load += new System.EventHandler(this.glControl_Load);
-            this.glControl1.Paint += new System.Windows.Forms.PaintEventHandler(this.glControl1_Paint);
-            this.glControl1.MouseHover += new System.EventHandler(this.glControl1_MouseHover);
-            this.glControl1.MouseMove += new System.Windows.Forms.MouseEventHandler(this.glControl1_MouseMove);
-            this.glControl1.MouseClick += new System.Windows.Forms.MouseEventHandler(this.glControl1_MouseClick);
-            this.glControl1.MouseWheel += new System.Windows.Forms.MouseEventHandler(this.glControl1_Scroll);
-            this.glControl1.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.glControl1_KeyDown);
-            this.glControl1.Resize += new System.EventHandler(this.glControl1_Resize);
-            this.glControl1.Enter += new System.EventHandler(this.glControl1_Enter);
-            this.glControl1.Leave += new System.EventHandler(this.glControl1_Leave);
-
-        }
-
-        private void glControl1_Paint(object sender, PaintEventArgs e)
-        {
-            if (!this.glloaded)
-                return;
-            glControl1.MakeCurrent();
-            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            gbuf.start();
-
-            //Console.WriteLine(active_fbo);
-            render_scene();
-
-            //Store the dumps
-            gbuf.dump();
-            render_decals();
-
-            //render_cameras();
-            //render_lights();
-            render_info();
-
-            //gbuf.stop();
-
-            //Render Deferred
-            //gbuf.render();
-            gbuf.blit();
-
-            glControl1.SwapBuffers();
-            
-            //translate_View();
-            ////Draw scene
-            //Update Joystick 
-
-            //Console.WriteLine("Painting Control");
-        }
-
-        private void glControl1_Resize(object sender, EventArgs e)
-        {
-            if (!this.glloaded)
-                return;
-            if (glControl1.ClientSize.Height == 0)
-                glControl1.ClientSize = new System.Drawing.Size(glControl1.ClientSize.Width, 1);
-            Console.WriteLine("GLControl Resizing");
-            gbuf.resize(glControl1.ClientSize.Width, glControl1.ClientSize.Height);
-            GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
-            
-            //GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
-        }
-
-        private void glControl1_KeyDown(object sender, PreviewKeyDownEventArgs e)
-        {
-            //Console.WriteLine("Key pressed {0}",e.KeyCode);
-            switch (e.KeyCode)
-            {
-                //Translations
-                //X Axis
-                //case (Keys.Right):
-                //    this.eye.X += 0.1f;
-                //    break;
-                //case Keys.Left:
-                //    this.eye.X -= 0.1f;
-                //    break;
-                //Z Axis
-                //Local Transformation
-                case Keys.Q:
-                    for (int i = 0; i < movement_speed; i++)
-                        this.rot.Y -= 4.0f;
-                    break;
-                case Keys.E:
-                    for (int i = 0; i < movement_speed; i++)
-                        this.rot.Y += 4.0f;
-                    break;
-                case Keys.Z:
-                    for (int i = 0; i < movement_speed; i++)
-                        this.rot.X -= 4.0f;
-                    break;
-                case Keys.C:
-                    for (int i = 0; i < movement_speed; i++)
-                        this.rot.X += 4.0f;
-                    break;
-                //Camera Movement
-                case Keys.W:
-                    for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(0.0f, 0.01f, 0.0f);
-                    break;
-                case Keys.S:
-                    for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(0.0f, -0.01f, 0.0f);
-                    break;
-                case (Keys.D):
-                    for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(0.01f, 0.0f, 0.0f);
-                    break;
-                case Keys.A:
-                    for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(-0.01f, 0.0f, 0.0f);
-                    break;
-                case (Keys.R):
-                    for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(0.0f, 0.0f, 0.01f);
-                    break;
-                case Keys.F:
-                    for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(0.0f, 0.0f, -0.01f);
-                    break;
-                //Light Rotation
-                case Keys.N:
-                    this.light_angle_y -= 1;
-                    updateLightPosition(0);
-                    break;
-                case Keys.M:
-                    this.light_angle_y += 1;
-                    updateLightPosition(0);
-                    break;
-                case Keys.Oemcomma:
-                    this.light_angle_x -= 1;
-                    updateLightPosition(0);
-                    break;
-                case Keys.OemPeriod:
-                    this.light_angle_x += 1;
-                    updateLightPosition(0);
-                    break;
-                //Toggle Wireframe
-                case Keys.I:
-                    if (RenderOptions.RENDERMODE == PolygonMode.Fill)
-                        RenderOptions.RENDERMODE = PolygonMode.Line;
-                    else
-                        RenderOptions.RENDERMODE = PolygonMode.Fill;
-                    break;
-                //Toggle Texture Render
-                case Keys.O:
-                    RenderOptions.UseTextures = 1.0f - RenderOptions.UseTextures;
-                    break;
-                //Toggle Small Render
-                case Keys.P:
-                    RenderOptions.RenderSmall = !RenderOptions.RenderSmall;
-                    break;
-                //Toggle Collisions Render
-                case Keys.OemOpenBrackets:
-                    RenderOptions.RenderCollisions = !RenderOptions.RenderCollisions;
-                    break;
-                //Toggle Debug Render
-                case Keys.OemCloseBrackets:
-                    RenderOptions.RenderDebug = !RenderOptions.RenderDebug;
-                    break;
-                //Switch cameras
-                case Keys.NumPad0:
-                    if (Util.resMgmt.GLCameras[0].isActive)
-                    {
-                        activeCam.isActive = false;
-                        activeCam = Util.resMgmt.GLCameras[1];
-                    }
-                    else
-                    {
-                        activeCam.isActive = false;
-                        activeCam = Util.resMgmt.GLCameras[0];
-                    }
-                        
-                    activeCam.isActive = true;
-
-                    //Set info of active cam to the controls
-                    numericUpDown1.ValueChanged -= this.numericUpDown1_ValueChanged;
-                    numericUpDown1.Value =   (decimal) (180.0f * activeCam.fov / (float) Math.PI);
-                    numericUpDown1.ValueChanged += this.numericUpDown1_ValueChanged;
-
-                    numericUpDown4.ValueChanged -= this.numericUpDown4_ValueChanged;
-                    numericUpDown4.Value = (decimal) activeCam.zNear;
-                    numericUpDown4.ValueChanged += this.numericUpDown4_ValueChanged;
-
-                    numericUpDown5.ValueChanged -= this.numericUpDown5_ValueChanged;
-                    numericUpDown5.Value = (decimal) activeCam.zFar;
-                    numericUpDown5.ValueChanged += this.numericUpDown5_ValueChanged;
-
-                    //Console.WriteLine(activeCam.GetViewMatrix());
-                    
-                    break;
-
-                default:
-                    //Console.WriteLine("Not Implemented Yet");
-                    return;
-            }
-            //glControl1.Invalidate();
-
-        }
-
-        private void glControl1_MouseMove(object sender, MouseEventArgs e)
-        {
-            //int delta_x = (int) (Math.Pow(cam.fov, 4) * (e.X - mouse_x));
-            //int delta_y = (int) (Math.Pow(cam.fov, 4) * (e.Y - mouse_y));
-            int delta_x = (e.X - mouse_x);
-            int delta_y = (e.Y - mouse_y);
-
-            delta_x = Math.Min(Math.Max(delta_x, -10), 10);
-            delta_y = Math.Min(Math.Max(delta_y, -10), 10);
-
-            if (e.Button == MouseButtons.Left)
-            {
-                //Console.WriteLine("Deltas {0} {1} {2}", delta_x, delta_y, e.Button);
-                activeCam.AddRotation(delta_x, delta_y);
-            }
-
-            mouse_x = e.X;
-            mouse_y = e.Y;
-
-        }
-
-        private void glControl1_Scroll(object sender, MouseEventArgs e)
-        {
-            if (Math.Abs(e.Delta) > 0)
-            {
-                //Console.WriteLine("Wheel Delta {0}", e.Delta);
-                int sign = e.Delta / Math.Abs(e.Delta);
-                int newval = (int)numericUpDown1.Value + sign;
-                newval = (int)Math.Min(Math.Max(newval, numericUpDown1.Minimum), numericUpDown1.Maximum);
-                activeCam.setFOV(newval);
-                numericUpDown1.Value = newval;
-
-                //eye.Z += e.Delta * 0.2f;
-                glControl1.Invalidate();
-            }
-
+            Util.activeControl.movement_speed = (int) s.Value;
         }
         
-        private void glControl1_MouseHover(object sender, EventArgs e)
-        {
-            glControl1.Focus();
-            //glControl1.Invalidate();
-        }
-
-        private void glControl1_Enter(object sender, EventArgs e)
-        {
-            //Start Timer when the glControl gets focus
-            Console.WriteLine("ENtered Focus");
-            t.Start();
-        }
-
-        private void glControl1_Leave(object sender, EventArgs e)
-        {
-            //Don't update the control when its not focused
-            Console.WriteLine("Left Focus");
-            if (newButton1.status)
-                t.Stop();
-        }
-
-        //GLCONTROL Context Menu
-        private void glControl1_MouseClick(object sender, MouseEventArgs e)
-        {
-            if (e.Button == MouseButtons.Right)
-            {
-                mainglcontrolContext.Show(Control.MousePosition);
-            }else if ((e.Button == MouseButtons.Left) && (ModifierKeys == Keys.Control))
-            {
-                selectObject(e.Location);
-            }
-
-        }
-
         private void getAltIDToolStripMenuItem_Click(object sender, EventArgs e)
         {
             List<string> altId = new List<string>();
@@ -1773,7 +1260,7 @@ namespace Model_Viewer
 
             //Iterate in objects
             uint index = 1;
-            findGeoms(mainScene, obj, ref index);
+            findGeoms(glcontrol1.rootObject, obj, ref index);
 
             obj.Close();
 
@@ -1796,8 +1283,9 @@ namespace Model_Viewer
 
         private void Form1_FormClosed(object sender, FormClosedEventArgs e)
         {
-            this.mainScene.Dispose();
-            Util.resMgmt.Cleanup();
+            if (glcontrol1.rootObject != null)
+                glcontrol1.rootObject.Dispose();
+            this.glcontrol1.resMgmt.Cleanup();
         }
 
         private void treeView1_NodeMouseClick(object sender, TreeNodeMouseClickEventArgs e)
@@ -1806,10 +1294,10 @@ namespace Model_Viewer
             selectedOb = ((MyTreeNode)e.Node).model;
             loadSelectedObect();
             //Deselect everything first
-            traverse_oblist_rs(this.mainScene, "selected", 0);
+            traverse_oblist_rs(glcontrol1.rootObject, "selected", 0);
             
             //Try to find object
-            selectedOb = traverse_oblist_field<int>(this.mainScene, selectedOb.ID, "selected", 1);
+            selectedOb = traverse_oblist_field<int>(glcontrol1.rootObject, selectedOb.ID, "selected", 1);
 
 
         }
@@ -1817,7 +1305,7 @@ namespace Model_Viewer
         private void getObjectTexturesToolStripMenuItem_Click(object sender, EventArgs e)
         {
             //This function tries to save to disk the selected objects textures - if any
-            gbuf.dump();
+            glcontrol1.gbuf.dump();
 
 
             if (selectedOb == null) return;
@@ -1856,15 +1344,35 @@ namespace Model_Viewer
         }
 
 
+        private void loadNMSEnums()
+        {
+            //Load Palette Names
+            var tx = new libMBIN.Models.Structs.TkPaletteTexture();
+            var paletteNames = tx.PaletteValues();
+            var colourAltNames = tx.ColourAltValues();
+
+            for (int i = 0; i < paletteNames.Length; i++)
+            {
+                Palettes.palette_IDToName[i] = paletteNames[i];
+                Palettes.palette_NameToID[paletteNames[i]] = i;
+            }
+
+            for (int i = 0; i < colourAltNames.Length; i++)
+            {
+                Palettes.colourAlt_IDToName[i] = colourAltNames[i];
+                Palettes.colourAlt_NameToID[colourAltNames[i]] = i;
+            }
+
+        }
+
         //Light Intensity
         private void l_intensity_nud_ValueChanged(object sender, EventArgs e)
         {
-            light_intensity = (float) this.l_intensity_nud.Value;
-            updateLightPosition(0);
-            glControl1.Invalidate();
+            Util.activeControl.light_intensity = (float)this.l_intensity_nud.Value;
+            Util.activeControl.updateLightPosition(0);
+            Util.activeControl.Invalidate();
         }
-        
-    
+
     }
 
     public class GBuffer
@@ -1890,7 +1398,7 @@ namespace Model_Viewer
         public GBuffer()
         {
             //Create Quad Geometry
-            program = Util.resMgmt.shader_programs[9];
+            program = Util.activeResMgmt.shader_programs[9];
             
             //Define Quad
             float[] quad = new float[6 * 3] {
@@ -1936,14 +1444,14 @@ namespace Model_Viewer
             //Init the FBO
             fbo = GL.Ext.GenFramebuffer();
 
-            Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+            //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
 
             int[] rbufs = new int[2];
             GL.Ext.GenRenderbuffers(2, rbufs);
             depth_rbo = rbufs[1];
             diff_rbo = rbufs[0];
 
-            Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+            //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
 
             GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, fbo);
             //Bind color renderbuffer
@@ -1954,7 +1462,7 @@ namespace Model_Viewer
             GL.Ext.RenderbufferStorageMultisample(RenderbufferTarget.RenderbufferExt, msaa_samples, RenderbufferStorage.Rgb8, size[0], size[1]);
             GL.Ext.FramebufferRenderbuffer(FramebufferTarget.FramebufferExt, FramebufferAttachment.ColorAttachment0Ext, RenderbufferTarget.RenderbufferExt, diff_rbo);
             
-            Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+            //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
 
 
             GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, fbo);
@@ -1966,11 +1474,11 @@ namespace Model_Viewer
             GL.Ext.RenderbufferStorageMultisample(RenderbufferTarget.RenderbufferExt, msaa_samples, RenderbufferStorage.DepthComponent, size[0], size[1]);
             GL.Ext.FramebufferRenderbuffer(FramebufferTarget.FramebufferExt, FramebufferAttachment.DepthAttachmentExt, RenderbufferTarget.RenderbufferExt, depth_rbo);
 
-            Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+            //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
 
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
-                Console.WriteLine("MALAKIES STO FRAMEBUFFER" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
+                Console.WriteLine("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
             //Setup diffuse texture
             setup_texture(ref diffuse, 0);
@@ -1985,14 +1493,20 @@ namespace Model_Viewer
             //Setup dump_fbo
             setup_dump();
 
-
-
             //Revert Back the fbo
             GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, 0);
         }
 
         public void setup_dump()
         {
+            if (dump_fbo != 0)
+            {
+                GL.DeleteFramebuffer(dump_fbo);
+                GL.DeleteTexture(dump_diff);
+                GL.DeleteTexture(dump_pos);
+                GL.DeleteTexture(dump_depth);
+            }
+                
             //Create Intermediate Framebuffer
             dump_fbo = GL.Ext.GenFramebuffer();
             dump_diff = GL.GenTexture();
@@ -2314,11 +1828,9 @@ namespace Model_Viewer
 
             Cleanup();
             setup();
-    
-
         }
-        
 
+        
     }
 
 

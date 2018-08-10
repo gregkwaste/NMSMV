@@ -45,7 +45,6 @@ namespace Model_Viewer
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
             this.toolStripStatusLabel3 = new System.Windows.Forms.ToolStripStatusLabel();
             this.toolStripStatusLabel2 = new System.Windows.Forms.ToolStripStatusLabel();
-            this.glControl1 = new OpenTK.GLControl();
             this.splitContainer2 = new System.Windows.Forms.SplitContainer();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
             this.camSettings = new System.Windows.Forms.TableLayoutPanel();
@@ -112,7 +111,6 @@ namespace Model_Viewer
             this.splitContainer1.Panel2.SuspendLayout();
             this.splitContainer1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.RightSplitter)).BeginInit();
-            this.RightSplitter.Panel1.SuspendLayout();
             this.RightSplitter.Panel2.SuspendLayout();
             this.RightSplitter.SuspendLayout();
             this.selObjectBox.SuspendLayout();
@@ -219,28 +217,6 @@ namespace Model_Viewer
             this.toolStripStatusLabel2.RightToLeft = System.Windows.Forms.RightToLeft.No;
             this.toolStripStatusLabel2.Size = new System.Drawing.Size(127, 17);
             this.toolStripStatusLabel2.Text = "Created by gregkwaste";
-            // 
-            // glControl1
-            // 
-            this.glControl1.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
-            this.glControl1.BackColor = System.Drawing.Color.Black;
-            this.glControl1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.glControl1.Location = new System.Drawing.Point(0, 0);
-            this.glControl1.MinimumSize = new System.Drawing.Size(256, 256);
-            this.glControl1.Name = "glControl1";
-            this.glControl1.Size = new System.Drawing.Size(661, 623);
-            this.glControl1.TabIndex = 1;
-            this.glControl1.VSync = true;
-            this.glControl1.Load += new System.EventHandler(this.glControl_Load);
-            this.glControl1.Paint += new System.Windows.Forms.PaintEventHandler(this.glControl1_Paint);
-            this.glControl1.Enter += new System.EventHandler(this.glControl1_Enter);
-            this.glControl1.Leave += new System.EventHandler(this.glControl1_Leave);
-            this.glControl1.MouseClick += new System.Windows.Forms.MouseEventHandler(this.glControl1_MouseClick);
-            this.glControl1.MouseHover += new System.EventHandler(this.glControl1_MouseHover);
-            this.glControl1.MouseMove += new System.Windows.Forms.MouseEventHandler(this.glControl1_MouseMove);
-            this.glControl1.MouseWheel += new System.Windows.Forms.MouseEventHandler(this.glControl1_Scroll);
-            this.glControl1.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.glControl1_KeyDown);
-            this.glControl1.Resize += new System.EventHandler(this.glControl1_Resize);
             // 
             // splitContainer2
             // 
@@ -682,10 +658,6 @@ namespace Model_Viewer
             this.RightSplitter.Location = new System.Drawing.Point(0, 0);
             this.RightSplitter.Name = "RightSplitter";
             // 
-            // RightSplitter.Panel1
-            // 
-            this.RightSplitter.Panel1.Controls.Add(this.glControl1);
-            // 
             // RightSplitter.Panel2
             // 
             this.RightSplitter.Panel2.Controls.Add(this.selObjectBox);
@@ -780,7 +752,7 @@ namespace Model_Viewer
             this.Controls.Add(this.menuStrip1);
             this.MainMenuStrip = this.menuStrip1;
             this.Name = "Form1";
-            this.Text = "No Man\'s Model Viewer v0.71";
+            this.Text = "No Man\'s Model Viewer v0.80.1";
             this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.Form1_FormClosed);
             this.Load += new System.EventHandler(this.Form1_Load);
             this.menuStrip1.ResumeLayout(false);
@@ -816,7 +788,6 @@ namespace Model_Viewer
             this.splitContainer1.Panel2.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).EndInit();
             this.splitContainer1.ResumeLayout(false);
-            this.RightSplitter.Panel1.ResumeLayout(false);
             this.RightSplitter.Panel2.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.RightSplitter)).EndInit();
             this.RightSplitter.ResumeLayout(false);
@@ -843,7 +814,6 @@ namespace Model_Viewer
         private System.Windows.Forms.ToolStripMenuItem aboutToolStripMenuItem;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabel1;
         private System.Windows.Forms.StatusStrip statusStrip1;
-        private OpenTK.GLControl glControl1;
         private System.Windows.Forms.SplitContainer splitContainer2;
         private System.Windows.Forms.GroupBox groupBox1;
         private System.Windows.Forms.TableLayoutPanel camSettings;

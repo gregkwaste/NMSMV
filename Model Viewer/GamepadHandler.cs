@@ -1,7 +1,8 @@
 ﻿using OpenTK.Input;
 using System.Diagnostics;
 using System;
-class GamepadHandler
+
+public class GamepadHandler
 {
     //Designed for proper GamePads - XBOX Controllers and stuff
     //Controller ID

@@ -11,12 +11,14 @@ namespace Model_Viewer
     {
         public GLControl cgl;
         public GMDL.model part = null;
+        private ResourceMgmt resMgmt;
 
 
         public DebugForm()
         {
             InitializeComponent();
             this.cgl = new GLControl();
+            this.resMgmt = new ResourceMgmt();
             setupCgl();
 
             this.Controls.Add(cgl);
@@ -77,7 +79,7 @@ namespace Model_Viewer
 
         private void renderquad()
         {
-            GL.UseProgram(Util.resMgmt.shader_programs[3]);
+            GL.UseProgram(this.resMgmt.shader_programs[3]);
             int quad_vbo;
             int quad_ebo;
 
@@ -214,7 +216,7 @@ namespace Model_Viewer
         private void renderTextures()
         {
 
-            int pass_program = Util.resMgmt.shader_programs[3];
+            int pass_program = this.resMgmt.shader_programs[3];
 
             //BIND TEXTURES
             GMDL.Material material = part.material;

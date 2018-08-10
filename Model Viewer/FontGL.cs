@@ -35,7 +35,11 @@ public class FontGL
         //    Debug.WriteLine(c);
 
         //Character Settings for font
-        cw = 50;
+        //Consolas
+        //cw = 50;
+        //ch = 80;
+        //Helvetica
+        cw = 55;
         ch = 80;
     }
 
@@ -63,8 +67,8 @@ public class FontGL
         g.FillRectangle(Brushes.Transparent, new Rectangle(0, 0, (cw * 10), (ch * 10)));
 
         Font font = new Font(
-            "Consolas",
-            55.0f,
+            "Helvetica",
+            50.0f,
             FontStyle.Regular,
             GraphicsUnit.Pixel);
 
@@ -89,7 +93,7 @@ public class FontGL
         bmp.Save(oms, System.Drawing.Imaging.ImageFormat.Bmp);
         
         //Save Bmp to disk for testing
-        bmp.Save("test.bmp",System.Drawing.Imaging.ImageFormat.Bmp);
+        bmp.Save("test.bmp", System.Drawing.Imaging.ImageFormat.Bmp);
 
         return oms;
     }

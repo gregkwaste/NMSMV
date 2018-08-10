@@ -91,8 +91,6 @@ namespace GLHelpers
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out status_code);
             if (status_code != 1)
                 throw new ApplicationException(info);
-            
-
         }
     }
 }

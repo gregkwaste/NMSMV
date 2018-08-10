@@ -6,7 +6,10 @@ using OpenTK.Graphics.OpenGL;
 using OpenTK;
 using KUtility;
 using Model_Viewer;
+using System.Linq;
 using System.Xml;
+using libMBIN.Models.Structs;
+using System.Reflection;
 
 namespace GMDL
 {
@@ -29,15 +32,6 @@ namespace GMDL
         public Dictionary<string, Dictionary<string, Vector3>> palette;
         public bool procFlag = false; //This is used to define procgen usage
 
-        //Animation Stuff
-        public float[] JMArray = (float[]) Util.JMarray.Clone();
-        public float[] skinMats = new float[256 * 16];
-
-        public List<GMDL.Joint> jointModel = new List<GMDL.Joint>();
-        public Dictionary<string, model> jointDict = new Dictionary<string, model>();
-        public AnimeMetaData animMeta = null;
-        public int frameCounter = 0;
-        
         //Transformation Parameters
         public Vector3 worldPosition {
             get
@@ -104,7 +98,7 @@ namespace GMDL
         public int cIndex = 0;
         //Disposable Stuff
         public bool disposed = false;
-        Microsoft.Win32.SafeHandles.SafeFileHandle handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(IntPtr.Zero, true);
+        public Microsoft.Win32.SafeHandles.SafeFileHandle handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(IntPtr.Zero, true);
 
         public static void vectofloatArray(float[] flist, List<Vector3> veclist)
         {
@@ -175,6 +169,27 @@ namespace GMDL
                 this.cIndex = this.parent.children.Count;
         }
 
+        public void TakeValuesFrom(GMDL.model input)
+        {
+            this.renderable = true; //Override Renderability
+            this.shader_programs = input.shader_programs;
+            this.type = input.type;
+            this.name = input.name;
+            this.ID = input.ID;
+            this.cIndex = input.cIndex;
+            //Clone transformation
+            this.localPosition = input.localPosition;
+            this.localRotation = input.localRotation;
+            this.localScale = input.localScale;
+            
+            foreach (GMDL.model child in input.children)
+            {
+                GMDL.model nChild = child.Clone(this.scene);
+                nChild.parent = this;
+                this.children.Add(nChild);
+            }
+        }
+
         public List<int> hpath()
         {
             List<int> list = new List<int>();
@@ -205,9 +220,6 @@ namespace GMDL
             if (disposing)
             {
                 handle.Dispose();
-                JMArray = null;
-                jointDict = null;
-                
                 
                 //Free other resources here
                 if (children!=null)
@@ -232,6 +244,50 @@ namespace GMDL
                 parent.children.Remove(this);
         }
 
+    }
+
+    //public interface model{
+    //    bool render();
+    //    GMDL.model Clone();
+    //    bool Renderable { get; set; }
+    //    int ShaderProgram { set; get; }
+    //    int Index { set; get; }
+    //    string Type { set; get; }
+    //    string Name { set; get; }
+    //    GMDL.Material material { set; get; }
+    //    List<model> Children { set; get; }
+    //};
+    
+    public class scene : locator
+    {
+        public override model Clone(scene scn)
+        {
+            GMDL.scene copy = new GMDL.scene();
+            copy.TakeValuesFrom(this);
+            copy.scene = scn; //Explicitly assign scene
+
+            //ANIMATION DATA
+            copy.jointDict = new Dictionary<string, model>();
+            copy.JMArray = (float[]) this.JMArray.Clone();
+            foreach (GMDL.Joint j in this.jointDict.Values)
+                copy.jointDict[j.name] = (GMDL.Joint) j.Clone(copy);
+
+            //When cloning scene objects the scene has the scn arguments as its parent scene
+            //BUT children will have this copy as their scene
+            //Clone Children as well
+
+            return (GMDL.model) copy;
+        }
+
+
+        //Animation Stuff
+        public float[] JMArray = (float[]) Util.JMarray.Clone();
+
+        //public List<GMDL.Joint> jointModel = new List<GMDL.Joint>(); The dict should be more than enough
+        public Dictionary<string, model> jointDict = new Dictionary<string, model>();
+        public AnimeMetaData animMeta = null;
+        public int frameCounter = 0;
+
         //Animation Methods
         public void traverse_joints(List<GMDL.Joint> jlist)
         {
@@ -242,10 +298,10 @@ namespace GMDL
         private void traverse_joint(GMDL.Joint j)
         {
             jointDict[j.name] = j;
-            Util.insertMatToArray(JMArray, j.jointIndex * 16, j.worldMat);
+            Util.insertMatToArray16(JMArray, j.jointIndex * 16, j.worldMat);
             foreach (model c in j.children)
                 if (c.type == TYPES.JOINT)
-                    traverse_joint((GMDL.Joint)c);
+                    traverse_joint((GMDL.Joint) c);
         }
 
         public void animate()
@@ -272,87 +328,30 @@ namespace GMDL
             //Update JMArrays
             foreach (GMDL.model joint in jointDict.Values)
             {
-                GMDL.Joint j = (GMDL.Joint) joint;
-                Util.insertMatToArray(JMArray, j.jointIndex * 16, j.worldMat);
+                GMDL.Joint j = (GMDL.Joint)joint;
+                Util.insertMatToArray16(JMArray, j.jointIndex * 16, j.worldMat);
             }
-                
-            
+
             frameCounter += 1;
             if (frameCounter >= animMeta.frameCount - 1)
                 frameCounter = 0;
         }
 
-        public void cloneJointDict(ref Dictionary<string, GMDL.model> jointdict, List<GMDL.Joint> jointlist)
+        private void cloneJointPart(ref Dictionary<string, model> jointdict, GMDL.model joint)
         {
-            foreach (GMDL.Joint j in jointlist)
-                cloneJointPart(ref jointdict, j);
-        }
-
-        private void cloneJointPart(ref Dictionary<string,model> jointdict, GMDL.model joint)
-        {
-            if (joint.type==TYPES.JOINT) jointdict[joint.name] = joint;
+            if (joint.type == TYPES.JOINT) jointdict[joint.name] = joint;
             foreach (GMDL.model child in joint.children)
                 cloneJointPart(ref jointdict, child);
         }
 
-    }
-
-    //public interface model{
-    //    bool render();
-    //    GMDL.model Clone();
-    //    bool Renderable { get; set; }
-    //    int ShaderProgram { set; get; }
-    //    int Index { set; get; }
-    //    string Type { set; get; }
-    //    string Name { set; get; }
-    //    GMDL.Material material { set; get; }
-    //    List<model> Children { set; get; }
-    //};
-    
-    public class scene : locator
-    {
-        public override model Clone(scene scn)
+        //Deconstructor
+        protected override void Dispose(bool disposing)
         {
-            GMDL.scene copy = new GMDL.scene();
-            copy.renderable = true; //Override Renderability
-            copy.shader_programs = this.shader_programs;
-            copy.type = this.type;
-            copy.name = this.name;
-            copy.ID = this.ID;
-            copy.cIndex = this.cIndex;
-            //Clone transformation
-            copy.localPosition = this.localPosition;
-            copy.localRotation = this.localRotation;
-            copy.localScale = this.localScale;
-            copy.scene = scn;
-
-            //ANIMATION DATA
-            copy.jointDict = new Dictionary<string, model>();
-            copy.jointModel = new List<Joint>();
-            copy.JMArray = (float[]) this.JMArray.Clone();
-            foreach (GMDL.Joint j in this.jointModel)
-                copy.jointModel.Add((GMDL.Joint) j.Clone(copy));
-
-            copy.cloneJointDict(ref copy.jointDict, copy.jointModel);
-            //When cloning scene objects the scene has the scn arguments as its parent scene
-            //BUT children will have this copy as their scene
-            //Clone Children as well
-            foreach (GMDL.model child in this.children)
-            {
-                GMDL.model nChild = child.Clone(copy);
-                nChild.parent = copy;
-                copy.children.Add(nChild);
-            }
-
-
-            return (GMDL.model) copy;
+            JMArray = null;
+            jointDict = null;
+            base.Dispose(disposing);
         }
-
-        //public override bool render()
-        //{
-        //    //Don't render shit here
-        //    return true;
-        //}
+        
     }
 
     public class locator: model
@@ -439,7 +438,6 @@ namespace GMDL
             base.Dispose(disposing);
         }
         
-
         private void renderMain(int pass)
         {
             //Console.WriteLine("Rendering Locator {0}", this.name);
@@ -501,32 +499,13 @@ namespace GMDL
         public override GMDL.model Clone(GMDL.scene scn)
         {
             GMDL.locator copy = new GMDL.locator();
-            copy.renderable = true; //Override Renderability
-            copy.shader_programs = this.shader_programs;
-            copy.type = this.type;
-            copy.name = this.name;
-            copy.ID = this.ID;
-            copy.cIndex = this.cIndex;
-            //Clone transformation
-            copy.localPosition = this.localPosition;
-            copy.localRotation = this.localRotation;
-            copy.localScale = this.localScale;
+            copy.TakeValuesFrom(this);
             copy.scene = scn;
-            //Simple Locator cloning is handled exactly the same way with sharedvbo
-            //Clone Children as well
-            foreach (GMDL.model child in this.children)
-            {
-                GMDL.model nChild = child.Clone(scn);
-                nChild.parent = copy;
-                copy.children.Add(nChild);
-            }
-                
-            
             return (GMDL.model) copy;
         }
     }
 
-    //USE THAT SHIT AND REMOVE ALL THE BIND CALLS FROM THE VBO
+    //Place holder struct for all rendered meshes
     public class mainVAO
     {
         public int rendermode;
@@ -537,10 +516,7 @@ namespace GMDL
         public int small_vertex_buffer_object;
         public int element_buffer_object;
 
-        public void mainVao()
-        {
-            //Default Constructor
-        }
+        public void mainVao() { }
     }
 
     public class meshModel : model
@@ -586,61 +562,6 @@ namespace GMDL
             //Create Sphere vbo
             bsh_Vao = new Sphere(bsh_center.Xyz, radius).getVAO();
         }
-
-        /* obsolete?!?!?!?
-        public float[] getBindRotMats
-        {
-            get
-            {
-                float[] jMats = new float[60 * 16];
-
-                for (int i = 0; i < this.vbo.jointData.Count; i++)
-                {
-                    Matrix4 temp = Matrix4.CreateFromQuaternion(vbo.jointData[i].BindRotation);
-                    jMats[i * 16] = temp.M11;
-                    jMats[i * 16 + 1] = temp.M12;
-                    jMats[i * 16 + 2] = temp.M13;
-                    jMats[i * 16 + 3] = temp.M14;
-                    jMats[i * 16 + 4] = temp.M21;
-                    jMats[i * 16 + 5] = temp.M22;
-                    jMats[i * 16 + 6] = temp.M23;
-                    jMats[i * 16 + 7] = temp.M24;
-                    jMats[i * 16 + 8] = temp.M31;
-                    jMats[i * 16 + 9] = temp.M32;
-                    jMats[i * 16 + 10] = temp.M33;
-                    jMats[i * 16 + 11] = temp.M34;
-                    //jMats[i * 16 + 12] = temp.M41;
-                    //jMats[i * 16 + 13] = temp.M42;
-                    //jMats[i * 16 + 14] = temp.M43;
-                    //jMats[i * 16 + 15] = temp.M44;
-                    jMats[i * 16 + 12] = 0.0f;
-                    jMats[i * 16 + 13] = 0.0f;
-                    jMats[i * 16 + 14] = 0.0f;
-                    jMats[i * 16 + 15] = 1.0f;
-                }
-
-                return jMats;
-            }
-        }
-        
-        public float[] getBindTransMats
-        {
-            get
-            {
-                float[] trans = new float[60 * 3];
-
-                for (int i = 0; i < this.vbo.jointData.Count; i++)
-                {
-                    Vector3 temp = vbo.jointData[i].BindTranslate;
-                    trans[3 * i + 0] = temp.X;
-                    trans[3 * i + 1] = temp.Y;
-                    trans[3 * i + 2] = temp.Z;
-                }
-
-                return trans;
-            }
-        }
-        */
 
         public void renderBbox(int pass)
         {
@@ -762,14 +683,18 @@ namespace GMDL
             //Upload joint transform data
             //Multiply matrices before sending them
             //Check if scene has the jointModel
+
             if (skinned > 0.0f)
             {
-                //Upload BoneRemap Information
-                GL.Uniform1(75, BoneRemap.Length, BoneRemap);
-                Util.mulMatArrays(skinMats, gobject.invBMats, scene.JMArray, 256);
-                GL.UniformMatrix4(331, 128, false, skinMats);
+                float[] remapped = new float[128 * 16];
+                for (int i=0; i<BoneRemap.Length; i++)
+                {
+                    Array.Copy(gobject.skinMats, BoneRemap[i] * 16, remapped, i*16, 16);
+                }
+                
+                GL.UniformMatrix4(78, 128, false, remapped);
             }
-
+            
             //Upload Light Flag
             //loc = GL.GetUniformLocation(pass, "useLighting");
             //GL.Uniform1(loc, 1.0f);
@@ -781,19 +706,19 @@ namespace GMDL
             //BIND TEXTURES
             int tex0Id = (int)TextureUnit.Texture0;
             //Diffuse Texture
-            GL.Uniform1(460, 0); // I need to upload the texture unit number
+            GL.Uniform1(75, 0); // I need to upload the texture unit number
 
             GL.ActiveTexture((TextureUnit)(tex0Id + 0));
             GL.BindTexture(TextureTarget.Texture2D, material.fDiffuseMap.bufferID);
 
             //Mask Texture
-            GL.Uniform1(461, 1); // I need to upload the texture unit number
+            GL.Uniform1(76, 1); // I need to upload the texture unit number
 
             GL.ActiveTexture((TextureUnit)(tex0Id + 1));
             GL.BindTexture(TextureTarget.Texture2D, material.fMaskMap.bufferID);
 
             //Normal Texture
-            GL.Uniform1(462, 2); // I need to upload the texture unit number
+            GL.Uniform1(77, 2); // I need to upload the texture unit number
 
             GL.ActiveTexture((TextureUnit)(tex0Id + 2));
             GL.BindTexture(TextureTarget.Texture2D, material.fNormalMap.bufferID);
@@ -837,15 +762,15 @@ namespace GMDL
             //Upload BoneRemap Information
             loc = GL.GetUniformLocation(pass, "boneRemap");
             GL.Uniform1(loc, BoneRemap.Length, BoneRemap);
-            
+
             //Upload joint transform data
             //Multiply matrices before sending them
             //Check if scene has the jointModel
-            Util.mulMatArrays(skinMats, gobject.invBMats, scene.JMArray, 256);
-
+            /*
+            Util.mulMatArrays(ref skinMats, gobject.invBMats, scene.JMArray, 256);
             loc = GL.GetUniformLocation(pass, "skinMats");
             GL.UniformMatrix4(loc, 256, false, skinMats);
-
+            */
 
             //Step 2: Render VAO
             GL.BindVertexArray(main_Vao.vao_id);
@@ -888,115 +813,24 @@ namespace GMDL
             return true;
         }
 
-        /* OBSOLETE
-        private void rendersmall()
-        {
-            //Bind vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vbo.small_vertex_buffer_object);
-
-            int vpos, bI, bW;
-            //Vertex attribute
-            vpos = GL.GetAttribLocation(this.shader_programs[0], "vPosition");
-            int vstride = vbo.vx_size * vertrstart_graphics;
-            GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.HalfFloat, false, this.vbo.small_vx_size, vbo.small_vx_stride);
-            GL.EnableVertexAttribArray(vpos);
-
-            //If there are BlendIndices there are obviously blendWeights as well
-            //Max Indices count found so far is 4. I'm hardcoding it unless i find something else in the files.
-            bI = GL.GetAttribLocation(this.shader_programs[0], "blendIndices");
-            GL.VertexAttribPointer(bI, 4, VertexAttribPointerType.UnsignedByte, false, vbo.small_vx_size, vbo.small_blendI_stride);
-            GL.EnableVertexAttribArray(bI);
-
-            bW = GL.GetAttribLocation(this.shader_programs[0], "blendWeights");
-            GL.VertexAttribPointer(bW, 4, VertexAttribPointerType.HalfFloat, false, vbo.small_vx_size, vbo.small_blendW_stride);
-            GL.EnableVertexAttribArray(bW);
-
-            //Testing Upload full bIndices array
-            //GL.BindBuffer(BufferTarget.ArrayBuffer, vbo.bIndices_buffer_object);
-            //bI = GL.GetAttribLocation(this.shader_program, "blendIndices");
-            //GL.VertexAttribPointer(bI, 4, VertexAttribPointerType.Int, false, 0, 0);
-            //GL.EnableVertexAttribArray(bI);
-
-            //InverseBind Matrices
-            int loc;
-            //loc = GL.GetUniformLocation(shader_program, "invBMs");
-            //GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.vbo.invBMats);
-
-            //Upload BoneRemap Information
-            loc = GL.GetUniformLocation(shader_programs[0], "boneRemap");
-            GL.Uniform1(loc, BoneRemap.Length, BoneRemap);
-
-            //Upload skinned status
-            loc = GL.GetUniformLocation(shader_programs[0], "skinned");
-            GL.Uniform1(loc, skinned);
-
-            //Upload joint transform data
-            //Multiply matrices before sending them
-            //Check if scene has the jointModel
-            float[] skinmats = Util.mulMatArrays(vbo.invBMats, scene.JMArray, 256);
-
-            loc = GL.GetUniformLocation(shader_programs[0], "skinMats");
-            GL.UniformMatrix4(loc, 256, false, skinmats);
-
-            //Upload procedural sampler flag
-            loc = GL.GetUniformLocation(shader_programs[0], "procFlag");
-            GL.Uniform1(loc, 0);
-
-            //Disable Diffuse Maps
-            loc = GL.GetUniformLocation(shader_programs[0], "diffTexCount");
-            GL.Uniform1(loc, 0);
-
-            loc = GL.GetUniformLocation(shader_programs[0], "diffuseFlag");
-            GL.Uniform1(loc, 0.0f);
-
-            //Upload Default Color
-            loc = GL.GetUniformLocation(this.shader_programs[0], "color");
-            GL.Uniform3(loc, 1.0, 0.0, 0.0); //Render Small Red
-
-            //Render Elements
-            GL.PointSize(5.0f);
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.vbo.element_buffer_object);
-
-            GL.PolygonMode(MaterialFace.Front, RenderOptions.RENDERMODE);
-            GL.PolygonMode(MaterialFace.Back, RenderOptions.RENDERMODE);
-            GL.DrawRangeElements(PrimitiveType.Triangles, vertrstart_graphics, vertrend_graphics,
-                batchcount, vbo.iType, (IntPtr)(batchstart_graphics * vbo.iLength));
-
-            //Console.WriteLine("Normal Object {2} vpos {0} cpos {1} prog {3}", vpos, npos, this.name, this.shader_program);
-            //Console.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vbo.vertex_buffer_object, this.vbo.color_buffer_object);
-
-            GL.DisableVertexAttribArray(vpos);
-            GL.DisableVertexAttribArray(bI);
-            GL.DisableVertexAttribArray(bW);
-
-        }
-        */
-
         public override GMDL.model Clone(GMDL.scene scn)
         {
             GMDL.meshModel copy = new GMDL.meshModel();
+            copy.TakeValuesFrom(this);
             copy.vertrstart_graphics = this.vertrstart_graphics;
             copy.vertrstart_physics = this.vertrstart_physics;
             copy.vertrend_graphics = this.vertrend_graphics;
             copy.vertrend_physics = this.vertrend_physics;
-            
-            copy.renderable = true; //Override Renderability
-            copy.shader_programs = this.shader_programs;
-            copy.type = this.type;
-            copy.main_Vao = main_Vao;
-            copy.debug_Vao = debug_Vao;
-            copy.pick_Vao = pick_Vao;
-            copy.name = this.name;
-            copy.ID = this.ID;
-            //Clone transformation
-            copy.localPosition = this.localPosition;
-            copy.localRotation = this.localRotation;
-            copy.localScale = this.localScale;
             //Skinning Stuff
             copy.firstskinmat = this.firstskinmat;
             copy.lastskinmat = this.lastskinmat;
             copy.BoneRemap = this.BoneRemap;
             copy.skinned = this.skinned;
+
+            copy.main_Vao = main_Vao;
+            copy.debug_Vao = debug_Vao;
+            copy.pick_Vao = pick_Vao;
+            
             //Render Tris
             copy.batchcount = this.batchcount;
             copy.batchstart_graphics = this.batchstart_graphics;
@@ -1008,29 +842,11 @@ namespace GMDL
             if (this.material != null)
                 copy.material = this.material.Clone();
             copy.palette = this.palette;
-            copy.cIndex = this.cIndex;
-            //animation data
-            copy.jointDict = new Dictionary<string, model>();
-            copy.cloneJointDict(ref copy.jointDict, this.jointModel);
-            copy.jointModel = new List<GMDL.Joint>();
+            
             //In sharedVBO objects, both this and all the children have the same scene
             copy.scene = scn;
             copy.gobject = gobject; //Leave geometry file intact, no need to copy anything here
-            foreach (GMDL.model child in this.jointModel)
-            {
-                GMDL.model nChild = child.Clone(scn);
-                nChild.parent = copy;
-                copy.jointModel.Add((GMDL.Joint) nChild);
-            }
-                
-            //Clone Children as well
-            foreach (GMDL.model child in this.children)
-            {
-                GMDL.model nChild = child.Clone(scn);
-                nChild.parent = copy;
-                copy.children.Add(nChild);
-            }
-
+            
             return (GMDL.model)copy;
         }
 
@@ -1397,10 +1213,7 @@ namespace GMDL
             this.skinned = root.skinned;
             this.palette = root.palette;
             this.cIndex = root.cIndex;
-            //animation data
-            this.jointDict = new Dictionary<string, model>();
-            this.cloneJointDict(ref this.jointDict, root.jointModel);
-            this.jointModel = new List<GMDL.Joint>();
+            
             //In sharedVBO objects, both root and all the children have the same scene
             this.scene = root.scene;
             this.children = root.children; //Just assign them by ref
@@ -1528,7 +1341,7 @@ namespace GMDL
         public int iCount;
         public int vCount;
         public int iLength;
-        public int[] boneRemap = new int[512];
+        public short[] boneRemap = new short[512];
         public DrawElementsType iType;
         public byte[] geomVbuf;
         public byte[] geomIbuf;
@@ -1637,10 +1450,6 @@ namespace GMDL
     public class GeomObject : IDisposable
     {
         private bool disposed = false;
-        //public List<Vector3> verts = new List<Vector3>();
-        //public List<Vector3> normals = new List<Vector3>();
-        //public List<Vector3> tangents = new List<Vector3>();
-        //public List<List<Vector2>> uvs = new List<List<Vector2>>();
         public string mesh_descr;
         public string small_mesh_descr;
 
@@ -1666,7 +1475,7 @@ namespace GMDL
         public List<bufInfo> bufInfo = new List<GMDL.bufInfo>();
         public int[] offsets; //List to save strides according to meshdescr
         public int[] small_offsets; //Same thing for the small description
-        public int[] boneRemap;
+        public short[] boneRemap;
         public List<Vector3[]> bboxes = new List<Vector3[]>();
         public List<Vector3> bhullverts = new List<Vector3>();
         public List<int> vstarts = new List<int>();
@@ -1676,6 +1485,9 @@ namespace GMDL
         //Joint info
         public List<JointBindingData> jointData = new List<JointBindingData>();
         public float[] invBMats = new float[256 * 16];
+        public float[] skinMats = new float[256 * 16]; //Final Matrices
+
+        public GMDL.scene rootObject = null;
 
         public Vector3 get_vec3_half(BinaryReader br)
         {
@@ -1715,12 +1527,11 @@ namespace GMDL
             GL.BindVertexArray(vao.vao_id);
             
             //Generate VBOs
-            int[] vbo_buffers = new int[3];
-            GL.GenBuffers(3, vbo_buffers);
+            int[] vbo_buffers = new int[2];
+            GL.GenBuffers(2, vbo_buffers);
 
             int vertex_buffer_object = vbo_buffers[0];
-            int small_vertex_buffer_object = vbo_buffers[1];
-            int element_buffer_object = vbo_buffers[2];
+            int element_buffer_object = vbo_buffers[1];
 
             //Bind vertex buffer
             int size;
@@ -1788,7 +1599,7 @@ namespace GMDL
             GL.BindVertexArray(vao.vao_id);
 
             //Generate VBOs
-            int[] vbo_buffers = new int[3];
+            int[] vbo_buffers = new int[2];
             GL.GenBuffers(2, vbo_buffers);
 
             int vertex_buffer_object = vbo_buffers[0];
@@ -1964,9 +1775,10 @@ namespace GMDL
         public void prepTextures()
         {
             foreach (Sampler sam in samplers){
+                if (sam.name != "gDiffuseMap") continue;
 
                 //Testing
-                if (sam.map.Contains("HELMET_1"))
+                if (sam.map.Contains("BOOTS_1"))
                 {
                     Console.WriteLine("Test");
                 }
@@ -1994,25 +1806,27 @@ namespace GMDL
                 {
                     Console.WriteLine("Procedural Texture Detected: " + texMbin);
                     sam.proc = true;
-                    //Convert to exml
-                    if (!File.Exists(texMbinexml))
-                        Util.MbinToExml(texMbin, texMbinexml);
+
+                    libMBIN.MBINFile mbinf = new libMBIN.MBINFile(texMbin);
+                    mbinf.Load();
+                    TkProceduralTextureList template = (TkProceduralTextureList) mbinf.GetData();
+                    mbinf.Dispose();
+                    
+                    //Convert to exml - just for testing
+                    //if (!File.Exists(texMbinexml))
+                    //    Util.MbinToExml(texMbin, texMbinexml);
                     
                     //Parse exml now
-                    XmlDocument descrXml = new XmlDocument();
-                    descrXml.Load(texMbinexml);
-                    XmlElement root = (XmlElement)descrXml.ChildNodes[2];
-
-                    List<XmlElement> texList = new List<XmlElement>(8);
+                    List<TkProceduralTexture> texList = new List<TkProceduralTexture>(8);
                     for (int i = 0; i < 8; i++) texList.Add(null);
-                    ModelProcGen.parse_procTexture(ref texList, root);
+                    ModelProcGen.parse_procTexture(ref texList, template);
 
-#if DEBUG
+#if DEBUG           
                     Console.WriteLine("Proc Texture Selection");
                     for (int i = 0; i < 8; i++) {
                         if (texList[i] != null)
                         {
-                            string partNameDiff = ((XmlElement)texList[i].SelectSingleNode(".//Property[@name='Diffuse']")).GetAttribute("value");
+                            string partNameDiff = texList[i].Diffuse;
                             Console.WriteLine(partNameDiff);
                         }
                     }
@@ -2020,29 +1834,25 @@ namespace GMDL
 #endif
                     Console.WriteLine("Proc Textures");
 
-                    for (int i = 7; i > 0; i--)
+                    for (int i = 0; i < 8; i++)
                     {
 
-                        XmlElement node = texList[i];
+                        TkProceduralTexture ptex = texList[i];
                         //Add defaults
-                        if (node == null)
+                        if (ptex == null)
                         {
                             baseLayersUsed[i] = 0.0f;
                             alphaLayersUsed[i] = 0.0f;
                             continue;
                         }
 
-                        string partNameDiff = ((XmlElement)node.SelectSingleNode(".//Property[@name='Diffuse']")).GetAttribute("value");
-                        string partNameMask = ((XmlElement)node.SelectSingleNode(".//Property[@name='Mask']")).GetAttribute("value");
-                        string partNameNormal = ((XmlElement)node.SelectSingleNode(".//Property[@name='Normal']")).GetAttribute("value");
+                        string partNameDiff = ptex.Diffuse;
+                        string partNameMask = ptex.Mask;
+                        string partNameNormal = ptex.Normal;
 
-                        XmlElement paletteNode = (XmlElement) node.SelectSingleNode(".//Property[@name='Palette']");
-                        //XmlElement innerPalNode = (XmlElement)paletteNode.SelectSingleNode(".//Property[@name='Palette']");
-                        string paletteName = ((XmlElement) paletteNode.SelectSingleNode(".//Property[@name='Palette']")).GetAttribute("value");
-                        //Get ColourAlt node
-                        string colorName = ((XmlElement)paletteNode.SelectSingleNode(".//Property[@name='ColourAlt']")).GetAttribute("value");
-
-                        //Select a pallete color
+                        TkPaletteTexture paletteNode = ptex.Palette;
+                        string paletteName = Palettes.palette_IDToName[paletteNode.Palette];
+                        string colorName = Palettes.colourAlt_IDToName[paletteNode.ColourAlt];
                         Vector4 palColor = palette[paletteName][colorName];
                         //Randomize palette Color every single time
                         //Vector3 palColor = Model_Viewer.Palettes.get_color(paletteName, colorName);
@@ -2060,7 +1870,7 @@ namespace GMDL
                         {
                             //Add White
                             baseLayersUsed[i] = 0.0f;
-                        } else if (!Util.resMgmt.GLtextures.ContainsKey(partNameDiff))
+                        } else if (!Util.activeResMgmt.GLtextures.ContainsKey(partNameDiff))
                         {
                             //Construct Texture paths
                             string pathDiff = Path.Combine(Util.dirpath, partNameDiff);
@@ -2072,7 +1882,7 @@ namespace GMDL
                                 tex.palOpt = palOpt;
                                 tex.procColor = palColor;
                                 //store to global dict
-                                Util.resMgmt.GLtextures[partNameDiff] = tex;
+                                Util.activeResMgmt.GLtextures[partNameDiff] = tex;
 
                                 //Save Texture to material
                                 this.difftextures[i] = tex;
@@ -2088,7 +1898,7 @@ namespace GMDL
                         } else
                         //Load texture from dict
                         {
-                            Texture tex = Util.resMgmt.GLtextures[partNameDiff];
+                            Texture tex = Util.activeResMgmt.GLtextures[partNameDiff];
                             //Save Texture to material
                             this.difftextures[i] = tex;
                             baseLayersUsed[i] = 1.0f;
@@ -2100,7 +1910,7 @@ namespace GMDL
                         {
                             //Skip
                             alphaLayersUsed[i] = 0.0f;
-                        } else if (!Util.resMgmt.GLtextures.ContainsKey(partNameMask))
+                        } else if (!Util.activeResMgmt.GLtextures.ContainsKey(partNameMask))
                         {
                             string pathMask = Path.Combine(Util.dirpath, partNameMask);
                             //Configure Mask
@@ -2108,7 +1918,7 @@ namespace GMDL
                             {
                                 Texture texmask = new Texture(pathMask);
                                 //store to global dict
-                                Util.resMgmt.GLtextures[partNameMask] = texmask;
+                                Util.activeResMgmt.GLtextures[partNameMask] = texmask;
                                 //Store Texture to material
                                 this.masktextures[i] = texmask;
                                 alphaLayersUsed[i] = 0.0f;
@@ -2123,7 +1933,7 @@ namespace GMDL
                         else
                         //Load texture from dict
                         {
-                            Texture tex = Util.resMgmt.GLtextures[partNameMask];
+                            Texture tex = Util.activeResMgmt.GLtextures[partNameMask];
                             //Store Texture to material
                             this.masktextures[i] = tex;
                             alphaLayersUsed[i] = 1.0f;
@@ -2135,7 +1945,7 @@ namespace GMDL
                         {
                             //Skip
 
-                        } else if (!Util.resMgmt.GLtextures.ContainsKey(partNameNormal))
+                        } else if (!Util.activeResMgmt.GLtextures.ContainsKey(partNameNormal))
                         {
                             string pathNormal = Path.Combine(Util.dirpath, partNameNormal);
                             
@@ -2143,7 +1953,7 @@ namespace GMDL
                             {
                                 Texture texnormal = new Texture(pathNormal);
                                 //store to global dict
-                                Util.resMgmt.GLtextures[partNameNormal] = texnormal;
+                                Util.activeResMgmt.GLtextures[partNameNormal] = texnormal;
                                 //Store Texture to material
                                 this.normaltextures[i] = texnormal;
                             }
@@ -2157,7 +1967,7 @@ namespace GMDL
                         else
                         //Load texture from dict
                         {
-                            Texture tex = Util.resMgmt.GLtextures[partNameNormal];
+                            Texture tex = Util.activeResMgmt.GLtextures[partNameNormal];
                             //Store Texture to material
                             this.normaltextures[i] = tex;
                         }
@@ -2172,9 +1982,9 @@ namespace GMDL
                     Console.WriteLine("Proper Texture, Bullshiting for now");
                     //Handle Diffuse
                     if (sam.map != "")
-                        if (Util.resMgmt.GLtextures.ContainsKey(sam.map))
+                        if (Util.activeResMgmt.GLtextures.ContainsKey(sam.map))
                         {
-                            Texture tex = Util.resMgmt.GLtextures[sam.map];
+                            Texture tex = Util.activeResMgmt.GLtextures[sam.map];
                             difftextures[active_id] = tex;
                             baseLayersUsed[active_id] = 1.0f;
                         }
@@ -2186,15 +1996,15 @@ namespace GMDL
                             difftextures[active_id] = tex;
                             baseLayersUsed[active_id] = 1.0f;
                             //Store to resource
-                            Util.resMgmt.GLtextures[sam.map] = tex;
+                            Util.activeResMgmt.GLtextures[sam.map] = tex;
                         }
 
 
                     //Handle Mask
                     if (sam.map != "" && sam.map != null)
-                        if (Util.resMgmt.GLtextures.ContainsKey(sam.map))
+                        if (Util.activeResMgmt.GLtextures.ContainsKey(sam.map))
                         {
-                            Texture tex = Util.resMgmt.GLtextures[sam.map];
+                            Texture tex = Util.activeResMgmt.GLtextures[sam.map];
                             masktextures[active_id] = tex;
                             alphaLayersUsed[active_id] = 1.0f;
                         }
@@ -2212,14 +2022,14 @@ namespace GMDL
                             masktextures[active_id] = tex;
                             alphaLayersUsed[active_id] = 1.0f;
                             //Store to resource
-                            Util.resMgmt.GLtextures[sam.map] = tex;
+                            Util.activeResMgmt.GLtextures[sam.map] = tex;
                         }
 
                     //Handle Normal
                     if (sam.map != "" && sam.map != null)
-                        if (Util.resMgmt.GLtextures.ContainsKey(sam.map))
+                        if (Util.activeResMgmt.GLtextures.ContainsKey(sam.map))
                         {
-                            Texture tex = Util.resMgmt.GLtextures[sam.map];
+                            Texture tex = Util.activeResMgmt.GLtextures[sam.map];
                             normaltextures[active_id] = tex;
                         }
                         else
@@ -2231,7 +2041,7 @@ namespace GMDL
                                 tex.procColor = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
                                 normaltextures[active_id] = tex;
                                 //Store to resource
-                                Util.resMgmt.GLtextures[sam.map] = tex;
+                                Util.activeResMgmt.GLtextures[sam.map] = tex;
                             }
                             catch (System.IO.FileNotFoundException)
                             { 
@@ -2252,8 +2062,15 @@ namespace GMDL
         }
 
         public void mixTextures() {
+            //Testing
+            if (this.name.Contains("Boots1"))
+            {
+                Console.WriteLine("Test");
+            }
+
             //SETUP QUAD
-            GL.UseProgram(Util.resMgmt.shader_programs[3]);
+            int pass_program = Util.activeResMgmt.shader_programs[3];
+            GL.UseProgram(pass_program);
             int quad_vbo;
             int quad_ebo;
 
@@ -2383,8 +2200,7 @@ namespace GMDL
 
 
             //Upload Textures
-            int pass_program = Util.resMgmt.shader_programs[3];
-
+            
             //BIND TEXTURES
             GMDL.Texture tex;
             int loc;
@@ -2405,13 +2221,24 @@ namespace GMDL
              * 
              * TEXTURES SHOULD BE PUSHED TO THE SHADERS BOTTOM TO TOP
              * 
-             * 
-             * 
-             * 
+             *
              */
 
-            Texture dMask = Util.resMgmt.GLtextures["default_mask.dds"];
-            Texture dDiff = Util.resMgmt.GLtextures["default.dds"];
+            Texture dMask = Util.activeResMgmt.GLtextures["default_mask.dds"];
+            Texture dDiff = Util.activeResMgmt.GLtextures["default.dds"];
+
+            //Upload Base Layer Index
+            loc = GL.GetUniformLocation(pass_program, "baseLayerIndex");
+            for (int i = 0; i < 8; i++)
+            {
+                //int active_id = 7 - i;
+                if (difftextures[i] != null)
+                {
+                    GL.Uniform1(loc, i);
+                    break;
+                }
+
+            }
 
             //Upload base Layers Used
             for (int i = 0; i < 8; i++)
@@ -2421,18 +2248,7 @@ namespace GMDL
                 GL.Uniform1(loc, baseLayersUsed[active_id]);
             }
 
-            //Upload Base Layer Index
-            loc = GL.GetUniformLocation(pass_program, "baseLayerIndex");
-            for (int i = 0; i < 8; i++)
-            {
-                //int active_id = 7 - i;
-                if (difftextures[i] != null)
-                { 
-                    GL.Uniform1(loc, i);
-                    break;
-                }
-                
-            }
+            
 
             for (int i = 0; i < 8; i++)
             {
@@ -2476,7 +2292,7 @@ namespace GMDL
 
             //Upload Mask Textures -- Alpha Masks???
             //Mask Mixing mixes r channels without alpha
-            //loc = GL.GetUniformLocation(pass_program, "m_lbaseLayersUsed");
+            //loc = GL.GetUniformLocation(pass_program, "m_lbaseLayerFsUsed");
             //for (int i = 0; i < 8; i++)
             //{
             //    if (masktextures[i] != null) GL.Uniform1(loc + i, 1.0f);
@@ -2543,9 +2359,13 @@ namespace GMDL
             for (int i = 0; i < 8; i++)
             {
                 int active_id = i;
-
                 loc = GL.GetUniformLocation(pass_program, "lRecolours[" + active_id.ToString() + "]");
-                GL.Uniform4(loc, reColourings[active_id][0], reColourings[active_id][1], reColourings[active_id][2], reColourings[active_id][3]);
+                //GL.Uniform4(loc, reColourings[active_id][0], reColourings[active_id][1], reColourings[active_id][2], reColourings[active_id][3]);
+                GL.Uniform4(loc, (float) reColourings[active_id][0],
+                                 (float) reColourings[active_id][1],
+                                 (float) reColourings[active_id][2],
+                                 (float) reColourings[active_id][3]);
+                //GL.Uniform4(loc, 1.0f, 1.0f, 1.0f, 1.0f);
             }
 
             //RENDERING PHASE
@@ -2572,13 +2392,16 @@ namespace GMDL
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             //GL.BindTexture(TextureTarget.Texture2D, out_tex_diffuse);
             //GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
-#if TEST
-            GL.ReadPixels(0, 0, texsize, texsize, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
-            FileStream fs = new FileStream("framebuffer_raw_diffuse_" + name, FileMode.Create);
-            BinaryWriter bw = new BinaryWriter(fs);
-            bw.Write(pixels);
-            fs.Flush();
-            fs.Close();
+#if true
+            if (this.name.Contains("Boots1")) {
+                GL.ReadPixels(0, 0, texsize, texsize, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
+                FileStream fs = new FileStream("framebuffer_raw_diffuse_" + name, FileMode.Create);
+                BinaryWriter bw = new BinaryWriter(fs);
+                bw.Write(pixels);
+                fs.Flush();
+                fs.Close();
+            }
+            
 #endif
             //Store Texture to material
             fDiffuseMap.bufferID = out_tex_diffuse;
@@ -2856,7 +2679,7 @@ namespace GMDL
 
     }
 
-    public class Joint : model
+    public class Joint : locator
     {
         private int vertex_buffer_object;
         private int element_buffer_object;
@@ -3023,7 +2846,8 @@ namespace GMDL
     {
         //I should expand the light properties here
         public float intensity = 1.0f;
-
+        public float distance = 1.0f;
+        
         private int vertex_buffer_object;
         private int element_buffer_object;
 
@@ -3290,6 +3114,9 @@ namespace GMDL
     public class JointBindingData
     {
         public Matrix4 invBindMatrix = Matrix4.Identity;
+        public Vector4 iBM_Row1;
+        public Vector4 iBM_Row2;
+        public Vector4 iBM_Row3;
         public Vector3 BindTranslate;
         public Quaternion BindRotation;
         public Vector3 Bindscale;
@@ -3316,10 +3143,12 @@ namespace GMDL
             invBindMatrix.M42 = br.ReadSingle();
             invBindMatrix.M43 = br.ReadSingle();
             invBindMatrix.M44 = br.ReadSingle();
-            //transpose the matrix
-            //invBindMatrix.Transpose();
-            //invBindMatrix.Invert();
-            
+
+            //Load the Rows transposed in order to get rid ot (0, 0, 0, 1)
+            iBM_Row1 = new Vector4(invBindMatrix.M11, invBindMatrix.M21, invBindMatrix.M31, invBindMatrix.M41);
+            iBM_Row2 = new Vector4(invBindMatrix.M12, invBindMatrix.M22, invBindMatrix.M32, invBindMatrix.M42);
+            iBM_Row3 = new Vector4(invBindMatrix.M13, invBindMatrix.M23, invBindMatrix.M33, invBindMatrix.M43);
+
             //Get Translate
             BindTranslate.X = br.ReadSingle();
             BindTranslate.Y = br.ReadSingle();
@@ -3334,6 +3163,28 @@ namespace GMDL
             Bindscale.Y = br.ReadSingle();
             Bindscale.Z = br.ReadSingle();
 
+        }
+
+        
+        public float[] convertVec(Vector3 vec)
+        {
+            float[] fmat = new float[3];
+            fmat[0] = vec.X;
+            fmat[1] = vec.Y;
+            fmat[2] = vec.Z;
+            
+            return fmat;
+        }
+
+        public float[] convertVec(Vector4 vec)
+        {
+            float[] fmat = new float[4];
+            fmat[0] = vec.X;
+            fmat[1] = vec.Y;
+            fmat[2] = vec.Z;
+            fmat[3] = vec.W;
+
+            return fmat;
         }
 
         public float[] convertMat()

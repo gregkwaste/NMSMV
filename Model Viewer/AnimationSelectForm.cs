@@ -53,7 +53,7 @@ namespace Model_Viewer
 
             //Proceed to import
             //Select Scene
-            GMDL.model activeScene = this.animScenes[this.listBox1.SelectedIndex];
+            GMDL.scene activeScene = (GMDL.scene) this.animScenes[this.listBox1.SelectedIndex];
             FileStream fs = new FileStream(animpath, FileMode.Open);
             activeScene.animMeta = new GMDL.AnimeMetaData();
             activeScene.animMeta.Load(fs);
