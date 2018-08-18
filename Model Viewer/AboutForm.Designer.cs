@@ -31,7 +31,7 @@
             this.label2 = new System.Windows.Forms.Label();
             this.label4 = new System.Windows.Forms.Label();
             this.label5 = new System.Windows.Forms.Label();
-            this.label6 = new System.Windows.Forms.Label();
+            this.versionLabel = new System.Windows.Forms.Label();
             this.label3 = new System.Windows.Forms.Label();
             this.label1 = new System.Windows.Forms.Label();
             this.wikilabel = new System.Windows.Forms.LinkLabel();
@@ -62,6 +62,7 @@
             // 
             // label5
             // 
+            this.label5.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label5.Font = new System.Drawing.Font("Microsoft Sans Serif", 21.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.label5.Location = new System.Drawing.Point(140, 9);
             this.label5.Name = "label5";
@@ -70,15 +71,17 @@
             this.label5.Text = "No Man\'s Sky Model Viewer";
             this.label5.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
-            // label6
+            // versionLabel
             // 
-            this.label6.Font = new System.Drawing.Font("Microsoft Sans Serif", 15.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label6.Location = new System.Drawing.Point(163, 73);
-            this.label6.Name = "label6";
-            this.label6.Size = new System.Drawing.Size(343, 31);
-            this.label6.TabIndex = 2;
-            this.label6.Text = "Version 0.71-HEAVILY TESTING-";
-            this.label6.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.versionLabel.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.versionLabel.AutoSize = true;
+            this.versionLabel.Font = new System.Drawing.Font("Microsoft Sans Serif", 15.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.versionLabel.Location = new System.Drawing.Point(163, 81);
+            this.versionLabel.Name = "versionLabel";
+            this.versionLabel.Size = new System.Drawing.Size(332, 25);
+            this.versionLabel.TabIndex = 2;
+            this.versionLabel.Text = "Version 0.71-HEAVILY TESTING-";
+            this.versionLabel.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // label3
             // 
@@ -159,7 +162,7 @@
             this.Controls.Add(this.wikilabel);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.label3);
-            this.Controls.Add(this.label6);
+            this.Controls.Add(this.versionLabel);
             this.Controls.Add(this.label5);
             this.Controls.Add(this.label4);
             this.Controls.Add(this.label2);
@@ -176,7 +179,7 @@
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Label label4;
         private System.Windows.Forms.Label label5;
-        private System.Windows.Forms.Label label6;
+        private System.Windows.Forms.Label versionLabel;
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.LinkLabel wikilabel;

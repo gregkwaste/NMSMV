@@ -96,6 +96,7 @@
             this.Controls.Add(this.listBox1);
             this.Name = "AnimationSelectForm";
             this.Text = "AnimationSelectForm";
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.AnimationSelectForm_FormClosing);
             this.Load += new System.EventHandler(this.AnimationSelectForm_Load);
             this.ResumeLayout(false);
             this.PerformLayout();

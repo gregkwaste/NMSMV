@@ -859,7 +859,7 @@ public static class GEOMMBIN {
             meshData md = new meshData();
             md.vs_buffer = new byte[mmd.vs_size];
             md.is_buffer = new byte[mmd.is_size];
-
+            
             //Fetch Buffers
             gs_fs.Seek((int) mmd.vs_abs_offset, SeekOrigin.Begin);
             gs_fs.Read(md.vs_buffer, 0, (int) mmd.vs_size);
@@ -1156,7 +1156,7 @@ public static class GEOMMBIN {
                 //Parse material file
                 Console.WriteLine("Parsing Material File");
                 string mat_path = Path.GetFullPath(Path.Combine(Util.dirpath, matname));
-                string mat_exmlPath = Path.GetFullPath(Util.getExmlPath(mat_path));
+                string mat_exmlPath = Path.GetFullPath(FileUtils.getExmlPath(mat_path));
                 //Console.WriteLine("Loading Scene " + path);
                 
                 //Check if path exists
@@ -1190,7 +1190,6 @@ public static class GEOMMBIN {
             
             //Generate Vao's
             so.main_Vao = gobject.getMainVao(so);
-            
             
             //Configure boneRemap properly
             so.BoneRemap = new int[so.lastskinmat - so.firstskinmat];
@@ -1271,7 +1270,7 @@ public static class GEOMMBIN {
             Console.WriteLine("Joint Detected");
             GMDL.Joint joint = new GMDL.Joint();
             //Set properties
-            joint.name = name.ToUpper();
+            joint.name = name;
             joint.type = typeEnum;
             joint.shader_programs = new int[]{ Util.activeResMgmt.shader_programs[2],
                                                Util.activeResMgmt.shader_programs[5],

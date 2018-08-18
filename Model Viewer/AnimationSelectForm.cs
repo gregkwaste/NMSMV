@@ -17,21 +17,16 @@ namespace Model_Viewer
             //Get type of parent
             Type typ = parent.GetType();
             Debug.WriteLine(typ);
-            FieldInfo[] fields = typ.GetFields();
-            foreach (FieldInfo f in fields)
-            {
-                if (f.Name == "animScenes"){
-                    animScenes = (List<GMDL.model>) f.GetValue(parent);
-                }
-            }
+            CGLControl parent_control = (CGLControl) parent;
+            animScenes = new List<GMDL.model>();
+            foreach (GMDL.scene s in parent_control.animScenes)
+                animScenes.Add(s);
         }
 
         private void AnimationSelectForm_Load(object sender, EventArgs e)
         {
-            
             //Set up droplist
-            
-            foreach (GMDL.model s in this.animScenes)
+            foreach (GMDL.model s in animScenes)
                 this.listBox1.Items.Add(s.name);
         }
 
@@ -54,9 +49,7 @@ namespace Model_Viewer
             //Proceed to import
             //Select Scene
             GMDL.scene activeScene = (GMDL.scene) this.animScenes[this.listBox1.SelectedIndex];
-            FileStream fs = new FileStream(animpath, FileMode.Open);
-            activeScene.animMeta = new GMDL.AnimeMetaData();
-            activeScene.animMeta.Load(fs);
+            Util.loadAnimationFile(animpath, activeScene);
 
             this.Close();
 
@@ -65,6 +58,7 @@ namespace Model_Viewer
         private void button1_Click(object sender, EventArgs e)
         {
             //Select animation file
+            openFileDialog1.Filter = "ANIM Files (*.ANIM.MBIN)|*.ANIM.MBIN;";
             DialogResult res = this.openFileDialog1.ShowDialog();
 
             if (res != DialogResult.OK)
@@ -75,5 +69,10 @@ namespace Model_Viewer
 
         }
 
+        private void AnimationSelectForm_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            //Cleanup
+            animScenes.Clear();
+        }
     }
 }

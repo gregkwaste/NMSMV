@@ -87,13 +87,11 @@
       <DependentUpon>AnimationSelectForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Camera.cs" />
-    <Compile Include="Class1.cs">
-      <SubType>Form</SubType>
-    </Compile>
     <Compile Include="CGLControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="GamepadHandler.cs" />
+    <Compile Include="gbuffer.cs" />
     <Compile Include="Palettes.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
@@ -143,9 +141,6 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="AnimationSelectForm.resx">
       <DependentUpon>AnimationSelectForm.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Class1.resx">
-      <DependentUpon>Class1.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="CGLControl.resx">
       <DependentUpon>CGLControl.cs</DependentUpon>

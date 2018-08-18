@@ -1233,6 +1233,7 @@ namespace Model_Viewer
                 }
                 catch (ArgumentOutOfRangeException e)
                 {
+                    Console.WriteLine("Missing Options for Palette " + f.Name);
                     //Choose the first color in all cases that the palette files have not been properly imported
                     newPal[f.Name]["Primary"] = new Vector4(palette[0], 1.0f);
                     newPal[f.Name]["Alternative1"] = new Vector4(palette[0], 1.0f);

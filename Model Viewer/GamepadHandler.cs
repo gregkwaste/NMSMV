@@ -10,10 +10,12 @@ public class GamepadHandler
     //Struct for Stick Positions
     //States are saved as follows : LS_x LS_y RS_x RS_y
     private float[][] LR = new float[][] { new float[] { 0.0f, 0.0f },
+                                           new float[] { 0.0f, 0.0f },
                                            new float[] { 0.0f, 0.0f } };
 
     private float[][] dLR = new float[][] { new float[] { 0.0f, 0.0f },
-                                           new float[] { 0.0f, 0.0f } };
+                                            new float[] { 0.0f, 0.0f },
+                                            new float[] { 0.0f, 0.0f } };
     //Calibration coeffs
     private float[][] clibCoeffs = new float[][] { new float[] { 0.0f, 0.0f },
                                            new float[] { 0.0f, 0.0f } };
@@ -49,28 +51,33 @@ public class GamepadHandler
         float l_y = state.ThumbSticks.Left.Y;
         float r_x = state.ThumbSticks.Right.X;
         float r_y = state.ThumbSticks.Right.Y;
-
+        float t_l = state.Triggers.Left;
+        float t_r = state.Triggers.Right;
+        
         //Update differences
-        //dLR[0][0] = l_x -  LR[0][0];
-        //dLR[0][1] = l_y -  LR[0][1]; 
-        //dLR[1][0] = r_x - LR[1][0];
-        //dLR[1][1] = r_y - LR[1][1];
+        dLR[0][0] = l_x - LR[0][0];
+        dLR[0][1] = l_y - LR[0][1]; 
+        dLR[1][0] = r_x - LR[1][0];
+        dLR[1][1] = r_y - LR[1][1];
+        dLR[2][0] = t_l - LR[2][0];
+        dLR[2][1] = t_r - LR[2][1];
 
         //Store the new values
         LR[0][0] = l_x;
         LR[0][1] = l_y;
         LR[1][0] = r_x;
         LR[1][1] = r_y;
+        LR[2][0] = t_l;
+        LR[2][1] = t_r;
 
         //Update Buttons
-        buttonStates[0] = (float)state.Buttons.LeftShoulder;
-        buttonStates[1] = (float)state.Buttons.RightShoulder;
-        buttonStates[2] = (float)state.Buttons.Y;
-        buttonStates[3] =  (float) state.Buttons.X;
-        buttonStates[4] = (float)state.Buttons.B;
-        buttonStates[5] = (float)state.Buttons.A;
-
-
+        buttonStates[0] = (float) state.Buttons.LeftShoulder;
+        buttonStates[1] = (float) state.Buttons.RightShoulder;
+        buttonStates[2] = (float) state.Buttons.Y;
+        buttonStates[3] = (float) state.Buttons.X;
+        buttonStates[4] = (float) state.Buttons.B;
+        buttonStates[5] = (float) state.Buttons.A;
+        
     }
 
     public float getDisp(int stick, int axis)
@@ -83,19 +90,20 @@ public class GamepadHandler
 
         float length = (float) Math.Abs(LR[stick][axis]);
         if (length >= 0.25)
-        {
-            float dir = (float) Math.Round(LR[stick][axis]) / length;
-            return dir * length;
-        }
+            return (float) Math.Round(LR[stick][axis]);
         else
-        {
             return 0.0f;
-        }
         
     }
+
     public void reportButtons()
     {
         Debug.WriteLine(getBtnState(0) + " " + getBtnState(1) + " " + getBtnState(2) + " " + getBtnState(3) + " " + getBtnState(4) + " " + getBtnState(5) + " ");
+    }
+
+    public void reportAxes()
+    {
+        Debug.WriteLine(getAxsState(0, 0) + " " + getAxsState(0, 1) + " " + getAxsState(1, 0) + " " + getAxsState(1, 1) + " " + getAxsState(2, 0) + " " + getAxsState(2, 1) + " ");
     }
 
     public float getBtnState(int btnId)

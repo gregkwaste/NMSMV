@@ -7,6 +7,7 @@ namespace Model_Viewer
         public AboutDialog()
         {
             InitializeComponent();
+            versionLabel.Text = Util.Version + " - NMS NEXT HEAVY TESTING";
             wikilabel.Links.Add(0, wikilabel.Text.Length, "https://bitbucket.org/gregkwaste/nms-viewer/wiki/Home");
             repolabel.Links.Add(0, repolabel.Text.Length, "https://bitbucket.org/gregkwaste/nms-viewer");
             donatelabel.Links.Add(0, donatelabel.Text.Length, "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=arianos10@gmail.com&lc=GR&item_name=3dgamedevblog&currency_code=EUR&bn=PP-DonationsBF:btn_donateCC_LG.gif:NonHosted");

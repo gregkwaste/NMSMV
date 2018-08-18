@@ -78,7 +78,7 @@ namespace Model_Viewer
             this.Load += new System.EventHandler(this.genericLoad);
             this.Paint += new System.Windows.Forms.PaintEventHandler(this.genericPaint);
             this.Resize += new System.EventHandler(this.genericResize);
-            //this.MouseHover += new System.EventHandler(this.hover);
+            this.MouseHover += new System.EventHandler(this.genericHover);
             this.MouseMove += new System.Windows.Forms.MouseEventHandler(this.genericMouseMove);
             this.MouseClick += new System.Windows.Forms.MouseEventHandler(this.CGLControl_MouseClick);
             //this.glControl1.MouseWheel += new System.Windows.Forms.MouseEventHandler(this.glControl1_Scroll);
@@ -132,8 +132,6 @@ namespace Model_Viewer
         //glControl Timer
         private void timer_ticker(object sender, EventArgs e)
         {
-            //Handle Gamepad Input
-            gpHandler.updateState();
             //Console.WriteLine(gpHandler.getAxsState(0, 0).ToString() + " " +  gpHandler.getAxsState(0, 1).ToString());
             //gpHandler.reportButtons();
             gamepadController(); //Move camera according to input
@@ -147,7 +145,7 @@ namespace Model_Viewer
             Matrix4 Rotx = Matrix4.CreateRotationX(rot[0] * (float)Math.PI / 180.0f);
             Matrix4 Roty = Matrix4.CreateRotationY(rot[1] * (float)Math.PI / 180.0f);
             Matrix4 Rotz = Matrix4.CreateRotationZ(rot[2] * (float)Math.PI / 180.0f);
-            rotMat = Rotz * Roty * Rotx;
+            rotMat = Rotz * Rotx * Roty;
             mvp = activeCam.viewMat; //Full mvp matrix
             Util.mvp = mvp;
             occludedNum = 0; //Reset Counter
@@ -222,7 +220,7 @@ namespace Model_Viewer
                 GMDL.scene animScene = animScenes[i];
                 foreach (GMDL.Joint j in animScene.jointDict.Values)
                 {
-                    Util.insertMatToArray16(animScene.JMArray, j.jointIndex * 16, j.worldMat);
+                    MathUtils.insertMatToArray16(animScene.JMArray, j.jointIndex * 16, j.worldMat);
                 }
             }
             
@@ -230,7 +228,7 @@ namespace Model_Viewer
             //Calculate skinning matrices for each joint for each geometry object
             foreach (GMDL.GeomObject g in resMgmt.GLgeoms.Values)
             {
-                Util.mulMatArrays(ref g.skinMats, g.invBMats, g.rootObject.JMArray, 256);
+                MathUtils.mulMatArrays(ref g.skinMats, g.invBMats, g.rootObject.JMArray, 256);
             }
         }
 
@@ -287,6 +285,14 @@ namespace Model_Viewer
         {
             //Start Timer when the glControl gets focus
             Debug.WriteLine("Entered Focus Control " + index);
+            this.MakeCurrent(); //Control should have been active on hover
+            t.Start();
+        }
+
+        private void genericHover(object sender, EventArgs e)
+        {
+            //Start Timer when the glControl gets focus
+            Debug.WriteLine("Hovering Over Control " + index);
             this.MakeCurrent(); //Control should have been active on hover
             t.Start();
         }
@@ -415,12 +421,6 @@ namespace Model_Viewer
             //Update Joystick 
 
             //Console.WriteLine("Painting Control");
-        }
-
-        private void hover(object sender, EventArgs e)
-        {
-            this.Focus();
-            this.Invalidate();
         }
 
         private void genericMouseMove(object sender, MouseEventArgs e)
@@ -592,7 +592,7 @@ namespace Model_Viewer
         {
             if (this.ClientSize.Height == 0)
                 this.ClientSize = new System.Drawing.Size(this.ClientSize.Width, 1);
-            Console.WriteLine("GLControl {0} Resizing {1} x {2}",this.index, this.ClientSize.Width, this.ClientSize.Height);
+            //Console.WriteLine("GLControl {0} Resizing {1} x {2}",this.index, this.ClientSize.Width, this.ClientSize.Height);
             //this.MakeCurrent(); At this point I have to make sure that this control is already the active one
             //TODO add a gbuffer to every CGLControl
             if (gbuf != null)
@@ -821,17 +821,23 @@ namespace Model_Viewer
         private void gamepadController()
         {
             //This Method handles and controls the gamepad input
+            gpHandler.updateState();
+            //gpHandler.reportAxes();
+            
             //Move camera
-            //Console.WriteLine(gpHandler.getAxsState(0, 0));
             //Console.WriteLine(gpHandler.getBtnState(1) - gpHandler.getBtnState(0));
             //Console.WriteLine(gpHandler.getAxsState(0, 1));
             for (int i = 0; i < movement_speed; i++)
-                activeCam.Move(gpHandler.getAxsState(0, 0),
-                               gpHandler.getAxsState(0, 1),
-                               (gpHandler.getBtnState(1) - gpHandler.getBtnState(0)));
+                activeCam.Move(0.1f * gpHandler.getAxsState(0, 0),
+                               0.1f * gpHandler.getAxsState(0, 1),
+                               gpHandler.getBtnState(1) - gpHandler.getBtnState(0));
+            
             //Rotate Camera
             //for (int i = 0; i < movement_speed; i++)
             activeCam.AddRotation(-3.0f * gpHandler.getAxsState(1, 0), 3.0f * gpHandler.getAxsState(1, 1));
+            //Console.WriteLine("Camera Orientation {0} {1}", activeCam.Orientation.X,
+            //    activeCam.Orientation.Y,
+            //    activeCam.Orientation.Z);
         }
 
 
@@ -862,10 +868,6 @@ namespace Model_Viewer
             //this.MakeCurrent();
             foreach (GMDL.scene s in animScenes)
                 if (s.animMeta != null) s.animate();
-            this.Invalidate();
-
-            //if (animScenes[0] != null) animScenes[0].animate();
-            //this.Invalidate();
         }
 
     }

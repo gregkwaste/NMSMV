@@ -91,6 +91,7 @@ namespace GMDL
         public Vector3 localPosition = new Vector3(0.0f, 0.0f, 0.0f);
         public Vector3 localScale = new Vector3(1.0f, 1.0f, 1.0f);
         //public Vector3 localRotation = new Vector3(0.0f, 0.0f, 0.0f);
+        public Vector3 localRotationAngles = new Vector3(0.0f, 0.0f, 0.0f);
         public Matrix3 localRotation = Matrix3.Identity;
         public Vector3[] Bbox = new Vector3[2];
 
@@ -147,6 +148,8 @@ namespace GMDL
             rotation.Y = float.Parse(split[4], System.Globalization.CultureInfo.InvariantCulture);
             rotation.Z = float.Parse(split[5], System.Globalization.CultureInfo.InvariantCulture);
 
+            localRotationAngles = rotation;
+
             //Get Local Scale
             this.localScale.X = float.Parse(split[6], System.Globalization.CultureInfo.InvariantCulture);
             this.localScale.Y = float.Parse(split[7], System.Globalization.CultureInfo.InvariantCulture);
@@ -155,12 +158,12 @@ namespace GMDL
             //Now Calculate the joint matrix;
 
             Matrix3 rotx, roty, rotz;
-            Matrix3.CreateRotationX((float)Math.PI * rotation.X / 180.0f, out rotx);
-            Matrix3.CreateRotationY((float)Math.PI * rotation.Y / 180.0f, out roty);
-            Matrix3.CreateRotationZ((float)Math.PI * rotation.Z / 180.0f, out rotz);
+            Matrix3.CreateRotationX(MathUtils.radians(rotation.X), out rotx);
+            Matrix3.CreateRotationY(MathUtils.radians(rotation.Y), out roty);
+            Matrix3.CreateRotationZ(MathUtils.radians(rotation.Z), out rotz);
             //Matrix4.CreateTranslation(ref this.localPosition, out transM);
             //Calculate local matrix
-            this.localRotation = rotz*rotx*roty;
+            this.localRotation = rotz * rotx * roty;
 
             //this.localMat = rotz * rotx * roty * transM;
 
@@ -285,55 +288,133 @@ namespace GMDL
 
         //public List<GMDL.Joint> jointModel = new List<GMDL.Joint>(); The dict should be more than enough
         public Dictionary<string, model> jointDict = new Dictionary<string, model>();
-        public AnimeMetaData animMeta = null;
+        public TkAnimMetadata animMeta = null;
         public int frameCounter = 0;
-
-        //Animation Methods
-        public void traverse_joints(List<GMDL.Joint> jlist)
-        {
-            foreach (GMDL.Joint j in jlist)
-                traverse_joint(j);
-        }
-
-        private void traverse_joint(GMDL.Joint j)
-        {
-            jointDict[j.name] = j;
-            Util.insertMatToArray16(JMArray, j.jointIndex * 16, j.worldMat);
-            foreach (model c in j.children)
-                if (c.type == TYPES.JOINT)
-                    traverse_joint((GMDL.Joint) c);
-        }
 
         public void animate()
         {
             //Console.WriteLine("Setting Frame Index {0}", frameIndex);
-            GMDL.AnimNodeFrameData frame = new GMDL.AnimNodeFrameData();
-            frame = animMeta.frameData.frames[frameCounter];
+            TkAnimNodeFrameData frame = animMeta.AnimFrameData[frameCounter];
+            TkAnimNodeFrameData stillframe = animMeta.StillFrameData;
 
-            foreach (GMDL.AnimeNode node in animMeta.nodeData.nodeList)
+            foreach (TkAnimNodeData node in animMeta.NodeData)
             {
-                if (jointDict.ContainsKey(node.name))
+                if (jointDict.ContainsKey(node.Node))
                 {
-                    //Check if there is a rotation for that node
-                    if (node.rotIndex < frame.rotations.Count - 1)
-                        ((GMDL.model)jointDict[node.name]).localRotation = Matrix3.CreateFromQuaternion(frame.rotations[node.rotIndex]);
+                    //Console.WriteLine("Frame {0} Node {1} RotationIndex {2}", frameCounter, node.Node, node.RotIndex);
 
-                    //Matrix4 newrot = Matrix4.CreateFromQuaternion(frame.rotations[node.rotIndex]);
-                    if (node.transIndex < frame.translations.Count - 1)
-                        ((GMDL.model)jointDict[node.name]).localPosition = frame.translations[node.transIndex];
+                    //Load Rotations
+                    UInt16 c_x, c_y, c_z;
+                    UInt16 i_x, i_y, i_z;
+
+                    //Check if there is a rotation for that node
+                    if (node.RotIndex < frame.Rotations.Count / 3)
+                    {
+                        int rotindex = node.RotIndex;
+                        c_x = (UInt16) frame.Rotations[3 * rotindex + 0];
+                        c_y = (UInt16) frame.Rotations[3 * rotindex + 1];
+                        c_z = (UInt16) frame.Rotations[3 * rotindex + 2];
+                        
+                    } else //Load stillframedata
+                    {
+                        int rotindex = node.RotIndex - frame.Rotations.Count / 3;
+                        c_x = (UInt16)stillframe.Rotations[3 * rotindex + 0];
+                        c_y = (UInt16)stillframe.Rotations[3 * rotindex + 1];
+                        c_z = (UInt16)stillframe.Rotations[3 * rotindex + 2];
+                    }
+
+                    i_x = (UInt16)(c_x >> 15);
+                    i_y = (UInt16)(c_y >> 15);
+                    i_z = (UInt16)(c_z >> 15);
+                    
+                    ushort axisflag = (ushort) (i_x << 0 | i_y << 1 | i_z << 2);
+
+                    //Mask Values
+                    c_x = (UInt16) (c_x & 0x7FFF);
+                    c_y = (UInt16) (c_y & 0x7FFF);
+                    c_z = (UInt16) (c_z & 0x7FFF);
+
+                    float norm = 1.0f / 0x3FFF;
+                    float scale = 1.0f / (float) Math.Sqrt(2.0f);
+
+                    float[] values = new float[4];
+                    values[0] = ((float)(c_x - 0x3FFF)) * norm * scale;
+                    values[1] = ((float)(c_y - 0x3FFF)) * norm * scale;
+                    values[2] = ((float)(c_z - 0x3FFF)) * norm * scale;
+                    //I assume that W is positive by default
+                    values[3] = (float)Math.Sqrt(Math.Max(1.0f - values[0] * values[0] - values[1] * values[1] - values[2] * values[2], 0.0));
+
+                    //Quaternion oq = Quaternion.FromMatrix(jointDict[node.Node].localRotation);
+                    Quaternion q = new Quaternion();
+
+                    switch (axisflag)
+                    {
+                        case 3:
+                            q = new Quaternion(values[3], values[0], values[1], values[2]);
+                            break;
+                        case 2:
+                            q = new Quaternion(values[0], values[1], values[3], values[2]);
+                            break;
+                        case 1:
+                            q = new Quaternion(values[0], values[3], values[1], values[2]);
+                            break;
+                        case 0:
+                            q = new Quaternion(values[0], values[1], values[2], values[3]);
+                            break;
+                        default:
+                            break;
+                    }
+
+                    /*
+                    if (axisflag == 1)
+                    {
+                        //Console.WriteLine("New Values   masked {0:X} {1:X} {2:X}", c_x, c_y, c_z);
+                        Console.WriteLine("Old Quaternion {0} {1} {2} {3}", oq.X, oq.Y, oq.Z, oq.W);
+                        Console.WriteLine("New Quaternion {0} {1} {2} {3}", q.X, q.Y, q.Z, q.W);
+                        Console.WriteLine("Break");
+                    }
+                    */
+                    
+                    Matrix3 nMat = Matrix3.CreateFromQuaternion(q);
+                    jointDict[node.Node].localRotation = nMat;
+                    
+                    //Load Translations
+                    if (node.TransIndex < frame.Translations.Count)
+                    {
+                        jointDict[node.Node].localPosition.X = frame.Translations[node.TransIndex].x;
+                        jointDict[node.Node].localPosition.Y = frame.Translations[node.TransIndex].y;
+                        jointDict[node.Node].localPosition.Z = frame.Translations[node.TransIndex].z;
+                    }
+                    else //Load stillframedata
+                    {
+                        int transindex = node.TransIndex - frame.Translations.Count;
+                        jointDict[node.Node].localPosition.X = stillframe.Translations[transindex].x;
+                        jointDict[node.Node].localPosition.Y = stillframe.Translations[transindex].y;
+                        jointDict[node.Node].localPosition.Z = stillframe.Translations[transindex].z;
+                    }
+
+                    //Load Scaling - TODO
+                    //Load Translations
+                    if (node.ScaleIndex < frame.Scales.Count)
+                    {
+                        jointDict[node.Node].localScale.X = frame.Scales[node.ScaleIndex].x;
+                        jointDict[node.Node].localScale.Y = frame.Scales[node.ScaleIndex].y;
+                        jointDict[node.Node].localScale.Z = frame.Scales[node.ScaleIndex].z;
+                    }
+                    else //Load stillframedata
+                    {
+                        int scaleindex = node.ScaleIndex - frame.Scales.Count;
+                        jointDict[node.Node].localScale.X = stillframe.Scales[scaleindex].x;
+                        jointDict[node.Node].localScale.Y = stillframe.Scales[scaleindex].y;
+                        jointDict[node.Node].localScale.Z = stillframe.Scales[scaleindex].z;
+                    }
+
                 }
                 //Console.WriteLine("Node " + node.name+ " {0} {1} {2}",node.rotIndex,node.transIndex,node.scaleIndex);
             }
 
-            //Update JMArrays
-            foreach (GMDL.model joint in jointDict.Values)
-            {
-                GMDL.Joint j = (GMDL.Joint)joint;
-                Util.insertMatToArray16(JMArray, j.jointIndex * 16, j.worldMat);
-            }
-
             frameCounter += 1;
-            if (frameCounter >= animMeta.frameCount - 1)
+            if (frameCounter >= animMeta.FrameCount - 1)
                 frameCounter = 0;
         }
 
@@ -1791,14 +1872,14 @@ namespace GMDL
                 string texMbinexml = temp + "TEXTURE.exml";
                 texMbin = Path.GetFullPath(Path.Combine(Util.dirpath, texMbin));
                 //texMbinexml = Path.Combine(Util.dirpath, texMbinexml);
-                texMbinexml = Util.getExmlPath(texMbin);
+                texMbinexml = FileUtils.getExmlPath(texMbin);
                 
                 //Force procgen if there is a sub procgen texture defined in the sampler
                 if (Util.forceProcGen)
                 {
                     texMbin = split[0] + ".TEXTURE.MBIN";
                     texMbin = Path.GetFullPath(Path.Combine(Util.dirpath, texMbin));
-                    texMbinexml = Util.getExmlPath(texMbin);
+                    texMbinexml = FileUtils.getExmlPath(texMbin);
                 }
                  
                 //Detect Procedural Texture
@@ -3043,7 +3124,7 @@ namespace GMDL
             BinaryReader br = new BinaryReader(fs);
             char[] charbuffer = new char[0x100];
 
-            charbuffer = br.ReadChars(0x10);
+            charbuffer = br.ReadChars(0x40);
             name = (new string(charbuffer)).Trim('\0');
             canCompress = (br.ReadInt32()==0) ? false : true;
             rotIndex = br.ReadInt32();

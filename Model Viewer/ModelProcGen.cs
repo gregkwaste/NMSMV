@@ -67,7 +67,7 @@ namespace Model_Viewer
                             descrpath = Path.Combine(descrpath, split[j]);
                         descrpath += ".DESCRIPTOR.MBIN";
                         descrpath = Path.Combine(Util.dirpath, descrpath);
-                        string exmlPath = Util.getExmlPath(descrpath);
+                        string exmlPath = FileUtils.getExmlPath(descrpath);
 
                         //Check if descriptor exists at all
                         if (File.Exists(descrpath))
@@ -77,7 +77,7 @@ namespace Model_Viewer
                             {
                                 Debug.WriteLine("Exml does not exist, Converting...");
                                 //Convert Descriptor MBIN to exml
-                                Util.MbinToExml(descrpath, exmlPath);
+                                FileUtils.MbinToExml(descrpath, exmlPath);
                             }
 
                             //Parse exml now
