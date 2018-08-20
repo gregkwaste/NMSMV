@@ -13,9 +13,9 @@ uniform float intensity;
 uniform int diffTexCount;
 uniform bool matflags[64];
 
-layout(location=460) uniform sampler2D diffuseTex;
-layout(location=461) uniform sampler2D maskTex;
-layout(location=462) uniform sampler2D normalTex;
+layout(location=75) uniform sampler2D diffuseTex;
+layout(location=76) uniform sampler2D maskTex;
+layout(location=77) uniform sampler2D normalTex;
 
 //Normal Texture
 uniform float diffuseFlag;
