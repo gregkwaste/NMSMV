@@ -261,7 +261,8 @@ namespace Model_Viewer
                 var caps = OpenTK.Input.GamePad.GetCapabilities(i);
                 if (caps.GamePadType == OpenTK.Input.GamePadType.Unknown) break;
                 Util.gamepadID = i;
-                Console.WriteLine(caps + caps.GetType().Name);
+                var gamepad_name = OpenTK.Input.GamePad.GetName(i);
+                Console.WriteLine(caps + " " + gamepad_name);
             }
             
             //Setup GamePad Handler for the control
@@ -1374,6 +1375,7 @@ namespace Model_Viewer
             //string animpath = "C:\\Users\\gkass\\Downloads\\NMS_Unpacked\\MODELS\\PLANETS\\BIOMES\\COMMON\\INTERACTIVEFLORA\\ANIMS\\COMMODITYPLANT1_OPEN.ANIM.MBIN";
 
             string filepath = "C:\\Users\\gkass\\Downloads\\NMS_Unpacked\\MODELS\\COMMON\\PLAYER\\PLAYERCHARACTER\\NPCVYKEEN.SCENE.MBIN";
+            
             //Still animation
             //string animpath = "C:\\Users\\gkass\\Downloads\\NMS_Unpacked\\MODELS\\COMMON\\PLAYER\\PLAYERCHARACTER\\NPCVYKEEN.ANIM.MBIN";
             //Idle 1 Hand

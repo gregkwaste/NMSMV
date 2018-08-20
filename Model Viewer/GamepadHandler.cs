@@ -36,6 +36,7 @@ public class GamepadHandler
     public void calibrateAxes()
     {
         GamePadState state = GamePad.GetState(ID);
+        GamePadCapabilities cp = new GamePadCapabilities();
         clibCoeffs[0][0] = state.ThumbSticks.Left.X;
         clibCoeffs[0][1] = state.ThumbSticks.Left.Y;
         clibCoeffs[1][0] = state.ThumbSticks.Right.X;
