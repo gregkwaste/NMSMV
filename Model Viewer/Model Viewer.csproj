@@ -38,7 +38,7 @@
     <OutputPath>bin\Debug\</OutputPath>
     <DefineConstants>DEBUG</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
+    <WarningLevel>3</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
@@ -79,20 +79,15 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="2sComplement.cs" />
     <Compile Include="AnimationSelectForm.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="AnimationSelectForm.Designer.cs">
       <DependentUpon>AnimationSelectForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="Camera.cs" />
     <Compile Include="CGLControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
-    <Compile Include="GamepadHandler.cs" />
-    <Compile Include="gbuffer.cs" />
-    <Compile Include="Palettes.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -105,13 +100,7 @@
     <Compile Include="DebugForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="FontGL.cs" />
-    <Compile Include="gImage.cs" />
-    <Compile Include="GLPrimitives.cs" />
-    <Compile Include="GLShaderHelper.cs" />
-    <Compile Include="GLSL_Preprocessor.cs" />
     <Compile Include="TreeStuff.cs" />
-    <Compile Include="DDSImage.cs" />
     <Compile Include="AboutForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -124,10 +113,6 @@
     <Compile Include="SettingsForm.Designer.cs">
       <DependentUpon>SettingsForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="ModelProcGen.cs" />
-    <Compile Include="GMDL.cs" />
-    <Compile Include="MBIN.cs" />
-    <Compile Include="half.cs" />
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -166,7 +151,7 @@
       <SubType>Designer</SubType>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
-    <None Include="app.config" />
+    <None Include="App.config" />
     <None Include="OpenTK.dll.config" />
     <None Include="packages.config" />
     <None Include="Resources\camera.frag" />
@@ -179,6 +164,20 @@
     <None Include="Resources\tess.tes" />
     <None Include="Resources\text.frag" />
     <None Include="Resources\text.vert" />
+    <None Include="Shaders\common.glsl" />
+    <None Include="Shaders\decal_FS.glsl" />
+    <None Include="Shaders\decal_VS.glsl" />
+    <None Include="Shaders\Gbuffer_FS.glsl" />
+    <None Include="Shaders\Gbuffer_VS.glsl" />
+    <None Include="Shaders\pass_FS.glsl" />
+    <None Include="Shaders\pass_VS.glsl" />
+    <None Include="Shaders\Simple_FS.glsl" />
+    <None Include="Shaders\Simple_FSEmpty.glsl" />
+    <None Include="Shaders\Simple_FS_backup.glsl" />
+    <None Include="Shaders\Simple_GS.glsl" />
+    <None Include="Shaders\Simple_VS.glsl" />
+    <None Include="Shaders\Simple_VSEmpty.glsl" />
+    <None Include="Shaders\Simple_VS_backup.glsl" />
     <Resource Include="Resources\joint.frag" />
     <Resource Include="Resources\joint.vert" />
     <None Include="Properties\Settings.settings">
@@ -210,8 +209,14 @@
     <Content Include="lib\libMBIN.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <None Include="Resources\default_mask.dds" />
+    <None Include="Resources\default.dds" />
   </ItemGroup>
+  <Import Project="..\MVCore\MVCore.projitems" Label="Shared" />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>XCOPY "$(SolutionDir)Model Viewer\Shaders" "$(TargetDir)Shaders" /s /i /y &amp;&amp; COPY "$(SolutionDir)Model Viewer\Resources\default.dds" "$(TargetDir)\default.dds" &amp;&amp; COPY "$(SolutionDir)Model Viewer\Resources\default_mask.dds" "$(TargetDir)\default_mask.dds"</PostBuildEvent>
+  </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

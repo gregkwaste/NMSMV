@@ -4,6 +4,8 @@ using System.Xml;
 using OpenTK.Graphics.OpenGL;
 using OpenTK;
 using System.Diagnostics;
+using RenderState = MVCore.Common.RenderState;
+
 
 namespace Model_Viewer
 {
@@ -56,7 +58,7 @@ namespace Model_Viewer
                     textBox1_MouseClick(this, new MouseEventArgs(MouseButtons.Left, 1, 0, 0, 1));
                     //Set procGen Num explicitly
                     Util.procGenNum = 15;
-                    Util.forceProcGen = true;
+                    RenderState.forceProcGen = true;
                     //Save Settings automatically
                     if (!(textBox1.Text == ""))
                         button1_Click(this, new EventArgs());
@@ -75,17 +77,15 @@ namespace Model_Viewer
 
             //Set Gamepath
             textBox1.Text = gamepath.InnerText;
-            Util.dirpath = gamepath.InnerText;
+            MVCore.FileUtils.dirpath = gamepath.InnerText;
             //Set ProcGenNum
             procGenNum.Value = int.Parse(pGenNum.InnerText);
             forceProcGen.Value = int.Parse(forcepGen.InnerText);
             Util.procGenNum = (int) procGenNum.Value;
-            Util.forceProcGen = ((int) forceProcGen.Value >0) ? true : false ;
+            RenderState.forceProcGen = ((int) forceProcGen.Value >0) ? true : false ;
 
             System.Diagnostics.Debug.WriteLine(gamepath.InnerText);
-
-
-
+        
         }
 
         private void textBox1_MouseClick(object sender, MouseEventArgs e)
@@ -96,7 +96,7 @@ namespace Model_Viewer
 
             //Set Gamepath
             textBox1.Text = folderBrowserDialog1.SelectedPath;
-            Util.dirpath = folderBrowserDialog1.SelectedPath;
+            MVCore.FileUtils.dirpath = folderBrowserDialog1.SelectedPath;
         }
 
         private void SettingsForm_FormClosing(object sender, FormClosingEventArgs e)
@@ -113,11 +113,4 @@ namespace Model_Viewer
             Util.procGenNum = (int) procGenNum.Value;
         }
     }
-
-    //Deprecated
-    public class ProcGenForm: Form
-    {
-        public Form1 parentForm;
-    }
-    
 }

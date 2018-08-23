@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <SharedGUID>53c00cb6-a20b-47ae-93db-82a187f0d3cd</SharedGUID>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>MVCore</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)2sComplement.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Camera.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)DDSImage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)FileUtils.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)FontGL.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GamepadHandler.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)gbuffer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)gImage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GLPrimitives.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GLShaderHelper.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GLSL_Preprocessor.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)half.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)KeyboardHandler.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MathUtils.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MBIN.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ModelProcGen.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Palettes.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ResourceManager.cs" />
+  </ItemGroup>
+</Project>

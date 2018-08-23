@@ -155,10 +155,14 @@ vec4 MixDiffuseMaps(){
 	
 	// Original Color Mix
 	for (int i=0; i<8; i++){
+		//Maintain original color
+		lLayerXVec4[i].rgb = lLayerXVec4[i].rgb;
+		
+		//Recoloring Modes
 		//lLayerXVec4[i].rgb = Recolour(lLayerXVec4[i].rgb, gAverageColourXVec4[i].rgb, lRecolours[i].rgb, lRecolours[i].a);
 		//my way
-		lLayerXVec4[i].rgb = lRecolours[i].rgb * toGrayScale(lLayerXVec4[i].rgb);
-		//lLayerXVec4[i].rgb = lRecolours[i].rgb;
+		//lLayerXVec4[i].rgb = lRecolours[i].rgb * toGrayScale(lLayerXVec4[i].rgb);
+		
 		
 		//new code
 		//lLayerXVec4[i].rgb = Recolour(lLayerXVec4[i].rgb, gAverageColourXVec4[i].rgb, gRecolourXVec4[i].rgb, gRecolourXVec4[i].a);
@@ -167,7 +171,7 @@ vec4 MixDiffuseMaps(){
 	//Blend Layers together
 	//Blend the opposite way
 	bool init = false;
-	for (int i=7; i>0; i--) {
+	for (int i=7; i>=0; i--) {
 		lFinalDiffColor.rgb = mix(lFinalDiffColor.rgb, lLayerXVec4[i].rgb, lfAlpha[i]);
 	}
 
@@ -180,7 +184,9 @@ vec4 MixDiffuseMaps(){
 		lFinalDiffColor.a = max(lFinalDiffColor.a, lLayerXVec4[i].a);
 	}
 	
-	return vec4(lFinalDiffColor.rgb, 1.0);
+	//MAIN
+	//return vec4(lFinalDiffColor.rgb, 1.0);
+	return vec4(lFinalDiffColor.rgba);
 	//return vec4(lRecolours[0].rgb, 1.0);
 	//return gRecolourXVec4[0];
 	//return vec4(lFinalDiffColor.rgba);

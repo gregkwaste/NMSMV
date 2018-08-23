@@ -77,7 +77,7 @@ void main()
     //TBN = transpose(TBN);
 
     //Check F02_SKINNED
-    if (true) { //Needs fixing again
+    if (matflags[1]) { //Needs fixing again
 	    vec4 wPos = vec4(0.0, 0.0, 0.0, 0.0);
 	    ivec4 index;
 

@@ -7,12 +7,31 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 
+//Custom Imports
+using MVCore;
+using MVCore.GMDL;
+using GLSLHelper;
+using gImage;
+using OpenTK.Graphics;
+using ClearBufferMask = OpenTK.Graphics.OpenGL.ClearBufferMask;
+using CullFaceMode = OpenTK.Graphics.OpenGL.CullFaceMode;
+using EnableCap = OpenTK.Graphics.OpenGL.EnableCap;
+using GL = OpenTK.Graphics.OpenGL.GL;
+using PolygonMode = OpenTK.Graphics.OpenGL.PolygonMode;
+
 namespace Model_Viewer
 {
+    public enum GLTEXT_INDEX
+    {
+        FPS,
+        MSG1,
+        MSG2,
+        COUNT
+    };
+
     public class CGLControl : GLControl
     {
-        public List<GMDL.model> objects = new List<GMDL.model>();
-        public GMDL.model rootObject;
+        public model rootObject;
 
         //Common Transforms
         private Matrix4 rotMat, mvp;
@@ -42,10 +61,10 @@ namespace Model_Viewer
 
         //Animation Stuff
         private bool animationStatus = false;
-        public List<GMDL.scene> animScenes = new List<GMDL.scene>();
+        public List<scene> animScenes = new List<scene>();
         
         //Control private ResourceManagement
-        public ResourceMgmt resMgmt = new ResourceMgmt();
+        public ResourceMgr resMgr = new ResourceMgr();
 
         public GBuffer gbuf;
 
@@ -64,7 +83,7 @@ namespace Model_Viewer
 
         //Control Font and Text Objects
         public FontGL font;
-        public List<GLText> texObs = new List<GLText>();
+        public GLText[] texObs = new GLText[(int) GLTEXT_INDEX.COUNT];
 
         //Private fps Counter
         private int frames = 0;
@@ -72,6 +91,9 @@ namespace Model_Viewer
 
         //Gamepad Setup
         public GamepadHandler gpHandler;
+        public KeyboardHandler kbHandler;
+        private bool disposed;
+        public Microsoft.Win32.SafeHandles.SafeFileHandle handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(IntPtr.Zero, true);
 
         private void registerFunctions()
         {
@@ -112,16 +134,25 @@ namespace Model_Viewer
         {
             registerFunctions();
             
-            //Set properties
-            this.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            this.MinimumSize = new System.Drawing.Size(128, 128);
-            this.MaximumSize = new System.Drawing.Size(640, 480);
-
             //Set Control Identifiers
             this.index = index;
 
+            //Default Setup
+            this.rot.Y = 131;
+            this.light_angle_y = 190;
+
+            //Assign new palette to GLControl
+            palette = Model_Viewer.Palettes.createPalette();
+
             //Set parent form
-            pform = parent;
+            if (parent != null)
+                pform = parent;
+
+            //Control Timer
+            t = new Timer();
+            t.Tick += new System.EventHandler(timer_ticker);
+            t.Interval = 10;
+            t.Start();
         }
 
         public void unsubscribePaint()
@@ -135,6 +166,7 @@ namespace Model_Viewer
             //Console.WriteLine(gpHandler.getAxsState(0, 0).ToString() + " " +  gpHandler.getAxsState(0, 1).ToString());
             //gpHandler.reportButtons();
             gamepadController(); //Move camera according to input
+            keyboardController(); //Move camera according to input
 
             //Update common transforms
             activeCam.aspect = (float) this.ClientSize.Width / this.ClientSize.Height;
@@ -147,7 +179,7 @@ namespace Model_Viewer
             Matrix4 Rotz = Matrix4.CreateRotationZ(rot[2] * (float)Math.PI / 180.0f);
             rotMat = Rotz * Rotx * Roty;
             mvp = activeCam.viewMat; //Full mvp matrix
-            Util.mvp = mvp;
+            MVCore.Common.RenderState.mvp = mvp;
             occludedNum = 0; //Reset Counter
 
             //Simply invalidate the gl control
@@ -169,16 +201,16 @@ namespace Model_Viewer
 
         public void findAnimScenes()
         {
-            foreach (GMDL.GeomObject geom in resMgmt.GLgeoms.Values)
+            foreach (GeomObject geom in resMgr.GLgeoms.Values)
             {
                 if (geom.rootObject.jointDict.Values.Count > 0)
                     this.animScenes.Add(geom.rootObject);
             }
         }
 
-        public void traverse_oblistPalette(GMDL.model root,Dictionary<string,Dictionary<string,Vector4>> palette)
+        public void traverse_oblistPalette(model root,Dictionary<string,Dictionary<string,Vector4>> palette)
         {
-            foreach (GMDL.model m in root.children)
+            foreach (model m in root.children)
             {
                 
                 //Fix New Recoulors
@@ -187,7 +219,7 @@ namespace Model_Viewer
                     m.material.palette = palette;
                     for (int i = 0; i < 8; i++)
                     {
-                        GMDL.PaletteOpt palOpt = m.material.palOpts[i];
+                        PaletteOpt palOpt = m.material.palOpts[i];
                         if (palOpt != null)
                             m.material.reColourings[i] = new float[] { palette[palOpt.PaletteName][palOpt.ColorName][0],
                                                                        palette[palOpt.PaletteName][palOpt.ColorName][1],
@@ -217,8 +249,8 @@ namespace Model_Viewer
             //Fetch Updates on Joints on all animscenes
             for (int i = 0; i < animScenes.Count; i++)
             {
-                GMDL.scene animScene = animScenes[i];
-                foreach (GMDL.Joint j in animScene.jointDict.Values)
+                scene animScene = animScenes[i];
+                foreach (Joint j in animScene.jointDict.Values)
                 {
                     MathUtils.insertMatToArray16(animScene.JMArray, j.jointIndex * 16, j.worldMat);
                 }
@@ -226,7 +258,7 @@ namespace Model_Viewer
             
 
             //Calculate skinning matrices for each joint for each geometry object
-            foreach (GMDL.GeomObject g in resMgmt.GLgeoms.Values)
+            foreach (GeomObject g in resMgr.GLgeoms.Values)
             {
                 MathUtils.mulMatArrays(ref g.skinMats, g.invBMats, g.rootObject.JMArray, 256);
             }
@@ -260,31 +292,31 @@ namespace Model_Viewer
             GL.Disable(EnableCap.DepthTest);
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
 
-
-            GL.UseProgram(Util.activeResMgmt.shader_programs[4]);
+            GL.UseProgram(MVCore.Common.RenderState.activeResMgr.shader_programs[4]);
 
             //Load uniforms
             int loc;
-            loc = GL.GetUniformLocation(this.resMgmt.shader_programs[4], "w");
+            loc = GL.GetUniformLocation(this.resMgr.shader_programs[4], "w");
             GL.Uniform1(loc, (float) this.Width);
-            loc = GL.GetUniformLocation(Util.activeResMgmt.shader_programs[4], "h");
+            loc = GL.GetUniformLocation(MVCore.Common.RenderState.activeResMgr.shader_programs[4], "h");
             GL.Uniform1(loc, (float) this.Height);
 
             fps();
+            texObs[1]?.Dispose();
             texObs[1] = font.renderText(occludedNum.ToString(), new Vector2(1.0f, 0.0f), 0.75f);
             //Render Text Objects
             foreach (GLText t in texObs)
-                t.render();
+                t?.render();
 
             GL.Disable(EnableCap.Blend);
             GL.Enable(EnableCap.DepthTest);
 
         }
-
+        
         private void genericEnter(object sender, EventArgs e)
         {
             //Start Timer when the glControl gets focus
-            Debug.WriteLine("Entered Focus Control " + index);
+            //Debug.WriteLine("Entered Focus Control " + index);
             this.MakeCurrent(); //Control should have been active on hover
             t.Start();
         }
@@ -292,7 +324,6 @@ namespace Model_Viewer
         private void genericHover(object sender, EventArgs e)
         {
             //Start Timer when the glControl gets focus
-            Debug.WriteLine("Hovering Over Control " + index);
             this.MakeCurrent(); //Control should have been active on hover
             t.Start();
         }
@@ -300,11 +331,11 @@ namespace Model_Viewer
         private void genericLeave(object sender, EventArgs e)
         {
             //Don't update the control when its not focused
-            Debug.WriteLine("Left Focus of Control "+ index);
+            //Debug.WriteLine("Left Focus of Control "+ index);
             t.Stop();
         }
 
-        private void traverse_render(GMDL.model root, int program)
+        private void traverse_render(model root, int program)
         {
 
             int active_program = root.shader_programs[program];
@@ -324,6 +355,9 @@ namespace Model_Viewer
             loc = GL.GetUniformLocation(active_program, "mvp");
             GL.UniformMatrix4(loc, false, ref mvp);
 
+            //Skip render if the item is not renderable
+            if (!root.renderable) return;
+            
             if (root.type == TYPES.MESH)
             {
 
@@ -342,7 +376,7 @@ namespace Model_Viewer
                 GL.Uniform1(loc, this.scale);
 
                 loc = GL.GetUniformLocation(active_program, "light");
-                GL.Uniform3(loc, this.resMgmt.GLlights[0].localPosition);
+                GL.Uniform3(loc, this.resMgr.GLlights[0].localPosition);
 
                 //Upload Light Intensity
                 loc = GL.GetUniformLocation(active_program, "intensity");
@@ -366,7 +400,7 @@ namespace Model_Viewer
             //Cleanup
 
             //Render children
-            foreach (GMDL.model child in root.children)
+            foreach (model child in root.children)
                 traverse_render(child, program);
 
         }
@@ -394,18 +428,20 @@ namespace Model_Viewer
             
             this.MakeCurrent();
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            gbuf.start();
+            gbuf?.start();
 
             //Console.WriteLine(active_fbo);
             render_scene();
 
             //Store the dumps
-            
+
             //gbuf.dump();
             //render_decals();
 
             //render_cameras();
             //render_lights();
+
+            //LEAKING UNMANAGED RESOURCES
             render_info();
 
             //gbuf.stop();
@@ -469,31 +505,6 @@ namespace Model_Viewer
                     for (int i = 0; i < movement_speed; i++)
                         this.rot.X += 4.0f;
                     break;
-                //Camera Movement
-                case Keys.W:
-                    for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(0.0f, 0.1f, 0.0f);
-                    break;
-                case Keys.S:
-                    for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(0.0f, -0.1f, 0.0f);
-                    break;
-                case (Keys.D):
-                    for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(+0.01f, 0.0f, 0.0f);
-                    break;
-                case Keys.A:
-                    for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(-0.01f, 0.0f, 0.0f);
-                    break;
-                case (Keys.R):
-                    for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(0.0f, 0.0f, 0.01f);
-                    break;
-                case Keys.F:
-                    for (int i = 0; i < movement_speed; i++)
-                        activeCam.Move(0.0f, 0.0f, -0.01f);
-                    break;
                 //Light Rotation
                 case Keys.N:
                     this.light_angle_y -= 1;
@@ -511,6 +522,7 @@ namespace Model_Viewer
                     this.light_angle_x += 1;
                     updateLightPosition(0);
                     break;
+                /*
                 //Toggle Wireframe
                 case Keys.I:
                     if (RenderOptions.RENDERMODE == PolygonMode.Fill)
@@ -522,10 +534,6 @@ namespace Model_Viewer
                 case Keys.O:
                     RenderOptions.UseTextures = 1.0f - RenderOptions.UseTextures;
                     break;
-                //Toggle Small Render
-                case Keys.P:
-                    RenderOptions.RenderSmall = !RenderOptions.RenderSmall;
-                    break;
                 //Toggle Collisions Render
                 case Keys.OemOpenBrackets:
                     RenderOptions.RenderCollisions = !RenderOptions.RenderCollisions;
@@ -534,43 +542,21 @@ namespace Model_Viewer
                 case Keys.OemCloseBrackets:
                     RenderOptions.RenderDebug = !RenderOptions.RenderDebug;
                     break;
+                */
                 //Switch cameras
                 case Keys.NumPad0:
-                    if (this.resMgmt.GLCameras[0].isActive)
+                    if (this.resMgr.GLCameras[0].isActive)
                     {
                         activeCam.isActive = false;
-                        activeCam = this.resMgmt.GLCameras[1];
+                        activeCam = this.resMgr.GLCameras[1];
                     }
                     else
                     {
                         activeCam.isActive = false;
-                        activeCam = this.resMgmt.GLCameras[0];
+                        activeCam = this.resMgr.GLCameras[0];
                     }
 
                     activeCam.isActive = true;
-
-                    /*
-                     * I need to provide of a way to export the camera settings back to the mainform controls
-                     * For now I'll completely skip this step.
-                     *
-                     */
-
-                    /*
-                    //Set info of active cam to the controls
-                    numericUpDown1.ValueChanged -= this.numericUpDown1_ValueChanged;
-                    numericUpDown1.Value = (decimal)(180.0f * activeCam.fov / (float)Math.PI);
-                    numericUpDown1.ValueChanged += this.numericUpDown1_ValueChanged;
-
-                    numericUpDown4.ValueChanged -= this.numericUpDown4_ValueChanged;
-                    numericUpDown4.Value = (decimal)activeCam.zNear;
-                    numericUpDown4.ValueChanged += this.numericUpDown4_ValueChanged;
-
-                    numericUpDown5.ValueChanged -= this.numericUpDown5_ValueChanged;
-                    numericUpDown5.Value = (decimal)activeCam.zFar;
-                    numericUpDown5.ValueChanged += this.numericUpDown5_ValueChanged;
-                    */
-
-                    //Console.WriteLine(activeCam.GetViewMatrix());
 
                     break;
                 //Animation playback (Play/Pause Mode) with Space
@@ -582,7 +568,7 @@ namespace Model_Viewer
                         backgroundWorker1.CancelAsync();
                     break;
                 default:
-                    Debug.WriteLine("Not Implemented Yet");
+                    //Console.WriteLine("Not Implemented Yet");
                     break;
             }
 
@@ -594,9 +580,8 @@ namespace Model_Viewer
                 this.ClientSize = new System.Drawing.Size(this.ClientSize.Width, 1);
             //Console.WriteLine("GLControl {0} Resizing {1} x {2}",this.index, this.ClientSize.Width, this.ClientSize.Height);
             //this.MakeCurrent(); At this point I have to make sure that this control is already the active one
-            //TODO add a gbuffer to every CGLControl
-            if (gbuf != null)
-                gbuf.resize(this.ClientSize.Width, this.ClientSize.Height);
+
+            gbuf?.resize(this.ClientSize.Width, this.ClientSize.Height);
             GL.Viewport(0, 0, this.ClientSize.Width, this.ClientSize.Height);
             //GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
             
@@ -702,16 +687,16 @@ namespace Model_Viewer
             
         }
 
-        private void findGeoms(GMDL.model m, StreamWriter s, ref uint index)
+        private void findGeoms(model m, StreamWriter s, ref uint index)
         {
             if (m.type == TYPES.MESH || m.type==TYPES.COLLISION)
             {
                 //Get converted text
-                GMDL.meshModel me = (GMDL.meshModel) m;
+                meshModel me = (meshModel) m;
                 me.writeGeomToStream(s, ref index);
 
             }
-            foreach (GMDL.model c in m.children)
+            foreach (model c in m.children)
                 if (c.renderable) findGeoms(c, s, ref index);
         }
 
@@ -742,18 +727,32 @@ namespace Model_Viewer
             addCameras();
 
             //Init Gbuffer
-            ResourceMgmt oldmgmt = Util.activeResMgmt;
-            Util.activeResMgmt = this.resMgmt;
-            gbuf = new GBuffer();
-            Util.activeResMgmt = oldmgmt;
+            ResourceMgr oldmgmt = MVCore.Common.RenderState.activeResMgr;
+            MVCore.Common.RenderState.activeResMgr = this.resMgr;
+            gbuf = new GBuffer(this.resMgr, this.Size.Width, this.Size.Height);
+            MVCore.Common.RenderState.activeResMgr = oldmgmt;
         }
 
         private void addCameras()
         {
             //Set Camera position
-            activeCam = new Camera(60, this.resMgmt.shader_programs[8], 0, false);
+            activeCam = new Camera(60, this.resMgr.shader_programs[8], 0, false);
             for (int i = 0; i < 20; i++)
                 activeCam.Move(0.0f, -0.1f, 0.0f);
+
+            resMgr.GLCameras.Add(activeCam);
+        }
+
+        public void updateActiveCam(int FOV, float zNear, float zFar)
+        {
+            activeCam.setFOV(FOV);
+            activeCam.zFar = zFar;
+            activeCam.zNear = zNear;
+        }
+
+        public void updateActiveCamPos(float x, float y, float z)
+        {
+            activeCam.Position = new Vector3(x, y, z);
         }
 
         private void addDefaultTextures()
@@ -762,34 +761,69 @@ namespace Model_Viewer
             //Add Default textures
             //White tex
             string texpath = Path.Combine(execpath, "default.dds");
-            GMDL.Texture tex = new GMDL.Texture(texpath);
-            this.resMgmt.GLtextures["default.dds"] = tex;
+            Texture tex = new Texture(texpath);
+            this.resMgr.GLtextures["default.dds"] = tex;
             //Transparent Mask
             texpath = Path.Combine(execpath, "default_mask.dds");
-            tex = new GMDL.Texture(texpath);
-            this.resMgmt.GLtextures["default_mask.dds"] = tex;
+            tex = new Texture(texpath);
+            this.resMgr.GLtextures["default_mask.dds"] = tex;
 
         }
 
-        //Light Functions
+        public void addRootScene(string filename)
+        {
+            //Initialize Palettes
+            Model_Viewer.Palettes.set_palleteColors();
 
+            t.Stop();
+            
+            //Clear Form Resources
+            resMgr.Cleanup();
+            ModelProcGen.procDecisions.Clear();
+            //Clear animScenes
+            animScenes.Clear();
+            //Throw away the old model
+            rootObject.Dispose(); //Prevent rendering
+            rootObject = null;
+            
+            //Reload Default Resources
+            this.setupControlParameters();
+
+
+            //Setup new object
+            scene new_scn = GEOMMBIN.LoadObjects(filename);
+            rootObject = new_scn;
+            
+            //find Animation Capable Scenes
+            this.findAnimScenes();
+
+            Update();
+            Invalidate();
+
+            //Restart timer
+            t.Start();
+        }
+
+        
+        //Light Functions
+    
         private void addDefaultLights()
         {
             //Add one and only light for now
-            GMDL.Light light = new GMDL.Light();
-            light.shader_programs = new int[] { this.resMgmt.shader_programs[7] };
+            Light light = new Light();
+            light.shader_programs = new int[] { this.resMgr.shader_programs[7] };
             light.localPosition = new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                             Math.Sin(this.light_angle_y * Math.PI / 180.0)),
                                                 (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
                                                 (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                             Math.Cos(this.light_angle_y * Math.PI / 180.0)));
 
-            this.resMgmt.GLlights.Add(light);
+            this.resMgr.GLlights.Add(light);
         }
 
         public void updateLightPosition(int light_id)
         {
-            GMDL.Light light = (GMDL.Light) this.resMgmt.GLlights[light_id];
+            Light light = (Light) this.resMgr.GLlights[light_id];
             light.updatePosition(new Vector3 ((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                             Math.Sin(this.light_angle_y * Math.PI / 180.0)),
                                                 (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
@@ -810,16 +844,22 @@ namespace Model_Viewer
                 //Reset
                 frames = 0;
                 oldtime = now;
-                texObs[0] = font.renderText("FPS: " + Math.Round(fps, 1).ToString(), new Vector2(1.3f, 0.0f), 0.75f);
+                texObs[(int) GLTEXT_INDEX.FPS]?.Dispose(); //Dispose the old text
+                texObs[(int) GLTEXT_INDEX.FPS] = font.renderText("FPS: " + Math.Round(fps, 1).ToString(), new Vector2(1.3f, 0.0f), 0.75f);
             }
             else
                 frames += 1;
 
         }
 
+
+        #region INPUT_HANDLERS
+
         //Gamepad handler
         private void gamepadController()
         {
+            if (gpHandler == null) return;
+            
             //This Method handles and controls the gamepad input
             gpHandler.updateState();
             //gpHandler.reportAxes();
@@ -840,15 +880,36 @@ namespace Model_Viewer
             //    activeCam.Orientation.Z);
         }
 
+        //Keyboard handler
+        private void keyboardController()
+        {
+            if (kbHandler == null) return;
 
+            //This Method handles and controls the gamepad input
+            if (this.Focused)
+                kbHandler.updateState();
+            //gpHandler.reportAxes();
 
+            //Camera Movement
+            for (int i = 0; i < movement_speed; i++)
+                activeCam.Move(
+                    0.1f * kbHandler.getKeyStatus(OpenTK.Input.Key.D) - 0.1f * kbHandler.getKeyStatus(OpenTK.Input.Key.A), 
+                    0.1f * kbHandler.getKeyStatus(OpenTK.Input.Key.W) - 0.1f * kbHandler.getKeyStatus(OpenTK.Input.Key.S),
+                    0.1f * kbHandler.getKeyStatus(OpenTK.Input.Key.R) - 0.1f * kbHandler.getKeyStatus(OpenTK.Input.Key.F));
+            
+            //Rotate Camera
+            //TODO: Add rotation if necessary
+        }
 
+        #endregion
+
+        #region ANIMATION_PLAYBACK
         //Animation Playback
         private void backgroundWorker1_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
         {
             while (true)
             {
-                double pause = (1000.0d / (double)RenderOptions.animFPS);
+                double pause = (1000.0d / (double) RenderOptions.animFPS);
                 System.Threading.Thread.Sleep((int)(Math.Round(pause, 1)));
                 backgroundWorker1.ReportProgress(0);
 
@@ -860,16 +921,48 @@ namespace Model_Viewer
             }
 
         }
-
-
+        
         //Animation Worker
         private void backgroundWorker1_ProgressChanged(object sender, System.ComponentModel.ProgressChangedEventArgs e)
         {
             //this.MakeCurrent();
-            foreach (GMDL.scene s in animScenes)
+            foreach (scene s in animScenes)
                 if (s.animMeta != null) s.animate();
         }
 
+        #endregion ANIMATION_PLAYBACK
+
+        #region DISPOSE_METHODS
+
+        public void Dispose()
+        {
+            Dispose(true);
+#if DEBUG
+            GC.SuppressFinalize(this);
+#endif
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposed)
+                return;
+
+            if (disposing)
+            {
+                handle.Dispose();
+
+                //Free other resources here
+                rootObject.Dispose();
+                gbuf.Dispose();
+                font=null;
+            }
+
+            //Free unmanaged resources
+            disposed = true;
+        }
+
+        #endregion DISPOSE_METHODS
+
     }
-    
+
 }

@@ -1,12 +1,13 @@
 ﻿using System;
 using System.Windows.Forms;
+using MVCore.GMDL;
 
 namespace Model_Viewer
 {
     class MyTreeNode: TreeNode
     {
         //Assign a model to the TreeNode
-        public GMDL.model model;
+        public model model;
 
         public MyTreeNode(string name)
         {

@@ -4,12 +4,13 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Windows.Forms;
 using System.IO;
+using MVCore.GMDL;
 
 namespace Model_Viewer
 {
     public partial class AnimationSelectForm : Form { 
         private string animpath;
-        private List<GMDL.model> animScenes;
+        private List<model> animScenes;
 
         public AnimationSelectForm(object parent)
         {
@@ -18,15 +19,15 @@ namespace Model_Viewer
             Type typ = parent.GetType();
             Debug.WriteLine(typ);
             CGLControl parent_control = (CGLControl) parent;
-            animScenes = new List<GMDL.model>();
-            foreach (GMDL.scene s in parent_control.animScenes)
+            animScenes = new List<model>();
+            foreach (scene s in parent_control.animScenes)
                 animScenes.Add(s);
         }
 
         private void AnimationSelectForm_Load(object sender, EventArgs e)
         {
             //Set up droplist
-            foreach (GMDL.model s in animScenes)
+            foreach (model s in animScenes)
                 this.listBox1.Items.Add(s.name);
         }
 
@@ -48,9 +49,12 @@ namespace Model_Viewer
 
             //Proceed to import
             //Select Scene
-            GMDL.scene activeScene = (GMDL.scene) this.animScenes[this.listBox1.SelectedIndex];
-            Util.loadAnimationFile(animpath, activeScene);
+            scene activeScene = (scene) this.animScenes[this.listBox1.SelectedIndex];
 
+            MVCore.Common.CallBacks.updateStatus("Loading Animation: " + animpath);
+            MVCore.Common.CallBacks.openAnim(animpath, activeScene);
+            MVCore.Common.CallBacks.updateStatus("Ready");
+            
             this.Close();
 
         }

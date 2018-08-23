@@ -11,13 +11,37 @@ using System.Reflection;
 using Model_Viewer.Properties;
 
 //Custom imports
-using GLHelpers;
-using gImage;
+using MVCore;
+using MVCore.GMDL;
 using System.Linq;
+using GLSLHelper;
+using gImage;
+using OpenTK.Graphics;
+using ClearBufferMask = OpenTK.Graphics.OpenGL.ClearBufferMask;
+using DrawBufferMode = OpenTK.Graphics.OpenGL.DrawBufferMode;
+using EnableCap = OpenTK.Graphics.OpenGL.EnableCap;
+using FramebufferAttachment = OpenTK.Graphics.OpenGL.FramebufferAttachment;
+using FramebufferErrorCode = OpenTK.Graphics.OpenGL.FramebufferErrorCode;
+using FramebufferTarget = OpenTK.Graphics.OpenGL.FramebufferTarget;
+using GetPName = OpenTK.Graphics.OpenGL.GetPName;
+using GL = OpenTK.Graphics.OpenGL.GL;
+using PixelFormat = OpenTK.Graphics.OpenGL.PixelFormat;
+using PixelInternalFormat = OpenTK.Graphics.OpenGL.PixelInternalFormat;
+using PixelType = OpenTK.Graphics.OpenGL.PixelType;
+using ReadBufferMode = OpenTK.Graphics.OpenGL.ReadBufferMode;
+using RenderbufferStorage = OpenTK.Graphics.OpenGL.RenderbufferStorage;
+using RenderbufferTarget = OpenTK.Graphics.OpenGL.RenderbufferTarget;
+//Aliases for Renderstate
+using RenderState = MVCore.Common.RenderState;
+using StringName = OpenTK.Graphics.OpenGL.StringName;
+using TextureMagFilter = OpenTK.Graphics.OpenGL.TextureMagFilter;
+using TextureMinFilter = OpenTK.Graphics.OpenGL.TextureMinFilter;
+using TextureParameterName = OpenTK.Graphics.OpenGL.TextureParameterName;
+using TextureTarget = OpenTK.Graphics.OpenGL.TextureTarget;
 
 namespace Model_Viewer
 {
-
+    
     enum treeviewCheckStatus
     {
         Single=0x0,
@@ -48,15 +72,15 @@ namespace Model_Viewer
         int fragment_shader_ob;
 
         //Deprecated
-        //private List<GMDL.model> vboobjects = new List<GMDL.model>();
-        //private GMDL.model rootObject;
+        //private List<model> vboobjects = new List<model>();
+        //private model rootObject;
         private XmlDocument xmlDoc = new XmlDocument();
         private Dictionary<string, int> index_dict = new Dictionary<string, int>();
         private OrderedDictionary joint_dict = new OrderedDictionary();
         private treeviewCheckStatus tvchkstat = treeviewCheckStatus.Children;
 
         //Animation Meta
-        public GMDL.AnimeMetaData meta = new GMDL.AnimeMetaData();
+        public AnimeMetaData meta = new AnimeMetaData();
 
         //Joint Array for shader
         //TEST public float[] JMArray = new float[256 * 16];
@@ -64,12 +88,12 @@ namespace Model_Viewer
         //public float[] JColors = new float[256 * 3];
 
         //Selected Object
-        public GMDL.model selectedOb;
+        public model selectedOb;
 
         //Path
         private string mainFilePath;
         //Private Settings Window
-        private SettingsForm Settings = new SettingsForm();
+        //private SettingsForm Settings = new SettingsForm();
         
         //Custom defined GLControl
         private CGLControl glcontrol1;
@@ -78,31 +102,31 @@ namespace Model_Viewer
         public Form1()
         {
             //Custom stuff
-            this.xyzControl1 = new XYZControl("worldPosition");
-            this.xyzControl2 = new XYZControl("localPosition");
+            //this.xyzControl1 = new XYZControl("worldPosition");
+            //this.xyzControl2 = new XYZControl("localPosition");
             
             InitializeComponent();
 
-            this.rightFlowPanel.Controls.Add(xyzControl2);
-            this.rightFlowPanel.Controls.Add(xyzControl1);
+            //this.rightFlowPanel.Controls.Add(xyzControl2);
+            //this.rightFlowPanel.Controls.Add(xyzControl1);
 
             //
             // xyzControl2
             //
-            this.xyzControl2.Name = "xyzControl2";
-            this.xyzControl2.Size = new System.Drawing.Size(112, 119);
-            this.xyzControl2.TabIndex = 4;
-            this.xyzControl2.TabStop = false;
-            this.xyzControl2.Text = "LocalPosition";
+            //this.xyzControl2.Name = "xyzControl2";
+            //this.xyzControl2.Size = new System.Drawing.Size(112, 119);
+            //this.xyzControl2.TabIndex = 4;
+            //this.xyzControl2.TabStop = false;
+            //this.xyzControl2.Text = "LocalPosition";
 
             //
             // xyzControl1
             //
-            this.xyzControl1.Name = "xyzControl1";
-            this.xyzControl1.Size = new System.Drawing.Size(112, 119);
-            this.xyzControl1.TabIndex = 3;
-            this.xyzControl1.TabStop = false;
-            this.xyzControl1.Text = "WorldPosition";
+            //this.xyzControl1.Name = "xyzControl1";
+            //this.xyzControl1.Size = new System.Drawing.Size(112, 119);
+            //this.xyzControl1.TabIndex = 3;
+            //this.xyzControl1.TabStop = false;
+            //this.xyzControl1.Text = "WorldPosition";
 
 
         }
@@ -118,7 +142,6 @@ namespace Model_Viewer
 
             var filename = openFileDialog1.FileName;
             openSceneMbin(filename);
-
         }
 
         private void openSceneMbin(string filename)
@@ -135,7 +158,7 @@ namespace Model_Viewer
             RightSplitter.Panel1.Controls.Clear();
 
             //Clear Form Resources
-            glcontrol1.resMgmt.Cleanup();
+            glcontrol1.resMgr.Cleanup();
             ModelProcGen.procDecisions.Clear();
 
             //Reset the activeControl and create new gbuffer
@@ -148,12 +171,12 @@ namespace Model_Viewer
 
             glcontrol1.Update();
             glcontrol1.MakeCurrent();
-            GMDL.scene scene = GEOMMBIN.LoadObjects(filename);
+            scene scene = GEOMMBIN.LoadObjects(filename);
             scene.ID = this.childCounter;
             glcontrol1.rootObject = scene;
             this.childCounter++;
 
-            Util.setStatus("Creating Nodes...", this.toolStripStatusLabel1);
+            Util.setStatus("Creating Nodes...");
 
             //Console.WriteLine("Objects Returned: {0}",oblist.Count);
             MyTreeNode node = new MyTreeNode(scene.name)
@@ -184,7 +207,7 @@ namespace Model_Viewer
             glcontrol1.Invalidate();
 
             //Cleanup resource manager
-            Util.setStatus("Ready", this.toolStripStatusLabel1);
+            Util.setStatus("Ready");
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -201,23 +224,26 @@ namespace Model_Viewer
             //Setup Form Title
             this.Text = "No Man's Model Viewer " + Util.Version;
             
-            setupGLControl();
+            //setupGLControl();
             
             //Load NMSTemplate Enumerators
-            loadNMSEnums();
+            Palettes.loadNMSEnums();
+
+            return;
 
             //Set active components
-            Util.activeResMgmt = glcontrol1.resMgmt;
+            RenderState.activeResMgr = glcontrol1.resMgr;
             Util.activeControl = glcontrol1;
 
             //Compile Shaders
             compileShaders();
             
-            GMDL.scene scene = new GMDL.scene();
+            scene scene = new scene();
             scene.type = TYPES.SCENE;
-            scene.shader_programs = new int[] { Util.activeResMgmt.shader_programs[1],
-                                                Util.activeResMgmt.shader_programs[5],
-                                                Util.activeResMgmt.shader_programs[6]};
+            scene.name = "DEFAULT SCENE";
+            scene.shader_programs = new int[] { RenderState.activeResMgr.shader_programs[1],
+                                                RenderState.activeResMgr.shader_programs[5],
+                                                RenderState.activeResMgr.shader_programs[6]};
 
 
             if (!this.glloaded)
@@ -226,23 +252,21 @@ namespace Model_Viewer
             
             scene.ID = this.childCounter;
 
+            /*
             //Add Frustum cube
-            GMDL.Collision cube = new GMDL.Collision();
+            Collision cube = new Collision();
             //cube.vbo = (new Capsule(new Vector3(), 14.0f, 2.0f)).getVBO();
-            cube.main_Vao = (new Box(1.0f, 1.0f, 1.0f)).getVAO();
-
-            //Create model
-            GMDL.Collision so = new GMDL.Collision();
+            cube.main_Vao = (new MVCore.Primitives.Box(1.0f, 1.0f, 1.0f)).getVAO();
 
             //Remove that after implemented all the different collision types
-            cube.shader_programs = new int[] { Util.activeResMgmt.shader_programs[0],
-                                               Util.activeResMgmt.shader_programs[5],
-                                               Util.activeResMgmt.shader_programs[6]}; //Use Mesh program for collisions
+            cube.shader_programs = new int[] { RenderState.activeResMgr.shader_programs[0],
+                                               RenderState.activeResMgr.shader_programs[5],
+                                               RenderState.activeResMgr.shader_programs[6]}; //Use Mesh program for collisions
             cube.name = "FRUSTUM";
             cube.collisionType = (int) COLLISIONTYPES.BOX;
-
-
             scene.children.Add(cube);
+            */
+
 
             glcontrol1.rootObject = scene;
             this.childCounter++;
@@ -269,7 +293,7 @@ namespace Model_Viewer
             glcontrol1.gpHandler = new GamepadHandler(Util.gamepadID);
 
             //Load Settings
-            Settings.loadSettings();
+            //Settings.loadSettings();
 
             //Setup GL Control once shaders have been successfully compiled
             //Setup Lights, Cameras, Default Textures, Gbuffer
@@ -278,40 +302,38 @@ namespace Model_Viewer
             glcontrol1.Dock = DockStyle.Fill;
 
             //Set global gbuffer
-            Util.gbuf = glcontrol1.gbuf;
+            RenderState.gbuf = glcontrol1.gbuf;
+
+            //Set active StatusStrup
+            Util.activeStatusStrip = this.toolStripStatusLabel1;
             
-            //Set GEOMMBIN statusStrip
-            GEOMMBIN.strip = this.toolStripStatusLabel1;
-
-            //Set Default JMarray
-            for (int i = 0; i < 256; i++)
-                MathUtils.insertMatToArray16(Util.JMarray, i * 16, Matrix4.Identity);
-
             int maxfloats;
             GL.GetInteger(GetPName.MaxVertexUniformVectors, out maxfloats);
-            toolStripStatusLabel1.Text = "Ready";
-
-           //Load font
+            Util.setStatus("Ready");
+            
+            //Load font
             glcontrol1.font = setupFont();
 
             //Add some text for rendering
-            glcontrol1.texObs.Add(glcontrol1.font.renderText("Greetings", new Vector2(0.02f, 0.0f), scale));
-            glcontrol1.texObs.Add(glcontrol1.font.renderText(occludedNum.ToString(), new Vector2(1.0f, 0.0f), 1.0f));
-
-
+            glcontrol1.texObs[(int) GLTEXT_INDEX.MSG1] = glcontrol1.font.renderText("Greetings", new Vector2(0.02f, 0.0f), scale);
+            glcontrol1.texObs[(int) GLTEXT_INDEX.MSG2] = glcontrol1.font.renderText(occludedNum.ToString(), new Vector2(1.0f, 0.0f), 1.0f);
 
             //Add 2 Cams
             Camera cam;
-            cam = new Camera(50, Util.activeResMgmt.shader_programs[8], 0, true);
-            Util.activeResMgmt.GLCameras.Add(cam);
+            cam = new Camera(50, RenderState.activeResMgr.shader_programs[8], 0, true);
+            RenderState.activeResMgr.GLCameras.Add(cam);
             //cam = new Camera(50, ResourceMgmt.shader_programs[8], 0, false);
             //ResourceMgmt.GLCameras.Add(cam);
-            activeCam = Util.activeResMgmt.GLCameras[0];
+            activeCam = RenderState.activeResMgr.GLCameras[0];
             activeCam.isActive = true;
 
-            
+                
             //Check if Temp folder exists
-            if (!Directory.Exists("Temp")) Directory.CreateDirectory("Temp");
+            //if (!Directory.Exists("Temp")) Directory.CreateDirectory("Temp");
+
+
+            //FILL THE CALLBACKS OF MVCORE
+            MVCore.Common.CallBacks.updateStatus = Util.setStatus;
 
             //Testing
             AnimationTest();
@@ -348,7 +370,7 @@ namespace Model_Viewer
             //Testing some inits
             font.initFromImage(bm);
             font.tex = bm.GLid;
-            font.program = Util.activeResMgmt.shader_programs[4];
+            font.program = RenderState.activeResMgr.shader_programs[4];
 
             //Set default settings
             float scale = 0.75f;
@@ -376,7 +398,7 @@ namespace Model_Viewer
             Console.WriteLine("MaxUniformBlock Size {0}", GL.GetInteger(GetPName.MaxUniformBlockSize));
 
             //Populate shader list
-            Util.activeResMgmt.shader_programs = new int[11];
+            RenderState.activeResMgr.shader_programs = new int[11];
             string vvs, ggs, ffs;
             //Geometry Shader
             //Compile Object Shaders
@@ -385,55 +407,55 @@ namespace Model_Viewer
             ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FSEmpty.glsl");
 
             GLShaderHelper.CreateShaders(vvs, ffs, ggs, "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out Util.activeResMgmt.shader_programs[5]);
+                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[5]);
 
             //Picking Shaders
             GLShaderHelper.CreateShaders(Resources.pick_vert, Resources.pick_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out Util.activeResMgmt.shader_programs[6]);
+                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[6]);
 
             //Main Shader
             vvs = GLSL_Preprocessor.Parser("Shaders/Simple_VS.glsl");
             ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FS.glsl");
             GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out Util.activeResMgmt.shader_programs[0]);
+                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[0]);
 
             //Texture Mixing Shaders
             vvs = GLSL_Preprocessor.Parser("Shaders/pass_VS.glsl");
             ffs = GLSL_Preprocessor.Parser("Shaders/pass_FS.glsl");
             GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out Util.activeResMgmt.shader_programs[3]);
+                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[3]);
 
             //GBuffer Shaders
             vvs = GLSL_Preprocessor.Parser("Shaders/Gbuffer_VS.glsl");
             ffs = GLSL_Preprocessor.Parser("Shaders/Gbuffer_FS.glsl");
             GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out Util.activeResMgmt.shader_programs[9]);
+                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[9]);
 
             //Decal Shaders
             vvs = GLSL_Preprocessor.Parser("Shaders/decal_VS.glsl");
             ffs = GLSL_Preprocessor.Parser("Shaders/Decal_FS.glsl");
             GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out Util.activeResMgmt.shader_programs[10]);
+                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[10]);
 
             //Locator Shaders
             GLShaderHelper.CreateShaders(Resources.locator_vert, Resources.locator_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out Util.activeResMgmt.shader_programs[1]);
+                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[1]);
 
             //Joint Shaders
             GLShaderHelper.CreateShaders(Resources.joint_vert, Resources.joint_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out Util.activeResMgmt.shader_programs[2]);
+                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[2]);
 
             //Text Shaders
             GLShaderHelper.CreateShaders(Resources.text_vert, Resources.text_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out Util.activeResMgmt.shader_programs[4]);
+                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[4]);
 
             //Light Shaders
             GLShaderHelper.CreateShaders(Resources.light_vert, Resources.light_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out Util.activeResMgmt.shader_programs[7]);
+                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[7]);
 
             //Camera Shaders
             GLShaderHelper.CreateShaders(Resources.camera_vert, Resources.camera_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out Util.activeResMgmt.shader_programs[8]);
+                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[8]);
         }
 
         private void render_decals()
@@ -445,7 +467,7 @@ namespace Model_Viewer
             //GL.DepthFunc(DepthFunction.Gequal);
 
 
-            int active_program = Util.activeResMgmt.shader_programs[10];
+            int active_program = RenderState.activeResMgr.shader_programs[10];
             GL.UseProgram(active_program);
             int loc;
             Matrix4 temp;
@@ -453,10 +475,10 @@ namespace Model_Viewer
             glcontrol1.gbuf.dump();
 
             //Upload inverse decat world matrix
-            //for ( int i = 0;i< Math.Min(1, this.resMgmt.GLDecals.Count); i++)
-            foreach (GMDL.model decal in Util.activeResMgmt.GLDecals)
+            //for ( int i = 0;i< Math.Min(1, this.resMgr.GLDecals.Count); i++)
+            foreach (model decal in RenderState.activeResMgr.GLDecals)
             {
-                //GMDL.Decal decal = (GMDL.Decal) this.resMgmt.GLDecals[i];
+                //Decal decal = (Decal) this.resMgr.GLDecals[i];
                 GL.UseProgram(active_program);
 
                 //Upload mvp
@@ -503,7 +525,7 @@ namespace Model_Viewer
 
         private void render_lights()
         {
-            int active_program = Util.activeResMgmt.shader_programs[7];
+            int active_program = RenderState.activeResMgr.shader_programs[7];
 
             GL.UseProgram(active_program);
             int loc;
@@ -511,13 +533,13 @@ namespace Model_Viewer
             loc = GL.GetUniformLocation(active_program, "mvp");
             GL.UniformMatrix4(loc, false, ref mvp);
             
-            foreach (GMDL.model light in Util.activeResMgmt.GLlights)
+            foreach (model light in RenderState.activeResMgr.GLlights)
                 light.render(0);
         }
 
         private void render_cameras()
         {
-            int active_program = Util.activeResMgmt.shader_programs[8];
+            int active_program = RenderState.activeResMgr.shader_programs[8];
 
             GL.UseProgram(active_program);
             int loc;
@@ -527,7 +549,7 @@ namespace Model_Viewer
             GL.UniformMatrix4(loc, false, ref cam_mvp);
             //Send object world Matrix to all shaders
 
-            foreach (Camera cam in Util.activeResMgmt.GLCameras)
+            foreach (Camera cam in RenderState.activeResMgr.GLCameras)
             {
                 //Upload uniforms
                 loc = GL.GetUniformLocation(active_program, "self_mvp");
@@ -643,7 +665,7 @@ namespace Model_Viewer
             traverse_oblist_rs(glcontrol1.rootObject, "selected", 0);
             
             //Try to find object
-            selectedOb = (GMDL.meshModel) traverse_oblist_field<int>(glcontrol1.rootObject, ob_id, "selected", 1);
+            selectedOb = (meshModel) traverse_oblist_field<int>(glcontrol1.rootObject, ob_id, "selected", 1);
             if (selectedOb !=null) loadSelectedObect(); //Update the Form
 
             //Restore Rendering Buffer
@@ -660,9 +682,10 @@ namespace Model_Viewer
         private void loadSelectedObect()
         {
             //Set World Position
-            xyzControl1.bind_model(selectedOb);
+            //xyzControl1.bind_model(selectedOb);
             //Set Local Position
-            xyzControl2.bind_model(selectedOb);
+            //xyzControl2.bind_model(selectedOb);
+            
             //Set Material Name
             switch (selectedOb.type)
             {
@@ -720,7 +743,7 @@ namespace Model_Viewer
             glcontrol1.Invalidate();
         }
 
-        private bool setObjectField<T>(string field, GMDL.model ob, T value)
+        private bool setObjectField<T>(string field, model ob, T value)
         {
             Type t = ob.GetType();
 
@@ -759,7 +782,7 @@ namespace Model_Viewer
             }
         }
 
-        private void traverse_oblist(GMDL.model ob, TreeNode parent)
+        private void traverse_oblist(model ob, TreeNode parent)
         {
             ob.ID = this.childCounter;
             this.childCounter++;
@@ -770,7 +793,7 @@ namespace Model_Viewer
 
             if (ob.children.Count > 0)
             {
-                foreach (GMDL.model child in ob.children)
+                foreach (model child in ob.children)
                 {
                     //Set object index
                     //Check if child is a scene
@@ -785,14 +808,14 @@ namespace Model_Viewer
             }
         }
 
-        private void traverse_oblist_rs<T>(GMDL.model root, string field, T status)
+        private void traverse_oblist_rs<T>(model root, string field, T status)
         {
-            setObjectField<T>(field, (GMDL.model)root, status);
-            foreach (GMDL.model child in root.children)
+            setObjectField<T>(field, (model)root, status);
+            foreach (model child in root.children)
                 traverse_oblist_rs(child, field, status);
         }
 
-        private GMDL.model traverse_oblist_field<T>(GMDL.model root, int id, string field, T value)
+        private model traverse_oblist_field<T>(model root, int id, string field, T value)
         {
             if (root.ID == id)
             {
@@ -801,9 +824,9 @@ namespace Model_Viewer
                 return root;
             }
             
-            foreach (GMDL.model child in root.children)
+            foreach (model child in root.children)
             {
-                GMDL.model m;
+                model m;
                 m =  traverse_oblist_field(child, id, field, value);
                 if (m != null) return m;
             }
@@ -811,7 +834,7 @@ namespace Model_Viewer
             return null;
         }
 
-        private void traverse_render(GMDL.model root, int program)
+        private void traverse_render(model root, int program)
         {
 
             int active_program = root.shader_programs[program];
@@ -874,7 +897,7 @@ namespace Model_Viewer
                     GL.Uniform1(loc, this.scale);
 
                     loc = GL.GetUniformLocation(active_program, "light");
-                    GL.Uniform3(loc, Util.activeResMgmt.GLlights[0].localPosition);
+                    GL.Uniform3(loc, RenderState.activeResMgr.GLlights[0].localPosition);
 
                     //Upload Light Intensity
                     loc = GL.GetUniformLocation(active_program, "intensity");
@@ -909,7 +932,7 @@ namespace Model_Viewer
             
 
             //Render children
-            foreach (GMDL.model child in root.children)
+            foreach (model child in root.children)
                 traverse_render(child, program);
 
         }
@@ -939,9 +962,9 @@ namespace Model_Viewer
 
         //OBSOLETE
         /*
-        private GMDL.model collectPart(List<GMDL.model> coll, string name)
+        private model collectPart(List<model> coll, string name)
         {
-            foreach (GMDL.model child in coll)
+            foreach (model child in coll)
             {
                 if (child.name == name)
                 {
@@ -950,7 +973,7 @@ namespace Model_Viewer
                 else
                 {
                     
-                    GMDL.model ret = collectPart(child.children, name);
+                    model ret = collectPart(child.children, name);
                     if (ret != null)
                         return ret;
                     else
@@ -977,7 +1000,7 @@ namespace Model_Viewer
                 c.rootObject = null;
                 //Cleanup control resources
                 Console.WriteLine("Cleaning Up control Resources");
-                c.resMgmt.Cleanup();
+                c.resMgr.Cleanup();
             }
 
             glcontrol1.MakeCurrent();
@@ -986,13 +1009,13 @@ namespace Model_Viewer
 
         private void randgenClickNew(object sender, EventArgs e)
         {
-            Util.setStatus("Procedural Generation Init", this.toolStripStatusLabel1);
+            Util.setStatus("Procedural Generation Init");
             GC.Collect();
             //Check if any file has been loaded exists at all
             if (mainFilePath == null)
             {
                 MessageBox.Show("No File Loaded", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                Util.setStatus("Error on ProcGen", this.toolStripStatusLabel1);
+                Util.setStatus("Error on ProcGen");
                 return;
             }
 
@@ -1010,7 +1033,7 @@ namespace Model_Viewer
             if (!File.Exists(descrpath))
             {
                 MessageBox.Show("Not a ProcGen Model","Error",MessageBoxButtons.OK, MessageBoxIcon.Error);
-                Util.setStatus("Error on ProcGen", this.toolStripStatusLabel1);
+                Util.setStatus("Error on ProcGen");
                 return;
             }
 
@@ -1028,7 +1051,7 @@ namespace Model_Viewer
             descrXml.Load(exmlPath);
             XmlElement root = (XmlElement) descrXml.ChildNodes[2].ChildNodes[0];
 
-            //List<GMDL.model> allparts = new List<GMDL.model>();
+            //List<model> allparts = new List<model>();
 
             //Revise Procgen Creation
 
@@ -1102,17 +1125,17 @@ namespace Model_Viewer
                 //n.MakeCurrent(); //Make current
 
                 //Prepare control Resource Object
-                n.resMgmt.shader_programs = this.glcontrol1.resMgmt.shader_programs; //Copy the same shader programs
-                //n.resMgmt.GLgeoms = this.resMgmt.GLgeoms;
+                n.resMgr.shader_programs = this.glcontrol1.resMgr.shader_programs; //Copy the same shader programs
+                //n.resMgr.GLgeoms = this.resMgr.GLgeoms;
                 //readd textures
                 n.setupControlParameters();
                 
                 //----PROC GENERATION START----
                 List<string> parts = new List<string>();
-                ModelProcGen.parse_descriptor(ref parts, root);
+                ModelProcGen.parse_descriptor(Util.randgen, FileUtils.dirpath, ref parts, root);
 
                 Console.WriteLine(String.Join(" ", parts.ToArray()));
-                GMDL.model m;
+                model m;
                 m = ModelProcGen.get_procgen_parts(ref parts, glcontrol1.rootObject);
                 //----PROC GENERATION END----
 
@@ -1134,7 +1157,7 @@ namespace Model_Viewer
             //        ModelProcGen.parse_descriptor(ref parts, root);
 
             //        Console.WriteLine(String.Join(" ", parts.ToArray()));
-            //        GMDL.model m;
+            //        model m;
             //        m = ModelProcGen.get_procgen_parts(ref parts, this.mainScene);
             //        //----PROC GENERATION END----
 
@@ -1148,7 +1171,7 @@ namespace Model_Viewer
             //}
 
             vpwin.Controls.Add(table);
-            Util.setStatus("Ready", this.toolStripStatusLabel1);
+            Util.setStatus("Ready");
             GC.Collect();
             vpwin.Show();
             
@@ -1200,16 +1223,16 @@ namespace Model_Viewer
 
         private void backgroundWorker1_ProgressChanged(object sender, System.ComponentModel.ProgressChangedEventArgs e)
         {
-            foreach (GMDL.model s in glcontrol1.animScenes)
+            foreach (model s in glcontrol1.animScenes)
                 if (s.type == TYPES.SCENE)
-                    if (((GMDL.scene) s).animMeta != null) ((GMDL.scene) s).animate();
+                    if (((scene) s).animMeta != null) ((scene) s).animate();
         }
 
         //MenuBar Stuff
 
         private void settingsToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Settings.Show();
+            //Settings.Show();
         }
 
         private void aboutToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1235,7 +1258,7 @@ namespace Model_Viewer
                 finalalt += altId[i] + " ";
             //Console.WriteLine(finalalt);
             Clipboard.SetText(finalalt);
-            Util.setStatus("AltID Copied to clipboard.", toolStripStatusLabel1);
+            Util.setStatus("AltID Copied to clipboard.");
         }
 
         private void exportToObjToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1264,16 +1287,16 @@ namespace Model_Viewer
 
         }
 
-        private void findGeoms(GMDL.model m, StreamWriter s, ref uint index)
+        private void findGeoms(model m, StreamWriter s, ref uint index)
         {
             if (m.type == TYPES.MESH || m.type ==TYPES.COLLISION)
             {
                 //Get converted text
-                GMDL.meshModel me = (GMDL.meshModel) m;
+                meshModel me = (meshModel) m;
                 me.writeGeomToStream(s, ref index);
             
             }
-            foreach (GMDL.model c in m.children)
+            foreach (model c in m.children)
                 if (c.renderable) findGeoms(c, s, ref index);
         }
 
@@ -1281,7 +1304,7 @@ namespace Model_Viewer
         {
             if (glcontrol1.rootObject != null)
                 glcontrol1.rootObject.Dispose();
-            this.glcontrol1.resMgmt.Cleanup();
+            this.glcontrol1.resMgr.Cleanup();
         }
 
         private void treeView1_NodeMouseClick(object sender, TreeNodeMouseClickEventArgs e)
@@ -1307,7 +1330,7 @@ namespace Model_Viewer
             if (selectedOb == null) return;
             if (selectedOb.material == null) return;
 
-            List<GMDL.Texture> texlist = new List<GMDL.Texture>();
+            List<Texture> texlist = new List<Texture>();
 
             texlist.Add(selectedOb.material.fDiffuseMap);
             texlist.Add(selectedOb.material.fMaskMap);
@@ -1318,7 +1341,7 @@ namespace Model_Viewer
 
             for (int i = 0; i < 3; i++)
             {
-                GMDL.Texture tex = texlist[i];
+                Texture tex = texlist[i];
                 if (tex == null) continue;
 
                 //Save Texture
@@ -1339,27 +1362,6 @@ namespace Model_Viewer
 
         }
 
-        private void loadNMSEnums()
-        {
-            //Load Palette Names
-            var tx = new libMBIN.Models.Structs.TkPaletteTexture();
-            var paletteNames = tx.PaletteValues();
-            var colourAltNames = tx.ColourAltValues();
-
-            for (int i = 0; i < paletteNames.Length; i++)
-            {
-                Palettes.palette_IDToName[i] = paletteNames[i];
-                Palettes.palette_NameToID[paletteNames[i]] = i;
-            }
-
-            for (int i = 0; i < colourAltNames.Length; i++)
-            {
-                Palettes.colourAlt_IDToName[i] = colourAltNames[i];
-                Palettes.colourAlt_NameToID[colourAltNames[i]] = i;
-            }
-
-        }
-
         //Light Intensity
         private void l_intensity_nud_ValueChanged(object sender, EventArgs e)
         {
@@ -1374,57 +1376,21 @@ namespace Model_Viewer
             //string filepath = "C:\\Users\\gkass\\Downloads\\NMS_Unpacked\\MODELS\\PLANETS\\BIOMES\\COMMON\\INTERACTIVEFLORA\\COMMODITYPLANT1.SCENE.MBIN";
             //string animpath = "C:\\Users\\gkass\\Downloads\\NMS_Unpacked\\MODELS\\PLANETS\\BIOMES\\COMMON\\INTERACTIVEFLORA\\ANIMS\\COMMODITYPLANT1_OPEN.ANIM.MBIN";
 
-            string filepath = "C:\\Users\\gkass\\Downloads\\NMS_Unpacked\\MODELS\\COMMON\\PLAYER\\PLAYERCHARACTER\\NPCVYKEEN.SCENE.MBIN";
+            //string filepath = "I:\\SteamLibrary1\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS\\MODELS\\COMMON\\PLAYER\\PLAYERCHARACTER\\NPCVYKEEN.SCENE.MBIN";
             
             //Still animation
             //string animpath = "C:\\Users\\gkass\\Downloads\\NMS_Unpacked\\MODELS\\COMMON\\PLAYER\\PLAYERCHARACTER\\NPCVYKEEN.ANIM.MBIN";
             //Idle 1 Hand
             //string animpath = "C:\\Users\\gkass\\Downloads\\NMS_Unpacked\\MODELS\\COMMON\\PLAYER\\PLAYERCHARACTER\\ANIMS\\IDLES\\1H_IDLE_BASIC.ANIM.MBIN";
 
-            string animpath = "C:\\Users\\gkass\\Downloads\\NMS_Unpacked\\MODELS\\COMMON\\PLAYER\\PLAYERCHARACTER\\ANIMS\\EMOTES\\0H_EMOTE_GREET_WAVE.ANIM.MBIN";
-            openSceneMbin(filepath);
-            Util.loadAnimationFile(animpath, (GMDL.scene) this.glcontrol1.rootObject);
-        }
-
-
-    }
-
-
-    //Class Which will store all the texture resources for better memory management
-    public class ResourceMgmt
-    {
-        public Dictionary<string, GMDL.Texture> GLtextures = new Dictionary<string, GMDL.Texture>();
-        public Dictionary<string, GMDL.Material> GLmaterials = new Dictionary<string, GMDL.Material>();
-        public Dictionary<string, GMDL.GeomObject> GLgeoms = new Dictionary<string, GMDL.GeomObject>();
-        public List<GMDL.model> GLlights = new List<GMDL.model>();
-        public List<GMDL.model> GLDecals = new List<GMDL.model>();
-        public List<Camera> GLCameras = new List<Camera>();
-        public int[] shader_programs;
-        public DebugForm DebugWin;
-        
-        public void Cleanup()
-        {
-            foreach (GMDL.Texture p in GLtextures.Values)
-                p.Dispose();
-            GLtextures.Clear();
-
-            foreach (GMDL.GeomObject p in GLgeoms.Values)
-                p.Dispose();
-            GLgeoms.Clear();
-
-            //Cleanup Decals
-            foreach (GMDL.model p in GLDecals)
-                p.Dispose();
-            GLDecals.Clear();
-
-            foreach (GMDL.Material p in GLmaterials.Values)
-                p.Dispose();
-            GLmaterials.Clear();
-
-            GC.Collect();
+            //string animpath = "I:\\SteamLibrary1\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS\\MODELS\\COMMON\\PLAYER\\PLAYERCHARACTER\\ANIMS\\EMOTES\\0H_EMOTE_GREET_WAVE.ANIM.MBIN";
             
+            //openSceneMbin(filepath);
+            //Util.loadAnimationFile(animpath, (scene) this.glcontrol1.rootObject);
         }
 
+
     }
+
 
 }

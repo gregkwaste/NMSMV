@@ -5,7 +5,6 @@
 //Diffuse Textures
 uniform sampler2D diffuseTex;
 uniform sampler2D positionTex;
-//uniform sampler2D normalTex;
 uniform sampler2D depthTex;
 
 uniform mat4 mvp;

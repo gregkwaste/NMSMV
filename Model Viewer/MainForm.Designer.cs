@@ -43,8 +43,8 @@ namespace Model_Viewer
             this.backgroundWorker1 = new System.ComponentModel.BackgroundWorker();
             this.toolStripStatusLabel1 = new System.Windows.Forms.ToolStripStatusLabel();
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
-            this.toolStripStatusLabel3 = new System.Windows.Forms.ToolStripStatusLabel();
-            this.toolStripStatusLabel2 = new System.Windows.Forms.ToolStripStatusLabel();
+            this.SpacingStrip = new System.Windows.Forms.ToolStripStatusLabel();
+            this.codedByLabel = new System.Windows.Forms.ToolStripStatusLabel();
             this.splitContainer2 = new System.Windows.Forms.SplitContainer();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
             this.camSettings = new System.Windows.Forms.TableLayoutPanel();
@@ -197,26 +197,26 @@ namespace Model_Viewer
             // 
             this.statusStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.toolStripStatusLabel1,
-            this.toolStripStatusLabel3,
-            this.toolStripStatusLabel2});
+            this.SpacingStrip,
+            this.codedByLabel});
             this.statusStrip1.Location = new System.Drawing.Point(0, 647);
             this.statusStrip1.Name = "statusStrip1";
             this.statusStrip1.Size = new System.Drawing.Size(1240, 22);
             this.statusStrip1.TabIndex = 3;
             this.statusStrip1.Text = "status";
             // 
-            // toolStripStatusLabel3
+            // SpacingStrip
             // 
-            this.toolStripStatusLabel3.Name = "toolStripStatusLabel3";
-            this.toolStripStatusLabel3.Size = new System.Drawing.Size(1059, 17);
-            this.toolStripStatusLabel3.Spring = true;
+            this.SpacingStrip.Name = "SpacingStrip";
+            this.SpacingStrip.Size = new System.Drawing.Size(1059, 17);
+            this.SpacingStrip.Spring = true;
             // 
-            // toolStripStatusLabel2
+            // codedByLabel
             // 
-            this.toolStripStatusLabel2.Name = "toolStripStatusLabel2";
-            this.toolStripStatusLabel2.RightToLeft = System.Windows.Forms.RightToLeft.No;
-            this.toolStripStatusLabel2.Size = new System.Drawing.Size(127, 17);
-            this.toolStripStatusLabel2.Text = "Created by gregkwaste";
+            this.codedByLabel.Name = "codedByLabel";
+            this.codedByLabel.RightToLeft = System.Windows.Forms.RightToLeft.No;
+            this.codedByLabel.Size = new System.Drawing.Size(127, 17);
+            this.codedByLabel.Text = "Created by gregkwaste";
             // 
             // splitContainer2
             // 
@@ -662,7 +662,7 @@ namespace Model_Viewer
             // 
             this.RightSplitter.Panel2.Controls.Add(this.selObjectBox);
             this.RightSplitter.Size = new System.Drawing.Size(979, 623);
-            this.RightSplitter.SplitterDistance = 661;
+            this.RightSplitter.SplitterDistance = 689;
             this.RightSplitter.TabIndex = 2;
             // 
             // selObjectBox
@@ -671,7 +671,7 @@ namespace Model_Viewer
             this.selObjectBox.Dock = System.Windows.Forms.DockStyle.Fill;
             this.selObjectBox.Location = new System.Drawing.Point(0, 0);
             this.selObjectBox.Name = "selObjectBox";
-            this.selObjectBox.Size = new System.Drawing.Size(314, 623);
+            this.selObjectBox.Size = new System.Drawing.Size(286, 623);
             this.selObjectBox.TabIndex = 0;
             this.selObjectBox.TabStop = false;
             this.selObjectBox.Text = "Selected Object Info";
@@ -682,7 +682,7 @@ namespace Model_Viewer
             this.rightFlowPanel.Dock = System.Windows.Forms.DockStyle.Fill;
             this.rightFlowPanel.Location = new System.Drawing.Point(3, 16);
             this.rightFlowPanel.Name = "rightFlowPanel";
-            this.rightFlowPanel.Size = new System.Drawing.Size(308, 604);
+            this.rightFlowPanel.Size = new System.Drawing.Size(280, 604);
             this.rightFlowPanel.TabIndex = 3;
             // 
             // selMatInfo
@@ -833,8 +833,8 @@ namespace Model_Viewer
         private System.Windows.Forms.SplitContainer splitContainer1;
         private NoClickTree treeView1;
         private NewButton newButton1;
-        private ToolStripStatusLabel toolStripStatusLabel3;
-        private ToolStripStatusLabel toolStripStatusLabel2;
+        private ToolStripStatusLabel SpacingStrip;
+        private ToolStripStatusLabel codedByLabel;
         private ContextMenuStrip mainglcontrolContext;
         private ToolStripMenuItem getAltIDToolStripMenuItem;
         private ToolStripMenuItem exportToObjToolStripMenuItem;
@@ -846,8 +846,8 @@ namespace Model_Viewer
         private NumericUpDown numericUpDown4;
         private SplitContainer RightSplitter;
         private GroupBox selObjectBox;
-        private XYZControl xyzControl2;
-        private XYZControl xyzControl1;
+        //private XYZControl xyzControl2;
+        //private XYZControl xyzControl1;
         private FlowLayoutPanel rightFlowPanel;
         private GroupBox selMatInfo;
         private TextBox selMatName;

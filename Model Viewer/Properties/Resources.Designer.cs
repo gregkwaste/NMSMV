@@ -19,7 +19,7 @@ namespace Model_Viewer.Properties {
     // class via a tool like ResGen or Visual Studio.
     // To add or remove a member, edit your .ResX file then rerun ResGen
     // with the /str option, or rebuild your VS project.
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "4.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "15.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     internal class Resources {
@@ -118,13 +118,16 @@ namespace Model_Viewer.Properties {
         
         /// <summary>
         ///   Looks up a localized string similar to #version 330
+        ///#extension GL_ARB_explicit_uniform_location : enable
         ////* Copies incoming vertex color without change.
         /// * Applies the transformation matrix to vertex position.
         /// */
         ///
         ///layout(location=0) in vec4 vPosition;
         ///layout(location=1) in vec3 vcolor;
-        ///uniform mat4 mvp, worldMat;
+        ///
+        ///layout(location=7) uniform mat4 mvp;
+        ///layout(location=10) uniform mat4 worldMat;
         ///
         ///out vec3 color;
         ///
@@ -175,7 +178,8 @@ namespace Model_Viewer.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to /* Copies incoming fragment color without change. */
+        ///   Looks up a localized string similar to #version 330
+        ////* Copies incoming fragment color without change. */
         ///in vec3 color;
         ///in vec4 finalPos;
         ///
@@ -201,7 +205,11 @@ namespace Model_Viewer.Properties {
         ///
         ///layout(location=0) in vec3 vPosition;
         ///layout(location=1) in vec3 vcolor;
-        ///uniform mat4 mvp, worldMat;
+        ///layout(location=7) uniform mat4 mvp;
+        ///layout(location=8) uniform mat4 nMat;
+        ///layout(location=9) uniform mat4 rotMat;
+        ///layout(location=10) uniform mat4 worldMat;
+        ///
         ///out vec3 color;
         ///out vec4 finalPos;
         ///
@@ -211,8 +219,7 @@ namespace Model_Viewer.Properties {
         ///    //Set color
         ///    color = vcolor;
         ///	finalPos = worldMat * vec4(vPosition, 1.0);
-        ///    gl_Position = mvp * finalPos;
-        ///}.
+        ///    gl_Pos [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string locator_vert {
             get {
@@ -251,16 +258,17 @@ namespace Model_Viewer.Properties {
         ///   Looks up a localized string similar to #version 330
         ///#extension GL_ARB_explicit_uniform_location : enable
         ///#extension GL_ARB_separate_shader_objects : enable
-        ////* Copies incoming vertex color without change.
-        /// * Applies the transformation matrix to vertex position.
-        /// */
+        ///#extension GL_NV_gpu_shader5 : enable
+        ///
         ///layout(location=0) in vec4 vPosition;
         ///layout(location=1) in vec2 uvPosition0;
         ///layout(location=2) in vec4 nPosition; //normals
         ///layout(location=3) in vec4 tPosition; //tangents
         ///layout(location=4) in vec4 bPosition; //bitangents
         ///layout(location=5) in vec4 blendIndices;
-        ///layout( [rest of string was truncated]&quot;;.
+        ///layout(location=6) in vec4 blendWeights;
+        ///
+        ///layout(location=7) uniform mat4 mv [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string pick_vert {
             get {
@@ -269,27 +277,30 @@ namespace Model_Viewer.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to //-- TessControl
+        ///   Looks up a localized string similar to #version 400 core
+        /////-- TessControl
         ///
         ///layout(vertices = 3) out;
-        ///in vec3 vPosition[];
-        ///out vec3 tcPosition[];
-        ///uniform float TessLevelInner;
-        ///uniform float TessLevelOuter;
+        ///in vec4 finalPos[];
+        ///in vec4 finalNormal[];
+        ///in vec2 uv0[];
+        ///out vec4 tcPosition[];
+        ///out vec4 tcNormal[];
+        ///out vec2 tcUVPosition[];
         ///
         ///#define ID gl_InvocationID
         ///
         ///void main()
         ///{
-        ///    tcPosition[ID] = vPosition[ID];
+        ///    tcPosition[ID] = finalPos[ID];
+        ///	tcNormal[ID] = finalNormal[ID];
+        ///	tcUVPosition[ID] = uv0[ID];
         ///    if (ID == 0) {
-        ///        gl_TessLevelInner[0] = TessLevelInner;
-        ///        gl_TessLevelOuter[0] = TessLevelOuter;
-        ///        gl_TessLevelOuter[1] = TessLevelOuter;
-        ///        gl_TessLevelOuter[2] = TessLevelOuter;
-        ///    }
-        ///}
-        ///.
+        ///        gl_TessLevelInner[0] = 2;
+        ///        gl_TessLevelOuter[0] = 1;
+        ///        gl_TessLevelOuter[1] = 1;
+        ///        gl_TessLevelOuter[2] = 1;
+        ///    } [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string tess_tcs {
             get {
@@ -298,25 +309,31 @@ namespace Model_Viewer.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to -- TessEval
+        ///   Looks up a localized string similar to #version 400 core
+        /////-- TessEval
         ///
         ///layout(triangles, equal_spacing, cw) in;
-        ///in vec3 tcPosition[];
-        ///out vec3 tePosition;
+        ///in vec4 tcPosition[];
+        ///in vec4 tcNormal[];
+        ///in vec2 tcUVPosition[];
+        ///out vec4 tePosition;
         ///out vec3 tePatchDistance;
-        ///uniform mat4 Projection;
-        ///uniform mat4 Modelview;
+        ///
+        ///layout(location=7) uniform mat4 mvp;
+        ///layout(location=8) uniform mat4 nMat;
+        ///layout(location=9) uniform mat4 rotMat;
+        ///layout(location=10) uniform mat4 worldMat;
+        ///
+        ///
+        /////Outputs to fragment Shader
+        ///out vec2 teUV;
         ///
         ///void main()
         ///{
-        ///    vec3 p0 = gl_TessCoord.x * tcPosition[0];
-        ///    vec3 p1 = gl_TessCoord.y * tcPosition[1];
-        ///    vec3 p2 = gl_TessCoord.z * tcPosition[2];
-        ///    tePatchDistance = gl_TessCoord;
-        ///    tePosition = normalize(p0 + p1 + p2);
-        ///    gl_Position = Projection * Modelview * vec4(tePosition, 1);
-        ///}
-        ///.
+        ///	float u = gl_TessCoord.x;
+        ///	float v = gl_TessCoord.y;
+        ///	float t = gl_TessCoord.z;
+        /// [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string tess_tes {
             get {

@@ -4,21 +4,23 @@ using System.Diagnostics;
 using OpenTK.Graphics.OpenGL;
 using OpenTK;
 using System.Windows.Forms;
+using MVCore.GMDL;
+using MVCore;
 
 namespace Model_Viewer
 {
     public class DebugForm : Form
     {
         public GLControl cgl;
-        public GMDL.model part = null;
-        private ResourceMgmt resMgmt;
+        public model part = null;
+        private ResourceMgr resMgr;
 
 
         public DebugForm()
         {
             InitializeComponent();
             this.cgl = new GLControl();
-            this.resMgmt = new ResourceMgmt();
+            this.resMgr = new ResourceMgr();
             setupCgl();
 
             this.Controls.Add(cgl);
@@ -79,7 +81,7 @@ namespace Model_Viewer
 
         private void renderquad()
         {
-            GL.UseProgram(this.resMgmt.shader_programs[3]);
+            GL.UseProgram(this.resMgr.shader_programs[3]);
             int quad_vbo;
             int quad_ebo;
 
@@ -195,7 +197,7 @@ namespace Model_Viewer
             GL.DeleteBuffer(quad_ebo);
         }
 
-        public void setPart(GMDL.model part)
+        public void setPart(model part)
         {
             this.part = part;
         }
@@ -216,11 +218,11 @@ namespace Model_Viewer
         private void renderTextures()
         {
 
-            int pass_program = this.resMgmt.shader_programs[3];
+            int pass_program = this.resMgr.shader_programs[3];
 
             //BIND TEXTURES
-            GMDL.Material material = part.material;
-            GMDL.Texture tex;
+            Material material = part.material;
+            Texture tex;
             int loc;
 
             Debug.WriteLine("Rendering Textures of : " + part.name);

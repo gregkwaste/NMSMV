@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Diagnostics;
 using System.Collections.Generic;
 using OpenTK;
-
+using MVCore.GMDL;
 
 public partial class XYZControl : GroupBox
 {
@@ -11,7 +11,7 @@ public partial class XYZControl : GroupBox
     public string fieldName = "";
     public Vector3 Position;
     public NumericUpDown[] valueFields = new NumericUpDown[3];
-    public GMDL.model model = null;
+    public model model = null;
 
     public XYZControl(string field)
     {
@@ -94,7 +94,7 @@ public partial class XYZControl : GroupBox
         
     }
 
-    public bool bind_model(GMDL.model m)
+    public bool bind_model(model m)
     {
         if (m == null) return false;
         model = m;
