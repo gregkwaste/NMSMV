@@ -18,6 +18,7 @@ using MVCore.GMDL;
 using OpenTK.Graphics.OpenGL;
 using OpenTK;
 
+
 namespace WPFModelViewer
 {
     
@@ -32,6 +33,11 @@ namespace WPFModelViewer
         private model prev_activeModel;
 
         private int itemCounter = 0;
+
+        //Handle Async Requests
+        private List<ThreadRequest> issuedRequests= new List<ThreadRequest>();
+        private System.Timers.Timer requestHandler = new System.Timers.Timer();
+
         public MainWindow()
         {
             InitializeComponent();
@@ -69,26 +75,57 @@ namespace WPFModelViewer
             
             var filename = openFileDlg.FileName;
             Console.WriteLine("Importing " + filename);
-            
-            //Setup GLControl with new scene
-            glControl.addRootScene(filename);
 
-            if (glControl.rootObject != null)
-            {
-                glControl.rootObject.ID = itemCounter;
+            //Generate Request for rendering thread
+            ThreadRequest req = new ThreadRequest();
+            req.req = THREAD_REQUEST.NEW_SCENE_REQUEST;
+            req.arguments.Clear();
+            req.arguments.Add(filename);
 
-                Util.setStatus("Creating Nodes...");
-                SceneTreeView.Items.Clear();
-                ModelNode scn_node = new ModelNode(glControl.rootObject);
-                traverse_oblist(glControl.rootObject, scn_node);
-                SceneTreeView.Items.Add(scn_node);
-                GC.Collect();
-            }
-            
+            glControl.issueRequest(req);
+            issuedRequests.Add(req);
+
             //Cleanup resource manager
             Util.setStatus("Ready");
 
         }
+
+        //Request Handler
+        private void queryRequests(object sender, System.Timers.ElapsedEventArgs e)
+        {
+            int i = 0;
+            while ( i < issuedRequests.Count)
+            {
+                ThreadRequest req = issuedRequests[i];
+                if (req.status == THREAD_REQUEST_STATUS.FINISHED)
+                {
+                    switch (req.req)
+                    {
+                        case THREAD_REQUEST.NEW_SCENE_REQUEST:
+                            glControl.rootObject.ID = itemCounter;
+                            Util.setStatus("Creating Nodes...");
+                            ModelNode scn_node = new ModelNode(glControl.rootObject);
+                            traverse_oblist(glControl.rootObject, scn_node);
+                            //Add to UI
+                            Application.Current.Dispatcher.Invoke((Action)(() =>
+                            {
+                                SceneTreeView.Items.Clear();
+                                SceneTreeView.Items.Add(scn_node);
+                                
+                            }));
+                            Util.setStatus("Ready");
+                            GC.Collect();
+                            issuedRequests.RemoveAt(i); //Remove request
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                else
+                    i++;
+            }
+        }
+
 
         //Close Form
 
@@ -100,6 +137,25 @@ namespace WPFModelViewer
 
         private void MainWindow_OnClosing(object sender, CancelEventArgs e)
         {
+            //Stop request timer
+            requestHandler.Stop();
+
+            //Send Terminate Rendering request to the rt_thread
+            ThreadRequest req = new ThreadRequest();
+            req.req = THREAD_REQUEST.TERMINATE_REQUEST;
+            req.arguments.Clear();
+            glControl.issueRequest(req);
+
+            //Wait for the request to finish
+            while (true)
+            {
+                lock (req)
+                {
+                    if (req.status == THREAD_REQUEST_STATUS.FINISHED)
+                        break;
+                }
+            }
+
             //Cleanup GL Context
             glControl.rootObject?.Dispose();
             glControl.resMgr.Cleanup();
@@ -127,10 +183,6 @@ namespace WPFModelViewer
             //Setup Logger
             Util.loggingSr = new StreamWriter("log.out");
 
-            //MVCore Init
-            //Load NMSTemplate Enumerators
-            Palettes.loadNMSEnums();
-
             //Populate GLControl
             scene scene = new scene();
             scene.type = TYPES.SCENE;
@@ -138,32 +190,19 @@ namespace WPFModelViewer
             scene.shader_programs = new int[] { RenderState.activeResMgr.shader_programs[1],
                 RenderState.activeResMgr.shader_programs[5],
                 RenderState.activeResMgr.shader_programs[6]};
-
-            //Add Test Cube
-            Collision cube = new Collision();
-            cube.batchcount = 600;
-            cube.main_Vao = (new MVCore.Primitives.Sphere(new Vector3(0.0f,0.0f,0.0f), 1.0f)).getVAO();
-            //cube.main_Vao = (new MVCore.Primitives.Box(1.0f, 1.0f, 1.0f)).getVAO();
-            //Remove that after implemented all the different collision types
-            cube.shader_programs = new int[] { RenderState.activeResMgr.shader_programs[0],
-                RenderState.activeResMgr.shader_programs[5],
-                RenderState.activeResMgr.shader_programs[6]}; //Use Mesh program for collisions
-            cube.name = "TEST_CUBE";
-            cube.collisionType = COLLISIONTYPES.BOX;
-            ModelNode cube_node = new ModelNode(cube);
-            cube_node.IsChecked = true;
-            scene.children.Add(cube);
-
-
+            //Force rootobject
             glControl.rootObject = scene;
-            ModelNode node = new ModelNode(scene);
-            node.Children.Add(cube_node);
-            node.IsChecked = true;
 
             //Improve performance on Treeview
             SceneTreeView.SetValue(VirtualizingStackPanel.IsVirtualizingProperty, true);
             SceneTreeView.SetValue(VirtualizingStackPanel.VirtualizationModeProperty, VirtualizationMode.Recycling);
-            SceneTreeView.Items.Add(node);
+
+            SceneTreeView.Items.Clear();
+            ModelNode scn_node = new ModelNode(glControl.rootObject);
+            traverse_oblist(glControl.rootObject, scn_node);
+            SceneTreeView.Items.Add(scn_node);
+            GC.Collect();
+
 
             //Check if Temp folder exists
 #if DEBUG
@@ -186,6 +225,11 @@ namespace WPFModelViewer
             sliderlightDistance.ValueChanged += Sliders_OnValueChanged;
             sliderMovementSpeed.ValueChanged += Sliders_OnValueChanged;
 
+
+            //Add request timer handler
+            requestHandler.Interval = 10;
+            requestHandler.Elapsed += queryRequests;
+            requestHandler.Start();
 
             //Invoke the method in order to setup the control at startup
             Sliders_OnValueChanged(null, new RoutedPropertyChangedEventArgs<double>(0.0f,0.0f));

@@ -13,7 +13,9 @@ namespace MVCore.Primitives
         internal float[] normals;
         internal int[] indices;
 
-        public GMDL.mainVAO getVAO()
+        internal GMDL.GeomObject geom;
+
+        public GMDL.GeomObject getGeom()
         {
             GMDL.GeomObject geom = new GMDL.GeomObject();
 
@@ -29,7 +31,7 @@ namespace MVCore.Primitives
             geom.offsets = new int[7];
             geom.bufInfo = new List<GMDL.bufInfo>();
             
-            for (int i = 0; i < 7; i++)
+            for (int i = 0; i< 7; i++)
             {
                 geom.bufInfo.Add(null);
                 geom.offsets[i] = -1;
@@ -48,16 +50,17 @@ namespace MVCore.Primitives
             geom.vbuffer = new byte[4 * verts.Length];
             Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, geom.vbuffer.Length);
 
-            return geom.getMainVao();
+            return geom;
+        }
+
+        public GMDL.mainVAO getVAO()
+        {
+            return geom?.getMainVao();
         }
     }
 
-    public class Sphere {
-        private float[] verts;
-        private float[] normals;
-        private int[] indices;
-
-
+    public class Sphere : Primitive {
+        
         //Constructor
         public Sphere(Vector3 center, float radius)
         {
@@ -121,50 +124,7 @@ namespace MVCore.Primitives
                     indices[lat * longBands * 6 + 6 * lng + 5] = first + 1;
                 }
             }
-
-        }
-
-        public GMDL.mainVAO getVAO()
-        {
-            GMDL.GeomObject geom = new GMDL.GeomObject();
-
-            //Set main Geometry Info
-            geom.vertCount = verts.Length / 3;
-            geom.indicesCount = indices.Length;
-            geom.indicesLength = 0x4;
-            
-            //Set Strides
-            geom.vx_size = 3 * 4; //3 Floats * 4 Bytes each
-            geom.small_mesh_descr = "";
-            geom.small_vx_size = -1;
-
-            //Set Buffer Offsets
-            geom.offsets = new int[7];
-            geom.bufInfo = new List<GMDL.bufInfo>();
-            geom.small_offsets = new int[7];
-            
-            for (int i = 0; i < 7; i++)
-            {
-                geom.bufInfo.Add(null);
-                geom.offsets[i] = -1;
-                geom.small_offsets[i] = -1;
-            }
-
-            geom.mesh_descr = "vn";
-            geom.offsets[0] = 0;
-            geom.bufInfo[0] = new GMDL.bufInfo(0, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "vPosition");
-            geom.bufInfo[2] = new GMDL.bufInfo(0, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "nPosition");
-            geom.offsets[2] = 0;
-            
-            //Set Buffers
-            geom.ibuffer = new byte[4* indices.Length];
-            Buffer.BlockCopy(indices, 0, geom.ibuffer, 0, geom.ibuffer.Length);
-            geom.vbuffer = new byte[4 * verts.Length];
-            Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, geom.vbuffer.Length);
-
-            GMDL.mainVAO vao = geom.getMainVao();
-            
-            return vao;
+            geom = getGeom();
         }
 
     }
@@ -239,50 +199,7 @@ namespace MVCore.Primitives
                     indices[lat * longBands * 6 + 6 * lng + 5] = first + 1;
                 }
             }
-
-        }
-
-        public GMDL.mainVAO getVAO()
-        {
-            GMDL.GeomObject geom = new GMDL.GeomObject();
-
-            //Set main Geometry Info
-            geom.vertCount = verts.Length / 3;
-            geom.indicesCount = indices.Length;
-            geom.indicesLength = 0x4;
-
-            //Set Strides
-            geom.vx_size = 3 * 4; //3 Floats * 4 Bytes each
-            geom.small_mesh_descr = "";
-            geom.small_vx_size = -1;
-
-            //Set Buffer Offsets
-            geom.offsets = new int[7];
-            geom.bufInfo = new List<GMDL.bufInfo>();
-            geom.small_offsets = new int[7];
-
-            for (int i = 0; i < 7; i++)
-            {
-                geom.bufInfo.Add(null);
-                geom.offsets[i] = -1;
-                geom.small_offsets[i] = -1;
-            }
-
-            geom.mesh_descr = "vn";
-            geom.offsets[0] = 0;
-            geom.bufInfo[0] = new GMDL.bufInfo(0, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "vPosition");
-            geom.bufInfo[2] = new GMDL.bufInfo(0, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "nPosition");
-            geom.offsets[2] = 0;
-
-            //Set Buffers
-            geom.ibuffer = new byte[4 * indices.Length];
-            Buffer.BlockCopy(indices, 0, geom.ibuffer, 0, geom.ibuffer.Length);
-            geom.vbuffer = new byte[4 * verts.Length];
-            Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, geom.vbuffer.Length);
-
-            GMDL.mainVAO vao = geom.getMainVao();
-
-            return vao;
+            getGeom();
         }
 
     }
@@ -382,53 +299,12 @@ namespace MVCore.Primitives
             indices[array_ioff + 6 * (latBands - 1) + 3] = 1;
             indices[array_ioff + 6 * (latBands - 1) + 4] = latBands;
             indices[array_ioff + 6 * (latBands - 1) + 5] = latBands +2;
+
+
+
+            geom = getGeom();
+        }
         
-        }
-
-        /*
-        public GMDL.mainVAO getVAO()
-        {
-            GMDL.GeomObject geom = new GMDL.GeomObject();
-
-            //Set main Geometry Info
-            geom.vertCount = verts.Length / 3;
-            geom.indicesCount = indices.Length;
-            geom.indicesLength = 0x4;
-
-            //Set Strides
-            geom.vx_size = 3 * 4; //3 Floats * 4 Bytes each
-            geom.small_mesh_descr = "";
-            geom.small_vx_size = -1;
-
-            //Set Buffer Offsets
-            geom.offsets = new int[7];
-            geom.bufInfo = new List<GMDL.bufInfo>();
-            geom.small_offsets = new int[7];
-
-            for (int i = 0; i < 7; i++)
-            {
-                geom.bufInfo.Add(null);
-                geom.offsets[i] = -1;
-                geom.small_offsets[i] = -1;
-            }
-
-            geom.mesh_descr = "vn";
-            geom.offsets[0] = 0;
-            geom.bufInfo[0] = new GMDL.bufInfo(0, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "vPosition");
-            geom.bufInfo[2] = new GMDL.bufInfo(2, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "nPosition");
-            geom.offsets[2] = 0;
-
-            //Set Buffers
-            geom.ibuffer = new byte[4 * indices.Length];
-            Buffer.BlockCopy(indices, 0, geom.ibuffer, 0, geom.ibuffer.Length);
-            geom.vbuffer = new byte[4 * verts.Length];
-            Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, geom.vbuffer.Length);
-
-            GMDL.mainVAO vao = geom.getMainVao();
-
-            return vao;
-        }
-        */
     }
 
     class Box : Primitive
@@ -488,6 +364,7 @@ namespace MVCore.Primitives
                 0, 1, 4,
                 1, 5, 4 };
 
+            geom = getGeom();
         }
 
     }
@@ -530,6 +407,7 @@ namespace MVCore.Primitives
             //Indices
             indices = new Int32[2 * 3] { 0, 1, 2, 3, 4, 5 };
 
+            geom = getGeom();
         }
 
         //RenderQuad Constructor
@@ -555,6 +433,8 @@ namespace MVCore.Primitives
 
             //Indices
             indices = new Int32[2 * 3] { 0, 1, 2, 3, 4, 5 };
+
+            geom = getGeom();
         }
     
     }
@@ -596,9 +476,10 @@ namespace MVCore.Primitives
             //Replace verts
             verts = verts_combined;
 
+            geom = getGeom();
         }
 
-        public GMDL.mainVAO getVAO()
+        public GMDL.GeomObject getGeom()
         {
             GMDL.GeomObject geom = new GMDL.GeomObject();
 
@@ -633,7 +514,7 @@ namespace MVCore.Primitives
             geom.vbuffer = new byte[4 * verts.Length];
             Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, geom.vbuffer.Length);
 
-            return geom.getMainVao();
+            return geom;
         }
     }
 

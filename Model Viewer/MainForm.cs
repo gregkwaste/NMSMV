@@ -1002,7 +1002,6 @@ namespace Model_Viewer
             foreach (CGLControl c in table.Controls)
             {
                 c.t.Stop();
-                c.unsubscribePaint();
                 c.rootObject.Dispose(); //Prevent rendering
                 c.rootObject = null;
                 //Cleanup control resources

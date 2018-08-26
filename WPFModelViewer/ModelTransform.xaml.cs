@@ -121,12 +121,24 @@ namespace WPFModelViewer
         {
             if (mdl?.mbin_scene != null)
             {
-                var exmlstring = libMBIN.EXmlFile.WriteTemplate(mdl.mbin_scene);
                 //Fetch scene name
                 string[] split = mdl.mbin_scene.Name.Split('\\');
                 string scnName = split[split.Length - 1];
-                File.WriteAllText(scnName + ".exml", exmlstring);
+                mdl.mbin_scene.WriteToExml(scnName + ".exml");
                 Console.WriteLine("Scene successfully exported to " + scnName + ".exml");
+            }
+        }
+
+        //Export to MBIN
+        private void exportToMBIN(object sender, RoutedEventArgs e)
+        {
+            if (mdl?.mbin_scene != null)
+            {
+                //Fetch scene name
+                string[] split = mdl.mbin_scene.Name.Split('\\');
+                string scnName = split[split.Length - 1];
+                mdl.mbin_scene.WriteToMbin(scnName.ToUpper() + ".MBIN");
+                Console.WriteLine("Scene successfully exported to " + scnName.ToUpper() + ".MBIN");
             }
         }
 

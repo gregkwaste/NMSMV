@@ -15,12 +15,12 @@ namespace Model_Viewer
     public static class Palettes
     {
         //Palette
-        public static Dictionary<string, int> palette_NameToID = new Dictionary<string, int>();
-        public static Dictionary<int, string> palette_IDToName = new Dictionary<int, string>();
+        //public static Dictionary<string, int> palette_NameToID = new Dictionary<string, int>();
+        //public static Dictionary<int, string> palette_IDToName = new Dictionary<int, string>();
 
         //ColourAlt
-        public static Dictionary<string, int> colourAlt_NameToID = new Dictionary<string, int>();
-        public static Dictionary<int, string> colourAlt_IDToName = new Dictionary<int, string>();
+        //public static Dictionary<string, int> colourAlt_NameToID = new Dictionary<string, int>();
+        //public static Dictionary<int, string> colourAlt_IDToName = new Dictionary<int, string>();
 
         public static int activeID = -1;
         public static readonly float rbgFloat = 0.003921f;
@@ -1260,8 +1260,6 @@ namespace Model_Viewer
             GcPaletteList template = (GcPaletteList) mbinf.GetData();
 
             TkPaletteTexture tkpt = new TkPaletteTexture();
-            string[] paletteNames = tkpt.PaletteValues();
-            string[] colourAltValues = tkpt.ColourAltValues();
 
             GcPaletteData gcpd = new GcPaletteData();
             string[] numColorValues = gcpd.NumColoursValues();
@@ -1269,7 +1267,7 @@ namespace Model_Viewer
 
             for (int i = 0; i < template.Palettes.Length; i++)
             {
-                string pal_name = paletteNames[i];
+                string pal_name = ((TkPaletteTexture.PaletteEnum) i).ToString();
                 Console.WriteLine("Palette {0} NumColors {1}", pal_name, numColorValues[template.Palettes[i].NumColours]);
                 newPal[pal_name] = new Dictionary<string, Vector4>();
 
@@ -1379,28 +1377,6 @@ namespace Model_Viewer
             //paletteSel = createPalette();
             paletteSel = createPalettefromBasePalettes();
         }
-
-        public static void loadNMSEnums()
-        {
-            //Load Palette Names
-            var tx = new libMBIN.Models.Structs.TkPaletteTexture();
-            var paletteNames = tx.PaletteValues();
-            var colourAltNames = tx.ColourAltValues();
-
-            for (int i = 0; i < paletteNames.Length; i++)
-            {
-                Palettes.palette_IDToName[i] = paletteNames[i];
-                Palettes.palette_NameToID[paletteNames[i]] = i;
-            }
-
-            for (int i = 0; i < colourAltNames.Length; i++)
-            {
-                Palettes.colourAlt_IDToName[i] = colourAltNames[i];
-                Palettes.colourAlt_NameToID[colourAltNames[i]] = i;
-            }
-
-        }
-
 
     }
 

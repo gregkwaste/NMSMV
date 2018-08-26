@@ -37,7 +37,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DefineConstants>TRACE;DEBUG</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
@@ -133,7 +133,6 @@
     </ApplicationDefinition>
     <Compile Include="..\Model Viewer\CGLControl.cs">
       <Link>CGLControl.cs</Link>
-      <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="AnimationSelectForm.cs">
       <SubType>Form</SubType>

@@ -123,10 +123,7 @@ namespace MVCore.GMDL
         {
             //Get Local Position
             Vector3 rotation;
-            this.localPosition.X = trans[0];
-            this.localPosition.Y = trans[1];
-            this.localPosition.Z = trans[2];
-
+            this.localPosition = new Vector3(trans[0], trans[1], trans[2]);
 
             //using (System.IO.StreamWriter file =
             //new System.IO.StreamWriter(@"readtransformsGMDL.txt", true))
@@ -142,9 +139,9 @@ namespace MVCore.GMDL
             //Quaternion qz = Quaternion.FromAxisAngle(new Vector3(0.0f, 0.0f, 1.0f),
             //    (float)Math.PI * float.Parse(split[5]) / 180.0f);
 
-            Quaternion qx = Quaternion.FromAxisAngle(new Vector3(1.0f, 0.0f, 0.0f), trans[3]);
-            Quaternion qy = Quaternion.FromAxisAngle(new Vector3(0.0f, 1.0f, 0.0f), trans[4]);
-            Quaternion qz = Quaternion.FromAxisAngle(new Vector3(0.0f, 0.0f, 1.0f), trans[5]);
+            OpenTK.Quaternion qx = OpenTK.Quaternion.FromAxisAngle(new Vector3(1.0f, 0.0f, 0.0f), trans[3]);
+            OpenTK.Quaternion qy = OpenTK.Quaternion.FromAxisAngle(new Vector3(0.0f, 1.0f, 0.0f), trans[4]);
+            OpenTK.Quaternion qz = OpenTK.Quaternion.FromAxisAngle(new Vector3(0.0f, 0.0f, 1.0f), trans[5]);
 
             //this.localRotation = qz * qx * qy;
             rotation.X = trans[3];
@@ -316,94 +313,41 @@ namespace MVCore.GMDL
                 {
                     //Console.WriteLine("Frame {0} Node {1} RotationIndex {2}", frameCounter, node.Node, node.RotIndex);
 
-                    //Load Rotations
-                    UInt16 c_x, c_y, c_z;
-                    UInt16 i_x, i_y, i_z;
-
+                    OpenTK.Quaternion q;
                     //Check if there is a rotation for that node
-                    if (node.RotIndex < frame.Rotations.Count / 3)
+                    if (node.RotIndex < frame.Rotations.Count)
                     {
                         int rotindex = node.RotIndex;
-                        c_x = (UInt16) frame.Rotations[3 * rotindex + 0];
-                        c_y = (UInt16) frame.Rotations[3 * rotindex + 1];
-                        c_z = (UInt16) frame.Rotations[3 * rotindex + 2];
-                        
+                        q = new OpenTK.Quaternion(frame.Rotations[rotindex].x,
+                                        frame.Rotations[rotindex].y,
+                                        frame.Rotations[rotindex].z,
+                                        frame.Rotations[rotindex].w);
+
                     } else //Load stillframedata
                     {
-                        int rotindex = node.RotIndex - frame.Rotations.Count / 3;
-                        c_x = (UInt16)stillframe.Rotations[3 * rotindex + 0];
-                        c_y = (UInt16)stillframe.Rotations[3 * rotindex + 1];
-                        c_z = (UInt16)stillframe.Rotations[3 * rotindex + 2];
+                        int rotindex = node.RotIndex - frame.Rotations.Count;
+                        q = new OpenTK.Quaternion(stillframe.Rotations[rotindex].x,
+                                        stillframe.Rotations[rotindex].y,
+                                        stillframe.Rotations[rotindex].z,
+                                        stillframe.Rotations[rotindex].w);
                     }
 
-                    i_x = (UInt16)(c_x >> 15);
-                    i_y = (UInt16)(c_y >> 15);
-                    i_z = (UInt16)(c_z >> 15);
-                    
-                    ushort axisflag = (ushort) (i_x << 0 | i_y << 1 | i_z << 2);
-
-                    //Mask Values
-                    c_x = (UInt16) (c_x & 0x7FFF);
-                    c_y = (UInt16) (c_y & 0x7FFF);
-                    c_z = (UInt16) (c_z & 0x7FFF);
-
-                    float norm = 1.0f / 0x3FFF;
-                    float scale = 1.0f / (float) Math.Sqrt(2.0f);
-
-                    float[] values = new float[4];
-                    values[0] = ((float)(c_x - 0x3FFF)) * norm * scale;
-                    values[1] = ((float)(c_y - 0x3FFF)) * norm * scale;
-                    values[2] = ((float)(c_z - 0x3FFF)) * norm * scale;
-                    //I assume that W is positive by default
-                    values[3] = (float)Math.Sqrt(Math.Max(1.0f - values[0] * values[0] - values[1] * values[1] - values[2] * values[2], 0.0));
-
-                    //Quaternion oq = Quaternion.FromMatrix(jointDict[node.Node].localRotation);
-                    Quaternion q = new Quaternion();
-
-                    switch (axisflag)
-                    {
-                        case 3:
-                            q = new Quaternion(values[3], values[0], values[1], values[2]);
-                            break;
-                        case 2:
-                            q = new Quaternion(values[0], values[1], values[3], values[2]);
-                            break;
-                        case 1:
-                            q = new Quaternion(values[0], values[3], values[1], values[2]);
-                            break;
-                        case 0:
-                            q = new Quaternion(values[0], values[1], values[2], values[3]);
-                            break;
-                        default:
-                            break;
-                    }
-
-                    /*
-                    if (axisflag == 1)
-                    {
-                        //Console.WriteLine("New Values   masked {0:X} {1:X} {2:X}", c_x, c_y, c_z);
-                        Console.WriteLine("Old Quaternion {0} {1} {2} {3}", oq.X, oq.Y, oq.Z, oq.W);
-                        Console.WriteLine("New Quaternion {0} {1} {2} {3}", q.X, q.Y, q.Z, q.W);
-                        Console.WriteLine("Break");
-                    }
-                    */
-                    
                     Matrix3 nMat = Matrix3.CreateFromQuaternion(q);
                     jointDict[node.Node].localRotation = nMat;
                     
                     //Load Translations
                     if (node.TransIndex < frame.Translations.Count)
                     {
-                        jointDict[node.Node].localPosition.X = frame.Translations[node.TransIndex].x;
-                        jointDict[node.Node].localPosition.Y = frame.Translations[node.TransIndex].y;
-                        jointDict[node.Node].localPosition.Z = frame.Translations[node.TransIndex].z;
+                        jointDict[node.Node].localPosition = new Vector3(frame.Translations[node.TransIndex].x,
+                                                            frame.Translations[node.TransIndex].y,
+                                                            frame.Translations[node.TransIndex].z);
                     }
                     else //Load stillframedata
                     {
                         int transindex = node.TransIndex - frame.Translations.Count;
-                        jointDict[node.Node].localPosition.X = stillframe.Translations[transindex].x;
-                        jointDict[node.Node].localPosition.Y = stillframe.Translations[transindex].y;
-                        jointDict[node.Node].localPosition.Z = stillframe.Translations[transindex].z;
+                        jointDict[node.Node].localPosition = new Vector3(stillframe.Translations[transindex].x,
+                                                            stillframe.Translations[transindex].y,
+                                                            stillframe.Translations[transindex].z);
                     }
 
                     //Load Scaling - TODO
@@ -534,16 +478,19 @@ namespace MVCore.GMDL
         public int vao_id;
         //VBO IDs
         public int vertex_buffer_object;
-        public int small_vertex_buffer_object;
         public int element_buffer_object;
 
-        public void mainVao() { }
+        public void mainVao() {
+            //Generate Empty Vao
+            vao_id = -1;
+            vertex_buffer_object = -1;
+            element_buffer_object = -1;
+        }
 
         public void Dispose()
         {
             GL.DeleteVertexArray(vao_id);
             GL.DeleteBuffer(vertex_buffer_object);
-            GL.DeleteBuffer(small_vertex_buffer_object);
             GL.DeleteBuffer(element_buffer_object);
         }
 
@@ -1877,8 +1824,8 @@ namespace MVCore.GMDL
                         string partNameNormal = ptex.Normal;
 
                         TkPaletteTexture paletteNode = ptex.Palette;
-                        string paletteName = Palettes.palette_IDToName[paletteNode.Palette];
-                        string colorName = Palettes.colourAlt_IDToName[paletteNode.ColourAlt];
+                        string paletteName = paletteNode.Palette.ToString();
+                        string colorName = paletteNode.ColourAlt.ToString();
                         Vector4 palColor = palette[paletteName][colorName];
                         //Randomize palette Color every single time
                         //Vector3 palColor = Model_Viewer.Palettes.get_color(paletteName, colorName);
@@ -2088,12 +2035,6 @@ namespace MVCore.GMDL
         }
 
         public void mixTextures() {
-            //Testing
-            if (this.name.Contains("Boots1"))
-            {
-                Console.WriteLine("Test");
-            }
-
             //Find texture sizes
             int texWidth = 0;
             int texHeight = 0;
@@ -2354,9 +2295,8 @@ namespace MVCore.GMDL
 
             GL.BindVertexArray(MVCore.Common.RenderState.activeResMgr.GLPrimitiveVaos["default_renderquad"].vao_id);
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
-            GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, IntPtr.Zero);
-            //GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
-
+            GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, IntPtr.Zero);
+            
             //Console.WriteLine("MixTextures5, Last GL Error: " + GL.GetError());
 
             //Store Diffuse Texture to material
@@ -2366,7 +2306,7 @@ namespace MVCore.GMDL
             //Store Normal Texture to material
             fNormalMap.bufferID = out_tex_normal;
 
-#if DEBUG
+#if DUMP_TEXTURES
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             dump_texture("diffuse", texWidth, texHeight);
 
@@ -3029,7 +2969,7 @@ namespace MVCore.GMDL
     //Animation Classes
     public class AnimNodeFrameData
     {
-        public List<Quaternion> rotations = new List<Quaternion>();
+        public List<OpenTK.Quaternion> rotations = new List<OpenTK.Quaternion>();
         public List<Vector3> translations = new List<Vector3>();
         public List<Vector3> scales = new List<Vector3>();
 
@@ -3038,7 +2978,7 @@ namespace MVCore.GMDL
             BinaryReader br = new BinaryReader(fs);
             for (int i = 0; i < count; i++)
             {
-                Quaternion q = new Quaternion();
+                OpenTK.Quaternion q = new OpenTK.Quaternion();
                 q.X = br.ReadSingle();
                 q.Y = br.ReadSingle();
                 q.Z = br.ReadSingle();
@@ -3217,7 +3157,7 @@ namespace MVCore.GMDL
         public Vector4 iBM_Row2;
         public Vector4 iBM_Row3;
         public Vector3 BindTranslate;
-        public Quaternion BindRotation;
+        public OpenTK.Quaternion BindRotation;
         public Vector3 Bindscale;
 
         

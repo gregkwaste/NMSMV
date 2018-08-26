@@ -729,17 +729,9 @@ namespace MVCore
                 transform.RotX,transform.RotY,transform.RotZ,
                 transform.ScaleX,transform.ScaleY,transform.ScaleZ));
             Console.WriteLine("Importing Scene: " + scene.name + " Part: " + name);
+            Common.CallBacks.updateStatus("Importing Scene: " + scene.name + " Part: " + name);
             TYPES typeEnum;
             Enum.TryParse<TYPES>(node.Type, out typeEnum);
-
-            if (name == "MODELS\\COMMON\\PLAYER\\PLAYERCHARACTER\\NPCGEK")
-                Console.WriteLine("break");
-
-
-
-
-            //if (typeEnum == TYPES.MESH && !name.Contains("GekNeck_XK"))
-            //    typeEnum = (TYPES) 25;
 
             if (typeEnum == TYPES.MESH)
             {

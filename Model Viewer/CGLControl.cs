@@ -31,6 +31,34 @@ namespace Model_Viewer
         COUNT
     };
 
+    public enum THREAD_REQUEST
+    {
+        NEW_SCENE_REQUEST,
+        RESIZE_REQUEST,
+        TERMINATE_REQUEST,
+        NULL
+    };
+
+    public enum THREAD_REQUEST_STATUS
+    {
+        ACTIVE,
+        FINISHED,
+        NULL
+    };
+
+    public class ThreadRequest
+    {
+        public List<object> arguments;
+        public THREAD_REQUEST req;
+        public THREAD_REQUEST_STATUS status;
+        public ThreadRequest()
+        {
+            req = THREAD_REQUEST.NULL;
+            status = THREAD_REQUEST_STATUS.ACTIVE;
+            arguments = new List<object>(); 
+        }
+    }
+
     public class CGLControl : GLControl
     {
         public model rootObject;
@@ -57,6 +85,7 @@ namespace Model_Viewer
         //Control Identifier
         private int index;
         private int occludedNum = 0;
+        private bool has_focus;
 
         //Custom Palette
         private Dictionary<string,Dictionary<string,Vector4>> palette;
@@ -79,8 +108,8 @@ namespace Model_Viewer
         private System.ComponentModel.BackgroundWorker backgroundWorker1;
         private Form pform;
 
-        //Timer
-        public System.Windows.Forms.Timer t;
+        //Timers
+        public System.Timers.Timer t;
 
         //Control Font and Text Objects
         public FontGL font;
@@ -96,9 +125,11 @@ namespace Model_Viewer
         private bool disposed;
         public Microsoft.Win32.SafeHandles.SafeFileHandle handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(IntPtr.Zero, true);
 
-        private BackgroundWorker bw = new BackgroundWorker();
+        //Rendering Thread Stuff
         private Thread rendering_thread;
-
+        private Queue<ThreadRequest> rt_req_queue = new Queue<ThreadRequest>();
+        private bool rt_exit;
+        
         private void registerFunctions()
         {
             this.Load += new System.EventHandler(this.genericLoad);
@@ -127,16 +158,10 @@ namespace Model_Viewer
             palette = Model_Viewer.Palettes.createPalettefromBasePalettes();
 
             //Control Timer
-            t = new System.Windows.Forms.Timer();
-            t.Tick += new System.EventHandler(timer_ticker);
+            t = new System.Timers.Timer();
+            t.Elapsed += new System.Timers.ElapsedEventHandler(input_poller);
             t.Interval = 10;
             t.Start();
-
-            //Setup rendering thread
-            Context.MakeCurrent(null);
-            rendering_thread = new Thread(RenderLoop);
-            rendering_thread.IsBackground = true;
-            rendering_thread.Start();
 
         }
 
@@ -160,40 +185,61 @@ namespace Model_Viewer
                 pform = parent;
 
             //Control Timer
-            t = new System.Windows.Forms.Timer();
-            t.Tick += new System.EventHandler(timer_ticker);
+            t = new System.Timers.Timer();
+            t.Elapsed += new System.Timers.ElapsedEventHandler(input_poller);
             t.Interval = 10;
             t.Start();
         }
 
-        //glControl Timer
-        private void timer_ticker(object sender, EventArgs e)
+        private void input_poller(object sender, System.Timers.ElapsedEventArgs e)
         {
             //Console.WriteLine(gpHandler.getAxsState(0, 0).ToString() + " " +  gpHandler.getAxsState(0, 1).ToString());
             //gpHandler.reportButtons();
             gamepadController(); //Move camera according to input
-            keyboardController(); //Move camera according to input
+            bool focused = false;
 
-            //Update common transforms
-            activeCam.aspect = (float) this.ClientSize.Width / this.ClientSize.Height;
-            activeCam.updateViewMatrix();
-            activeCam.updateFrustumPlanes();
-            //proj = Matrix4.CreatePerspectiveFieldOfView(-w, w, -h, h , znear, zfar);
+            this.Invoke((MethodInvoker)delegate
+            {
+                focused = this.Focused;
+            });
 
-            Matrix4 Rotx = Matrix4.CreateRotationX(rot[0] * (float)Math.PI / 180.0f);
-            Matrix4 Roty = Matrix4.CreateRotationY(rot[1] * (float)Math.PI / 180.0f);
-            Matrix4 Rotz = Matrix4.CreateRotationZ(rot[2] * (float)Math.PI / 180.0f);
-            rotMat = Rotz * Rotx * Roty;
-            mvp = activeCam.viewMat; //Full mvp matrix
-            MVCore.Common.RenderState.mvp = mvp;
-            occludedNum = 0; //Reset Counter
+            if (focused)
+                keyboardController(); //Move camera according to input
+        }
 
-            //Update Custom Light Position
-            updateLightPosition(0);
+        private void rt_render()
+        {
+            //Update per frame data
+            frameUpdate();
 
-            //Simply invalidate the gl control
-            //glControl1.MakeCurrent();
-            this.Invalidate();
+            gbuf?.start();
+
+            //Console.WriteLine(active_fbo);
+            render_scene();
+
+            //Store the dumps
+
+            //gbuf.dump();
+            //render_decals();
+
+            //render_cameras();
+
+            if (RenderOptions.RenderLights)
+                render_lights();
+
+            //Dump Gbuffer
+            //gbuf.dump();
+            //System.Threading.Thread.Sleep(1000);
+
+            //Render Deferred
+            gbuf.render();
+
+            //No need to blit without a renderbuffer
+            //gbuf?.stop();
+
+            //Render info right on the 0 buffer
+            if (RenderOptions.RenderInfo)
+                render_info();
         }
 
         public void SetupItems()
@@ -273,57 +319,102 @@ namespace Model_Viewer
             }
 
 
-            
+            //Camera & Light Positions
+            //Update common transforms
+            activeCam.aspect = (float) ClientSize.Width / ClientSize.Height;
+            activeCam.updateViewMatrix();
+            activeCam.updateFrustumPlanes();
+            //proj = Matrix4.CreatePerspectiveFieldOfView(-w, w, -h, h , znear, zfar);
+
+            Matrix4 Rotx = Matrix4.CreateRotationX(rot[0] * (float)Math.PI / 180.0f);
+            Matrix4 Roty = Matrix4.CreateRotationY(rot[1] * (float)Math.PI / 180.0f);
+            Matrix4 Rotz = Matrix4.CreateRotationZ(rot[2] * (float)Math.PI / 180.0f);
+            rotMat = Rotz * Rotx * Roty;
+            mvp = activeCam.viewMat; //Full mvp matrix
+            //MVCore.Common.RenderState.mvp = mvp;
+
+            //Update Custom Light Position
+            updateLightPosition(0);
+
         }
 
         //Main Rendering Routines
         private void RenderLoop()
         {
+            //Setup new Context
+            IGraphicsContext new_context = new GraphicsContext(new GraphicsMode(32, 24, 0, 8), this.WindowInfo);
+            new_context.MakeCurrent(this.WindowInfo);
             this.MakeCurrent();
-            //Update per frame data
-            frameUpdate();
 
-            gbuf?.start();
+            //Add default primitives trying to avoid Vao Request queue traffic
+            addDefaultLights();
+            addDefaultTextures();
+            addCameras();
+            addDefaultPrimitives();
 
-            //Console.WriteLine(active_fbo);
-            render_scene();
+            //Create gbuffer
+            gbuf = new GBuffer(this.resMgr, this.ClientSize.Width, this.ClientSize.Height);
+            gbuf.init();
 
-            //Store the dumps
+            //Rendering Loop
+            while (!rt_exit)
+            {
+                rt_render();
 
-            //gbuf.dump();
-            //render_decals();
+                //Check for new scene request
+                if (rt_req_queue.Count > 0)
+                {
+                    ThreadRequest req;
+                    lock (rt_req_queue)
+                    {
+                        //Try to group  Resizing requests
+                        req = rt_req_queue.Dequeue();
+                    }
 
-            //render_cameras();
+                    lock (req)
+                    {
+                        switch (req.req)
+                        {
+                            case THREAD_REQUEST.NEW_SCENE_REQUEST:
+                                lock (t)
+                                {
+                                    t.Stop();
+                                    rt_addRootScene((string)req.arguments[0]);
+                                    req.status = THREAD_REQUEST_STATUS.FINISHED;
+                                    t.Start();
+                                }
+                                break;
+                            case THREAD_REQUEST.RESIZE_REQUEST:
+                                rt_ResizeViewport((int)req.arguments[0], (int)req.arguments[1]);
+                                req.status = THREAD_REQUEST_STATUS.FINISHED;
+                                break;
+                            case THREAD_REQUEST.TERMINATE_REQUEST:
+                                rt_exit = true;
+                                t.Stop();
+                                req.status = THREAD_REQUEST_STATUS.FINISHED;
+                                break;
+                            case THREAD_REQUEST.NULL:
+                                break;
+                        }
+                    }
+                }
+                
+                Thread.Sleep(2);
 
-            if (RenderOptions.RenderLights)
-                render_lights();
-
-            //Dump Gbuffer
-            //gbuf.dump();
-            //System.Threading.Thread.Sleep(1000);
-
-            //Render Deferred
-            gbuf.render();
-
-            //No need to blit without a renderbuffer
-            //gbuf?.stop();
-
-            //Render info right on the 0 buffer
-            if (RenderOptions.RenderInfo)
-                render_info();
-
-            this.SwapBuffers();
+                this.SwapBuffers();
+                this.Invalidate();
+            }
+            
         }
-
 
         private void render_scene()
         {
             //Console.WriteLine("Rendering Scene Cam Position : {0}", this.activeCam.Position);
             //Console.WriteLine("Rendering Scene Cam Orientation: {0}", this.activeCam.Orientation);
-            GL.CullFace(CullFaceMode.Back);
+            //GL.CullFace(CullFaceMode.Back);
 
+            occludedNum = 0; //This will be incremented from traverse_render
             //Render only the first scene for now
-
             if (this.rootObject != null)
             {
                 //Drawing Phase
@@ -342,7 +433,8 @@ namespace Model_Viewer
             //Send mvp to all shaders
             int loc = GL.GetUniformLocation(active_program, "mvp");
             GL.UniformMatrix4(loc, false, ref mvp);
-            resMgr.GLlights[0].render(0);
+            for (int i=0; i<resMgr.GLlights.Count; i++)
+                resMgr.GLlights[i].render(0);
         }
 
         private void render_info()
@@ -378,14 +470,13 @@ namespace Model_Viewer
         {
             //Start Timer when the glControl gets focus
             //Debug.WriteLine("Entered Focus Control " + index);
-            this.MakeCurrent(); //Control should have been active on hover
             t.Start();
         }
 
         private void genericHover(object sender, EventArgs e)
         {
             //Start Timer when the glControl gets focus
-            this.MakeCurrent(); //Control should have been active on hover
+            //this.MakeCurrent(); //Control should have been active on hover
             t.Start();
         }
 
@@ -487,40 +578,7 @@ namespace Model_Viewer
 
         private void genericPaint(object sender, EventArgs e)
         {
-            this.MakeCurrent();
-            //Update per frame data
-            frameUpdate();
             
-            gbuf?.start();
-
-            //Console.WriteLine(active_fbo);
-            render_scene();
-
-            //Store the dumps
-
-            //gbuf.dump();
-            //render_decals();
-
-            //render_cameras();
-
-            if (RenderOptions.RenderLights)
-                render_lights();
-
-            //Dump Gbuffer
-            //gbuf.dump();
-            //System.Threading.Thread.Sleep(1000);
-
-            //Render Deferred
-            gbuf.render();
-
-            //No need to blit without a renderbuffer
-            //gbuf?.stop();
-
-            //Render info right on the 0 buffer
-            if (RenderOptions.RenderInfo)
-                render_info();
-
-            this.SwapBuffers();
         }
 
         private void genericMouseMove(object sender, MouseEventArgs e)
@@ -634,15 +692,42 @@ namespace Model_Viewer
 
         private void genericResize(object sender, EventArgs e)
         {
-            if (this.ClientSize.Height == 0)
-                this.ClientSize = new System.Drawing.Size(this.ClientSize.Width, 1);
+            //DO NOT ALLOW THE HEIGHT TO DROP THAT MUCH. THIS IS STUPID
+            //if (this.ClientSize.Height == 0)
+            //    this.ClientSize = new System.Drawing.Size(this.ClientSize.Width, 1);
+
             //Console.WriteLine("GLControl {0} Resizing {1} x {2}",this.index, this.ClientSize.Width, this.ClientSize.Height);
             //this.MakeCurrent(); At this point I have to make sure that this control is already the active one
 
-            gbuf?.resize(this.ClientSize.Width, this.ClientSize.Height);
-            GL.Viewport(0, 0, this.ClientSize.Width, this.ClientSize.Height);
-            //GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
-            
+            //Request a resize
+
+            lock (rt_req_queue)
+            {
+                //Make new request
+                ThreadRequest req = new ThreadRequest();
+                req.req = THREAD_REQUEST.RESIZE_REQUEST;
+                req.arguments.Clear();
+                req.arguments.Add(ClientSize.Width);
+                req.arguments.Add(ClientSize.Height);
+
+
+                //SLOPPY SOLUTION
+                //TODO USE A LINKED LIST AND DO NOT DESTROY THE ORDER OF THE REQUESTS
+                //Check last request
+                if (rt_req_queue.Count > 0)
+                {
+                    ThreadRequest prev_req = rt_req_queue.Dequeue();
+                    if (prev_req.req != THREAD_REQUEST.RESIZE_REQUEST)
+                    {
+                        rt_req_queue.Enqueue(prev_req);
+                    }
+                }
+
+                rt_req_queue.Enqueue(req);
+
+
+            }
+                
         }
 
         private void InitializeComponent()
@@ -759,16 +844,24 @@ namespace Model_Viewer
         //Setup
         public void setupControlParameters()
         {
-            addDefaultLights();
-            addDefaultTextures();
-            addCameras();
-            addDefaultPrimitives();
-
-            //Create gbuffer
-            gbuf = new GBuffer(this.resMgr, this.Size.Width, this.Size.Height);
-            gbuf.init();
+            //Everything ready to swap threads
+            setupRenderingThread();
 
         }
+
+        public void setupRenderingThread()
+        {
+            
+            //Setup rendering thread
+            Context.MakeCurrent(null);
+            rendering_thread = new Thread(RenderLoop);
+            rendering_thread.IsBackground = true;
+
+            //Start RT Thread
+            rendering_thread.Start();
+
+        }
+        
 
         private void addCameras()
         {
@@ -822,38 +915,26 @@ namespace Model_Viewer
             resMgr.GLPrimitiveVaos["default_cross"] = c.getVAO();
         }
 
-        public void addRootScene(string filename)
+        public void issueRequest(ThreadRequest r)
         {
-
-            //Prepare backgroundworker to load the new scene
-            bw.DoWork += Bw_LoadGeomObjects;
-            //bw.RunWorkerAsync(filename);
-
-            Thread thread = new Thread(() =>
+            lock (rt_req_queue)
             {
-                IGraphicsContext context = new GraphicsContext(GraphicsMode.Default, this.WindowInfo);
-                context.MakeCurrent(this.WindowInfo);
-                //Render code here
-                Console.WriteLine("New Thread Rendering");
-            });
-            thread.Start();
-
+                rt_req_queue.Enqueue(r);
+            }
         }
 
-        private void Bw_LoadGeomObjects(object sender, DoWorkEventArgs e)
+        private void rt_ResizeViewport(int w, int h)
         {
-            string filename = (string)e.Argument;
-            
+            gbuf?.resize(w, h);
+            GL.Viewport(0, 0, w, h);
+            //GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
+        }
+
+        private void rt_addRootScene(string filename)
+        {
             //Once the new scene has been loaded, 
             //Initialize Palettes
             Model_Viewer.Palettes.set_palleteColors();
-
-            t.Stop();
-            this.Paint -= this.genericPaint;
-
-            //Create a new graphics context for the backgroundworker
-            GraphicsContext context = new GraphicsContext(GraphicsMode.Default, this.WindowInfo);
-            context.MakeCurrent(this.WindowInfo);
 
             //Clear Form Resources
             resMgr.Cleanup();
@@ -864,8 +945,11 @@ namespace Model_Viewer
             rootObject.Dispose(); //Prevent rendering
             rootObject = null;
 
-            //Reload Default Resources
-            this.setupControlParameters();
+            //Add defaults
+            addDefaultLights();
+            addDefaultTextures();
+            addCameras();
+            addDefaultPrimitives();
 
             //Setup new object
             scene new_scn = GEOMMBIN.LoadObjects(filename);
@@ -874,14 +958,7 @@ namespace Model_Viewer
             //find Animation Capable Scenes
             this.findAnimScenes();
 
-            //Restart timer
-            Paint += genericPaint;
-            //genericResize(null, new EventArgs()); //Setup the viewport again
-            this.Invalidate();
-            this.Update();
-
         }
-
 
         //Light Functions
 
@@ -964,8 +1041,8 @@ namespace Model_Viewer
             if (kbHandler == null) return;
 
             //This Method handles and controls the gamepad input
-            if (this.Focused)
-                kbHandler.updateState();
+            
+            kbHandler.updateState();
             //gpHandler.reportAxes();
 
             //Camera Movement

@@ -54,7 +54,8 @@
     <CodeAnalysisIgnoreGeneratedCode>false</CodeAnalysisIgnoreGeneratedCode>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="libMBIN">
+    <Reference Include="libMBIN, Version=1.58.0.1, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
       <HintPath>lib\libMBIN.dll</HintPath>
     </Reference>
     <Reference Include="OpenTK, Version=3.0.1.0, Culture=neutral, PublicKeyToken=bad199fe84eb3df4, processorArchitecture=MSIL">
@@ -85,9 +86,7 @@
     <Compile Include="AnimationSelectForm.Designer.cs">
       <DependentUpon>AnimationSelectForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="CGLControl.cs">
-      <SubType>UserControl</SubType>
-    </Compile>
+    <Compile Include="CGLControl.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>

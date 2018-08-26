@@ -61,7 +61,8 @@
             </Grid.RowDefinitions>
             <Button Grid.Row="0" Grid.Column="0" Click="applyTransform">Apply Transform</Button>
             <Button Grid.Row="0" Grid.Column="1" Click="resetTransform">Reset Transform</Button>
-            <Button Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Click="exportToEXML">Export Node to EXML</Button>
+            <Button Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="1" Click="exportToEXML">Export Node to EXML</Button>
+            <Button Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="1" Click="exportToMBIN">Export Node to MBIN</Button>
         </Grid>
         
     </Grid>

@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using Model_Viewer;
@@ -29,7 +31,11 @@ namespace WPFModelViewer
         //Update Status strip
         public static void setStatus(string status)
         {
-            activeStatusStrip.Text = status;
+            Application.Current.Dispatcher.Invoke((Action)(() =>
+            {
+                activeStatusStrip.Text = status;
+            }));
+            
         }
 
         //Generic Procedures - File Loading
