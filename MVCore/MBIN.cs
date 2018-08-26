@@ -3,12 +3,14 @@ using System.Diagnostics;
 using System.Xml;
 using System.Collections.Generic;
 using System;
+using System.Globalization;
 using OpenTK;
 using Model_Viewer;
 using libMBIN;
 using libMBIN.Models;
 using libMBIN.Models.Structs;
 using System.Linq;
+using System.Windows.Forms;
 using MVCore;
 using MVCore.GMDL;
 using Console = System.Console;
@@ -68,157 +70,6 @@ namespace MVCore
         public ulong hash;
         public byte[] vs_buffer;
         public byte[] is_buffer;
-    }
-
-    public static class SCENEMBIN
-    {
-        public static XmlDocument Parse(FileStream fs)
-        {
-            //Readers
-            BinaryReader br = new BinaryReader(fs);
-        
-            //Create new xml document
-            XmlDocument xml = new XmlDocument();
-            char[] charbuffer = new char[0x100];
-
-            fs.Seek(0x18, SeekOrigin.Begin);
-            //Read Data Type
-            charbuffer = br.ReadChars(0x48);
-            //Read Directory Type
-            charbuffer = br.ReadChars(0x80);
-            string scene_name = new string(charbuffer);
-            //Read What the file is about
-            charbuffer = br.ReadChars(0x10);
-            fs.Seek(0x28, SeekOrigin.Current);
-            uint geometry_file_offset = (uint) fs.Position + br.ReadUInt32();
-            fs.Seek(0xC, SeekOrigin.Current);
-            uint section_offset = (uint)fs.Position + br.ReadUInt32();
-            fs.Seek(0x4, SeekOrigin.Current);
-            uint section_count = br.ReadUInt32();
-            //Console.WriteLine("Section Count: {0}",section_count);
-            fs.Seek(0x4, SeekOrigin.Current);
-
-            //Geometry File Name
-            fs.Seek(geometry_file_offset+ 0x20, SeekOrigin.Begin);
-            charbuffer = br.ReadChars(0x100);
-            string geometry_file_name = new string(charbuffer);
-            //Console.WriteLine(geometry_file_name);
-            //Console.WriteLine(" ");
-
-            XmlElement el, root;
-            root = xml.CreateElement("ROOT");
-            xml.AppendChild(root);
-
-            el = xml.CreateElement("SCENE");
-            el.InnerText = scene_name.Split('\0')[0];
-            root.AppendChild(el);
-
-            el = xml.CreateElement("GEOMETRY");
-            el.InnerText = geometry_file_name.Split('\0')[0];
-            root.AppendChild(el);
-
-            el = xml.CreateElement("SECTIONS");
-            //Parse Sections
-            fs.Seek(section_offset, SeekOrigin.Begin);
-
-            for (int i = 0; i < section_count; i++)
-                ParseSections(fs, xml, el);
-
-            root.AppendChild(el);
-
-            xml.Save("test.xml");
-            return xml;
-        }
-    
-        private static bool ParseSections(FileStream fs, XmlDocument xml, XmlElement parent){
-            BinaryReader br = new BinaryReader(fs);
-            char[] charbuffer = new char[0x100];
-            //Create Element       
-            XmlElement el;
-            el = xml.CreateElement("SECTION");
-
-            XmlElement info = xml.CreateElement("INFO");
-            //Name
-            XmlElement part_name = xml.CreateElement("NAME");
-            charbuffer = br.ReadChars(0x80);
-            part_name.InnerText = (new string(charbuffer)).Trim('\0');
-            info.AppendChild(part_name);
-            //Type
-            XmlElement part_type = xml.CreateElement("TYPE");
-            charbuffer = br.ReadChars(0x10);
-            part_type.InnerText = (new string(charbuffer)).Trim('\0');
-            info.AppendChild(part_type);
-
-            //Transmat
-            XmlElement part_trans = xml.CreateElement("TRANSMAT");
-            //Get data
-            string[] trans = new string[9];
-            trans[0] = br.ReadSingle().ToString();
-            trans[1] = br.ReadSingle().ToString();
-            trans[2] = br.ReadSingle().ToString();
-            trans[3] = br.ReadSingle().ToString();
-            trans[4] = br.ReadSingle().ToString();
-            trans[5] = br.ReadSingle().ToString();
-            trans[6] = br.ReadSingle().ToString();
-            trans[7] = br.ReadSingle().ToString();
-            trans[8] = br.ReadSingle().ToString();
-
-            part_trans.InnerText = string.Join(",", trans);
-            info.AppendChild(part_trans);
-
-            //Append Info
-            el.AppendChild(info);
-
-            fs.Seek(0x4, SeekOrigin.Current);
-            uint options_offset = (uint) fs.Position + br.ReadUInt32();
-            fs.Seek(0x4, SeekOrigin.Current);
-            int options_count = (int) br.ReadUInt32();
-            fs.Seek(0x4, SeekOrigin.Current); //Skip 0x01AAAAAA
-            uint children_offset = (uint)fs.Position + br.ReadUInt32();
-            fs.Seek(0x4, SeekOrigin.Current);
-            int children_count = (int)br.ReadUInt32();
-            fs.Seek(0x4, SeekOrigin.Current); //Skip 0x01AAAAAA
-
-            //Parse Options
-            uint back = (uint) fs.Position;
-            if (options_count > 0)
-            {
-                fs.Seek(options_offset, SeekOrigin.Begin);
-                XmlElement opts = xml.CreateElement("OPTIONS");
-                for (int i = 0; i < options_count; i++)
-                {
-                    //OptionsName
-                    XmlElement opt = xml.CreateElement("OPTION");
-                    charbuffer = br.ReadChars(0x20);
-                    opt.SetAttribute("NAME", (new string(charbuffer)).Trim('\0'));
-                    charbuffer = br.ReadChars(0x100);
-                    opt.SetAttribute("VALUE", (new string(charbuffer)).Trim('\0'));
-                    opts.AppendChild(opt);
-                }
-                el.AppendChild(opts);
-            }
-            fs.Seek(back,SeekOrigin.Begin);
-
-            //Parse Children
-            back = (uint) fs.Position;
-
-            if (children_count > 0)
-            {
-                fs.Seek(children_offset, SeekOrigin.Begin);
-                XmlElement children = xml.CreateElement("CHILDREN");
-                for (int i = 0; i < children_count; i++)
-                {
-                    ParseSections(fs, xml, children);
-                }
-                el.AppendChild(children);
-            }
-            fs.Seek(back, SeekOrigin.Begin);
-
-            parent.AppendChild(el);
-        
-            return true;
-        }
-    
     }
 
     public static class MATERIALMBIN
@@ -299,6 +150,11 @@ namespace MVCore
             TkMaterialData template = (TkMaterialData)mbinf.GetData();
             mbinf.Dispose();
 
+#if DEBUG
+            //Save NMSTemplate to exml
+            var xmlstring = EXmlFile.WriteTemplate(template);
+            File.WriteAllText("Temp\\" + template.Name + ".exml", xmlstring);
+#endif
             //Make new material
             Material mat = new Material();
 
@@ -315,9 +171,15 @@ namespace MVCore
             mat.opts = opts;
 
             //Get MaterialFlags
+            Console.Write("Material Flags: ");
             foreach (TkMaterialFlags f in template.Flags)
-                mat.materialflags.Add(f.MaterialFlag);
-        
+            {
+                Console.Write(((MATERIALFLAGS) f.MaterialFlag).ToString() + " ");
+                mat.materialflags.Add((MATERIALFLAGS) f.MaterialFlag);
+            }
+            Console.Write("\n");
+
+
             //Get Uniforms
             foreach (TkMaterialUniform n in template.Uniforms)
             {
@@ -598,6 +460,7 @@ namespace MVCore
 
             //Try to fetch the geometry.data.mbin file in order to fetch the streams
             string gstream_path = "";
+            MVCore.Common.CallBacks.Log(string.Format("Trying to load GStream {0}", fs.Name));
             string[] split = fs.Name.Split('.');
             for (int i = 0; i < split.Length - 2; i++)
                 gstream_path += split[i] + ".";
@@ -755,10 +618,11 @@ namespace MVCore
             Console.WriteLine("Loading Objects from MBINFile");
             //Get TkSceneNodeData
             string sceneName = scene.Name;
-
+            MVCore.Common.CallBacks.Log(string.Format("Trying to load Scene {0}", sceneName));
             string[] split = sceneName.Split('\\');
             string scnName = split[split.Length - 1];
             Common.CallBacks.updateStatus("Importing Scene: " + scnName);
+            Common.CallBacks.Log(string.Format("Importing Scene: {0}", scnName));
             Console.WriteLine("Importing Scene: " + scnName);
 
 #if DEBUG
@@ -771,7 +635,19 @@ namespace MVCore
             //Parse geometry once
             string geomfile;
             geomfile = scene.Attributes[0].Value;
-            FileStream fs = new FileStream(Path.Combine(FileUtils.dirpath, geomfile) + ".PC", FileMode.Open);
+            FileStream fs;
+            try
+            {
+                fs = new FileStream(Path.Combine(FileUtils.dirpath, geomfile) + ".PC", FileMode.Open);
+            } catch (DirectoryNotFoundException e)
+            {
+                MessageBox.Show("Could not file geometry file " + Path.Combine(FileUtils.dirpath, geomfile));
+                Common.CallBacks.Log(string.Format("Could not file geometry file {0} ",
+                    Path.Combine(FileUtils.dirpath, geomfile)));
+
+                return null;
+            }
+             
             GeomObject gobject;
         
             if (!Common.RenderState.activeResMgr.GLgeoms.ContainsKey(geomfile))
@@ -793,6 +669,7 @@ namespace MVCore
             //Create Scene Root
             scene root = new scene();
             root.name = scnName;
+            root.mbin_scene = scene;
             root.type = TYPES.SCENE;
             root.shader_programs = new int[] {Common.RenderState.activeResMgr.shader_programs[1],
                                               Common.RenderState.activeResMgr.shader_programs[5],
@@ -825,15 +702,15 @@ namespace MVCore
         
             //Load Transforms
             //Get Transformation
-            float[] transforms = new float[] { transform.TransX,
-                                               transform.TransY,
-                                               transform.TransZ,
-                                               transform.RotX,
-                                               transform.RotY,
-                                               transform.RotZ,
-                                               transform.ScaleX,
-                                               transform.ScaleY,
-                                               transform.ScaleZ};
+            var transforms = new float[] { transform.TransX,
+                transform.TransY,
+                transform.TransZ,
+                transform.RotX,
+                transform.RotY,
+                transform.RotZ,
+                transform.ScaleX,
+                transform.ScaleY,
+                transform.ScaleZ};
 
             //XmlElement info = (XmlElement)node.ChildNodes[0];
             //XmlElement opts = (XmlElement)node.ChildNodes[1];
@@ -846,10 +723,20 @@ namespace MVCore
                 name = "_" + name.TrimStart('_');
 
             //Notify
-            Common.CallBacks.updateStatus("Importing Scene: " + scene.name + " Part: " + name);
+            Common.CallBacks.Log(string.Format("Importing Scene {0} Node {1}",scene,name));
+            Common.CallBacks.Log(string.Format("Transform {0} {1} {2} {3} {4} {5} {6} {7} {8}",
+                transform.TransX,transform.TransY,transform.TransZ,
+                transform.RotX,transform.RotY,transform.RotZ,
+                transform.ScaleX,transform.ScaleY,transform.ScaleZ));
             Console.WriteLine("Importing Scene: " + scene.name + " Part: " + name);
             TYPES typeEnum;
             Enum.TryParse<TYPES>(node.Type, out typeEnum);
+
+            if (name == "MODELS\\COMMON\\PLAYER\\PLAYERCHARACTER\\NPCGEK")
+                Console.WriteLine("break");
+
+
+
 
             //if (typeEnum == TYPES.MESH && !name.Contains("GekNeck_XK"))
             //    typeEnum = (TYPES) 25;
@@ -857,7 +744,7 @@ namespace MVCore
             if (typeEnum == TYPES.MESH)
             {
                 Console.WriteLine("Mesh Detected " + name);
-
+                MVCore.Common.CallBacks.Log(string.Format("Parsing Mesh {0}", name));
                 //Create model
                 meshModel so = new meshModel();
 
@@ -906,11 +793,13 @@ namespace MVCore
                 so.setupBSphere();
                 so.parent = parent;
                 so.scene = scene;
+                so.mbin_scene = node;
                 so.gobject = gobject; //Store the gobject for easier access of uniforms
-                so.init(String.Join(",",transforms));
+                so.init(transforms);
 
                 //Get Material
                 string matname = node.Attributes.FirstOrDefault(item => item.Name == "MATERIAL").Value;
+                MVCore.Common.CallBacks.Log(string.Format("Trying to load Material {0}", matname));
                 string[] split = matname.Split('\\');
                 string matkey = split[split.Length - 1];
                 //Check if material already in Resources
@@ -919,11 +808,13 @@ namespace MVCore
                 else
                 {
                     //Parse material file
-                    Console.WriteLine("Parsing Material File");
                     string mat_path = Path.GetFullPath(Path.Combine(FileUtils.dirpath, matname));
                     string mat_exmlPath = Path.GetFullPath(FileUtils.getExmlPath(mat_path));
                     //Console.WriteLine("Loading Scene " + path);
-                
+
+                    Console.WriteLine("Parsing Material File " + mat_path);
+                    MVCore.Common.CallBacks.Log(string.Format("Parsing Material File {0}", mat_path));
+
                     //Check if path exists
                     if (File.Exists(mat_path))
                     {
@@ -936,12 +827,12 @@ namespace MVCore
                         mat.palette = Model_Viewer.Palettes.paletteSel;
 
                         mat.prepTextures();
-                        mat.mixTextures();
                         so.material = mat;
                         //Store the material to the Resources
                         Common.RenderState.activeResMgr.GLmaterials[matkey] = mat;
                     } else
                     {
+                        MVCore.Common.CallBacks.Log(string.Format("Warning Material Missing!!!"));
                         //Generate empty material
                         Material mat = new Material();
                         so.material = mat;
@@ -950,7 +841,7 @@ namespace MVCore
 
                 //Decide if its a skinned mesh or not
                 so.skinned = 0;
-                if (so.material.materialflags.Contains(1))
+                if (so.material.materialflags.Contains(MATERIALMBIN.MATERIALFLAGS._F02_SKINNED))
                     so.skinned = 1;
             
                 //Generate Vao's
@@ -963,7 +854,7 @@ namespace MVCore
 
                 Console.WriteLine("Object {0}, Number of skinmatrices required: {1}", so.name, so.lastskinmat - so.firstskinmat);
 
-                if (children != null)
+                if (children.Count > 0)
                 {
                     //Console.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                     foreach (TkSceneNodeData child in children)
@@ -979,7 +870,8 @@ namespace MVCore
                 }
 
                 //Check if it is a decal object
-                if (so.material.materialflags.Contains(50) || so.material.materialflags.Contains(51))
+                if (so.material.materialflags.Contains(MATERIALMBIN.MATERIALFLAGS._F51_DECAL_DIFFUSE) ||
+                    so.material.materialflags.Contains(MATERIALMBIN.MATERIALFLAGS._F52_DECAL_NORMAL))
                 {
                     Decal newso = new Decal(so);
                     so.Dispose(); //Through away the old object
@@ -996,7 +888,7 @@ namespace MVCore
             else if (typeEnum == TYPES.LOCATOR)
             {
                 Console.WriteLine("Locator Detected");
-                locator so = new locator();
+                locator so = new locator(0.1f);
                 //Set Properties
                 //Testingso.Name = name + "_LOC";
                 so.name = name;
@@ -1009,12 +901,13 @@ namespace MVCore
                 //Get Transformation
                 so.parent = parent;
                 so.scene = scene;
-                so.init(String.Join(",", transforms));
+                so.mbin_scene = node;
+                so.init(transforms);
 
                 //Locator Objects don't have options
 
                 //Handle Children
-                if (children != null)
+                if (children.Count > 0)
                 {
                     foreach (TkSceneNodeData child in children)
                     {
@@ -1044,7 +937,8 @@ namespace MVCore
                 //Get Transformation
                 joint.parent = parent;
                 joint.scene = scene;
-                joint.init(String.Join(",", transforms));
+                joint.mbin_scene = node;
+                joint.init(transforms);
                 //Get JointIndex
                 joint.jointIndex = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "JOINTINDEX").Value);
                 //Set Random Color
@@ -1053,7 +947,7 @@ namespace MVCore
                 joint.color[2] = Common.RenderState.randgen.Next(255) / 255.0f;
 
                 //Handle Children
-                if (children != null)
+                if (children.Count > 0)
                 {
                     foreach (TkSceneNodeData child in children)
                     {
@@ -1074,12 +968,15 @@ namespace MVCore
             {
                 //Another Scene file referenced
                 Console.WriteLine("Reference Detected");
+                Common.CallBacks.Log(string.Format("Loading Reference {0}",
+                    Path.Combine(FileUtils.dirpath, node.Attributes.FirstOrDefault(item => item.Name == "SCENEGRAPH").Value)));
+                
                 //Getting Scene MBIN file
                 string path = Path.GetFullPath(Path.Combine(FileUtils.dirpath, node.Attributes.FirstOrDefault(item => item.Name == "SCENEGRAPH").Value));
                 //string exmlPath = Path.GetFullPath(Util.getFullExmlPath(path));
                 //Console.WriteLine("Loading Scene " + path);
                 //Parse MBIN to xml
-
+                
                 //Check if path exists
                 if (File.Exists(path)) {
 
@@ -1093,10 +990,10 @@ namespace MVCore
                     //Override Name
                     so.name = name;
                     //Override transforms
-                    so.init(String.Join(",", transforms));
+                    so.init(transforms);
 
                     //Handle Children
-                    if (children != null)
+                    if (children.Count > 0)
                     {
                         foreach (TkSceneNodeData child in children)
                         {
@@ -1113,11 +1010,11 @@ namespace MVCore
 
                     //Load Objects from new xml
                     return so;
-
-
+                
                 } else {
                     Console.WriteLine("Reference Missing");
-                    locator so = new locator();
+                    Common.CallBacks.Log(string.Format("Reference Missing"));
+                    locator so = new locator(0.1f);
                     //Set Properties
                     so.name = name + "_UNKNOWN";
                     so.type = TYPES.UNKNOWN;
@@ -1152,6 +1049,7 @@ namespace MVCore
                 string collisionType = node.Attributes.FirstOrDefault(item => item.Name == "TYPE").Value.ToUpper();
 
                 Console.WriteLine("Collision Detected " + name + "TYPE: " + collisionType);
+                Common.CallBacks.Log(string.Format("Collision Detected {0} {1}", name, collisionType));
                 if (collisionType == "MESH")
                 {
                     so.collisionType = (int) COLLISIONTYPES.MESH;
@@ -1177,7 +1075,8 @@ namespace MVCore
                         so.main_Vao = gobject.getMainVao(so);
                     } catch (System.Collections.Generic.KeyNotFoundException e)
                     {
-                        Console.WriteLine("Missing Collision Mesh\n");
+                        Common.CallBacks.Log("Missing Collision Mesh " + so.name);
+                        Console.WriteLine("Missing Collision Mesh " + so.name);
                         so.main_Vao = null;
                     }
                 
@@ -1187,8 +1086,11 @@ namespace MVCore
                     //Console.WriteLine("CYLINDER NODE PARSING NOT IMPLEMENTED");
                     //Set cvbo
 
-                    float radius = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "RADIUS").Value);
-                    float height = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "HEIGHT").Value);
+                    float radius = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "RADIUS").Value,
+                        CultureInfo.InvariantCulture);
+                    float height = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "HEIGHT").Value,
+                        CultureInfo.InvariantCulture);
+                    Common.CallBacks.Log(string.Format("Cylinder Collision r:{0} h:{1}", radius, height));
                     so.main_Vao = (new MVCore.Primitives.Cylinder(radius,height)).getVAO();
                     so.collisionType = COLLISIONTYPES.CYLINDER;
 
@@ -1197,9 +1099,14 @@ namespace MVCore
                 {
                     //Console.WriteLine("BOX NODE PARSING NOT IMPLEMENTED");
                     //Set cvbo
-                    float width = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "WIDTH").Value);
-                    float height = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "HEIGHT").Value);
-                    float depth = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "DEPTH").Value);
+                    float width = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "WIDTH").Value,
+                        CultureInfo.InvariantCulture);
+                    float height = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "HEIGHT").Value,
+                        CultureInfo.InvariantCulture);
+                    float depth = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "DEPTH").Value,
+                        CultureInfo.InvariantCulture);
+
+                    Common.CallBacks.Log(string.Format("Sphere Collision w:{0} h:{0} d:{0}", width, height, depth));
                     so.main_Vao = (new MVCore.Primitives.Box(width, height, depth)).getVAO();
                     so.collisionType = COLLISIONTYPES.BOX;
                     //Set general vbo properties
@@ -1212,8 +1119,12 @@ namespace MVCore
                 else if (collisionType == "CAPSULE")
                 {
                     //Set cvbo
-                    float radius = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "RADIUS").Value);
-                    float height = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "HEIGHT").Value);
+                    float radius = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "RADIUS").Value,
+                        CultureInfo.InvariantCulture);
+                    float height = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "HEIGHT").Value,
+                        CultureInfo.InvariantCulture);
+
+                    Common.CallBacks.Log(string.Format("Capsule Collision r:{0} h:{1}", radius, height));
                     so.main_Vao = (new MVCore.Primitives.Capsule(new Vector3(), height, radius)).getVAO();
                     so.collisionType = COLLISIONTYPES.CAPSULE;
                     so.batchstart_graphics = 0;
@@ -1224,7 +1135,9 @@ namespace MVCore
                 else if (collisionType == "SPHERE")
                 {
                     //Set cvbo
-                    float radius = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "RADIUS").Value);
+                    float radius = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "RADIUS").Value,
+                        CultureInfo.InvariantCulture);
+                    Common.CallBacks.Log(string.Format("Sphere Collision r:{0}", radius));
                     so.main_Vao = (new MVCore.Primitives.Sphere(new Vector3(), radius)).getVAO();
                     so.collisionType = COLLISIONTYPES.SPHERE;
                     so.batchstart_graphics = 0;
@@ -1235,6 +1148,7 @@ namespace MVCore
                 else
                 {
                     Console.WriteLine("NEW COLLISION TYPE: " + collisionType);
+                    Common.CallBacks.Log("NEW COLLISION TYPE: " + collisionType);
                 }
 
 
@@ -1242,23 +1156,24 @@ namespace MVCore
                     so.batchstart_physics, so.batchcount);
 
                 so.parent = parent;
-                so.init(String.Join(",", transforms));
+                so.mbin_scene = node;
+                so.scene = scene;
+                so.init(transforms);
 
                 //Collision probably has no children biut I'm leaving that code here
-                if (children != null)
-                {
-                    Console.WriteLine("Children Count {0}", children.Count);
+                if (children.Count > 0)
                     foreach (TkSceneNodeData child in children)
                         so.children.Add(parseNode(child, gobject, so, scene));
-                }
 
                 return so;
 
             }
             else
             {
-                Console.WriteLine("Unknown Type, {0}", type);
-                locator so = new locator();
+                Console.WriteLine();
+                
+                Common.CallBacks.Log(string.Format("Unknown Type, {0}", type));
+                locator so = new locator(0.1f);
                 //Set Properties
                 so.name = name + "_UNKNOWN";
                 so.type = TYPES.UNKNOWN;

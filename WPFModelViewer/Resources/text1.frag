@@ -1,7 +1,10 @@
+#version 330
 /* Copies incoming fragment color without change. */
 uniform sampler2D diffuseTex;
-varying vec2 uv0;
-varying float dx,dy;
+in vec2 uv0;
+in float dx,dy;
+
+out vec4 outcolors[3];
 
 void main()
 {	
@@ -22,8 +25,7 @@ void main()
 	vec4 recolour = vec4(1.0, 1.0, 0.0, 1.0);
 	//color = recolour * color;
 	
-	
-	gl_FragColor = recolour * color;	
-	//	gl_FragColor = vec4(recolour, 1.0);	
-
+	outcolors[0] = recolour * color;	
+	outcolors[1] = vec4(1.0, 1.0, 1.0, 1.0);
+	outcolors[2] = vec4(1.0, 1.0, 1.0, 1.0);
 }

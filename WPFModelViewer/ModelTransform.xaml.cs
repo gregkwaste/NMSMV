@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using MVCore;
@@ -51,7 +52,6 @@ namespace WPFModelViewer
 
         private void applyTransform(object sender, RoutedEventArgs e)
         {
-            Console.WriteLine("Applying Transform");
             //Apply translation
             mdl.localPosition = new Vector3((float) translationX.Value,
                 (float) translationY.Value,
@@ -69,15 +69,65 @@ namespace WPFModelViewer
                 (float) scaleY.Value,
                 (float) scaleZ.Value);
 
+            //Save values to underlying SceneNode
+            if (mdl.mbin_scene != null)
+            {
+                mdl.mbin_scene.Transform.RotX = (float)rotationX.Value;
+                mdl.mbin_scene.Transform.RotY = (float)rotationY.Value;
+                mdl.mbin_scene.Transform.RotZ = (float)rotationZ.Value;
+                mdl.mbin_scene.Transform.TransX = (float)translationX.Value;
+                mdl.mbin_scene.Transform.TransY = (float)translationY.Value;
+                mdl.mbin_scene.Transform.TransZ = (float)translationZ.Value;
+                mdl.mbin_scene.Transform.ScaleX = (float)scaleX.Value;
+                mdl.mbin_scene.Transform.ScaleY = (float)scaleY.Value;
+                mdl.mbin_scene.Transform.ScaleZ = (float)scaleZ.Value;
+            }
+            
+
         }
 
         //Reset transform
         private void resetTransform(object sender, RoutedEventArgs e)
         {
-            Console.WriteLine("Reset Transform");
             mdl.localPosition = oldtranslation;
             mdl.localRotation = oldrotation;
             mdl.localScale = oldscale;
+
+            //Reload Values to the control
+            loadModel(mdl);
+            
+            //Save values to underlying SceneNode
+            if (mdl.mbin_scene != null)
+            {
+                mdl.mbin_scene.Transform.ScaleX = oldscale.X;
+                mdl.mbin_scene.Transform.ScaleY = oldscale.Y;
+                mdl.mbin_scene.Transform.ScaleZ = oldscale.Z;
+                mdl.mbin_scene.Transform.TransX = oldtranslation.X;
+                mdl.mbin_scene.Transform.TransY = oldtranslation.Y;
+                mdl.mbin_scene.Transform.TransZ = oldtranslation.Z;
+                //Convert rotation from matrix to angles
+                Quaternion q = Quaternion.FromMatrix(oldrotation);
+                Vector3 q_euler = quaternionToEuler(q);
+
+                mdl.mbin_scene.Transform.RotX = q_euler.X;
+                mdl.mbin_scene.Transform.RotY = q_euler.Y;
+                mdl.mbin_scene.Transform.RotZ = q_euler.Z;
+                
+            }
+        }
+
+        //Export to EXML
+        private void exportToEXML(object sender, RoutedEventArgs e)
+        {
+            if (mdl?.mbin_scene != null)
+            {
+                var exmlstring = libMBIN.EXmlFile.WriteTemplate(mdl.mbin_scene);
+                //Fetch scene name
+                string[] split = mdl.mbin_scene.Name.Split('\\');
+                string scnName = split[split.Length - 1];
+                File.WriteAllText(scnName + ".exml", exmlstring);
+                Console.WriteLine("Scene successfully exported to " + scnName + ".exml");
+            }
         }
 
         private Vector3 quaternionToEuler(Quaternion q)

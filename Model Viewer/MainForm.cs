@@ -400,6 +400,7 @@ namespace Model_Viewer
             //Populate shader list
             RenderState.activeResMgr.shader_programs = new int[11];
             string vvs, ggs, ffs;
+            string log="";
             //Geometry Shader
             //Compile Object Shaders
             vvs = GLSL_Preprocessor.Parser("Shaders/Simple_VSEmpty.glsl");
@@ -407,55 +408,61 @@ namespace Model_Viewer
             ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FSEmpty.glsl");
 
             GLShaderHelper.CreateShaders(vvs, ffs, ggs, "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[5]);
+                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[5], ref log);
 
             //Picking Shaders
             GLShaderHelper.CreateShaders(Resources.pick_vert, Resources.pick_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[6]);
+                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[6], ref log);
 
             //Main Shader
             vvs = GLSL_Preprocessor.Parser("Shaders/Simple_VS.glsl");
             ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FS.glsl");
             GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[0]);
+                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[0], ref log);
 
             //Texture Mixing Shaders
             vvs = GLSL_Preprocessor.Parser("Shaders/pass_VS.glsl");
             ffs = GLSL_Preprocessor.Parser("Shaders/pass_FS.glsl");
             GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[3]);
+                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[3], ref log);
 
             //GBuffer Shaders
             vvs = GLSL_Preprocessor.Parser("Shaders/Gbuffer_VS.glsl");
             ffs = GLSL_Preprocessor.Parser("Shaders/Gbuffer_FS.glsl");
             GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[9]);
+                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[9], ref log);
 
             //Decal Shaders
             vvs = GLSL_Preprocessor.Parser("Shaders/decal_VS.glsl");
             ffs = GLSL_Preprocessor.Parser("Shaders/Decal_FS.glsl");
             GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[10]);
+                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[10], ref log);
 
             //Locator Shaders
             GLShaderHelper.CreateShaders(Resources.locator_vert, Resources.locator_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[1]);
+                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[1], ref log);
 
             //Joint Shaders
             GLShaderHelper.CreateShaders(Resources.joint_vert, Resources.joint_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[2]);
+                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[2], ref log);
 
             //Text Shaders
             GLShaderHelper.CreateShaders(Resources.text_vert, Resources.text_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[4]);
+                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[4], ref log);
 
             //Light Shaders
             GLShaderHelper.CreateShaders(Resources.light_vert, Resources.light_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[7]);
+                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[7], ref log);
 
             //Camera Shaders
             GLShaderHelper.CreateShaders(Resources.camera_vert, Resources.camera_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[8]);
+                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[8], ref log);
+
+            //Save log
+            StreamWriter sr = new StreamWriter("shader_compilation_log_" + DateTime.Now.ToFileTime() + "_log.out");
+            sr.Write(log);
+            sr.Close();
+
         }
 
         private void render_decals()

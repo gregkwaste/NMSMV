@@ -1,17 +1,18 @@
+#version 330
 /* Simple Quad Rendering Shader
  */
 attribute vec4 vPosition;
 attribute vec4 uvPosition;
-//Outputs
-varying vec2 uv0;
-varying float dx, dy;
+
 uniform mat4 projMat;
 uniform float w, h;
 //Text Transforms
 uniform vec2 pos;
 uniform float scale;
 
-
+//Outputs
+out vec2 uv0;
+out float dx, dy;
 
 void main()
 {

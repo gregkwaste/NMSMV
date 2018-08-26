@@ -47,10 +47,9 @@ namespace KUtility {
 		public DDS_HEADER_DXT10 header10 = null;//If the DDS_PIXELFORMAT dwFlags is set to DDPF_FOURCC and dwFourCC is set to "DX10"
 		public byte[] bdata;//pointer to an array of bytes that contains the main surface data. 
 		public byte[] bdata2;//pointer to an array of bytes that contains the remaining surfaces such as; mipmap levels, faces in a cube map, depths in a volume texture.
+	    public List<byte[]> mipMaps = new List<byte[]>(); //TODO load and upload the separately.
 
-		public Bitmap[] images;
-
-		public DDSImage(byte[] rawdata) {
+	    public DDSImage(byte[] rawdata) {
 			using (MemoryStream ms = new MemoryStream(rawdata)) {
 				using (BinaryReader r = new BinaryReader(ms)) {
 					dwMagic = r.ReadInt32();
@@ -77,34 +76,34 @@ namespace KUtility {
 					int mipMapCount = 1;
 					if ((header.dwFlags & DDSD_MIPMAPCOUNT) != 0) 
 						mipMapCount = header.dwMipMapCount;
-					images = new Bitmap[mipMapCount];
 
-                    if (header.dwPitchOrLinearSize == 0)
+				    if (header.dwPitchOrLinearSize == 0)
                         System.Diagnostics.Debug.Fail("0 size texture data, check what is going on");
 
-				    bdata = r.ReadBytes(header.dwPitchOrLinearSize);
-					//I don't need decoded images
-					//for (int i = 0; i < mipMapCount; ++i) {
-					//	// Version .2 changes <AmaroK86>
-					//	int w = (int)(header.dwWidth / Math.Pow(2, i));
-					//	int h = (int)(header.dwHeight / Math.Pow(2, i));
+				    bdata = r.ReadBytes((int) (r.BaseStream.Length - r.BaseStream.Position)); //Read everything
+				    //I don't need decoded images
+				    //images = new Bitmap[mipMapCount];
+                    //for (int i = 0; i < mipMapCount; ++i) {
+                                                       //	// Version .2 changes <AmaroK86>
+                                                       //	int w = (int)(header.dwWidth / Math.Pow(2, i));
+                                                       //	int h = (int)(header.dwHeight / Math.Pow(2, i));
 
-					//	if ((header.ddspf.dwFlags & DDPF_RGB) != 0) {
-					//		images[i]= readLinearImage(bdata, w, h);
-					//	} else if ((header.ddspf.dwFlags & DDPF_FOURCC) != 0) {
-					//		images[i] = readBlockImage(bdata, w, h);
-					//	} else if ((header.ddspf.dwFlags & DDPF_FOURCC) == 0 &&
-					//				header.ddspf.dwRGBBitCount == 0x10 &&
-					//				header.ddspf.dwRBitMask == 0xFF &&
-					//				header.ddspf.dwGBitMask == 0xFF00 &&
-					//				header.ddspf.dwBBitMask == 0x00 &&
-					//				header.ddspf.dwABitMask == 0x00) {
-					//		images[i] = UncompressV8U8(bdata, w, h);// V8U8 normalmap format
-					//	}
-					//}
+                    //	if ((header.ddspf.dwFlags & DDPF_RGB) != 0) {
+                    //		images[i]= readLinearImage(bdata, w, h);
+                    //	} else if ((header.ddspf.dwFlags & DDPF_FOURCC) != 0) {
+                    //		images[i] = readBlockImage(bdata, w, h);
+                    //	} else if ((header.ddspf.dwFlags & DDPF_FOURCC) == 0 &&
+                    //				header.ddspf.dwRGBBitCount == 0x10 &&
+                    //				header.ddspf.dwRBitMask == 0xFF &&
+                    //				header.ddspf.dwGBitMask == 0xFF00 &&
+                    //				header.ddspf.dwBBitMask == 0x00 &&
+                    //				header.ddspf.dwABitMask == 0x00) {
+                    //		images[i] = UncompressV8U8(bdata, w, h);// V8U8 normalmap format
+                    //	}
+                    //}
 
-				}
-			}
+                }
+            }
 		}
 
 		private Bitmap readBlockImage(byte[] data, int w, int h) {

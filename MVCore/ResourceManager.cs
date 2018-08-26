@@ -12,8 +12,9 @@ namespace MVCore
         public Dictionary<string, GMDL.Material> GLmaterials = new Dictionary<string, GMDL.Material>();
         public Dictionary<string, GMDL.GeomObject> GLgeoms = new Dictionary<string, GMDL.GeomObject>();
         public Dictionary<ulong, mainVAO> GLVaos = new Dictionary<ulong, mainVAO>();
-        public List<GMDL.model> GLlights = new List<GMDL.model>();
-        public List<GMDL.model> GLDecals = new List<GMDL.model>();
+        public Dictionary<string, mainVAO> GLPrimitiveVaos = new Dictionary<string, mainVAO>();
+        public List<GMDL.Light> GLlights = new List<GMDL.Light>();
+        public List<GMDL.Decal> GLDecals = new List<GMDL.Decal>();
         public List<Camera> GLCameras = new List<Camera>();
         public int[] shader_programs;
         
@@ -55,8 +56,6 @@ namespace MVCore
 
         }
 
-
-
-
+        
     }
 }

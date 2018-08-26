@@ -6,12 +6,14 @@ using System.Threading.Tasks;
 using OpenTK;
 using OpenTK.Graphics.OpenGL4;
 using System.Reflection;
+using System.Drawing;
+using System.Drawing.Imaging;
+using libMBIN.Models.Structs;
 
 namespace Model_Viewer
 {
     public static class Palettes
     {
-
         //Palette
         public static Dictionary<string, int> palette_NameToID = new Dictionary<string, int>();
         public static Dictionary<int, string> palette_IDToName = new Dictionary<int, string>();
@@ -1220,7 +1222,7 @@ namespace Model_Viewer
                 //Add palette to dictionary
                 newPal[f.Name] = new Dictionary<string, Vector4>();
                 //Add None option
-                newPal[f.Name]["None"] = new Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+                newPal[f.Name]["None"] = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
 
                 try
                 {
@@ -1246,180 +1248,136 @@ namespace Model_Viewer
             return newPal;
         }
 
-        //public static Dictionary<string, Dictionary<string, Vector4>> createPaletteUID()
-        //{
-        //    Dictionary<string, Dictionary<string, Vector4>> newPal;
-        //    newPal = new Dictionary<string, Dictionary<string, Vector4>>();
-        //    //Select unique ID
-        //    int UID = Util.randgen.Next(0, 64);
+        public static Dictionary<string, Dictionary<string, Vector4>> createPalettefromBasePalettes()
+        {
+            Dictionary<string, Dictionary<string, Vector4>> newPal;
+            newPal = new Dictionary<string, Dictionary<string, Vector4>>();
+
+            string filepath = "I:\\SteamLibrary1\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS\\METADATA\\SIMULATION\\SOLARSYSTEM\\COLOURS\\BASECOLOURPALETTES.MBIN";
+
+            libMBIN.MBINFile mbinf = new libMBIN.MBINFile(filepath);
+            mbinf.Load();
+            GcPaletteList template = (GcPaletteList) mbinf.GetData();
+
+            TkPaletteTexture tkpt = new TkPaletteTexture();
+            string[] paletteNames = tkpt.PaletteValues();
+            string[] colourAltValues = tkpt.ColourAltValues();
+
+            GcPaletteData gcpd = new GcPaletteData();
+            string[] numColorValues = gcpd.NumColoursValues();
 
 
+            for (int i = 0; i < template.Palettes.Length; i++)
+            {
+                string pal_name = paletteNames[i];
+                Console.WriteLine("Palette {0} NumColors {1}", pal_name, numColorValues[template.Palettes[i].NumColours]);
+                newPal[pal_name] = new Dictionary<string, Vector4>();
 
-        //    Type t = typeof(Palettes);
-        //    FieldInfo[] fields = t.GetFields(System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
-        //    foreach (FieldInfo f in fields)
-        //    {
-        //        //Check field type
-        //        if (f.FieldType != typeof(List<Vector3>))
-        //            continue;
-        //        //Get palette
-        //        List<Vector3> palette = (List<Vector3>)f.GetValue(null);
+                //Generate Bitmap for palette
+                Bitmap bmp = new Bitmap(64, 1);
 
-        //        //Add palette to dictionary
-        //        newPal[f.Name] = new Dictionary<string, Vector4>();
-        //        //Add None option
-        //        newPal[f.Name]["None"] = new Vector4(0.0f, 0.0f, 0.0f, 0.0f);
+                for (int j = 0; j < template.Palettes[i].Colours.Length; j++)
+                {
+                    Colour colour = template.Palettes[i].Colours[j];
 
-        //        int rand = UID;
-        //        switch (f.Name)
-        //        {
-        //            //New Palettes
-        //            case ("Scientific"):
-        //            case ("ScientificAlt"):
-        //            case ("Trader"):
-        //            case ("TraderAlt"):
-        //            case ("Warrior"):
-        //            case ("WarriorAlt"):
-        //            case ("Custom_Head"):
-        //                newPal[f.Name]["Primary"] = new Vector4(palette[0], 1.0f);
-        //                newPal[f.Name]["Alternative1"] = new Vector4(palette[0], 1.0f);
-        //                newPal[f.Name]["Alternative2"] = new Vector4(palette[0], 1.0f);
-        //                newPal[f.Name]["Alternative3"] = new Vector4(palette[0], 1.0f);
-        //                break;
-        //            default:
-        //                newPal[f.Name]["Primary"] = new Vector4(palette[rand], 1.0f);
-        //                newPal[f.Name]["Alternative1"] = new Vector4(palette[rand], 1.0f);
-        //                newPal[f.Name]["Alternative2"] = new Vector4(palette[rand], 1.0f);
-        //                newPal[f.Name]["Alternative3"] = new Vector4(palette[rand], 1.0f);
-        //                //Used By plants
-        //                newPal[f.Name]["MatchGround"] = new Vector4(palette[rand], 1.0f);
-        //                //I have no idea where the fuck the 5th color comes from
-        //                newPal[f.Name]["Alternative4"] = new Vector4(palette[rand], 1.0f);
+                    //Console.WriteLine("Color {0} {1} {2} {3} {4}",
+                    //j, colour.R, colour.G, colour.B, colour.A);
 
-        //                //Explicitly Set unique to completely random color
-        //                //rand = Util.randgen.Next(0, 64);
-        //                newPal[f.Name]["Unique"] = newPal[f.Name]["Primary"];
-        //                break;
-        //        }
-        //    }
-        //    return newPal;
-        //}
+                    //bmp.SetPixel(j, 0, Color.FromArgb((int)(colour.A * 255),
+                    //                                    (int)(colour.R * 255),
+                    //                                    (int)(colour.G * 255),
+                    //                                    (int)(colour.B * 255)));
+                }
 
-        //public static Vector3 get_color(string palName, string colourOpt)
-        //{
-        //    //Fetch palette
-        //    Type t = typeof(Palettes);
-        //    FieldInfo[] fields = t.GetFields(System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
+                Vector4 primary, alt1, alt2, alt3, alt4, matchg, unique, none;
+                int index = 0;
+                int index1 = 0;
+                int index2 = 0;
+                int index3 = 0;
+                int index4 = 0;
+                int unique_index = 0;
+                none = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
 
-        //    //Excplicit handling of None
-        //    if (colourOpt == "None")
-        //        return new Vector3(1.0f, 1.0f, 1.0f);
+                switch (template.Palettes[i].NumColours) {
+                    case 0: //Inactive
+                        //Test by not saving anything
+                        break;
+                    case 1: //1 Color - All colors should be the same
+                        index = 0; 
+                        index1 = index;
+                        index2 = index;
+                        index3 = index;
+                        index4 = index;
+                        unique_index = 0;
+                        break;
+                    case 2: //4 Color
+                    case 3: //8 Color NOTE: Not enough samples for that
+                        index = get_active_palette_index(4);
+                        index1 = index + 1;
+                        index2 = index + 2;
+                        index3 = index + 3;
+                        unique_index = get_active_palette_index(1);
+                        break;
+                    case 4: //16 Color
+                        //Align to groups of 2
+                        index = get_active_palette_index(2);
+                        index1 = index + 1;
+                        index2 = get_active_palette_index(2);
+                        index3 = index2 + 1;
+                        index4 = get_active_palette_index(2);
+                        unique_index = get_active_palette_index(1);
+                        break;
+                    case 5: //All
+                        index = get_active_palette_index(1);
+                        index1 = get_active_palette_index(1);
+                        index2 = get_active_palette_index(1);
+                        index3 = get_active_palette_index(1);
+                        index4 = get_active_palette_index(1);
+                        unique_index = get_active_palette_index(1);
+                        break;
+                }
 
-        //    List<Vector3> palette;
-        //    foreach (FieldInfo f in fields)
-        //    {
-        //        //Check field type
-        //        if (f.FieldType != typeof(List<Vector3>))
-        //            continue;
-        //        //Get specified palette
-        //        if (f.Name == palName)
-        //        {
-        //            palette = (List<Vector3>)f.GetValue(null);
+                //Set Colors
+                primary = colour_to_vec4(template.Palettes[i].Colours[index]);
+                alt1 = colour_to_vec4(template.Palettes[i].Colours[index1]);
+                alt2 = colour_to_vec4(template.Palettes[i].Colours[index2]);
+                alt3 = colour_to_vec4(template.Palettes[i].Colours[index3]);
+                alt4 = colour_to_vec4(template.Palettes[i].Colours[index4]);
+                matchg = primary;
+                unique = colour_to_vec4(template.Palettes[i].Colours[unique_index]);
 
-        //            //Select Color at random
-        //            int rand;
+                //save the colors to the dictionary
+                newPal[pal_name]["Primary"] = primary;
+                newPal[pal_name]["Alternative1"] = alt1;
+                newPal[pal_name]["Alternative2"] = alt2;
+                newPal[pal_name]["Alternative3"] = alt3;
+                newPal[pal_name]["Alternative4"] = alt4;
+                newPal[pal_name]["Unique"] = unique;
+                newPal[pal_name]["None"] = none;
 
-        //            switch (f.Name)
-        //            {
-        //                case ("Fur"):
-        //                case ("Scale"):
-        //                case ("Feather"):
-        //                case ("Plant"):
-        //                case ("Underbelly"):
-        //                case ("Paint"):
-        //                    //In those palettes colors are organize in group of 4 
-        //                    //So there is a total of 16 color ranges in the palette
-        //                    //Chossing one range
-        //                    rand = Util.randgen.Next(0, 16);
-        //                    switch (colourOpt)
-        //                    {
-        //                        case ("Primary"):
-        //                            return palette[4 * rand];
-        //                        case ("Alternative1"):
-        //                            return palette[4 * rand + 1];
-        //                        case ("Alternative2"):
-        //                            return palette[4 * rand + 2];
-        //                        case ("MatchGround"):
-        //                        case ("Alternative3"):
-        //                        case ("Alternative4"):
-        //                            return palette[4 * rand + 3];
-        //                        case ("Unique"):
-        //                            rand = Util.randgen.Next(0, 64);
-        //                            return palette[rand];
-        //                    }
-        //                    break;
-        //                //Handle vertical gradient palettes 1/8 options
-        //                case ("Crystal"):
-        //                case ("Rock"):
-        //                case ("Undercoat"):
-        //                    rand = Util.randgen.Next(0, 8);
-        //                    int rand2 = Util.randgen.Next(0, 1);
-        //                    switch (colourOpt)
-        //                    {
-        //                        case ("Primary"):
-        //                            return palette[rand2 * 32 + rand];
-        //                        case ("Alternative1"):
-        //                            return palette[rand2 * 32 + rand + 1 * 8];
-        //                        case ("Alternative2"):
-        //                            return palette[rand2 * 32 + rand + 2 * 8];
-        //                        case ("Alternative3"):
-        //                            return palette[rand2 * 32 + rand + 3 * 8];
-        //                        case ("Alternative4"):
-        //                            return palette[rand2 * 32 + rand + 3 * 8];
-        //                    }
-        //                    break;
-        //                //Handle vertical palettes 1/16 options (Vertical parts of 4)
-        //                case ("Leaf"):
-        //                case ("Sand"):
-        //                case ("Stone"):
-        //                case ("Wood"):
-        //                    rand = Util.randgen.Next(0, 16);
-        //                    switch (colourOpt)
-        //                    {
-        //                        case ("Primary"):
-        //                            return palette[(rand / 8) * 32 + rand % 8];
-        //                        case ("Alternative1"):
-        //                            return palette[(rand / 8) * 32 + rand % 8 + 1 * 8];
-        //                        case ("Alternative2"):
-        //                            return palette[(rand / 8) * 32 + rand % 8 + 2 * 8];
-        //                        case ("MatchGround"):
-        //                            return palette[4 * rand + 3];
-        //                        case ("Alternative3"):
-        //                            return palette[(rand / 8) * 32 + rand % 8 + 3 * 8];
-        //                        case ("Alternative4"):
-        //                            return palette[(rand / 8) * 32 + rand % 8 + 3 * 8];
-        //                    }
-        //                    break;
 
-        //                default:
-        //                    //Chose 1/64 random color
-        //                    rand = Util.randgen.Next(0, 64);
-        //                    return palette[rand];
-        //                    //newPal[f.Name]["None"] = palette[rand];
-        //            }
-        //        }
-        //    }
+                //bmp.Save("Temp\\" + pal_name + ".bmp", ImageFormat.Bmp);
+            }
+            
+            return newPal;
+        }
 
-        //    throw new ApplicationException("New Palette " + palName);
-        //    //return new Vector3(1.0f, 1.0f, 1.0f);
-        //}
+        private static int get_active_palette_index(int grouping)
+        {
+            return MVCore.Common.RenderState.randgen.Next(0, 64 / grouping) * grouping;
+        }
+
+        private static Vector4 colour_to_vec4(Colour col)
+        {
+            return new Vector4(col.R, col.G, col.B, col.A);
+        }
 
         public static void set_palleteColors()
         {
             //Initialize the palette everytime this is called
             paletteSel = new Dictionary<string, Dictionary<string, Vector4>>();
-            paletteSel = createPalette();
-            //paletteSel = createPaletteUID();
+            //paletteSel = createPalette();
+            paletteSel = createPalettefromBasePalettes();
         }
 
         public static void loadNMSEnums()
@@ -1442,6 +1400,7 @@ namespace Model_Viewer
             }
 
         }
+
 
     }
 

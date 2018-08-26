@@ -14,6 +14,7 @@ using System.Xml;
 using libMBIN.Models.Structs;
 using System.Reflection;
 using MVCore;
+using ExtTextureFilterAnisotropic = OpenTK.Graphics.ES30.ExtTextureFilterAnisotropic;
 using PixelFormat = OpenTK.Graphics.OpenGL.PixelFormat;
 
 namespace MVCore.GMDL
@@ -23,6 +24,7 @@ namespace MVCore.GMDL
         public abstract bool render(int pass);
         public abstract model Clone(scene scn);
         public scene scene;
+        public TkSceneNodeData mbin_scene;
         public GeomObject gobject;
         public GLControl pcontrol;
         public bool renderable = true;
@@ -117,14 +119,13 @@ namespace MVCore.GMDL
             }   
         }
 
-        public void init(string trans)
+        public void init(float[] trans)
         {
             //Get Local Position
-            string[] split = trans.Split(',');
             Vector3 rotation;
-            this.localPosition.X = float.Parse(split[0], System.Globalization.CultureInfo.InvariantCulture);
-            this.localPosition.Y = float.Parse(split[1], System.Globalization.CultureInfo.InvariantCulture);
-            this.localPosition.Z = float.Parse(split[2], System.Globalization.CultureInfo.InvariantCulture);
+            this.localPosition.X = trans[0];
+            this.localPosition.Y = trans[1];
+            this.localPosition.Z = trans[2];
 
 
             //using (System.IO.StreamWriter file =
@@ -141,24 +142,21 @@ namespace MVCore.GMDL
             //Quaternion qz = Quaternion.FromAxisAngle(new Vector3(0.0f, 0.0f, 1.0f),
             //    (float)Math.PI * float.Parse(split[5]) / 180.0f);
 
-            Quaternion qx = Quaternion.FromAxisAngle(new Vector3(1.0f, 0.0f, 0.0f),
-                float.Parse(split[3], System.Globalization.CultureInfo.InvariantCulture));
-            Quaternion qy = Quaternion.FromAxisAngle(new Vector3(0.0f, 1.0f, 0.0f),
-                float.Parse(split[4], System.Globalization.CultureInfo.InvariantCulture));
-            Quaternion qz = Quaternion.FromAxisAngle(new Vector3(0.0f, 0.0f, 1.0f),
-                float.Parse(split[5], System.Globalization.CultureInfo.InvariantCulture));
+            Quaternion qx = Quaternion.FromAxisAngle(new Vector3(1.0f, 0.0f, 0.0f), trans[3]);
+            Quaternion qy = Quaternion.FromAxisAngle(new Vector3(0.0f, 1.0f, 0.0f), trans[4]);
+            Quaternion qz = Quaternion.FromAxisAngle(new Vector3(0.0f, 0.0f, 1.0f), trans[5]);
 
             //this.localRotation = qz * qx * qy;
-            rotation.X = float.Parse(split[3], System.Globalization.CultureInfo.InvariantCulture);
-            rotation.Y = float.Parse(split[4], System.Globalization.CultureInfo.InvariantCulture);
-            rotation.Z = float.Parse(split[5], System.Globalization.CultureInfo.InvariantCulture);
+            rotation.X = trans[3];
+            rotation.Y = trans[4];
+            rotation.Z = trans[5];
 
             localRotationAngles = rotation;
 
             //Get Local Scale
-            this.localScale.X = float.Parse(split[6], System.Globalization.CultureInfo.InvariantCulture);
-            this.localScale.Y = float.Parse(split[7], System.Globalization.CultureInfo.InvariantCulture);
-            this.localScale.Z = float.Parse(split[8], System.Globalization.CultureInfo.InvariantCulture);
+            this.localScale.X = trans[6];
+            this.localScale.Y = trans[7];
+            this.localScale.Z = trans[8];
 
             //Now Calculate the joint matrix;
 
@@ -277,6 +275,7 @@ namespace MVCore.GMDL
     
     public class scene : locator
     {
+        public scene() : base(0.1f) { }
         public override model Clone(scene scn)
         {
             GMDL.scene copy = new GMDL.scene();
@@ -293,7 +292,7 @@ namespace MVCore.GMDL
             //BUT children will have this copy as their scene
             //Clone Children as well
 
-            return (GMDL.model) copy;
+            return copy;
         }
 
 
@@ -457,85 +456,25 @@ namespace MVCore.GMDL
 
     public class locator: model
     {
-        //private Vector3[] verts;
-        private float[] verts = new float[6*3];
-        private float[] colors = new float[6 * 3];
-        private Int32[] indices;
         //public bool renderable = true;
-        int vertex_buffer_object;
-        //int color_buffer_object;
-        int element_buffer_object;
-        //public int shader_program = -1;
-        //this.type = "";
-        //string name = "";
-        //public int index;
+        int vao_id;
+        public float scale;
         
-
         //Default Constructor
-        public locator()
+        public locator(float s)
         {
             //Set type
             //this.type = "LOCATOR";
             //Assemble geometry in the constructor
             //X
-            float vlen = 0.1f;
-            verts = new float[6 * 3] { vlen, 0.0f, 0.0f,
-                   -vlen, 0.0f, 0.0f,
-                    0.0f, vlen, 0.0f,
-                    0.0f, -vlen, 0.0f,
-                    0.0f, 0.0f, vlen,
-                    0.0f, 0.0f, -vlen};
-            int b_size = verts.Length * sizeof(float) / 3;
-            byte[] verts_b = new byte[b_size];
-            
-            System.Buffer.BlockCopy(verts, 0, verts_b, 0, b_size);
-            //verts = new Vector3[6];
-            //verts[0] = new Vector3(vlen, 0.0f, 0.0f);
-            //verts[1] = new Vector3(-vlen, 0.0f, 0.0f);
-            //verts[2] = new Vector3(0.0f, vlen, 0.0f);
-            //verts[3] = new Vector3(0.0f, -vlen, 0.0f);
-            //verts[4] = new Vector3(0.0f, 0.0f, vlen);
-            //verts[5] = new Vector3(0.0f, 0.0f, -vlen);
-
-            //Colors
-            colors = new float[6 * 3] { 1.0f, 0.0f, 0.0f,
-                    1.0f, 0.0f, 0.0f,
-                    0.0f, 1.0f, 0.0f,
-                    0.0f, 1.0f, 0.0f,
-                    0.0f, 0.0f, 1.0f,
-                    0.0f, 0.0f, 1.0f};
-
-            //Indices
-            indices = new Int32[2 * 3] {0, 1, 2, 3, 4, 5};
-            
-            //Generate OpenGL buffers
-            int arraysize = sizeof(float) * 6 * 3;
-            GL.GenBuffers(1, out vertex_buffer_object);
-            //GL.GenBuffers(1, out color_buffer_object);
-            GL.GenBuffers(1, out element_buffer_object);
-
-            //Upload vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vertex_buffer_object);
-            //Allocate to NULL
-            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)(2 * arraysize), (IntPtr)null, BufferUsageHint.StaticDraw);
-            //Add verts data
-            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
-            //Add vert color data
-            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)arraysize, (IntPtr)arraysize, colors);
-
-            ////Upload index buffer
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.element_buffer_object);
-            GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr) (sizeof(int) * 6), indices, BufferUsageHint.StaticDraw);
+            scale = s;
+            vao_id = MVCore.Common.RenderState.activeResMgr.GLPrimitiveVaos["default_cross"].vao_id;
         }
 
         //Deconstructor
         protected override void Dispose(bool disposing)
         {
-            verts = null;
-            indices = null;
-            colors = null;
-            GL.DeleteBuffer(vertex_buffer_object);
-            GL.DeleteBuffer(element_buffer_object);
+            vao_id = -1;
             base.Dispose(disposing);
         }
         
@@ -546,30 +485,17 @@ namespace MVCore.GMDL
             //VBO RENDERING
             GL.UseProgram(pass);
 
-            int arraysize = sizeof(float) * 6 * 3;
-            //Vertex attribute
-            //Bind vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vertex_buffer_object);
-            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, 0);
-            GL.EnableVertexAttribArray(0);
+            //Upload scale
 
-            //Color Attribute
-            GL.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 0, (IntPtr)arraysize);
-            GL.EnableVertexAttribArray(1);
+            int loc = GL.GetUniformLocation(pass, "scale");
+            GL.Uniform1(loc, scale);
 
-            //Render Elements
-            //Bind elem buffer
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.element_buffer_object);
-            GL.PointSize(10.0f);
-            
-            //GL.DrawElements(PrimitiveType.Points, 6, DrawElementsType.UnsignedInt, this.indices);
-            GL.DrawArrays(PrimitiveType.Lines, 0, 6);
-            //Console.WriteLine("Locator Object {2} vpos {0} cpos {1} prog {3}", vpos, cpos, this.name, this.shader_program);
-            //Console.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vertex_buffer_object,this.color_buffer_object);
+            GL.BindVertexArray(vao_id);
+            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+            GL.DrawElements(PrimitiveType.Lines, 6, DrawElementsType.UnsignedInt, (IntPtr) 0);
+            GL.PolygonMode(MaterialFace.FrontAndBack, MVCore.RenderOptions.RENDERMODE);
+            GL.BindVertexArray(0);
 
-            GL.DisableVertexAttribArray(0);
-            GL.DisableVertexAttribArray(1);
-            
         }
 
 
@@ -593,7 +519,7 @@ namespace MVCore.GMDL
 
         public override GMDL.model Clone(GMDL.scene scn)
         {
-            GMDL.locator copy = new GMDL.locator();
+            GMDL.locator copy = new GMDL.locator(0.01f);
             copy.TakeValuesFrom(this);
             copy.scene = scn;
             return (GMDL.model) copy;
@@ -747,7 +673,7 @@ namespace MVCore.GMDL
             
 
             //Upload Light Flag
-            loc = GL.GetUniformLocation(pass, "useLighting");
+            loc = GL.GetUniformLocation(pass, "use_lighting");
             GL.Uniform1(loc, 0.0f);
 
             //Render Elements
@@ -782,8 +708,16 @@ namespace MVCore.GMDL
                 GL.Uniform1(loc + i, 0.0f);
 
             for (int i = 0; i < material.materialflags.Count; i++)
-                GL.Uniform1(loc + material.materialflags[i], 1.0f);
+                GL.Uniform1(loc + (int) material.materialflags[i], 1.0f);
 
+            //Upload Material Uniforms
+            for (int i = 0; i < material.uniforms.Count; i++)
+            {
+                Uniform un = material.uniforms[i];
+                loc = GL.GetUniformLocation(pass, un.name);
+                GL.Uniform4(loc, un.value.X, un.value.Y, un.value.Z, un.value.W);
+            }
+            
             //Upload joint transform data
             //Multiply matrices before sending them
             //Check if scene has the jointModel
@@ -802,10 +736,6 @@ namespace MVCore.GMDL
             //Upload Light Flag
             //loc = GL.GetUniformLocation(pass, "useLighting");
             //GL.Uniform1(loc, 1.0f);
-
-            //Upload Selected Flag
-            loc = GL.GetUniformLocation(pass, "selected");
-            GL.Uniform1(loc, selected);
 
             //BIND TEXTURES
             int tex0Id = (int)TextureUnit.Texture0;
@@ -861,7 +791,7 @@ namespace MVCore.GMDL
                 GL.Uniform1(loc + i, 0.0f);
 
             for (int i = 0; i < material.materialflags.Count; i++)
-                GL.Uniform1(loc + material.materialflags[i], 1.0f);
+                GL.Uniform1(loc + (int) material.materialflags[i], 1.0f);
 
             //Upload BoneRemap Information
             loc = GL.GetUniformLocation(pass, "boneRemap");
@@ -1056,7 +986,7 @@ namespace MVCore.GMDL
                         //i3 = _2sComplement.toInt((value >> 02) & 0x3FF, 10);
                         //i2 = _2sComplement.toInt((value >> 12) & 0x3FF, 10);
                         //i1 = _2sComplement.toInt((value >> 22) & 0x3FF, 10);
-                        Debug.WriteLine("{0}, {1}, {2}", i1, i2, i3);
+                        //Debug.WriteLine("{0}, {1}, {2}", i1, i2, i3);
 
                         vN = new Vector4(Convert.ToSingle(i1) / 512.0f,
                                          Convert.ToSingle(i2) / 512.0f,
@@ -1118,18 +1048,10 @@ namespace MVCore.GMDL
             for (int i = 0; i < batchcount/3; i++)
             {
                 uint f1, f2, f3;
-                if (gobject.indicesLength == 2)
-                {
-                    f1 = ibr.ReadUInt16();
-                    f2 = ibr.ReadUInt16();
-                    f3 = ibr.ReadUInt16();
-                }
-                else
-                {
-                    f1 = ibr.ReadUInt32();
-                    f2 = ibr.ReadUInt32();
-                    f3 = ibr.ReadUInt32();
-                }
+                //NEXT models assume that all gstream meshes have uint16 indices
+                f1 = ibr.ReadUInt16();
+                f2 = ibr.ReadUInt16();
+                f3 = ibr.ReadUInt16();
 
                 if (!start && this.type != TYPES.COLLISION)
                     { fstart = f1; start = true; }
@@ -1363,7 +1285,7 @@ namespace MVCore.GMDL
                     GL.Uniform1(loc + i, 0.0f);
 
                 for (int i = 0; i < material.materialflags.Count; i++)
-                    GL.Uniform1(loc + material.materialflags[i], 1.0f);
+                    GL.Uniform1(loc + (int) material.materialflags[i], 1.0f);
             }
             
 
@@ -1809,7 +1731,7 @@ namespace MVCore.GMDL
         public string name;
         public string type;
         public MatOpts opts;
-        public List<int> materialflags = new List<int>();
+        public List<MATERIALMBIN.MATERIALFLAGS> materialflags = new List<MATERIALMBIN.MATERIALFLAGS>();
         public Dictionary<string, Dictionary<string, Vector4>> palette = new Dictionary<string, Dictionary<string, Vector4>>();
         public List<Uniform> uniforms = new List<Uniform>();
         public List<Sampler> samplers = new List<Sampler>();
@@ -1877,6 +1799,11 @@ namespace MVCore.GMDL
 
         public void prepTextures()
         {
+            //Testing
+            if (this.name.Contains("Boots1"))
+            {
+                Console.WriteLine("Test");
+            }
             foreach (Sampler sam in samplers){
                 if (sam.name != "gDiffuseMap") continue;
 
@@ -1903,6 +1830,7 @@ namespace MVCore.GMDL
                 if (File.Exists(texMbin))
                 {
                     Console.WriteLine("Procedural Texture Detected: " + texMbin);
+                    MVCore.Common.CallBacks.Log(string.Format("Parsing Procedural Texture"));
                     sam.proc = true;
 
                     libMBIN.MBINFile mbinf = new libMBIN.MBINFile(texMbin);
@@ -1962,6 +1890,8 @@ namespace MVCore.GMDL
                         palOpt.PaletteName = paletteName;
                         palOpt.ColorName = colorName;
                         palOpts[i] = palOpt;
+                        Console.WriteLine("Index {0} Palette Selection {1} {2} ", i, palOpt.PaletteName, palOpt.ColorName);
+                        Console.WriteLine("Index {0} Color {1} {2} {3} {4}", i, palColor[0], palColor[1], palColor[2], palColor[3]);
 
                         //DIFFUSE
                         if (partNameDiff == "")
@@ -1991,6 +1921,7 @@ namespace MVCore.GMDL
                             {
                                 //Texture Not Found Continue
                                 Console.WriteLine("Diffuse Texture " + pathDiff + " Not Found, Appending White Tex");
+                                MVCore.Common.CallBacks.Log(string.Format("Diffuse Texture {0} Not Found", pathDiff));
                                 baseLayersUsed[i] = 0.0f;
                             }
                         } else
@@ -2025,6 +1956,7 @@ namespace MVCore.GMDL
                             {
                                 //Mask Texture not found
                                 Console.WriteLine("Mask Texture " + pathMask + " Not Found");
+                                MVCore.Common.CallBacks.Log(string.Format("Mask Texture {0} Not Found", pathMask));
                                 alphaLayersUsed[i] = 0.0f;
                             }
                         }
@@ -2059,6 +1991,7 @@ namespace MVCore.GMDL
                             {
                                 //Normal Texture not found
                                 Console.WriteLine("Normal Texture " + pathNormal + " Not Found");
+                                MVCore.Common.CallBacks.Log(string.Format("Normal Texture {0} Not Found", pathNormal));
                             }
 
                         }
@@ -2072,27 +2005,27 @@ namespace MVCore.GMDL
 
                     }
 
+                    //Mix Textures now
+                    this.mixTextures();
                 }
                 //Store Non Proc Texture
                 else
                 {
                     int active_id = 0;
-                    Console.WriteLine("Proper Texture, Bullshiting for now");
+                    Console.WriteLine("Proper Texture ");
                     //Handle Diffuse
                     if (sam.map != "")
                         if (Common.RenderState.activeResMgr.GLtextures.ContainsKey(sam.map))
                         {
                             Texture tex = Common.RenderState.activeResMgr.GLtextures[sam.map];
-                            difftextures[active_id] = tex;
-                            baseLayersUsed[active_id] = 1.0f;
+                            fDiffuseMap = tex;
                         }
                         else
                         {
                             Texture tex = new Texture(Path.Combine(FileUtils.dirpath, sam.map));
                             tex.palOpt = new PaletteOpt(false);
                             tex.procColor = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
-                            difftextures[active_id] = tex;
-                            baseLayersUsed[active_id] = 1.0f;
+                            fDiffuseMap = tex;
                             //Store to resource
                             Common.RenderState.activeResMgr.GLtextures[sam.map] = tex;
                         }
@@ -2103,8 +2036,7 @@ namespace MVCore.GMDL
                         if (Common.RenderState.activeResMgr.GLtextures.ContainsKey(sam.map))
                         {
                             Texture tex = Common.RenderState.activeResMgr.GLtextures[sam.map];
-                            masktextures[active_id] = tex;
-                            alphaLayersUsed[active_id] = 1.0f;
+                            fMaskMap = tex;
                         }
                         //else if (!File.Exists(Path.Combine(FileUtils.dirpath, sam.pathMask)))
                         //{
@@ -2117,8 +2049,7 @@ namespace MVCore.GMDL
                             Texture tex = new Texture(Path.Combine(FileUtils.dirpath, sam.map));
                             tex.palOpt = new PaletteOpt(false);
                             tex.procColor = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
-                            masktextures[active_id] = tex;
-                            alphaLayersUsed[active_id] = 1.0f;
+                            fMaskMap = tex;
                             //Store to resource
                             Common.RenderState.activeResMgr.GLtextures[sam.map] = tex;
                         }
@@ -2128,7 +2059,7 @@ namespace MVCore.GMDL
                         if (Common.RenderState.activeResMgr.GLtextures.ContainsKey(sam.map))
                         {
                             Texture tex = Common.RenderState.activeResMgr.GLtextures[sam.map];
-                            normaltextures[active_id] = tex;
+                            fNormalMap = tex;
                         }
                         else
                         {
@@ -2137,7 +2068,7 @@ namespace MVCore.GMDL
                                 Texture tex = new Texture(Path.Combine(FileUtils.dirpath, sam.map));
                                 tex.palOpt = new PaletteOpt(false);
                                 tex.procColor = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
-                                normaltextures[active_id] = tex;
+                                fNormalMap = tex;
                                 //Store to resource
                                 Common.RenderState.activeResMgr.GLtextures[sam.map] = tex;
                             }
@@ -2145,10 +2076,7 @@ namespace MVCore.GMDL
                             { 
                                 //File doesn't exist, to nothing
                             }
-                            
-                            
                         }
-                    
                 }
                     
             }
@@ -2166,69 +2094,20 @@ namespace MVCore.GMDL
                 Console.WriteLine("Test");
             }
 
-            //SETUP QUAD
-            int pass_program = Common.RenderState.activeResMgr.shader_programs[3];
-            GL.UseProgram(pass_program);
-            int quad_vbo;
-            int quad_ebo;
+            //Find texture sizes
+            int texWidth = 0;
+            int texHeight = 0;
 
-            //Define Quad
-            float[] quad = new float[6 * 3] {
-                -1.0f, -1.0f, 0.0f,
-                1.0f, -1.0f, 0.0f,
-                -1.0f,  1.0f, 0.0f,
-                -1.0f,  1.0f, 0.0f,
-                1.0f, -1.0f, 0.0f,
-                1.0f,  1.0f, 0.0f };
-
-            float[] quadcolors = new float[6 * 3]
+            for (int i = 0; i < 8; i++)
             {
-                1.0f, 0.0f, 0.0f,
-                0.0f, 1.0f, 0.0f,
-                1.0f,  1.0f, 0.0f,
-                1.0f,  1.0f, 0.0f,
-                0.0f, 1.0f, 0.0f,
-                0.0f,  0.0f, 1.0f
-            };
-
-            //Indices
-            int[] indices = new Int32[2 * 3] { 0, 1, 2, 3, 4, 5 };
-
-            //Generate OpenGL buffers
-            int arraysize = sizeof(float) * 6 * 3;
-            GL.GenBuffers(1, out quad_vbo);
-            GL.GenBuffers(1, out quad_ebo);
-
-            //Upload vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, quad_vbo);
-            //Allocate to NULL
-            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)(2 * arraysize), (IntPtr)null, BufferUsageHint.StaticDraw);
-            //Add verts data
-            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, quad);
-            //Add color data
-            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)arraysize, (IntPtr)arraysize, quadcolors);
-
-            //Upload index buffer
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, quad_ebo);
-            GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr)(sizeof(int) * 6), indices, BufferUsageHint.StaticDraw);
-
-            //Vertex attribute
-            //Bind vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, quad_vbo);
-            //vPosition #0
-            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, 0);
-            GL.EnableVertexAttribArray(0);
-
-            //vColor #1
-            GL.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 0, (IntPtr)arraysize);
-            GL.EnableVertexAttribArray(1);
-
-            //Bind elem buffer
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, quad_ebo);
-
-
-            //Create Textures to save to
-            int texsize = 1024;
+                if (difftextures[i] != null)
+                {
+                    texHeight = difftextures[i].height;
+                    texWidth = difftextures[i].width;
+                    break;
+                }
+            }
+            
             //Diffuse Output
             int out_tex_diffuse = GL.GenTexture();
             GL.BindTexture(TextureTarget.Texture2D, out_tex_diffuse);
@@ -2237,9 +2116,14 @@ namespace MVCore.GMDL
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
             //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 4.0f);
-            
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D); //Generate Mipmaps from the base level
+            //Use anisotropic filtering
+            float af_amount = GL.GetFloat((GetPName)All.MaxTextureMaxAnisotropy);
+            af_amount = (float)Math.Max(af_amount, 4.0f);
+            GL.TexParameter(TextureTarget.Texture2D, (TextureParameterName)0x84FE, af_amount);
+
             //NULL means reserve texture memory, but texels are undefined
-            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, texsize, texsize, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, texWidth, texHeight, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             //GL.Ext.GenerateMipmap(GenerateMipmapTarget.Texture2D);
 
             //Create New RenderBuffer for the diffuse
@@ -2263,7 +2147,7 @@ namespace MVCore.GMDL
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
             //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 4.0f);
-            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, texsize, texsize, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, texWidth, texHeight, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
 
             //GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
             
@@ -2285,8 +2169,9 @@ namespace MVCore.GMDL
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
             //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 4.0f);
-            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, texsize, texsize, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
-            //GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, texWidth, texHeight, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D); //Generate Mipmaps from the base level
+            
             
             //Create New RenderBuffer for the diffuse
             //Attach Texture to this FBO
@@ -2315,38 +2200,23 @@ namespace MVCore.GMDL
             //GL.Enable(EnableCap.Blend);
             //GL.BlendFunc(BlendingFactorSrc.ConstantAlpha, BlendingFactorDest.OneMinusConstantAlpha);
 
-            /*
-             * 
-             * TEXTURES SHOULD BE PUSHED TO THE SHADERS BOTTOM TO TOP
-             * 
-             *
-             */
-
             Texture dMask = Common.RenderState.activeResMgr.GLtextures["default_mask.dds"];
             Texture dDiff = Common.RenderState.activeResMgr.GLtextures["default.dds"];
 
-            //Upload Base Layer Index
-            loc = GL.GetUniformLocation(pass_program, "baseLayerIndex");
-            for (int i = 0; i < 8; i++)
-            {
-                //int active_id = 7 - i;
-                if (difftextures[i] != null)
-                {
-                    GL.Uniform1(loc, i);
-                    break;
-                }
-
-            }
+            //USE PROGRAM
+            int pass_program = Common.RenderState.activeResMgr.shader_programs[3];
+            GL.UseProgram(pass_program);
 
             //Upload base Layers Used
+            int baseLayerIndex = 0;
             for (int i = 0; i < 8; i++)
             {
                 int active_id = i;
-                loc = GL.GetUniformLocation(pass_program, "lbaseLayersUsed[" + active_id.ToString() + "]");
+                loc = GL.GetUniformLocation(pass_program, "d_lbaseLayersUsed[" + active_id.ToString() + "]");
                 GL.Uniform1(loc, baseLayersUsed[active_id]);
+                if (baseLayersUsed[i] > 0.0f)
+                    baseLayerIndex = i;
             }
-
-            
 
             for (int i = 0; i < 8; i++)
             {
@@ -2374,10 +2244,14 @@ namespace MVCore.GMDL
             //^^^ AO Map flag probably does not fix the alpha situation.
             //Decals don't have the flag but their textures contain alpha. For now I'm adding the Transparent flag on the check as well
             loc = GL.GetUniformLocation(pass_program, "hasAlphaChannel");
-            if (materialflags.Contains(23) || materialflags.Contains(8))
+            if (materialflags.Contains(MATERIALMBIN.MATERIALFLAGS._F24_AOMAP) || 
+                materialflags.Contains(MATERIALMBIN.MATERIALFLAGS._F09_TRANSPARENT))
                 GL.Uniform1(loc, 1.0f);
             else
                 GL.Uniform1(loc, 0.0f);
+
+            loc = GL.GetUniformLocation(pass_program, "baseLayerIndex");
+            GL.Uniform1(loc, baseLayerIndex);
 
             //MASKS
             //Upload alpha Layers Used
@@ -2389,13 +2263,12 @@ namespace MVCore.GMDL
             //}
 
             //Upload Mask Textures -- Alpha Masks???
-            //Mask Mixing mixes r channels without alpha
-            //loc = GL.GetUniformLocation(pass_program, "m_lbaseLayerFsUsed");
-            //for (int i = 0; i < 8; i++)
-            //{
-            //    if (masktextures[i] != null) GL.Uniform1(loc + i, 1.0f);
-            //    else GL.Uniform1(loc + i, 0.0f);
-            //}
+            loc = GL.GetUniformLocation(pass_program, "m_lbaseLayersUsed");
+            for (int i = 0; i < 8; i++)
+            {
+                if (masktextures[i] != null) GL.Uniform1(loc + i, 1.0f);
+                else GL.Uniform1(loc + i, 0.0f);
+            }
 
             for (int i = 0; i < 8; i++)
             {
@@ -2432,6 +2305,7 @@ namespace MVCore.GMDL
                 if (normaltextures[i] != null) GL.Uniform1(loc + i, 1.0f);
                 else GL.Uniform1(loc + i, 0.0f);
             }
+
             for (int i = 0; i < 8; i++)
             {
                 int active_id = i;
@@ -2472,77 +2346,54 @@ namespace MVCore.GMDL
             GL.DrawBuffers(3, new DrawBuffersEnum[] { DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment2 });
 
             //Set Viewport
-            GL.Viewport(0, 0, texsize, texsize);
+            GL.Viewport(0, 0, texWidth, texHeight);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             //GL.Disable(EnableCap.DepthTest);
             //GL.Enable(EnableCap.Blend);
             //GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
-            
-            GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
+
+            GL.BindVertexArray(MVCore.Common.RenderState.activeResMgr.GLPrimitiveVaos["default_renderquad"].vao_id);
+            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
+            GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, IntPtr.Zero);
+            //GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
 
             //Console.WriteLine("MixTextures5, Last GL Error: " + GL.GetError());
 
-            //Store Framebuffer to Disk
-            byte[] pixels = new byte[4 * texsize * texsize];
-            //GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
-            
-            //Diffuse
-            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-            //GL.BindTexture(TextureTarget.Texture2D, out_tex_diffuse);
-            //GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
-#if true
-            GL.ReadPixels(0, 0, texsize, texsize, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
-            Bitmap bmp = new Bitmap(texsize, texsize);
-            for (int i=0; i < texsize; i++)
-                for (int j = 0; j < texsize; j++)
-                    bmp.SetPixel(i, j, Color.FromArgb((int)pixels[4 * (texsize * i + j) + 3],
-                                                        (int) pixels[4*(texsize * i + j) + 0],
-                                                        (int) pixels[4 * (texsize * i + j) + 1],
-                                                        (int) pixels[4 * (texsize * i + j) + 2]));
-            bmp.Save("Temp//framebuffer_raw_diffuse_" + name + ".bmp", ImageFormat.Bmp);
-#endif
-            //Store Texture to material
+            //Store Diffuse Texture to material
             fDiffuseMap.bufferID = out_tex_diffuse;
-            
-            
-            GL.ReadBuffer(ReadBufferMode.ColorAttachment1);
-            //GL.BindTexture(TextureTarget.Texture2D, out_tex_mask);
-            //GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
-#if TEST
-            GL.ReadPixels(0, 0, texsize, texsize, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
-            fs = new FileStream("framebuffer_raw_mask_" + name, FileMode.Create);
-            bw = new BinaryWriter(fs);
-            bw.Write(pixels);
-            fs.Flush();
-            fs.Close();
-#endif
-            //Store Texture to material
+            //Store Mask Texture to material
             fMaskMap.bufferID = out_tex_mask;
-        
-
-            GL.ReadBuffer(ReadBufferMode.ColorAttachment2);
-            //GL.BindTexture(TextureTarget.Texture2D, out_tex_normal);
-            //GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
-#if TEST
-            GL.ReadPixels(0, 0, texsize, texsize, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
-            FileStream fs = new FileStream("framebuffer_raw_normal_" + name, FileMode.Create);
-            BinaryWriter bw = new BinaryWriter(fs);
-            bw.Write(pixels);
-            fs.Flush();
-            fs.Close();
-#endif
-            //Store Texture to material
+            //Store Normal Texture to material
             fNormalMap.bufferID = out_tex_normal;
 
+#if DEBUG
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+            dump_texture("diffuse", texWidth, texHeight);
+
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment1);
+            dump_texture("mask", texWidth, texHeight);
+
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment2);
+            dump_texture("normal", texWidth, texHeight);
+#endif
+
             //Bring Back screen
-            //GL.Disable(EnableCap.Multisample);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-            GL.DisableVertexAttribArray(0);
-            GL.DisableVertexAttribArray(1);
-            GL.DeleteBuffer(quad_vbo);
-            GL.DeleteBuffer(quad_ebo);
             GL.DeleteFramebuffer(fb_diffuse);
-            
+        }
+
+        private void dump_texture(string name, int width, int height)
+        {
+            var pixels = new byte[4 * width * height];
+            GL.ReadPixels(0, 0, width, height, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
+            var bmp = new Bitmap(width, height);
+            for (int i = 0; i < height; i++)
+            for (int j = 0; j < width; j++)
+                bmp.SetPixel(j, i, Color.FromArgb(pixels[4 * (width * i + j) + 3],
+                    (int)pixels[4 * (width * i + j) + 0],
+                    (int)pixels[4 * (width * i + j) + 1],
+                    (int)pixels[4 * (width * i + j) + 2]));
+            bmp.Save("Temp//framebuffer_raw_"+ name + "_" + this.name + ".png", ImageFormat.Png);
         }
 
         public void Dispose()
@@ -2665,6 +2516,7 @@ namespace MVCore.GMDL
         public bool containsAlphaMap;
         public PaletteOpt palOpt;
         public Vector4 procColor;
+        public Vector3 avgColor;
         public PixelFormat pf;
         //public DDSImage ddsImage;
         //Attach mask and normal textures to the diffuse
@@ -2730,19 +2582,84 @@ namespace MVCore.GMDL
             //Upload to GPU
             bufferID = GL.GenTexture();
             GL.BindTexture(TextureTarget.Texture2D, bufferID);
+            //GL.CompreTextureStorage2D(bufferID, ddsImage.header.dwMipMapCount, SizedInternalFormat.rgba, width, height);
+            //Console.WriteLine(GL.GetError());
             GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, this.pif,
                 this.width, this.height, 0, ddsImage.header.dwPitchOrLinearSize, ddsImage.bdata);
-            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+            //Console.WriteLine(GL.GetError());
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureLodBias, -0.2f);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int) TextureWrapMode.Repeat);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int) TextureWrapMode.Repeat);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D); //Generate Mipmaps from the base level
+            //Console.WriteLine(GL.GetError());
+
+            //Use anisotropic filtering
+            float af_amount = GL.GetFloat((GetPName)All.MaxTextureMaxAnisotropy);
+            af_amount = (float) Math.Max(af_amount, 4.0f);
+            GL.TexParameter(TextureTarget.Texture2D,  (TextureParameterName) 0x84FE, af_amount);
+
+            int max_level = 0;
+            GL.GetTexParameter(TextureTarget.Texture2D, GetTextureParameter.TextureMaxLevel, out max_level);
+            int base_level = 0;
+            GL.GetTexParameter(TextureTarget.Texture2D, GetTextureParameter.TextureBaseLevel, out base_level);
+
+            int maxsize = Math.Max(height, width);
+            int p = (int) Math.Floor(Math.Log(maxsize, 2)) + base_level;
+            int q = Math.Min(p, max_level);
+
+            //Get lowest calculated mipmap
+            byte[] pixels = new byte[8];
+            /*
+            byte[] pixels00 = new byte[1024 * 1024 / 2];
+            byte[] pixels01 = new byte[512 * 512 / 2];
+            byte[] pixels02 = new byte[256 * 256 / 2];
+            byte[] pixels03 = new byte[128 * 128 / 2];
+            byte[] pixels04 = new byte[64 * 64 / 2];
+            byte[] pixels05 = new byte[32 * 32 / 2];
+            byte[] pixels06 = new byte[16 * 16 / 2];
+            byte[] pixels07 = new byte[8 * 8 / 2];
+            byte[] pixels08 = new byte[4 * 4 / 2];
+            byte[] pixels10 = new byte[8];
+            byte[] pixels11 = new byte[8];
+            */
+            
+            //Save to disk
+            GL.GetCompressedTexImage(TextureTarget.Texture2D, q-1, pixels);
+            //File.WriteAllBytes("Temp\\level" + (q-1).ToString(), pixels);
             
             
+            /*
+            GL.GetCompressedTexImage(TextureTarget.Texture2D, 0, pixels00);
+            GL.GetCompressedTexImage(TextureTarget.Texture2D, 1, pixels01);
+            GL.GetCompressedTexImage(TextureTarget.Texture2D, 2, pixels02);
+            GL.GetCompressedTexImage(TextureTarget.Texture2D, 3, pixels03);
+            GL.GetCompressedTexImage(TextureTarget.Texture2D, 4, pixels04);
+            GL.GetCompressedTexImage(TextureTarget.Texture2D, 5, pixels05);
+            GL.GetCompressedTexImage(TextureTarget.Texture2D, 6, pixels06);
+            GL.GetCompressedTexImage(TextureTarget.Texture2D, 7, pixels07);
+            GL.GetCompressedTexImage(TextureTarget.Texture2D, 8, pixels08);
+            GL.GetCompressedTexImage(TextureTarget.Texture2D, 9, pixels09);
+            GL.GetCompressedTexImage(TextureTarget.Texture2D, 10, pixels10);
+            GL.GetCompressedTexImage(TextureTarget.Texture2D, 11, pixels11);
+            
+            File.WriteAllBytes("level0", pixels00);
+            File.WriteAllBytes("level1", pixels01);
+            File.WriteAllBytes("level2", pixels02);
+            File.WriteAllBytes("level3", pixels03);
+            File.WriteAllBytes("level4", pixels04);
+            File.WriteAllBytes("level5", pixels05);
+            File.WriteAllBytes("level6", pixels06);
+            File.WriteAllBytes("level7", pixels07);
+            File.WriteAllBytes("level8", pixels08);
+            File.WriteAllBytes("level9", pixels09);
+            File.WriteAllBytes("level10", pixels10);
+            File.WriteAllBytes("level11", pixels11);
+             */
 
 
-
+            avgColor = getAvgColor(pixels);
 
             ddsImage = null;
         }
@@ -2770,6 +2687,72 @@ namespace MVCore.GMDL
             disposed = true;
         }
 
+        private Vector3 getAvgColor(byte[] pixels)
+        {
+            //Assume that I have the 4x4 mipmap
+            //I need to fetch the first 2 colors and calculate the Average
+
+            MemoryStream ms = new MemoryStream(pixels);
+            BinaryReader br = new BinaryReader(ms);
+
+            int color0 = br.ReadUInt16();
+            int color1 = br.ReadUInt16();
+
+            br.Close();
+
+            int rmask = 0x1F << 11;
+            int gmask = 0x3F << 5;
+            int bmask = 0x1F;
+            uint temp;
+
+            temp = (uint) (color0 >> 11) * 255 + 16;
+            char r0 = (char)((temp / 32 + temp) / 32);
+            temp = (uint)((color0 & 0x07E0) >> 5) * 255 + 32;
+            char g0 = (char)((temp / 64 + temp) / 64);
+            temp = (uint)(color0 & 0x001F) * 255 + 16;
+            char b0 = (char)((temp / 32 + temp) / 32);
+
+            temp = (uint)(color1 >> 11) * 255 + 16;
+            char r1 = (char)((temp / 32 + temp) / 32);
+            temp = (uint)((color1 & 0x07E0) >> 5) * 255 + 32;
+            char g1 = (char)((temp / 64 + temp) / 64);
+            temp = (uint)(color1 & 0x001F) * 255 + 16;
+            char b1 = (char)((temp / 32 + temp) / 32);
+
+            char red = (char) (((int) ( r0 + r1)) / 2);
+            char green = (char)(((int)(g0 + g1)) / 2);
+            char blue = (char)(((int)(b0 + b1)) / 2);
+            
+
+            return new Vector3(red / 256.0f, green / 256.0f, blue / 256.0f);
+            
+        }
+
+        private ulong PackRGBA( char r, char g, char b, char a)
+        {
+            return (ulong) ((r << 24) | (g << 16) | (b << 8) | a);
+        }
+
+        // void DecompressBlockDXT1(): Decompresses one block of a DXT1 texture and stores the resulting pixels at the appropriate offset in 'image'.
+        //
+        // unsigned long x:						x-coordinate of the first pixel in the block.
+        // unsigned long y:						y-coordinate of the first pixel in the block.
+        // unsigned long width: 				width of the texture being decompressed.
+        // unsigned long height:				height of the texture being decompressed.
+        // const unsigned char *blockStorage:	pointer to the block to decompress.
+        // unsigned long *image:				pointer to image where the decompressed pixel data should be stored.
+
+        private void DecompressBlockDXT1(ulong x, ulong y, ulong width, byte[] blockStorage, byte[] image)
+        {
+
+            long temp;
+
+            
+ 
+	
+        }
+
+
         ~Texture()
         {
             Dispose(false);
@@ -2784,7 +2767,7 @@ namespace MVCore.GMDL
         public int jointIndex;
         public Vector3 color;
 
-        public Joint()
+        public Joint() :base(0.1f)
         {
             //Create Buffers
             GL.GenBuffers(1, out vertex_buffer_object);
@@ -2951,6 +2934,8 @@ namespace MVCore.GMDL
             type = TYPES.LIGHT;
             GL.GenBuffers(1, out vertex_buffer_object);
             GL.GenBuffers(1, out element_buffer_object);
+            if (GL.GetError() != ErrorCode.NoError)
+                Console.WriteLine(GL.GetError());
         }
 
         private void renderMain(int pass)
@@ -2958,7 +2943,7 @@ namespace MVCore.GMDL
             GL.UseProgram(pass);
 
             //Draw Single Points
-            float[] vertsf = new float[9];
+            float[] vertsf = new float[3];
             int[] indices = new int[1];
             indices[0] = 0;
             

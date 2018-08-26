@@ -189,22 +189,7 @@ namespace TextureMixer
         {
             Debug.WriteLine("Rendering");
 
-            // Attach to Shaders
-            int vpos, cpos;
-            int arraysize = sizeof(float) * 6 * 3;
-            //Vertex attribute
-            //Bind vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, quad_vbo);
-            vpos = GL.GetAttribLocation(shader_program, "vPosition");
-            GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.Float, false, 0, 0);
-            GL.EnableVertexAttribArray(vpos);
-
-            cpos = GL.GetAttribLocation(shader_program, "vColor");
-            GL.VertexAttribPointer(cpos, 3, VertexAttribPointerType.Float, false, 0, (IntPtr)arraysize);
-            GL.EnableVertexAttribArray(cpos);
-
-            //Bind elem buffer
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, quad_ebo);
+            MVCore.GMDL.mainVAO vao = new MVCore.Primitives.Quad().getVAO();
 
             //BIND TEXTURES
             Texture tex;
@@ -222,10 +207,13 @@ namespace TextureMixer
             //GL.BlendFunc(BlendingFactorSrc.ConstantAlpha, BlendingFactorDest.OneMinusConstantAlpha);
 
             //Upload base Layers Used
+            int baseLayerIndex = 0;
             for (int i = 0; i < 8; i++)
             {
-                loc = GL.GetUniformLocation(shader_program, "lbaseLayersUsed[" + i.ToString() + "]");
+                loc = GL.GetUniformLocation(shader_program, "d_lbaseLayersUsed[" + i.ToString() + "]");
                 GL.Uniform1(loc, baseLayersUsed[i]);
+                if (baseLayersUsed[i] > 0.0f)
+                    baseLayerIndex = i;
             }
 
             for (int i = 0; i < 8; i++)
@@ -252,20 +240,22 @@ namespace TextureMixer
                 else
                     GL.Uniform1(loc, 0.0f);
 
-                //Upload PaletteColor
-                //loc = GL.GetUniformLocation(pass_program, "palColors[" + i.ToString() + "]");
-                //Use Texture paletteOpt and object palette to load the palette color
-                //GL.Uniform3(loc, palette[tex.palOpt.PaletteName][tex.palOpt.ColorName]);
+                //Upload average Color
+                loc = GL.GetUniformLocation(shader_program, "lAverageColors[" + i.ToString() + "]");
+                GL.Uniform4(loc, tex.avgColor.X, tex.avgColor.Y, tex.avgColor.Z, 1.0f); 
 
                 GL.ActiveTexture((OpenTK.Graphics.OpenGL4.TextureUnit)(tex0Id + i));
                 GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
-                
+            
             }
 
             //TESTING MASKS
             //SETTING HASALPHACHANNEL FLAG TO FALSE
             loc = GL.GetUniformLocation(shader_program, "hasAlphaChannel");
             GL.Uniform1(loc, hasAlphaChannel);
+
+            loc = GL.GetUniformLocation(shader_program, "baseLayerIndex");
+            GL.Uniform1(loc, baseLayerIndex);
 
             //Toggle mask-diffuse
             loc = GL.GetUniformLocation(shader_program, "mode");
@@ -318,10 +308,8 @@ namespace TextureMixer
             //RENDERING PHASE
             //GL.Enable(EnableCap.Blend);
             //GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
+            GL.BindVertexArray(vao.vao_id);
             GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
-
-            GL.DisableVertexAttribArray(vpos);
-            GL.DisableVertexAttribArray(cpos);
         }
 
         //Context Menus on ListBox
@@ -422,8 +410,6 @@ namespace TextureMixer
             ToolStripMenuItem sitem = ((ToolStripMenuItem)sender);
             ListView lbox = ((customStrip)sitem.Owner).lBox;
 
-            Debug.WriteLine(lbox.SelectedItems);
-
             int index = lbox.SelectedIndices[0];
 
             //Color Dialog
@@ -432,11 +418,9 @@ namespace TextureMixer
             DialogResult res = coldiag.ShowDialog();
             if (res == DialogResult.OK)
             {
-                for (int i = 0; i < 8; i++)
-                {
-                    lbox.Items[i].BackColor = coldiag.Color;
-                    reColours[i] = new float[] { (int)coldiag.Color.R / 256.0f, (int)coldiag.Color.G / 256.0f, (int)coldiag.Color.B / 256.0f, 1.0f };
-                }
+                
+                lbox.Items[index].BackColor = coldiag.Color;
+                reColours[index] = new float[] { (int)coldiag.Color.R / 256.0f, (int)coldiag.Color.G / 256.0f, (int)coldiag.Color.B / 256.0f, 1.0f };
                 
             }
             else
@@ -445,10 +429,37 @@ namespace TextureMixer
                 reColours[index] = new float[] { 1.0f, 1.0f, 1.0f, 0.0f };
             }
 
-            Debug.WriteLine(reColours[index][0]);
+            Console.WriteLine("RGB: {0} {1} {2}", reColours[index][0], reColours[index][1], reColours[index][2]);
+            Vector3 hsv = RGBToHSV(new Vector3(reColours[index][0], reColours[index][1], reColours[index][2]));
+            Console.WriteLine("HSV: {0} {1} {2}", hsv.X, hsv.Y, hsv.Z);
             glControl1.Invalidate();
 
         }
+
+        private Vector3 RGBToHSV(Vector3 c)
+        {
+            Vector4 K = new Vector4(0.0f, -1.0f / 3.0f, 2.0f / 3.0f, -1.0f);
+            Vector4 p = mix(new Vector4(c.Y, c.Z, K.W, K.Z), new Vector4(c.Z, c.Y, K.X, K.Y), step(c.Y, c.Z));
+            Vector4 q = mix(new Vector4(p.X, p.Y, p.W, c.X), new Vector4(c.X, p.Y, p.Z, p.X), step(p.X, c.X));
+
+            float d = q.X - (float) Math.Min(q.W, q.Y);
+            float e = 1.0e-10f;
+            return new Vector3((float) Math.Abs(q.Z + (q.W - q.Y) / (6.0 * d + e)), d / (q.X + e), q.X);
+        }
+
+        private Vector4 mix(Vector4 x, Vector4 y, float a)
+        {
+            return (1 - a) * x + a * y;
+        }
+
+        private float step(float a, float b)
+        {
+            if (b < a)
+                return 0.0f;
+            return 1.0f;
+        }
+
+        
 
         private void checkBox1_CheckedChanged(object sender, EventArgs e)
         {
@@ -511,6 +522,9 @@ namespace TextureMixer
 
         }
     }
+
+
+    
 
     public class customStrip: System.Windows.Forms.ContextMenuStrip
     {

@@ -28,10 +28,12 @@ namespace MVCore.Common
     //Delegates - Function Types for Callbacks
     public delegate void UpdateStatusCallBack(string msg);
     public delegate void OpenAnimCallBack(string filepath, MVCore.GMDL.scene animScene);
+    public delegate void LogCallBack(string msg);
 
     public static class CallBacks
     {
         public static UpdateStatusCallBack updateStatus = null;
         public static OpenAnimCallBack openAnim = null;
+        public static LogCallBack Log = null;
     }
 }

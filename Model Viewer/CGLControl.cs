@@ -18,6 +18,8 @@ using CullFaceMode = OpenTK.Graphics.OpenGL.CullFaceMode;
 using EnableCap = OpenTK.Graphics.OpenGL.EnableCap;
 using GL = OpenTK.Graphics.OpenGL.GL;
 using PolygonMode = OpenTK.Graphics.OpenGL.PolygonMode;
+using System.ComponentModel;
+using System.Threading;
 
 namespace Model_Viewer
 {
@@ -76,10 +78,9 @@ namespace Model_Viewer
         private OpenFileDialog openFileDialog1;
         private System.ComponentModel.BackgroundWorker backgroundWorker1;
         private Form pform;
-        private ToolStripMenuItem recolourToolStripMenuItem;
 
         //Timer
-        public Timer t;
+        public System.Windows.Forms.Timer t;
 
         //Control Font and Text Objects
         public FontGL font;
@@ -94,6 +95,9 @@ namespace Model_Viewer
         public KeyboardHandler kbHandler;
         private bool disposed;
         public Microsoft.Win32.SafeHandles.SafeFileHandle handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(IntPtr.Zero, true);
+
+        private BackgroundWorker bw = new BackgroundWorker();
+        private Thread rendering_thread;
 
         private void registerFunctions()
         {
@@ -110,7 +114,7 @@ namespace Model_Viewer
         }
 
         //Default Constructor
-        public CGLControl()
+        public CGLControl(): base(new GraphicsMode(32, 24, 0, 8))
         {
             registerFunctions();
 
@@ -119,13 +123,20 @@ namespace Model_Viewer
             this.light_angle_y = 190;
 
             //Assign new palette to GLControl
-            palette = Model_Viewer.Palettes.createPalette();
+            //palette = Model_Viewer.Palettes.createPalette();
+            palette = Model_Viewer.Palettes.createPalettefromBasePalettes();
 
             //Control Timer
-            t = new Timer();
+            t = new System.Windows.Forms.Timer();
             t.Tick += new System.EventHandler(timer_ticker);
             t.Interval = 10;
             t.Start();
+
+            //Setup rendering thread
+            Context.MakeCurrent(null);
+            rendering_thread = new Thread(RenderLoop);
+            rendering_thread.IsBackground = true;
+            rendering_thread.Start();
 
         }
 
@@ -142,22 +153,17 @@ namespace Model_Viewer
             this.light_angle_y = 190;
 
             //Assign new palette to GLControl
-            palette = Model_Viewer.Palettes.createPalette();
+            palette = Model_Viewer.Palettes.createPalettefromBasePalettes();
 
             //Set parent form
             if (parent != null)
                 pform = parent;
 
             //Control Timer
-            t = new Timer();
+            t = new System.Windows.Forms.Timer();
             t.Tick += new System.EventHandler(timer_ticker);
             t.Interval = 10;
             t.Start();
-        }
-
-        public void unsubscribePaint()
-        {
-            this.Paint -= genericPaint;
         }
 
         //glControl Timer
@@ -181,6 +187,9 @@ namespace Model_Viewer
             mvp = activeCam.viewMat; //Full mvp matrix
             MVCore.Common.RenderState.mvp = mvp;
             occludedNum = 0; //Reset Counter
+
+            //Update Custom Light Position
+            updateLightPosition(0);
 
             //Simply invalidate the gl control
             //glControl1.MakeCurrent();
@@ -262,9 +271,50 @@ namespace Model_Viewer
             {
                 MathUtils.mulMatArrays(ref g.skinMats, g.invBMats, g.rootObject.JMArray, 256);
             }
+
+
+            
         }
 
         //Main Rendering Routines
+        private void RenderLoop()
+        {
+            this.MakeCurrent();
+            //Update per frame data
+            frameUpdate();
+
+            gbuf?.start();
+
+            //Console.WriteLine(active_fbo);
+            render_scene();
+
+            //Store the dumps
+
+            //gbuf.dump();
+            //render_decals();
+
+            //render_cameras();
+
+            if (RenderOptions.RenderLights)
+                render_lights();
+
+            //Dump Gbuffer
+            //gbuf.dump();
+            //System.Threading.Thread.Sleep(1000);
+
+            //Render Deferred
+            gbuf.render();
+
+            //No need to blit without a renderbuffer
+            //gbuf?.stop();
+
+            //Render info right on the 0 buffer
+            if (RenderOptions.RenderInfo)
+                render_info();
+
+            this.SwapBuffers();
+        }
+
 
         private void render_scene()
         {
@@ -284,13 +334,24 @@ namespace Model_Viewer
 
         }
 
+        private void render_lights()
+        {
+            int active_program = MVCore.Common.RenderState.activeResMgr.shader_programs[7];
+            GL.UseProgram(active_program);
+            
+            //Send mvp to all shaders
+            int loc = GL.GetUniformLocation(active_program, "mvp");
+            GL.UniformMatrix4(loc, false, ref mvp);
+            resMgr.GLlights[0].render(0);
+        }
+
         private void render_info()
         {
-            this.MakeCurrent();
-            GL.Clear(ClearBufferMask.DepthBufferBit);
+            //GL.Clear(ClearBufferMask.DepthBufferBit);
             GL.Enable(EnableCap.Blend);
             GL.Disable(EnableCap.DepthTest);
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            GL.PolygonMode(OpenTK.Graphics.OpenGL.MaterialFace.FrontAndBack, PolygonMode.Fill);
 
             GL.UseProgram(MVCore.Common.RenderState.activeResMgr.shader_programs[4]);
 
@@ -298,7 +359,7 @@ namespace Model_Viewer
             int loc;
             loc = GL.GetUniformLocation(this.resMgr.shader_programs[4], "w");
             GL.Uniform1(loc, (float) this.Width);
-            loc = GL.GetUniformLocation(MVCore.Common.RenderState.activeResMgr.shader_programs[4], "h");
+            loc = GL.GetUniformLocation(this.resMgr.shader_programs[4], "h");
             GL.Uniform1(loc, (float) this.Height);
 
             fps();
@@ -369,18 +430,25 @@ namespace Model_Viewer
                 loc = GL.GetUniformLocation(active_program, "diffuseFlag");
                 GL.Uniform1(loc, RenderOptions.UseTextures);
 
+                //Upload Selected Flag
+                loc = GL.GetUniformLocation(active_program, "use_lighting");
+                GL.Uniform1(loc, RenderOptions.UseLighting);
+
+                //Upload Selected Flag
+                loc = GL.GetUniformLocation(active_program, "selected");
+                GL.Uniform1(loc, root.selected);
+
                 //Object program
                 //Local Transformation is the same for all objects 
                 //Pending - Personalize local matrix on each object
-                loc = GL.GetUniformLocation(active_program, "scale");
-                GL.Uniform1(loc, this.scale);
-
                 loc = GL.GetUniformLocation(active_program, "light");
                 GL.Uniform3(loc, this.resMgr.GLlights[0].localPosition);
 
                 //Upload Light Intensity
                 loc = GL.GetUniformLocation(active_program, "intensity");
-                GL.Uniform1(loc, 1.0f);
+                //GL.Uniform1(loc, this.resMgr.GLlights[0].intensity);
+                GL.Uniform1(loc, light_intensity);
+
 
                 //Upload camera position as the light
                 //GL.Uniform3(loc, cam.Position);
@@ -411,23 +479,18 @@ namespace Model_Viewer
             this.InitializeComponent();
             this.Size = new System.Drawing.Size(640, 480);
             this.MakeCurrent();
-            GL.Viewport(0, 0, this.ClientSize.Width, this.ClientSize.Height);
-            GL.ClearColor(RenderOptions.clearColor);
-            GL.Enable(EnableCap.DepthTest);
-            //glControl1.SwapBuffers();
-            //glControl1.Invalidate();
-            //Debug.WriteLine("GL Cleared");
-            //Debug.WriteLine(GL.GetError());
+            
+            //No Gbuffer Options
+            //GL.Viewport(0, 0, this.ClientSize.Width, this.ClientSize.Height);
+            //GL.ClearColor(RenderOptions.clearColor);
         }
 
         private void genericPaint(object sender, EventArgs e)
         {
-
+            this.MakeCurrent();
             //Update per frame data
             frameUpdate();
             
-            this.MakeCurrent();
-            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             gbuf?.start();
 
             //Console.WriteLine(active_fbo);
@@ -439,24 +502,25 @@ namespace Model_Viewer
             //render_decals();
 
             //render_cameras();
-            //render_lights();
 
-            //LEAKING UNMANAGED RESOURCES
-            render_info();
+            if (RenderOptions.RenderLights)
+                render_lights();
 
-            //gbuf.stop();
+            //Dump Gbuffer
+            //gbuf.dump();
+            //System.Threading.Thread.Sleep(1000);
 
             //Render Deferred
-            //gbuf.render();
-            gbuf.blit();
+            gbuf.render();
+
+            //No need to blit without a renderbuffer
+            //gbuf?.stop();
+
+            //Render info right on the 0 buffer
+            if (RenderOptions.RenderInfo)
+                render_info();
 
             this.SwapBuffers();
-
-            //translate_View();
-            ////Draw scene
-            //Update Joystick 
-
-            //Console.WriteLine("Painting Control");
         }
 
         private void genericMouseMove(object sender, MouseEventArgs e)
@@ -490,12 +554,10 @@ namespace Model_Viewer
                 case Keys.Q:
                     for (int i=0;i<movement_speed;i++)
                         this.rot.Y -= 4.0f;
-                    //activeCam.AddRotation(-4.0f,0.0f);
                     break;
                 case Keys.E:
                     for (int i = 0; i < movement_speed; i++)
                         this.rot.Y += 4.0f;
-                    //activeCam.AddRotation(4.0f, 0.0f);
                     break;
                 case Keys.Z:
                     for (int i = 0; i < movement_speed; i++)
@@ -508,19 +570,15 @@ namespace Model_Viewer
                 //Light Rotation
                 case Keys.N:
                     this.light_angle_y -= 1;
-                    updateLightPosition(0);
                     break;
                 case Keys.M:
                     this.light_angle_y += 1;
-                    updateLightPosition(0);
                     break;
                 case Keys.Oemcomma:
                     this.light_angle_x -= 1;
-                    updateLightPosition(0);
                     break;
                 case Keys.OemPeriod:
                     this.light_angle_x += 1;
-                    updateLightPosition(0);
                     break;
                 /*
                 //Toggle Wireframe
@@ -595,7 +653,6 @@ namespace Model_Viewer
             this.loadAnimationToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
             this.backgroundWorker1 = new System.ComponentModel.BackgroundWorker();
-            this.recolourToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.contextMenuStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -603,22 +660,21 @@ namespace Model_Viewer
             // 
             this.contextMenuStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.exportToObjToolStripMenuItem,
-            this.loadAnimationToolStripMenuItem,
-            this.recolourToolStripMenuItem});
+            this.loadAnimationToolStripMenuItem});
             this.contextMenuStrip1.Name = "contextMenuStrip1";
-            this.contextMenuStrip1.Size = new System.Drawing.Size(160, 92);
+            this.contextMenuStrip1.Size = new System.Drawing.Size(181, 70);
             // 
             // exportToObjToolStripMenuItem
             // 
             this.exportToObjToolStripMenuItem.Name = "exportToObjToolStripMenuItem";
-            this.exportToObjToolStripMenuItem.Size = new System.Drawing.Size(159, 22);
+            this.exportToObjToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
             this.exportToObjToolStripMenuItem.Text = "Export to obj";
             this.exportToObjToolStripMenuItem.Click += new System.EventHandler(this.exportToObjToolStripMenuItem_Click);
             // 
             // loadAnimationToolStripMenuItem
             // 
             this.loadAnimationToolStripMenuItem.Name = "loadAnimationToolStripMenuItem";
-            this.loadAnimationToolStripMenuItem.Size = new System.Drawing.Size(159, 22);
+            this.loadAnimationToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
             this.loadAnimationToolStripMenuItem.Text = "Load Animation";
             this.loadAnimationToolStripMenuItem.Click += new System.EventHandler(this.loadAnimationToolStripMenuItem_Click);
             // 
@@ -632,13 +688,6 @@ namespace Model_Viewer
             this.backgroundWorker1.WorkerSupportsCancellation = true;
             this.backgroundWorker1.DoWork += new System.ComponentModel.DoWorkEventHandler(this.backgroundWorker1_DoWork);
             this.backgroundWorker1.ProgressChanged += new System.ComponentModel.ProgressChangedEventHandler(this.backgroundWorker1_ProgressChanged);
-            // 
-            // recolourToolStripMenuItem
-            // 
-            this.recolourToolStripMenuItem.Name = "recolourToolStripMenuItem";
-            this.recolourToolStripMenuItem.Size = new System.Drawing.Size(159, 22);
-            this.recolourToolStripMenuItem.Text = "Recolour";
-            this.recolourToolStripMenuItem.Click += new System.EventHandler(this.reColourToolStripMenuItem_Click);
             // 
             // CGLControl
             // 
@@ -703,20 +752,8 @@ namespace Model_Viewer
 
         private void loadAnimationToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Debug.WriteLine("Loading Animation");
-            //Opening Animation File
-            Debug.WriteLine("Opening Animation File");
-
-            //Opening Animation File
-            Debug.WriteLine("Opening File");
-
             AnimationSelectForm aform = new AnimationSelectForm(this);
             aform.Show();
-        }
-
-        private void reColourToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            Console.WriteLine("Recolouring GLControl " + ((CGLControl) sender).index);
         }
 
         //Setup
@@ -725,18 +762,18 @@ namespace Model_Viewer
             addDefaultLights();
             addDefaultTextures();
             addCameras();
+            addDefaultPrimitives();
 
-            //Init Gbuffer
-            ResourceMgr oldmgmt = MVCore.Common.RenderState.activeResMgr;
-            MVCore.Common.RenderState.activeResMgr = this.resMgr;
+            //Create gbuffer
             gbuf = new GBuffer(this.resMgr, this.Size.Width, this.Size.Height);
-            MVCore.Common.RenderState.activeResMgr = oldmgmt;
+            gbuf.init();
+
         }
 
         private void addCameras()
         {
             //Set Camera position
-            activeCam = new Camera(60, this.resMgr.shader_programs[8], 0, false);
+            activeCam = new Camera(60, this.resMgr.shader_programs[8], 0, true);
             for (int i = 0; i < 20; i++)
                 activeCam.Move(0.0f, -0.1f, 0.0f);
 
@@ -770,13 +807,54 @@ namespace Model_Viewer
 
         }
 
+        private void addDefaultPrimitives()
+        {
+            MVCore.Primitives.Quad q = new MVCore.Primitives.Quad(1.0f, 1.0f);
+            //Default quad
+            resMgr.GLPrimitiveVaos["default_quad"] = q.getVAO();
+
+            q = new MVCore.Primitives.Quad();
+            //Default quad
+            resMgr.GLPrimitiveVaos["default_renderquad"] = q.getVAO();
+
+            MVCore.Primitives.Cross c = new MVCore.Primitives.Cross();
+            //Default cross
+            resMgr.GLPrimitiveVaos["default_cross"] = c.getVAO();
+        }
+
         public void addRootScene(string filename)
         {
+
+            //Prepare backgroundworker to load the new scene
+            bw.DoWork += Bw_LoadGeomObjects;
+            //bw.RunWorkerAsync(filename);
+
+            Thread thread = new Thread(() =>
+            {
+                IGraphicsContext context = new GraphicsContext(GraphicsMode.Default, this.WindowInfo);
+                context.MakeCurrent(this.WindowInfo);
+                //Render code here
+                Console.WriteLine("New Thread Rendering");
+            });
+            thread.Start();
+
+        }
+
+        private void Bw_LoadGeomObjects(object sender, DoWorkEventArgs e)
+        {
+            string filename = (string)e.Argument;
+            
+            //Once the new scene has been loaded, 
             //Initialize Palettes
             Model_Viewer.Palettes.set_palleteColors();
 
             t.Stop();
-            
+            this.Paint -= this.genericPaint;
+
+            //Create a new graphics context for the backgroundworker
+            GraphicsContext context = new GraphicsContext(GraphicsMode.Default, this.WindowInfo);
+            context.MakeCurrent(this.WindowInfo);
+
             //Clear Form Resources
             resMgr.Cleanup();
             ModelProcGen.procDecisions.Clear();
@@ -785,28 +863,28 @@ namespace Model_Viewer
             //Throw away the old model
             rootObject.Dispose(); //Prevent rendering
             rootObject = null;
-            
+
             //Reload Default Resources
             this.setupControlParameters();
-
 
             //Setup new object
             scene new_scn = GEOMMBIN.LoadObjects(filename);
             rootObject = new_scn;
-            
+
             //find Animation Capable Scenes
             this.findAnimScenes();
 
-            Update();
-            Invalidate();
-
             //Restart timer
-            t.Start();
+            Paint += genericPaint;
+            //genericResize(null, new EventArgs()); //Setup the viewport again
+            this.Invalidate();
+            this.Update();
+
         }
 
-        
+
         //Light Functions
-    
+
         private void addDefaultLights()
         {
             //Add one and only light for now
@@ -823,12 +901,12 @@ namespace Model_Viewer
 
         public void updateLightPosition(int light_id)
         {
-            Light light = (Light) this.resMgr.GLlights[light_id];
-            light.updatePosition(new Vector3 ((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                            Math.Sin(this.light_angle_y * Math.PI / 180.0)),
-                                                (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
-                                                (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                            Math.Cos(this.light_angle_y * Math.PI / 180.0))));
+            Light light = resMgr.GLlights[light_id];
+            light.updatePosition(new Vector3 ((float)(light_distance * Math.Cos(MathUtils.radians(light_angle_x)) *
+                                                            Math.Sin(MathUtils.radians(light_angle_y))),
+                                                (float)(light_distance * Math.Sin(MathUtils.radians(light_angle_x))),
+                                                (float)(light_distance * Math.Cos(MathUtils.radians(light_angle_x)) *
+                                                            Math.Cos(MathUtils.radians(light_angle_y)))));
         }
 
         private void fps()

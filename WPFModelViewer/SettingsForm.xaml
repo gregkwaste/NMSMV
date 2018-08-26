@@ -1,0 +1,36 @@
+﻿<Window x:Class="WPFModelViewer.SettingsForm"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WPFModelViewer"
+        mc:Ignorable="d"
+        Title="SettingsForm" ResizeMode="NoResize" SizeToContent="WidthAndHeight" Height="Auto" Width="Auto">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition/>
+            <RowDefinition/>
+            <RowDefinition/>
+            <RowDefinition/>
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" LastChildFill="True">
+            <TextBlock Width="300" FontSize="20">No Man's Sky GAMEDATA Folder</TextBlock>
+            <TextBox x:Name="dirpath" Width="300" FontSize="20" GotFocus="Dirpath_OnGotFocus"></TextBox>
+        </DockPanel>
+        <DockPanel Grid.Row="1" LastChildFill="True">
+            <TextBlock Width="300" FontSize="20">ProcGen Window Number</TextBlock>
+            <TextBox x:Name="procGenWinNum" Width="300"></TextBox>
+        </DockPanel>
+
+        <DockPanel Grid.Row="2" LastChildFill="True">
+            <TextBlock Width="300" FontSize="20">Force ProcGen</TextBlock>
+            <TextBox x:Name="forceProcGen" Width="300"></TextBox>
+        </DockPanel>
+
+        <DockPanel Grid.Row="3" LastChildFill="True">
+            <Button Click="saveSettings">Save Settings</Button>
+        </DockPanel>
+
+    </Grid>
+</Window>

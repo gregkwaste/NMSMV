@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -20,9 +21,11 @@ namespace WPFModelViewer
         
         //Active Gamepad ID
         public static int gamepadID;
-
         public static int procGenNum;
 
+        //Public LogFile
+        public static StreamWriter loggingSr;
+        
         //Update Status strip
         public static void setStatus(string status)
         {
@@ -36,8 +39,12 @@ namespace WPFModelViewer
             mbinf.Load();
             scn.animMeta = (libMBIN.Models.Structs.TkAnimMetadata)mbinf.GetData();
         }
-        
 
+        public static void Log(string msg)
+        {
+            loggingSr.WriteLine(msg);
+            loggingSr.Flush();
+        }
     }
 
 }

@@ -7,6 +7,51 @@ using OpenTK;
 
 namespace MVCore.Primitives
 {
+    public class Primitive
+    {
+        internal float[] verts;
+        internal float[] normals;
+        internal int[] indices;
+
+        public GMDL.mainVAO getVAO()
+        {
+            GMDL.GeomObject geom = new GMDL.GeomObject();
+
+            //Set main Geometry Info
+            geom.vertCount = verts.Length / 3;
+            geom.indicesCount = indices.Length;
+            geom.indicesLength = 0x4;
+
+            //Set Strides
+            geom.vx_size = 3 * 4; //3 Floats * 4 Bytes each
+            
+            //Set Buffer Offsets
+            geom.offsets = new int[7];
+            geom.bufInfo = new List<GMDL.bufInfo>();
+            
+            for (int i = 0; i < 7; i++)
+            {
+                geom.bufInfo.Add(null);
+                geom.offsets[i] = -1;
+            }
+
+            geom.mesh_descr = "vn";
+            geom.offsets[0] = 0;
+            geom.offsets[2] = 0;
+            geom.bufInfo[0] = new GMDL.bufInfo(0, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "vPosition");
+            geom.bufInfo[2] = new GMDL.bufInfo(2, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "nPosition");
+
+
+            //Set Buffers
+            geom.ibuffer = new byte[4 * indices.Length];
+            Buffer.BlockCopy(indices, 0, geom.ibuffer, 0, geom.ibuffer.Length);
+            geom.vbuffer = new byte[4 * verts.Length];
+            Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, geom.vbuffer.Length);
+
+            return geom.getMainVao();
+        }
+    }
+
     public class Sphere {
         private float[] verts;
         private float[] normals;
@@ -124,13 +169,8 @@ namespace MVCore.Primitives
 
     }
 
-    class Capsule
+    class Capsule : Primitive
     {
-        private float[] verts;
-        private float[] normals;
-        private int[] indices;
-
-
         //Constructor
         public Capsule(Vector3 center, float height, float radius)
         {
@@ -247,11 +287,8 @@ namespace MVCore.Primitives
 
     }
 
-    class Cylinder
+    class Cylinder : Primitive
     {
-        private float[] verts, normals;
-        private int[] indices;
-        
         //Constructor
         public Cylinder(float radius, float height)
         {
@@ -348,6 +385,7 @@ namespace MVCore.Primitives
         
         }
 
+        /*
         public GMDL.mainVAO getVAO()
         {
             GMDL.GeomObject geom = new GMDL.GeomObject();
@@ -390,13 +428,11 @@ namespace MVCore.Primitives
 
             return vao;
         }
+        */
     }
 
-    class Box
+    class Box : Primitive
     {
-        private float[] verts, normals;
-        private int[] indices;
-
         //Constructor
         public Box(float width, float height, float depth)
         {
@@ -454,38 +490,142 @@ namespace MVCore.Primitives
 
         }
 
+    }
+
+    class Quad :Primitive
+    {
+        
+        //Constructor
+        public Quad(float width, float height)
+        {
+            //Init Arrays
+
+            //Define Quad
+            verts = new float[6 * 3] {
+               -1.0f*width/2, 0.0f, -1.0f*height/2,
+                1.0f*width/2, 0.0f, -1.0f*height/2,
+               -1.0f*width/2, 0.0f,  1.0f*height/2,
+               -1.0f*width/2, 0.0f,  1.0f*height/2,
+                1.0f*width/2, 0.0f, -1.0f*height/2,
+                1.0f*width/2, 0.0f,  1.0f*height/2};
+
+            normals = new float[6 * 3] {
+                0.0f, 1.0f, 0.0f,
+                0.0f, 1.0f, 0.0f,
+                0.0f, 1.0f, 0.0f,
+                0.0f, 1.0f, 0.0f,
+                0.0f, 1.0f, 0.0f,
+                0.0f, 1.0f, 0.0f };
+
+            float[] quadcolors = new float[6 * 3]
+            {
+                1.0f, 0.0f, 0.0f,
+                0.0f, 1.0f, 0.0f,
+                1.0f,  1.0f, 0.0f,
+                1.0f,  1.0f, 0.0f,
+                0.0f, 1.0f, 0.0f,
+                0.0f,  0.0f, 1.0f
+            };
+
+            //Indices
+            indices = new Int32[2 * 3] { 0, 1, 2, 3, 4, 5 };
+
+        }
+
+        //RenderQuad Constructor
+        public Quad()
+        {
+            //Init Arrays
+            //Define Quad
+            verts = new float[6 * 3] {
+                -1.0f, -1.0f, 0.0f,
+                1.0f, -1.0f, 0.0f,
+                -1.0f,  1.0f, 0.0f,
+                -1.0f,  1.0f, 0.0f,
+                1.0f, -1.0f, 0.0f,
+                1.0f,  1.0f, 0.0f };
+
+            normals = new float[6 * 3] {
+                0.0f, 0.0f, 1.0f,
+                0.0f, 0.0f, 1.0f,
+                0.0f, 0.0f, 1.0f,
+                0.0f, 0.0f, 1.0f,
+                0.0f, 0.0f, 1.0f,
+                0.0f, 0.0f, 1.0f };
+
+            //Indices
+            indices = new Int32[2 * 3] { 0, 1, 2, 3, 4, 5 };
+        }
+    
+    }
+
+    class Cross : Primitive
+    {
+        //Constructor
+        public Cross()
+        {
+            //Set type
+            //this.type = "LOCATOR";
+            //Assemble geometry in the constructor
+            //X
+            verts = new float[6 * 3] { 1.0f, 0.0f, 0.0f,
+                   -1.0f, 0.0f, 0.0f,
+                    0.0f, 1.0f, 0.0f,
+                    0.0f, -1.0f, 0.0f,
+                    0.0f, 0.0f, 1.0f,
+                    0.0f, 0.0f, -1.0f};
+
+            int arraysize = 6 * 3;
+            int b_size = 2 * arraysize;
+            float[] verts_combined = new float[b_size];
+
+            Array.Copy(verts, 0, verts_combined, 0, arraysize);
+            //Colors
+            float[] colors = new float[6 * 3] { 1.0f, 0.0f, 0.0f,
+                    1.0f, 0.0f, 0.0f,
+                    0.0f, 1.0f, 0.0f,
+                    0.0f, 1.0f, 0.0f,
+                    0.0f, 0.0f, 1.0f,
+                    0.0f, 0.0f, 1.0f};
+
+            Array.Copy(colors, 0, verts_combined, arraysize, arraysize);
+
+            //Indices
+            indices = new Int32[2 * 3] { 0, 1, 2, 3, 4, 5 };
+
+            //Replace verts
+            verts = verts_combined;
+
+        }
+
         public GMDL.mainVAO getVAO()
         {
             GMDL.GeomObject geom = new GMDL.GeomObject();
 
             //Set main Geometry Info
-            geom.vertCount = verts.Length / 3;
+            geom.vertCount = 6;
             geom.indicesCount = indices.Length;
             geom.indicesLength = 0x4;
 
             //Set Strides
             geom.vx_size = 3 * 4; //3 Floats * 4 Bytes each
-            geom.small_mesh_descr = "";
-            geom.small_vx_size = -1;
 
             //Set Buffer Offsets
             geom.offsets = new int[7];
             geom.bufInfo = new List<GMDL.bufInfo>();
-            geom.small_offsets = new int[7];
 
             for (int i = 0; i < 7; i++)
             {
                 geom.bufInfo.Add(null);
                 geom.offsets[i] = -1;
-                geom.small_offsets[i] = -1;
             }
 
             geom.mesh_descr = "vn";
             geom.offsets[0] = 0;
             geom.offsets[2] = 0;
             geom.bufInfo[0] = new GMDL.bufInfo(0, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "vPosition");
-            geom.bufInfo[2] = new GMDL.bufInfo(2, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "nPosition");
-            
+            geom.bufInfo[2] = new GMDL.bufInfo(2, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 72, "nPosition");
+
 
             //Set Buffers
             geom.ibuffer = new byte[4 * indices.Length];
@@ -496,6 +636,5 @@ namespace MVCore.Primitives
             return geom.getMainVao();
         }
     }
-
 
 }

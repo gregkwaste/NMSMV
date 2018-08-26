@@ -24,8 +24,7 @@ public class _2sComplement
         //Convert number
         if (val > 512)
         {
-            Debug.WriteLine("PREPARE FOR MALAKIA");
-
+            //Console.WriteLine("PREPARE FOR MALAKIA");
         }
 
         if (flag !=0 )
@@ -41,7 +40,7 @@ public class _2sComplement
 
         if (output > 512)
         {
-            Debug.WriteLine("MALAKIES");
+            //Console.WriteLine("MALAKIES");
         }
 
         return output;

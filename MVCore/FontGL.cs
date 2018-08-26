@@ -94,9 +94,10 @@ namespace GLSLHelper
             oms.Seek(0, SeekOrigin.Begin);
             oms.Position = 0;
             bmp.Save(oms, System.Drawing.Imaging.ImageFormat.Bmp);
-
+#if DEBUG
             //Save Bmp to disk for testing
             bmp.Save("test.bmp", System.Drawing.Imaging.ImageFormat.Bmp);
+#endif
 
             return oms;
         }

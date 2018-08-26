@@ -1,0 +1,53 @@
+﻿<Window x:Class="WPFModelViewer.AboutDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WPFModelViewer"
+        mc:Ignorable="d"
+        Title="About" ResizeMode="NoResize" Height="Auto" Width="Auto" SizeToContent="WidthAndHeight">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition  Height="100"/>
+                <RowDefinition  Height="60"/>
+                <RowDefinition Height="40"/>
+                <RowDefinition Height="40"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition/>
+                <ColumnDefinition/>
+                <ColumnDefinition/>
+                <ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Row="0"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="4" Orientation="Vertical">
+                <TextBlock 
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           x:Name="Title" FontSize="40">No Man's Sky Model Viewer</TextBlock>
+            <TextBlock 
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                x:Name="Version" FontSize="30">v.0.80.1</TextBlock>
+        </StackPanel>
+            
+        <StackPanel Orientation="Horizontal" Grid.Row="1" Grid.ColumnSpan="4">
+            <TextBlock FontSize="30" Width="250" TextAlignment="Center"> <Hyperlink NavigateUri="https://bitbucket.org/gregkwaste/nms-viewer/wiki/Home" >Tool Wiki</Hyperlink> </TextBlock>
+            <TextBlock FontSize="30" Width="250" TextAlignment="Center"> <Hyperlink NavigateUri="https%3A%2F%2Fwww.paypal.com%2Fcgi-bin%2Fwebscr%3Fcmd%3D_donations%26business%3Darianos10%40gmail.com%26lc%3DGR%26item_name%3D3dgamedevblog%26currency_code%3DEUR%26bn%3DPP-DonationsBF%3Abtn_donateCC_LG.gif%3ANonHosted">Donate</Hyperlink></TextBlock>
+            <TextBlock FontSize="30" Width="250" TextAlignment="Center"> <Hyperlink NavigateUri="https://bitbucket.org/gregkwaste/nms-viewer">Repository</Hyperlink></TextBlock>
+        </StackPanel>
+
+        <DockPanel Grid.Row="2" Grid.ColumnSpan="4" LastChildFill="True">
+            <TextBlock TextAlignment="Center" FontSize="20" Width="400">Created by gregkwaste</TextBlock>
+            <TextBlock TextAlignment="Center" FontSize="20" Width="Auto"><Hyperlink NavigateUri="https://3dgamedevblog.com">3dgamedevblog.com</Hyperlink></TextBlock>
+        </DockPanel>
+
+        <DockPanel Grid.Row="3" Grid.ColumnSpan="4" LastChildFill="True">
+            <TextBlock TextAlignment="Center" FontSize="20" Width="400">Contact</TextBlock>
+            <TextBlock TextAlignment="Center" FontSize="20" Width="Auto"><Hyperlink NavigateUri="mailto:gregkwaste@gmail.com">gregkwaste@gmail.com</Hyperlink></TextBlock>
+        </DockPanel>
+    </Grid>
+
+</Window>

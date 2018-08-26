@@ -3,9 +3,9 @@
 #extension GL_ARB_separate_shader_objects : enable
 /* Copies incoming fragment color without change. */
 //Diffuse Textures
-uniform sampler2D diffuseTex;
-uniform sampler2D positionTex;
-uniform sampler2D depthTex;
+uniform sampler2DMS diffuseTex;
+uniform sampler2DMS positionTex;
+uniform sampler2DMS depthTex;
 
 uniform mat4 mvp;
 in vec2 uv0;
@@ -21,7 +21,8 @@ vec4 worldfromDepth()
 	float zNear = 2.0;
 	float zFar = 1000.0;
 	
-	world.z = 2.0 * texture2D(depthTex, depth_uv).r - 1.0;
+	vec4 texelValue = texelFetch(depthTex, ivec2(gl_FragCoord.xy), 0);
+	world.z = 2.0 * texelValue.z;
 	//world.z = 2.0 * zNear * zFar / (zFar + zNear - world.z * (zFar - zNear));
 	
 	world.xy = 2.0 * uv0 - 1.0;
@@ -40,7 +41,13 @@ vec4 worldfromDepth()
 
 void main()
 {
-	gl_FragColor = vec4(texture2D(diffuseTex, uv0).rgb, 1.0);
+	//sample our texture
+	vec4 texelValue = texelFetch(diffuseTex, ivec2(gl_FragCoord.xy), 0);
+	//vec4 texelValue = texelFetch(depthTex, ivec2(gl_FragCoord.xy), 0);
+	vec4 texColor = vec4(texelValue.rgb, 1.0);
+	
+	gl_FragColor = texColor;
+	
 	//gl_FragColor = vec4(texture2D(depthTex, uv0).rrr, 1.0);
 	//vec4 world = worldfromDepth();
 

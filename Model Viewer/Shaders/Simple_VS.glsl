@@ -6,6 +6,10 @@
 /* Copies incoming vertex color without change.
  * Applies the transformation matrix to vertex position.
  */
+
+//Imports
+#include "/common.glsl"
+
 layout(location=0) in vec4 vPosition;
 layout(location=1) in vec2 uvPosition0;
 layout(location=2) in vec4 nPosition; //normals
@@ -19,12 +23,10 @@ layout(location=8) uniform mat4 nMat;
 layout(location=9) uniform mat4 rotMat;
 layout(location=10) uniform mat4 worldMat;
 
-uniform vec3 light;
-uniform int firstskinmat;
-uniform float scale;
-
 layout(location=11) uniform bool matflags[64];
 layout(location=78) uniform mat4 skinMats[128];
+
+uniform vec3 light;
 
 //Outputs
 out vec3 E;
@@ -48,7 +50,7 @@ void main()
     //nvectors[2] = nPosition.xyz;
 	// Remeber: thse matrices are column-major
     
-    //mat4 nMat = transpose(inverse(rotMat * worldMat));
+    mat4 nMat = transpose(inverse(rotMat * worldMat));
     //mat4 nMat = rotMat;
     
     N = normalize(nMat * nPosition).xyz;
@@ -77,7 +79,7 @@ void main()
     //TBN = transpose(TBN);
 
     //Check F02_SKINNED
-    if (matflags[1]) { //Needs fixing again
+    if (matflags[_F02_SKINNED]) { //Needs fixing again
 	    vec4 wPos = vec4(0.0, 0.0, 0.0, 0.0);
 	    ivec4 index;
 

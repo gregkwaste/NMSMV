@@ -18,8 +18,10 @@ namespace MVCore
         //Set Full rendermode by default
         public static PolygonMode RENDERMODE = PolygonMode.Fill;
         public static float UseTextures = 1.0f;
+        public static float UseLighting = 1.0f;
         public static System.Drawing.Color clearColor = System.Drawing.Color.FromArgb(255, 63, 63, 63);
-        public static bool RenderSmall = false;
+        public static bool RenderInfo = true;
+        public static bool RenderLights = true;
         public static bool RenderCollisions = false;
         public static bool RenderDebug = false;
         public static int animFPS = 60;
