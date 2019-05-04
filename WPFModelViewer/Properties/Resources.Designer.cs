@@ -102,12 +102,26 @@ namespace WPFModelViewer.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap ianm32logo_border {
+            get {
+                object obj = ResourceManager.GetObject("ianm32logo_border", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to #version 330
         ////* Copies incoming fragment color without change. */
         ///in vec3 color;
+        ///
+        ///out vec4 outcolors[3];
         ///void main()
         ///{	
-        ///	gl_FragColor = vec4(color, 1.0);
+        ///	outcolors[0] = vec4(color, 1.0);
+        ///	outcolors[1] = vec4(1.0, 1.0, 1.0, 1.0);
+        ///	outcolors[2] = vec4(1.0, 1.0, 1.0, 1.0);
         ///}.
         /// </summary>
         internal static string joint_frag {
@@ -148,10 +162,13 @@ namespace WPFModelViewer.Properties {
         ///   Looks up a localized string similar to #version 330
         ////* Copies incoming vertex color without change.
         ///*/
+        ///
+        ///out vec4 outcolors[3];
         ///void main()
-        ///{
-        ///	//Yellow point lights
-        ///	gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0);
+        ///{	
+        ///	outcolors[0] = vec4(1.0, 1.0, 0.0, 1.0);
+        ///	outcolors[1] = vec4(1.0, 1.0, 1.0, 1.0);
+        ///	outcolors[2] = vec4(1.0, 1.0, 1.0, 1.0);
         ///}.
         /// </summary>
         internal static string light_frag {
@@ -204,7 +221,7 @@ namespace WPFModelViewer.Properties {
         ///#extension GL_ARB_separate_shader_objects : enable
         ///
         ///layout(location=0) in vec3 vPosition;
-        ///layout(location=1) in vec3 vcolor;
+        ///layout(location=2) in vec3 vcolor;
         ///layout(location=7) uniform mat4 mvp;
         ///layout(location=8) uniform mat4 nMat;
         ///layout(location=9) uniform mat4 rotMat;
@@ -213,13 +230,13 @@ namespace WPFModelViewer.Properties {
         ///out vec3 color;
         ///out vec4 finalPos;
         ///
+        ///uniform float scale;
         ///
         ///void main()
         ///{
         ///    //Set color
         ///    color = vcolor;
-        ///	finalPos = worldMat * vec4(vPosition, 1.0);
-        ///    gl_Pos [rest of string was truncated]&quot;;.
+        ///	finalPos = worldMat * vec4(scale  [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string locator_vert {
             get {
@@ -342,10 +359,13 @@ namespace WPFModelViewer.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to /* Copies incoming fragment color without change. */
+        ///   Looks up a localized string similar to #version 330
+        ////* Copies incoming fragment color without change. */
         ///uniform sampler2D diffuseTex;
-        ///varying vec2 uv0;
-        ///varying float dx,dy;
+        ///in vec2 uv0;
+        ///in float dx,dy;
+        ///
+        ///out vec4 outcolors[3];
         ///
         ///void main()
         ///{	
@@ -360,8 +380,7 @@ namespace WPFModelViewer.Properties {
         ///	//color = vec4(vec3(1.0, 1.0, 1.0) - color.rgb, color.a);
         ///
         ///	//color -= dFdx(color) * dx;
-        ///	//color -= dFdy(color) * dy;
-        ///	//color += dFdx [rest of string was truncated]&quot;;.
+        ///	//color -= dFdy( [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string text_frag {
             get {
@@ -370,20 +389,21 @@ namespace WPFModelViewer.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to /* Simple Quad Rendering Shader
+        ///   Looks up a localized string similar to #version 330
+        ////* Simple Quad Rendering Shader
         /// */
         ///attribute vec4 vPosition;
         ///attribute vec4 uvPosition;
-        /////Outputs
-        ///varying vec2 uv0;
-        ///varying float dx, dy;
+        ///
         ///uniform mat4 projMat;
         ///uniform float w, h;
         /////Text Transforms
         ///uniform vec2 pos;
         ///uniform float scale;
         ///
-        ///
+        /////Outputs
+        ///out vec2 uv0;
+        ///out float dx, dy;
         ///
         ///void main()
         ///{
@@ -394,7 +414,7 @@ namespace WPFModelViewer.Properties {
         ///    dy = 2.0/h;
         ///    //Render to UV coordinate
         ///    mat4 projmat = mat4(400.0/w, 0.0,    0.0, 0.0,
-        ///           [rest of string was truncated]&quot;;.
+        ///     [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string text_vert {
             get {

@@ -14,7 +14,7 @@ namespace WPFModelViewer
 {
     public static class Util
     {
-        public static string Version = "v0.80.1";
+        public static string Version = "v0.80.6-Test-Version";
         public static readonly Random randgen = new Random();
 
         //Current GLControl Handle
@@ -48,6 +48,9 @@ namespace WPFModelViewer
 
         public static void Log(string msg)
         {
+#if DEBUG
+            Console.WriteLine(msg); //Write to console if we are in debug mode
+#endif
             loggingSr.WriteLine(msg);
             loggingSr.Flush();
         }

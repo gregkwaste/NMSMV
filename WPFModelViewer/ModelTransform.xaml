@@ -5,49 +5,49 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:local="clr-namespace:WPFModelViewer"
              xmlns:igor="clr-namespace:ControlLib;assembly=NumericUpDown"
-             mc:Ignorable="d" 
-             d:DesignHeight="450" d:DesignWidth="800">
-    <Grid>
+             mc:Ignorable="d">
+    <Grid VerticalAlignment="Top">
         <Grid.RowDefinitions>
-            <RowDefinition/>
-            <RowDefinition/>
-            <RowDefinition/>
-            <RowDefinition Height="40"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <GroupBox Grid.Row="0" Header="Translation">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition/>
-                    <RowDefinition/>
-                    <RowDefinition/>
+                    <RowDefinition Height="20"/>
+                    <RowDefinition Height="20"/>
+                    <RowDefinition Height="20"/>
                 </Grid.RowDefinitions>
-                <igor:NumericUpDown Grid.Row="0" x:Name="translationX" Increment="0.01" MinValue="-500.0" MaxValue="500.0" Width="Auto" />
-                <igor:NumericUpDown Grid.Row="1" x:Name="translationY" Increment="0.01" MinValue="-500.0" MaxValue="500.0" Width="Auto" />
-                <igor:NumericUpDown Grid.Row="2" x:Name="translationZ" Increment="0.01" MinValue="-500.0" MaxValue="500.0" Width="Auto" />
+                <TextBox Grid.Row="0" x:Name="translationX" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
+                <TextBox Grid.Row="1" x:Name="translationY" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
+                <TextBox Grid.Row="2" x:Name="translationZ" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
+                
             </Grid>
         </GroupBox>
         <GroupBox Grid.Row="1" Header="Rotation">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition/>
-                    <RowDefinition/>
-                    <RowDefinition/>
+                    <RowDefinition Height="20"/>
+                    <RowDefinition Height="20"/>
+                    <RowDefinition Height="20"/>
                 </Grid.RowDefinitions>
-                <igor:NumericUpDown Grid.Row="0" x:Name="rotationX" Increment="0.01" MinValue="-180.0" MaxValue="180.0"  Width="Auto" />
-                <igor:NumericUpDown Grid.Row="1" x:Name="rotationY" Increment="0.01" MinValue="-180.0" MaxValue="180.0" Width="Auto" />
-                <igor:NumericUpDown Grid.Row="2" x:Name="rotationZ" Increment="0.01" MinValue="-180.0" MaxValue="180.0" Width="Auto" />
+                <TextBox Grid.Row="0" x:Name="rotationX" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
+                <TextBox Grid.Row="1" x:Name="rotationY" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
+                <TextBox Grid.Row="2" x:Name="rotationZ" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
             </Grid>
         </GroupBox>
         <GroupBox Grid.Row="2" Header="Scale">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition/>
-                    <RowDefinition/>
-                    <RowDefinition/>
+                    <RowDefinition Height="20"/>
+                    <RowDefinition Height="20"/>
+                    <RowDefinition Height="20"/>
                 </Grid.RowDefinitions>
-                <igor:NumericUpDown Grid.Row="0" x:Name="scaleX" Increment="0.01" MinValue="-50.0" MaxValue="50.0" Width="Auto" />
-                <igor:NumericUpDown Grid.Row="1" x:Name="scaleY" Increment="0.01" MinValue="-50.0" MaxValue="50.0" Width="Auto" />
-                <igor:NumericUpDown Grid.Row="2" x:Name="scaleZ" Increment="0.01" MinValue="-50.0" MaxValue="50.0" Width="Auto" />
+                <TextBox Grid.Row="0" x:Name="scaleX" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
+                <TextBox Grid.Row="1" x:Name="scaleY" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
+                <TextBox Grid.Row="2" x:Name="scaleZ" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
             </Grid>
         </GroupBox>
         <Grid Grid.Row="3">
@@ -59,11 +59,11 @@
                 <RowDefinition Height="20"/>
                 <RowDefinition Height="20"/>
             </Grid.RowDefinitions>
-            <Button Grid.Row="0" Grid.Column="0" Click="applyTransform">Apply Transform</Button>
+            <Button Grid.Row="0" Grid.Column="0" Click="applyTransformButtonTrigger">Apply Transform</Button>
             <Button Grid.Row="0" Grid.Column="1" Click="resetTransform">Reset Transform</Button>
             <Button Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="1" Click="exportToEXML">Export Node to EXML</Button>
             <Button Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="1" Click="exportToMBIN">Export Node to MBIN</Button>
         </Grid>
-        
+
     </Grid>
 </UserControl>

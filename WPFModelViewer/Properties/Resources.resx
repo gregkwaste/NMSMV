@@ -124,6 +124,9 @@
   <data name="camera_vert" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\camera1.vert;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
   </data>
+  <data name="ianm32logo_border" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\ianm32logo_border.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
   <data name="joint_frag" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\joint1.frag;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
   </data>

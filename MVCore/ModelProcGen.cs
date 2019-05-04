@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.Diagnostics;
 using OpenTK;
-using OpenTK.Graphics.OpenGL;
+using OpenTK.Graphics.OpenGL4;
 using System.Reflection;
 using System.IO;
 using libMBIN.Models.Structs;
@@ -24,7 +24,7 @@ namespace MVCore
         public static bool RenderLights = true;
         public static bool RenderCollisions = false;
         public static bool RenderDebug = false;
-        public static int animFPS = 60;
+        public static int animFPS = 50;
     }
 
     public class ModelProcGen

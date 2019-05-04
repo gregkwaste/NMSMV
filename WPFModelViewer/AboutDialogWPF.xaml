@@ -6,47 +6,52 @@
         xmlns:local="clr-namespace:WPFModelViewer"
         mc:Ignorable="d"
         Title="About" ResizeMode="NoResize" Height="Auto" Width="Auto" SizeToContent="WidthAndHeight">
+    
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition  Height="100"/>
-                <RowDefinition  Height="60"/>
-                <RowDefinition Height="40"/>
-                <RowDefinition Height="40"/>
+                <RowDefinition  Height="50"/>
+                <RowDefinition  Height="50"/>
+                <RowDefinition  Height="50"/>
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition/>
+                <ColumnDefinition Width="250"/>
                 <ColumnDefinition/>
                 <ColumnDefinition/>
                 <ColumnDefinition/>
             </Grid.ColumnDefinitions>
 
+        <Image Grid.Row="0" Grid.Column="0" Grid.RowSpan="4" HorizontalAlignment="Center" VerticalAlignment="Center" Height="250" Source="/WPFModelViewer;component/Resources/ianm32logo_border.png"></Image>
         <StackPanel Grid.Row="0"
-                    Grid.Column="0"
-                    Grid.ColumnSpan="4" Orientation="Vertical">
-                <TextBlock 
+                    Grid.Column="1"
+                    Grid.ColumnSpan="3"
+                    Orientation="Vertical">
+
+            
+            <TextBlock 
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"
                            x:Name="Title" FontSize="40">No Man's Sky Model Viewer</TextBlock>
-            <TextBlock 
+            <TextBlock  Grid.ColumnSpan="4"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 x:Name="Version" FontSize="30">v.0.80.1</TextBlock>
         </StackPanel>
             
-        <StackPanel Orientation="Horizontal" Grid.Row="1" Grid.ColumnSpan="4">
-            <TextBlock FontSize="30" Width="250" TextAlignment="Center"> <Hyperlink NavigateUri="https://bitbucket.org/gregkwaste/nms-viewer/wiki/Home" >Tool Wiki</Hyperlink> </TextBlock>
-            <TextBlock FontSize="30" Width="250" TextAlignment="Center"> <Hyperlink NavigateUri="https%3A%2F%2Fwww.paypal.com%2Fcgi-bin%2Fwebscr%3Fcmd%3D_donations%26business%3Darianos10%40gmail.com%26lc%3DGR%26item_name%3D3dgamedevblog%26currency_code%3DEUR%26bn%3DPP-DonationsBF%3Abtn_donateCC_LG.gif%3ANonHosted">Donate</Hyperlink></TextBlock>
-            <TextBlock FontSize="30" Width="250" TextAlignment="Center"> <Hyperlink NavigateUri="https://bitbucket.org/gregkwaste/nms-viewer">Repository</Hyperlink></TextBlock>
+        <StackPanel Orientation="Horizontal" Grid.Column="1" Grid.Row="1" Grid.ColumnSpan="1">
+            <TextBlock FontSize="20" Width="250" TextAlignment="Center"> <Hyperlink NavigateUri="https://bitbucket.org/gregkwaste/nms-viewer/wiki/Home" Click="Hyperlink_Click">Tool Wiki</Hyperlink> </TextBlock>
+            <TextBlock FontSize="20" Width="250" TextAlignment="Center"> <Hyperlink NavigateUri="https%3A%2F%2Fwww.paypal.com%2Fcgi-bin%2Fwebscr%3Fcmd%3D_donations%26business%3Darianos10%40gmail.com%26lc%3DGR%26item_name%3D3dgamedevblog%26currency_code%3DEUR%26bn%3DPP-DonationsBF%3Abtn_donateCC_LG.gif%3ANonHosted"  Click="Hyperlink_Click">Donate</Hyperlink></TextBlock>
+            <TextBlock FontSize="20" Width="250" TextAlignment="Center"> <Hyperlink NavigateUri="https://bitbucket.org/gregkwaste/nms-viewer"  Click="Hyperlink_Click">Repository</Hyperlink></TextBlock>
         </StackPanel>
 
-        <DockPanel Grid.Row="2" Grid.ColumnSpan="4" LastChildFill="True">
+        <DockPanel Grid.Row="2" Grid.Column="1" LastChildFill="True">
             <TextBlock TextAlignment="Center" FontSize="20" Width="400">Created by gregkwaste</TextBlock>
-            <TextBlock TextAlignment="Center" FontSize="20" Width="Auto"><Hyperlink NavigateUri="https://3dgamedevblog.com">3dgamedevblog.com</Hyperlink></TextBlock>
+            <TextBlock TextAlignment="Center" FontSize="20" Width="Auto"><Hyperlink NavigateUri="https://3dgamedevblog.com"  Click="Hyperlink_Click">3dgamedevblog.com</Hyperlink></TextBlock>
         </DockPanel>
 
-        <DockPanel Grid.Row="3" Grid.ColumnSpan="4" LastChildFill="True">
+        <DockPanel Grid.Row="3" Grid.Column="1" LastChildFill="True">
             <TextBlock TextAlignment="Center" FontSize="20" Width="400">Contact</TextBlock>
-            <TextBlock TextAlignment="Center" FontSize="20" Width="Auto"><Hyperlink NavigateUri="mailto:gregkwaste@gmail.com">gregkwaste@gmail.com</Hyperlink></TextBlock>
+            <TextBlock TextAlignment="Center" FontSize="20" Width="Auto"><Hyperlink NavigateUri="mailto:gregkwaste@gmail.com"  Click="Hyperlink_Click">gregkwaste@gmail.com</Hyperlink></TextBlock>
         </DockPanel>
     </Grid>
 

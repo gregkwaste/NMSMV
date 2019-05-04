@@ -15,7 +15,7 @@
         </Grid.RowDefinitions>
 
         <DockPanel Grid.Row="0" LastChildFill="True">
-            <TextBlock Width="300" FontSize="20">No Man's Sky GAMEDATA Folder</TextBlock>
+            <TextBlock Width="300" FontSize="20">No Man's Sky UNPACKED Folder</TextBlock>
             <TextBox x:Name="dirpath" Width="300" FontSize="20" GotFocus="Dirpath_OnGotFocus"></TextBox>
         </DockPanel>
         <DockPanel Grid.Row="1" LastChildFill="True">

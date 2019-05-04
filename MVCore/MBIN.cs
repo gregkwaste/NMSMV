@@ -72,143 +72,6 @@ namespace MVCore
         public byte[] is_buffer;
     }
 
-    public static class MATERIALMBIN
-    {
-        public enum MATERIALFLAGS
-        {
-            _F01_DIFFUSEMAP=0,
-            _F02_SKINNED,
-            _F03_NORMALMAP,
-            _F04_,
-            _F05_,
-            _F06_,
-            _F07_UNLIT,
-            _F08_,
-            _F09_TRANSPARENT,
-            _F10_NORECEIVESHADOW,
-            _F11_ALPHACUTOUT,
-            _F12_BATCHED_BILLBOARD,
-            _F13_UVANIMATION,
-            _F14_UVSCROLL,
-            _F15_WIND,
-            _F16_DIFFUSE2MAP,
-            _F17_MULTIPLYDIFFUSE2MAP,
-            _F18_UVTILES,
-            _F19_BILLBOARD,
-            _F20_PARALLAXMAP,
-            _F21_VERTEXCOLOUR,
-            _F22_TRANSPARENT_SCALAR,
-            _F23_CAMERA_RELATIVE,
-            _F24_AOMAP,
-            _F25_ROUGHNESS_MASK,
-            _F26_STRETCHY_PARTICLE,
-            _F27_VBTANGENT,
-            _F28_VBSKINNED,
-            _F29_VBCOLOUR,
-            _F30_REFRACTION_MAP,
-            _F31_DISPLACEMENT,
-            _F32_LEAF,
-            _F33_GRASS,
-            _F34_GLOW,
-            _F35_GLOW_MASK,
-            _F36_DOUBLESIDED,
-            _F37_RECOLOUR,
-            _F38_NO_DEFORM,
-            _F39_METALLIC_MASK,
-            _F40_SUBSURFACE_MASK,
-            _F41_DETAIL_DIFFUSE,
-            _F42_DETAIL_NORMAL,
-            _F43_NORMAL_TILING,
-            _F44_IMPOSTER,
-            _F45_SCANABLE,
-            _F46_BILLBOARD_AT,
-            _F47_WRITE_LOG_Z,
-            _F48_WARPED_DIFFUSE_LIGHTING,
-            _F49_DISABLE_AMBIENT,
-            _F50_DISABLE_POSTPROCESS,
-            _F51_DECAL_DIFFUSE,
-            _F52_DECAL_NORMAL,
-            _F53_COLOURISABLE,
-            _F54_,
-            _F55_,
-            _F56_,
-            _F57_,
-            _F58_,
-            _F59_,
-            _F60_,
-            _F61_,
-            _F62_,
-            _F63_,
-            _F64_ 
-        }
-
-        public static Material Parse(string path)
-        {
-            //Try to use libMBIN to load the Material files
-            libMBIN.MBINFile mbinf = new libMBIN.MBINFile(path);
-            mbinf.Load();
-            TkMaterialData template = (TkMaterialData)mbinf.GetData();
-            mbinf.Dispose();
-
-#if DEBUG
-            //Save NMSTemplate to exml
-            var xmlstring = EXmlFile.WriteTemplate(template);
-            File.WriteAllText("Temp\\" + template.Name + ".exml", xmlstring);
-#endif
-            //Make new material
-            Material mat = new Material();
-
-            mat.name = template.Name;
-            String matClass = template.Class;
-            //Load Options
-
-            MatOpts opts = new MatOpts();
-            opts.transparency = template.TransparencyLayerID;
-            opts.castshadow = template.CastShadow;
-            opts.disableTestz = template.DisableZTest;
-            opts.link = template.Link;
-            opts.shadername = template.Shader;
-            mat.opts = opts;
-
-            //Get MaterialFlags
-            Console.Write("Material Flags: ");
-            foreach (TkMaterialFlags f in template.Flags)
-            {
-                Console.Write(((MATERIALFLAGS) f.MaterialFlag).ToString() + " ");
-                mat.materialflags.Add((MATERIALFLAGS) f.MaterialFlag);
-            }
-            Console.Write("\n");
-
-
-            //Get Uniforms
-            foreach (TkMaterialUniform n in template.Uniforms)
-            {
-                Uniform un = new Uniform();
-                un.name = n.Name;
-                Vector4 vec = new Vector4();
-                vec.X = n.Values.x;
-                vec.Y = n.Values.y;
-                vec.Z = n.Values.z;
-                vec.W = n.Values.t;
-                un.value = vec;
-                mat.uniforms.Add(un);
-            }
-
-            //Get Samplers
-            foreach (TkMaterialSampler n in template.Samplers)
-            {
-                Sampler sampl = new Sampler();
-                sampl.name = n.Name;
-                sampl.map = n.Map;
-                mat.samplers.Add(sampl);
-            }
-
-            return mat;
-        }
-
-    }
-
-
     public static class GEOMMBIN {
 
         public static GeomObject Parse(FileStream fs)
@@ -501,7 +364,7 @@ namespace MVCore
         {
             int sem = buf_id;
             int off = buf_localoffset;
-            OpenTK.Graphics.OpenGL.VertexAttribPointerType typ = get_type(buf_type);
+            OpenTK.Graphics.OpenGL4.VertexAttribPointerType typ = get_type(buf_type);
             string text = get_shader_sem(buf_id);
             return new bufInfo(sem, typ, count, off, text);
         }
@@ -532,16 +395,16 @@ namespace MVCore
         
         }
 
-        private static OpenTK.Graphics.OpenGL.VertexAttribPointerType get_type(int val){
+        private static OpenTK.Graphics.OpenGL4.VertexAttribPointerType get_type(int val){
 
             switch (val)
             {
                 case (0x140B):
-                    return OpenTK.Graphics.OpenGL.VertexAttribPointerType.HalfFloat;
+                    return OpenTK.Graphics.OpenGL4.VertexAttribPointerType.HalfFloat;
                 case (0x1401):
-                    return OpenTK.Graphics.OpenGL.VertexAttribPointerType.UnsignedByte;
+                    return OpenTK.Graphics.OpenGL4.VertexAttribPointerType.UnsignedByte;
                 case (0x8D9F):
-                    return OpenTK.Graphics.OpenGL.VertexAttribPointerType.Int2101010Rev;
+                    return OpenTK.Graphics.OpenGL4.VertexAttribPointerType.Int2101010Rev;
                 default:
                     Console.WriteLine("Unknown VERTEX SECTION TYPE-----------------------------------");
                     throw new ApplicationException("NEW VERTEX SECTION TYPE. FIX IT ASSHOLE...");
@@ -610,10 +473,19 @@ namespace MVCore
 
         public static scene LoadObjects(string filepath)
         {
-            libMBIN.MBINFile mbinf = new libMBIN.MBINFile(filepath);
-            mbinf.Load();
-            TkSceneNodeData scene = (TkSceneNodeData) mbinf.GetData();
-            mbinf.Dispose();
+            TkSceneNodeData scene;
+            if (filepath.ToUpper().EndsWith(".EXML"))
+            {
+                string xml = File.ReadAllText(filepath);
+                scene = (TkSceneNodeData) EXmlFile.ReadTemplateFromString(xml);
+            } else
+            {
+                libMBIN.MBINFile mbinf = new libMBIN.MBINFile(filepath);
+                mbinf.Load();
+                scene = (TkSceneNodeData)mbinf.GetData();
+                mbinf.Dispose();
+            }
+            
 
             Console.WriteLine("Loading Objects from MBINFile");
             //Get TkSceneNodeData
@@ -636,24 +508,35 @@ namespace MVCore
             string geomfile;
             geomfile = scene.Attributes[0].Value;
             FileStream fs;
-            try
+            if (!File.Exists(Path.Combine(FileUtils.dirpath, geomfile) + ".PC"))
             {
-                fs = new FileStream(Path.Combine(FileUtils.dirpath, geomfile) + ".PC", FileMode.Open);
-            } catch (DirectoryNotFoundException e)
-            {
-                MessageBox.Show("Could not file geometry file " + Path.Combine(FileUtils.dirpath, geomfile));
-                Common.CallBacks.Log(string.Format("Could not file geometry file {0} ",
+                MessageBox.Show("Could not find geometry file " + Path.Combine(FileUtils.dirpath, geomfile));
+                Common.CallBacks.Log(string.Format("Could not find geometry file {0} ",
                     Path.Combine(FileUtils.dirpath, geomfile)));
 
-                return null;
+                //Create Dummy Scene
+                scene dummy = new scene();
+                dummy.name = "DUMMY_SCENE";
+                dummy.mbin_scene = null;
+                dummy.type = TYPES.SCENE;
+                dummy.shader_programs = new int[] {Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
+                                              Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
+                                              Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
+
+                return dummy;
             }
-             
+
+
+            fs = new FileStream(Path.Combine(FileUtils.dirpath, geomfile) + ".PC", FileMode.Open);
+            
             GeomObject gobject;
         
             if (!Common.RenderState.activeResMgr.GLgeoms.ContainsKey(geomfile))
             {
                 gobject = GEOMMBIN.Parse(fs);
                 Common.RenderState.activeResMgr.GLgeoms[geomfile] = gobject;
+                Common.CallBacks.Log(string.Format("Geometry file {0} successfully parsed",
+                    Path.Combine(FileUtils.dirpath, geomfile)));
             }
             else
             {
@@ -671,9 +554,9 @@ namespace MVCore
             root.name = scnName;
             root.mbin_scene = scene;
             root.type = TYPES.SCENE;
-            root.shader_programs = new int[] {Common.RenderState.activeResMgr.shader_programs[1],
-                                              Common.RenderState.activeResMgr.shader_programs[5],
-                                              Common.RenderState.activeResMgr.shader_programs[6]};
+            root.shader_programs = new int[] {Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
+                                              Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
+                                              Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
 
             //Store sections node
             foreach (TkSceneNodeData node in scene.Children)
@@ -692,6 +575,15 @@ namespace MVCore
             gobject.rootObject = root;
             return root;
         }
+
+
+
+        private static string parseNMSTemplateAttrib<T>(List<T> temp, string attrib)
+        {
+            T elem = temp.FirstOrDefault(item => (string) item.GetType().GetField("Name").GetValue(item) == attrib);
+            return (string) elem.GetType().GetField("Value").GetValue(elem);
+        }
+
 
         private static model parseNode(TkSceneNodeData node, 
             GeomObject gobject, model parent, scene scene)
@@ -750,24 +642,25 @@ namespace MVCore
 
                 Console.WriteLine("Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]);
                 //Get Options
-                so.batchstart_physics = int.Parse(node.Attributes.FirstOrDefault(item => item.Name== "BATCHSTARTPHYSI").Value);
-                so.vertrstart_physics = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "VERTRSTARTPHYSI").Value);
-                so.vertrend_physics = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "VERTRENDPHYSICS").Value);
-                so.batchstart_graphics = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "BATCHSTARTGRAPH").Value);
-                so.batchcount = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "BATCHCOUNT").Value);
-                so.vertrstart_graphics = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "VERTRSTARTGRAPH").Value);
-                so.vertrend_graphics = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "VERTRENDGRAPHIC").Value);
-                so.firstskinmat = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "FIRSTSKINMAT").Value);
-                so.lastskinmat = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "LASTSKINMAT").Value);
-                so.lod_level = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "LODLEVEL").Value);
-                so.boundhullstart = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "BOUNDHULLST").Value);
-                so.boundhullend = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "BOUNDHULLED").Value);
+                so.batchstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHSTARTPHYSI"));
+                so.vertrstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRSTARTPHYSI"));
+                so.vertrend_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRENDPHYSICS"));
+                so.batchstart_graphics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHSTARTGRAPH"));
+                so.batchcount = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHCOUNT"));
+                so.vertrstart_graphics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRSTARTGRAPH"));
+                so.vertrend_graphics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRENDGRAPHIC"));
+                so.firstskinmat = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "FIRSTSKINMAT"));
+                so.lastskinmat = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LASTSKINMAT"));
+                so.lod_level = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LODLEVEL"));
+                so.boundhullstart = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BOUNDHULLST"));
+                so.boundhullend = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BOUNDHULLED"));
 
                 //Get Hash
-                so.hash = ulong.Parse(node.Attributes.FirstOrDefault(item => item.Name == "HASH").Value);
-                Console.WriteLine("Batch Physics Start {0} Count {1} Vertex Physics {2} - {3}", 
-                    so.batchstart_physics, so.batchcount, so.vertrstart_physics, so.vertrend_physics);
-
+                so.hash = ulong.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HASH"));
+                MVCore.Common.CallBacks.Log(string.Format("Batch Physics Start {0} Count {1} Vertex Physics {2} - {3} Vertex Graphics {4} - {5} SkinMats {6}-{7}",
+                    so.batchstart_physics, so.batchcount, so.vertrstart_physics, so.vertrend_physics, so.vertrstart_graphics, so.vertrend_graphics,
+                    so.firstskinmat, so.lastskinmat));
+                
                 //Find id within the vbo
                 int iid = -1;
                 for (int i = 0; i < gobject.vstarts.Count; i++)
@@ -777,9 +670,9 @@ namespace MVCore
                         break;
                     }
 
-                so.shader_programs = new int[] { Common.RenderState.activeResMgr.shader_programs[0],
-                                                 Common.RenderState.activeResMgr.shader_programs[5],
-                                                 Common.RenderState.activeResMgr.shader_programs[6]};
+                so.shader_programs = new int[] { Common.RenderState.activeResMgr.GLShaders["MESH_SHADER"],
+                                                 Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
+                                                 Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
             
                 so.Bbox = gobject.bboxes[iid];
                 so.setupBSphere();
@@ -790,7 +683,7 @@ namespace MVCore
                 so.init(transforms);
 
                 //Get Material
-                string matname = node.Attributes.FirstOrDefault(item => item.Name == "MATERIAL").Value;
+                string matname = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "MATERIAL");
                 MVCore.Common.CallBacks.Log(string.Format("Trying to load Material {0}", matname));
                 string[] split = matname.Split('\\');
                 string matkey = split[split.Length - 1];
@@ -814,7 +707,7 @@ namespace MVCore
                         //    Util.MbinToExml(mat_path, mat_exmlPath);
 
                         //Material mat = MATERIALMBIN.Parse(newXml);
-                        Material mat = MATERIALMBIN.Parse(mat_path);
+                        Material mat = Material.Parse(mat_path);
                         //Load default form palette on init
                         mat.palette = Model_Viewer.Palettes.paletteSel;
 
@@ -833,9 +726,9 @@ namespace MVCore
 
                 //Decide if its a skinned mesh or not
                 so.skinned = 0;
-                if (so.material.materialflags.Contains(MATERIALMBIN.MATERIALFLAGS._F02_SKINNED))
+                if (so.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F02_SKINNED))
                     so.skinned = 1;
-            
+                
                 //Generate Vao's
                 so.main_Vao = gobject.getMainVao(so);
             
@@ -843,7 +736,7 @@ namespace MVCore
                 so.BoneRemap = new int[so.lastskinmat - so.firstskinmat];
                 for (int i = 0; i < so.lastskinmat - so.firstskinmat; i++)
                     so.BoneRemap[i] = gobject.boneRemap[so.firstskinmat + i];
-
+               
                 Console.WriteLine("Object {0}, Number of skinmatrices required: {1}", so.name, so.lastskinmat - so.firstskinmat);
 
                 if (children.Count > 0)
@@ -862,14 +755,14 @@ namespace MVCore
                 }
 
                 //Check if it is a decal object
-                if (so.material.materialflags.Contains(MATERIALMBIN.MATERIALFLAGS._F51_DECAL_DIFFUSE) ||
-                    so.material.materialflags.Contains(MATERIALMBIN.MATERIALFLAGS._F52_DECAL_NORMAL))
+                if (so.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F51_DECAL_DIFFUSE) ||
+                    so.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F52_DECAL_NORMAL))
                 {
                     Decal newso = new Decal(so);
                     so.Dispose(); //Through away the old object
                     //Change object type
                     newso.type = TYPES.DECAL;
-                    newso.shader_programs[0] = Common.RenderState.activeResMgr.shader_programs[10];
+                    newso.shader_programs[0] = Common.RenderState.activeResMgr.GLShaders["DECAL_SHADER"];
                 
                     Common.RenderState.activeResMgr.GLDecals.Add(newso);
                     return newso;
@@ -886,10 +779,9 @@ namespace MVCore
                 so.name = name;
                 so.type = typeEnum;
                 //Set Shader Program
-                so.shader_programs = new int[]{     Common.RenderState.activeResMgr.shader_programs[1],
-                                                    Common.RenderState.activeResMgr.shader_programs[5],
-                                                    Common.RenderState.activeResMgr.shader_programs[6]};
-
+                so.shader_programs = new int[]{Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
+                                               Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
+                                               Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
                 //Get Transformation
                 so.parent = parent;
                 so.scene = scene;
@@ -897,6 +789,9 @@ namespace MVCore
                 so.init(transforms);
 
                 //Locator Objects don't have options
+
+                TkSceneNodeAttributeData attrib = new TkSceneNodeAttributeData();
+
 
                 //Handle Children
                 if (children.Count > 0)
@@ -923,9 +818,9 @@ namespace MVCore
                 //Set properties
                 joint.name = name;
                 joint.type = typeEnum;
-                joint.shader_programs = new int[]{ Common.RenderState.activeResMgr.shader_programs[2],
-                                                   Common.RenderState.activeResMgr.shader_programs[5],
-                                                   Common.RenderState.activeResMgr.shader_programs[6]};
+                joint.shader_programs = new int[]{ Common.RenderState.activeResMgr.GLShaders["JOINT_SHADER"],
+                                                   Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
+                                                   Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
                 //Get Transformation
                 joint.parent = parent;
                 joint.scene = scene;
@@ -1011,9 +906,9 @@ namespace MVCore
                     so.name = name + "_UNKNOWN";
                     so.type = TYPES.UNKNOWN;
                     //Set Shader Program
-                    so.shader_programs = new int[] { Common.RenderState.activeResMgr.shader_programs[1],
-                                                     Common.RenderState.activeResMgr.shader_programs[5],
-                                                     Common.RenderState.activeResMgr.shader_programs[6]};
+                    so.shader_programs = new int[] { Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
+                                                     Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
+                                                     Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
 
                     //Locator Objects don't have options
 
@@ -1028,9 +923,9 @@ namespace MVCore
                 Collision so = new Collision();
 
                 //Remove that after implemented all the different collision types
-                so.shader_programs = new int[] { Common.RenderState.activeResMgr.shader_programs[0],
-                                                  Common.RenderState.activeResMgr.shader_programs[5],
-                                                  Common.RenderState.activeResMgr.shader_programs[6]}; //Use Mesh program for collisions
+                so.shader_programs = new int[] { Common.RenderState.activeResMgr.GLShaders["MESH_SHADER"],
+                                                  Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
+                                                  Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]}; //Use Mesh program for collisions
                 so.debuggable = true;
                 so.name = name + "_COLLISION";
                 so.type = typeEnum;
@@ -1068,7 +963,6 @@ namespace MVCore
                     } catch (System.Collections.Generic.KeyNotFoundException e)
                     {
                         Common.CallBacks.Log("Missing Collision Mesh " + so.name);
-                        Console.WriteLine("Missing Collision Mesh " + so.name);
                         so.main_Vao = null;
                     }
                 
@@ -1170,9 +1064,9 @@ namespace MVCore
                 so.name = name + "_UNKNOWN";
                 so.type = TYPES.UNKNOWN;
                 //Set Shader Program
-                so.shader_programs = new int[] { Common.RenderState.activeResMgr.shader_programs[1],
-                                                 Common.RenderState.activeResMgr.shader_programs[5],
-                                                 Common.RenderState.activeResMgr.shader_programs[6]};
+                so.shader_programs = new int[] { Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
+                                                 Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
+                                                 Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
 
                 //Locator Objects don't have options
 

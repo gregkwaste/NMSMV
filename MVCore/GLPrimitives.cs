@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OpenTK;
+using OpenTK.Graphics.OpenGL4;
 
 namespace MVCore.Primitives
 {
@@ -40,15 +41,15 @@ namespace MVCore.Primitives
             geom.mesh_descr = "vn";
             geom.offsets[0] = 0;
             geom.offsets[2] = 0;
-            geom.bufInfo[0] = new GMDL.bufInfo(0, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "vPosition");
-            geom.bufInfo[2] = new GMDL.bufInfo(2, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "nPosition");
+            geom.bufInfo[0] = new GMDL.bufInfo(0, VertexAttribPointerType.Float, 3, 0, "vPosition");
+            geom.bufInfo[2] = new GMDL.bufInfo(2, VertexAttribPointerType.Float, 3, 0, "nPosition");
 
 
             //Set Buffers
             geom.ibuffer = new byte[4 * indices.Length];
-            Buffer.BlockCopy(indices, 0, geom.ibuffer, 0, geom.ibuffer.Length);
+            System.Buffer.BlockCopy(indices, 0, geom.ibuffer, 0, geom.ibuffer.Length);
             geom.vbuffer = new byte[4 * verts.Length];
-            Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, geom.vbuffer.Length);
+            System.Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, geom.vbuffer.Length);
 
             return geom;
         }
@@ -73,11 +74,7 @@ namespace MVCore.Primitives
             verts = new float[arraysize];
             normals = new float[arraysize];
             indices = new int[2 * indarraysize];
-
-            List<float> vlist = new List<float>();
-            List<int> ilist = new List<int>();
-
-
+            
 
             for (int lat = 0; lat <= latBands; lat++)
             {
@@ -124,6 +121,9 @@ namespace MVCore.Primitives
                     indices[lat * longBands * 6 + 6 * lng + 5] = first + 1;
                 }
             }
+            
+
+            
             geom = getGeom();
         }
 
@@ -479,7 +479,7 @@ namespace MVCore.Primitives
             geom = getGeom();
         }
 
-        public GMDL.GeomObject getGeom()
+        public new GMDL.GeomObject getGeom()
         {
             GMDL.GeomObject geom = new GMDL.GeomObject();
 
@@ -504,15 +504,15 @@ namespace MVCore.Primitives
             geom.mesh_descr = "vn";
             geom.offsets[0] = 0;
             geom.offsets[2] = 0;
-            geom.bufInfo[0] = new GMDL.bufInfo(0, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 0, "vPosition");
-            geom.bufInfo[2] = new GMDL.bufInfo(2, OpenTK.Graphics.OpenGL.VertexAttribPointerType.Float, 3, 72, "nPosition");
+            geom.bufInfo[0] = new GMDL.bufInfo(0, VertexAttribPointerType.Float, 3, 0, "vPosition");
+            geom.bufInfo[2] = new GMDL.bufInfo(2, VertexAttribPointerType.Float, 3, 72, "nPosition");
 
 
             //Set Buffers
             geom.ibuffer = new byte[4 * indices.Length];
-            Buffer.BlockCopy(indices, 0, geom.ibuffer, 0, geom.ibuffer.Length);
+            System.Buffer.BlockCopy(indices, 0, geom.ibuffer, 0, geom.ibuffer.Length);
             geom.vbuffer = new byte[4 * verts.Length];
-            Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, geom.vbuffer.Length);
+            System.Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, geom.vbuffer.Length);
 
             return geom;
         }

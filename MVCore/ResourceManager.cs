@@ -16,8 +16,10 @@ namespace MVCore
         public List<GMDL.Light> GLlights = new List<GMDL.Light>();
         public List<GMDL.Decal> GLDecals = new List<GMDL.Decal>();
         public List<Camera> GLCameras = new List<Camera>();
-        public int[] shader_programs;
-        
+        public Dictionary<string, int> GLShaders = new Dictionary<string, int>();
+        public Dictionary<string, GLSLHelper.GLSLShaderConfig> GLShaderConfigs = new Dictionary<string, GLSLHelper.GLSLShaderConfig>();
+        //public int[] shader_programs;
+
         //public DebugForm DebugWin;
 
         public void Cleanup()

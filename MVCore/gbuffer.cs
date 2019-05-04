@@ -34,7 +34,7 @@ namespace MVCore
         public GBuffer(ResourceMgr mgr, int x, int y)
         {
             //Create Quad Geometry
-            program = mgr.shader_programs[9];
+            program = mgr.GLShaders["GBUFFER_SHADER"];
 
             quad_vao = mgr.GLPrimitiveVaos["default_renderquad"].vao_id;
 
@@ -209,6 +209,7 @@ namespace MVCore
             GL.BindTexture(TextureTarget.Texture2DMultisample, depth);
 
             //Render quad
+            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
             GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, (IntPtr) 0);
             GL.BindVertexArray(0);
         

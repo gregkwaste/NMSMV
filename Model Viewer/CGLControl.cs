@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Windows.Forms;
 using OpenTK;
-using OpenTK.Graphics.OpenGL;
+using OpenTK.Graphics.OpenGL4;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -15,9 +15,9 @@ using gImage;
 using OpenTK.Graphics;
 using ClearBufferMask = OpenTK.Graphics.OpenGL.ClearBufferMask;
 using CullFaceMode = OpenTK.Graphics.OpenGL.CullFaceMode;
-using EnableCap = OpenTK.Graphics.OpenGL.EnableCap;
-using GL = OpenTK.Graphics.OpenGL.GL;
-using PolygonMode = OpenTK.Graphics.OpenGL.PolygonMode;
+using EnableCap = OpenTK.Graphics.OpenGL4.EnableCap;
+using GL = OpenTK.Graphics.OpenGL4.GL;
+using PolygonMode = OpenTK.Graphics.OpenGL4.PolygonMode;
 using System.ComponentModel;
 using System.Threading;
 
@@ -36,6 +36,8 @@ namespace Model_Viewer
         NEW_SCENE_REQUEST,
         RESIZE_REQUEST,
         TERMINATE_REQUEST,
+        COMPILE_SHADER_REQUEST,
+        MODIFY_SHADER_REQUEST,
         NULL
     };
 
@@ -153,10 +155,6 @@ namespace Model_Viewer
             this.rot.Y = 131;
             this.light_angle_y = 190;
 
-            //Assign new palette to GLControl
-            //palette = Model_Viewer.Palettes.createPalette();
-            palette = Model_Viewer.Palettes.createPalettefromBasePalettes();
-
             //Control Timer
             t = new System.Timers.Timer();
             t.Elapsed += new System.Timers.ElapsedEventHandler(input_poller);
@@ -198,7 +196,7 @@ namespace Model_Viewer
             gamepadController(); //Move camera according to input
             bool focused = false;
 
-            this.Invoke((MethodInvoker)delegate
+            this.Invoke((MethodInvoker) delegate
             {
                 focused = this.Focused;
             });
@@ -322,16 +320,16 @@ namespace Model_Viewer
             //Camera & Light Positions
             //Update common transforms
             activeCam.aspect = (float) ClientSize.Width / ClientSize.Height;
-            activeCam.updateViewMatrix();
-            activeCam.updateFrustumPlanes();
-            //proj = Matrix4.CreatePerspectiveFieldOfView(-w, w, -h, h , znear, zfar);
-
-            Matrix4 Rotx = Matrix4.CreateRotationX(rot[0] * (float)Math.PI / 180.0f);
-            Matrix4 Roty = Matrix4.CreateRotationY(rot[1] * (float)Math.PI / 180.0f);
-            Matrix4 Rotz = Matrix4.CreateRotationZ(rot[2] * (float)Math.PI / 180.0f);
+            
+            Matrix4 Rotx = Matrix4.CreateRotationX(MathUtils.radians(rot[0]));
+            Matrix4 Roty = Matrix4.CreateRotationY(MathUtils.radians(rot[1]));
+            Matrix4 Rotz = Matrix4.CreateRotationZ(MathUtils.radians(rot[2]));
             rotMat = Rotz * Rotx * Roty;
-            mvp = activeCam.viewMat; //Full mvp matrix
-            //MVCore.Common.RenderState.mvp = mvp;
+            mvp = rotMat * activeCam.viewMat; //Full mvp matrix
+            MVCore.Common.RenderState.mvp = mvp;
+
+            resMgr.GLCameras[0].updateViewMatrix();
+            resMgr.GLCameras[1].updateViewMatrix();
 
             //Update Custom Light Position
             updateLightPosition(0);
@@ -344,16 +342,21 @@ namespace Model_Viewer
             //Setup new Context
             IGraphicsContext new_context = new GraphicsContext(new GraphicsMode(32, 24, 0, 8), this.WindowInfo);
             new_context.MakeCurrent(this.WindowInfo);
-            this.MakeCurrent();
+            this.MakeCurrent(); //This is essential
 
             //Add default primitives trying to avoid Vao Request queue traffic
             addDefaultLights();
             addDefaultTextures();
-            addCameras();
+            addCamera(true);
+            addCamera(false); //Add second camera
+            setActiveCam(0);
             addDefaultPrimitives();
+            addTestObjects();
+
 
             //Create gbuffer
             gbuf = new GBuffer(this.resMgr, this.ClientSize.Width, this.ClientSize.Height);
+            MVCore.Common.RenderState.gbuf = gbuf;
             gbuf.init();
 
             //Rendering Loop
@@ -388,6 +391,12 @@ namespace Model_Viewer
                                 rt_ResizeViewport((int)req.arguments[0], (int)req.arguments[1]);
                                 req.status = THREAD_REQUEST_STATUS.FINISHED;
                                 break;
+                            case THREAD_REQUEST.MODIFY_SHADER_REQUEST:
+                                modifyShader((GLSLShaderConfig) req.arguments[0],
+                                             (string)req.arguments[1],
+                                             (OpenTK.Graphics.OpenGL4.ShaderType)req.arguments[2]);
+                                req.status = THREAD_REQUEST_STATUS.FINISHED;
+                                break;
                             case THREAD_REQUEST.TERMINATE_REQUEST:
                                 rt_exit = true;
                                 t.Stop();
@@ -404,14 +413,91 @@ namespace Model_Viewer
                 this.SwapBuffers();
                 this.Invalidate();
             }
-            
         }
 
+        #region Rendering Methods
+
+        private void traverse_render(model root, int program)
+        {
+            int active_program = root.shader_programs[program];
+
+            GL.UseProgram(active_program);
+
+            if (active_program == -1)
+                throw new ApplicationException("Shit program");
+
+            int loc;
+
+            loc = GL.GetUniformLocation(active_program, "worldMat");
+            Matrix4 wMat = root.worldMat;
+            GL.UniformMatrix4(loc, false, ref wMat);
+
+            //Send mvp to all shaders
+            loc = GL.GetUniformLocation(active_program, "mvp");
+            GL.UniformMatrix4(loc, false, ref mvp);
+
+            if (root.renderable)
+            {
+                if (root.type == TYPES.MESH)
+                {
+
+                    //Sent rotation matrix individually for light calculations
+                    loc = GL.GetUniformLocation(active_program, "rotMat");
+                    GL.UniformMatrix4(loc, false, ref rotMat);
+
+                    //Send DiffuseFlag
+                    loc = GL.GetUniformLocation(active_program, "diffuseFlag");
+                    GL.Uniform1(loc, RenderOptions.UseTextures);
+
+                    //Upload Selected Flag
+                    loc = GL.GetUniformLocation(active_program, "use_lighting");
+                    GL.Uniform1(loc, RenderOptions.UseLighting);
+
+                    //Upload Selected Flag
+                    loc = GL.GetUniformLocation(active_program, "selected");
+                    GL.Uniform1(loc, root.selected);
+
+                    //Object program
+                    //Local Transformation is the same for all objects 
+                    //Pending - Personalize local matrix on each object
+                    loc = GL.GetUniformLocation(active_program, "light");
+                    GL.Uniform3(loc, this.resMgr.GLlights[0].localPosition);
+
+                    //Upload Light Intensity
+                    loc = GL.GetUniformLocation(active_program, "intensity");
+                    //GL.Uniform1(loc, this.resMgr.GLlights[0].intensity);
+                    GL.Uniform1(loc, light_intensity);
+
+
+                    //Upload camera position as the light
+                    //GL.Uniform3(loc, cam.Position);
+
+                    //Apply frustum culling only for mesh objects
+                    if (activeCam.frustum_occlude(root, rotMat))
+                        root.render(program);
+                    else occludedNum++;
+                    
+                }
+                else if (root.type == TYPES.LOCATOR || root.type == TYPES.SCENE || root.type == TYPES.JOINT || root.type == TYPES.LIGHT || root.type == TYPES.COLLISION)
+                {
+                    //Locator Program
+                    //TESTING
+                    root.render(program);
+                }
+            }
+
+            //Render children
+            foreach (model child in root.children)
+                traverse_render(child, program);
+
+        }
+        
         private void render_scene()
         {
             //Console.WriteLine("Rendering Scene Cam Position : {0}", this.activeCam.Position);
             //Console.WriteLine("Rendering Scene Cam Orientation: {0}", this.activeCam.Orientation);
             //GL.CullFace(CullFaceMode.Back);
+            GL.Enable(EnableCap.DepthTest);
 
             occludedNum = 0; //This will be incremented from traverse_render
             //Render only the first scene for now
@@ -427,7 +513,7 @@ namespace Model_Viewer
 
         private void render_lights()
         {
-            int active_program = MVCore.Common.RenderState.activeResMgr.shader_programs[7];
+            int active_program = MVCore.Common.RenderState.activeResMgr.GLShaders["LIGHT_SHADER"];
             GL.UseProgram(active_program);
             
             //Send mvp to all shaders
@@ -437,21 +523,55 @@ namespace Model_Viewer
                 resMgr.GLlights[i].render(0);
         }
 
+        private void render_cameras()
+        {
+            int active_program = resMgr.GLShaders["BBOX_SHADER"];
+
+            GL.UseProgram(active_program);
+            int loc;
+            //Send mvp matrix to all shaders
+            loc = GL.GetUniformLocation(active_program, "mvp");
+            GL.UniformMatrix4(loc, false, ref activeCam.viewMat);
+            //Send object world Matrix to all shaders
+
+            foreach (Camera cam in resMgr.GLCameras)
+            {
+                //Old rendering the inverse clip space
+                //Upload uniforms
+                //loc = GL.GetUniformLocation(active_program, "self_mvp");
+                //Matrix4 self_mvp = cam.viewMat;
+                //GL.UniformMatrix4(loc, false, ref self_mvp);
+
+                //New rendering the exact frustum plane
+                loc = GL.GetUniformLocation(active_program, "worldMat");
+                Matrix4 test = Matrix4.Identity;
+                test[0,0] = -1.0f;
+                test[1,1] = -1.0f;
+                test[2,2] = -1.0f;
+                GL.UniformMatrix4(loc, false, ref test);
+
+                //Render all inactive cameras
+                if (!cam.isActive) cam.render();
+                    
+            }
+
+        }
+
         private void render_info()
         {
             //GL.Clear(ClearBufferMask.DepthBufferBit);
             GL.Enable(EnableCap.Blend);
             GL.Disable(EnableCap.DepthTest);
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-            GL.PolygonMode(OpenTK.Graphics.OpenGL.MaterialFace.FrontAndBack, PolygonMode.Fill);
+            GL.PolygonMode(OpenTK.Graphics.OpenGL4.MaterialFace.FrontAndBack, PolygonMode.Fill);
 
-            GL.UseProgram(MVCore.Common.RenderState.activeResMgr.shader_programs[4]);
+            GL.UseProgram(MVCore.Common.RenderState.activeResMgr.GLShaders["TEXT_SHADER"]);
 
             //Load uniforms
             int loc;
-            loc = GL.GetUniformLocation(this.resMgr.shader_programs[4], "w");
+            loc = GL.GetUniformLocation(this.resMgr.GLShaders["TEXT_SHADER"], "w");
             GL.Uniform1(loc, (float) this.Width);
-            loc = GL.GetUniformLocation(this.resMgr.shader_programs[4], "h");
+            loc = GL.GetUniformLocation(this.resMgr.GLShaders["TEXT_SHADER"], "h");
             GL.Uniform1(loc, (float) this.Height);
 
             fps();
@@ -465,7 +585,10 @@ namespace Model_Viewer
             GL.Enable(EnableCap.DepthTest);
 
         }
-        
+
+        #endregion Rendering Methods
+
+        #region GLControl Methods
         private void genericEnter(object sender, EventArgs e)
         {
             //Start Timer when the glControl gets focus
@@ -485,83 +608,6 @@ namespace Model_Viewer
             //Don't update the control when its not focused
             //Debug.WriteLine("Left Focus of Control "+ index);
             t.Stop();
-        }
-
-        private void traverse_render(model root, int program)
-        {
-
-            int active_program = root.shader_programs[program];
-
-            GL.UseProgram(active_program);
-
-            if (active_program == -1)
-                throw new ApplicationException("Shit program");
-
-            int loc;
-
-            loc = GL.GetUniformLocation(active_program, "worldMat");
-            Matrix4 wMat = root.worldMat;
-            GL.UniformMatrix4(loc, false, ref wMat);
-
-            //Send mvp to all shaders
-            loc = GL.GetUniformLocation(active_program, "mvp");
-            GL.UniformMatrix4(loc, false, ref mvp);
-
-            //Skip render if the item is not renderable
-            if (!root.renderable) return;
-            
-            if (root.type == TYPES.MESH)
-            {
-
-                //Sent rotation matrix individually for light calculations
-                loc = GL.GetUniformLocation(active_program, "rotMat");
-                GL.UniformMatrix4(loc, false, ref rotMat);
-
-                //Send DiffuseFlag
-                loc = GL.GetUniformLocation(active_program, "diffuseFlag");
-                GL.Uniform1(loc, RenderOptions.UseTextures);
-
-                //Upload Selected Flag
-                loc = GL.GetUniformLocation(active_program, "use_lighting");
-                GL.Uniform1(loc, RenderOptions.UseLighting);
-
-                //Upload Selected Flag
-                loc = GL.GetUniformLocation(active_program, "selected");
-                GL.Uniform1(loc, root.selected);
-
-                //Object program
-                //Local Transformation is the same for all objects 
-                //Pending - Personalize local matrix on each object
-                loc = GL.GetUniformLocation(active_program, "light");
-                GL.Uniform3(loc, this.resMgr.GLlights[0].localPosition);
-
-                //Upload Light Intensity
-                loc = GL.GetUniformLocation(active_program, "intensity");
-                //GL.Uniform1(loc, this.resMgr.GLlights[0].intensity);
-                GL.Uniform1(loc, light_intensity);
-
-
-                //Upload camera position as the light
-                //GL.Uniform3(loc, cam.Position);
-
-                //Apply frustum culling only for mesh objects
-                //root.render(program);
-                if (activeCam.frustum_occlude(root, rotMat)) root.render(program);
-                else occludedNum++;
-            }
-            else if (root.type == TYPES.LOCATOR || root.type == TYPES.SCENE || root.type == TYPES.JOINT || root.type == TYPES.LIGHT || root.type == TYPES.COLLISION)
-            {
-                //Locator Program
-                //TESTING
-                root.render(program);
-            }
-
-            //Cleanup
-
-            //Render children
-            foreach (model child in root.children)
-                traverse_render(child, program);
-
         }
 
         private void genericLoad(object sender, EventArgs e)
@@ -608,23 +654,6 @@ namespace Model_Viewer
             //Debug.WriteLine("Key pressed {0}",e.KeyCode);
             switch (e.KeyCode)
             {
-                //Local Transformation
-                case Keys.Q:
-                    for (int i=0;i<movement_speed;i++)
-                        this.rot.Y -= 4.0f;
-                    break;
-                case Keys.E:
-                    for (int i = 0; i < movement_speed; i++)
-                        this.rot.Y += 4.0f;
-                    break;
-                case Keys.Z:
-                    for (int i = 0; i < movement_speed; i++)
-                        this.rot.X -= 4.0f;
-                    break;
-                case Keys.C:
-                    for (int i = 0; i < movement_speed; i++)
-                        this.rot.X += 4.0f;
-                    break;
                 //Light Rotation
                 case Keys.N:
                     this.light_angle_y -= 1;
@@ -662,18 +691,9 @@ namespace Model_Viewer
                 //Switch cameras
                 case Keys.NumPad0:
                     if (this.resMgr.GLCameras[0].isActive)
-                    {
-                        activeCam.isActive = false;
-                        activeCam = this.resMgr.GLCameras[1];
-                    }
+                        setActiveCam(1);
                     else
-                    {
-                        activeCam.isActive = false;
-                        activeCam = this.resMgr.GLCameras[0];
-                    }
-
-                    activeCam.isActive = true;
-
+                        setActiveCam(0);
                     break;
                 //Animation playback (Play/Pause Mode) with Space
                 case Keys.Space:
@@ -784,6 +804,7 @@ namespace Model_Viewer
 
         }
 
+               
         private void CGLControl_MouseClick(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Right)
@@ -796,6 +817,67 @@ namespace Model_Viewer
             //    selectObject(e.Location);
             //}
         }
+
+        #endregion GLControl Methods
+
+        #region ShaderMethods
+
+        public void compileShader(GLSLShaderConfig config)
+        {
+            int vertexObject;
+            int fragmentObject;
+
+            if (config.program_id != -1)
+                GL.DeleteProgram(config.program_id);
+
+            GLShaderHelper.CreateShaders(config, out vertexObject, out fragmentObject, out config.program_id);
+        }
+
+        public void modifyShader(GLSLShaderConfig shader_conf, string shaderText, OpenTK.Graphics.OpenGL4.ShaderType shadertype)
+        {
+            Console.WriteLine("Actually Modifying Shader");
+
+            int[] attached_shaders = new int[20];
+            int count;
+            GL.GetAttachedShaders(shader_conf.program_id, 20, out count, attached_shaders);
+            
+            for (int i = 0; i < count; i++)
+            {
+                int[] shader_params = new int[10];
+                GL.GetShader(attached_shaders[i], OpenTK.Graphics.OpenGL4.ShaderParameter.ShaderType, shader_params);
+
+                if (shader_params[0] == (int) shadertype)
+                {
+                    Console.WriteLine("Found modified shader");
+
+                    string info;
+                    int status_code;
+                    int new_shader_ob = GL.CreateShader(shadertype);
+                    GL.ShaderSource(new_shader_ob, shaderText);
+                    GL.CompileShader(new_shader_ob);
+                    GL.GetShaderInfoLog(new_shader_ob, out info);
+                    GL.GetShader(new_shader_ob, OpenTK.Graphics.OpenGL4.ShaderParameter.CompileStatus, out status_code);
+                    if (status_code != 1)
+                    {
+                        Console.WriteLine("Shader Compilation Failed, Aborting...");
+                        Console.WriteLine(info);
+                        return;
+                    }
+
+                    //Attach new shader back to program
+                    GL.DetachShader(shader_conf.program_id, attached_shaders[i]);
+                    GL.AttachShader(shader_conf.program_id, new_shader_ob);
+                    GL.LinkProgram(shader_conf.program_id);
+                    Console.WriteLine("Shader was modified successfully");
+                    break;
+                }
+            }
+            Console.WriteLine("Shader was not found...");
+        }
+
+        #endregion ShaderMethods
+
+        #region ContextMethods
 
         private void exportToObjToolStripMenuItem_Click(object sender, EventArgs e)
         {
@@ -841,6 +923,10 @@ namespace Model_Viewer
             aform.Show();
         }
 
+        #endregion ContextMethods
+
+        #region ControlSetup_Init
+
         //Setup
         public void setupControlParameters()
         {
@@ -861,28 +947,50 @@ namespace Model_Viewer
             rendering_thread.Start();
 
         }
-        
 
-        private void addCameras()
+        #endregion ControlSetup_Init
+
+        #region Camera Update Functions
+        public void setActiveCam(int index)
         {
-            //Set Camera position
-            activeCam = new Camera(60, this.resMgr.shader_programs[8], 0, true);
-            for (int i = 0; i < 20; i++)
-                activeCam.Move(0.0f, -0.1f, 0.0f);
-
-            resMgr.GLCameras.Add(activeCam);
+            if (activeCam != null)
+                activeCam.isActive = false;
+            activeCam = resMgr.GLCameras[index];
+            activeCam.isActive = true;
+            Console.WriteLine("Switching Camera to {0}", index);
         }
 
         public void updateActiveCam(int FOV, float zNear, float zFar)
         {
-            activeCam.setFOV(FOV);
-            activeCam.zFar = zFar;
-            activeCam.zNear = zNear;
+            //TODO: REMOVE, FOR TESTING I"M WORKING ONLY ON THE FIRST CAM
+            resMgr.GLCameras[0].setFOV(FOV);
+            resMgr.GLCameras[0].zFar = zFar;
+            resMgr.GLCameras[0].zNear = zNear;
         }
 
         public void updateActiveCamPos(float x, float y, float z)
         {
             activeCam.Position = new Vector3(x, y, z);
+        }
+
+        #endregion
+
+        public void updateControlRotation(float rx, float ry)
+        {
+            rot.X = rx;
+            rot.Y = ry;
+        }
+
+        #region AddObjectMethods
+
+        private void addCamera(bool cull)
+        {
+            //Set Camera position
+            Camera cam = new Camera(60, this.resMgr.GLShaders["BBOX_SHADER"], 0, cull);
+            for (int i = 0; i < 20; i++)
+                cam.Move(0.0f, -0.1f, 0.0f);
+            cam.isActive = false;
+            resMgr.GLCameras.Add(cam);
         }
 
         private void addDefaultTextures()
@@ -902,18 +1010,34 @@ namespace Model_Viewer
 
         private void addDefaultPrimitives()
         {
-            MVCore.Primitives.Quad q = new MVCore.Primitives.Quad(1.0f, 1.0f);
             //Default quad
+            MVCore.Primitives.Quad q = new MVCore.Primitives.Quad(1.0f, 1.0f);
             resMgr.GLPrimitiveVaos["default_quad"] = q.getVAO();
 
+            //Default render quad
             q = new MVCore.Primitives.Quad();
-            //Default quad
             resMgr.GLPrimitiveVaos["default_renderquad"] = q.getVAO();
 
-            MVCore.Primitives.Cross c = new MVCore.Primitives.Cross();
             //Default cross
+            MVCore.Primitives.Cross c = new MVCore.Primitives.Cross();
             resMgr.GLPrimitiveVaos["default_cross"] = c.getVAO();
+
+            //Default cube
+            MVCore.Primitives.Box bx = new MVCore.Primitives.Box(1.0f, 1.0f, 1.0f);
+            resMgr.GLPrimitiveVaos["default_box"] = bx.getVAO();
+
+            //Default sphere
+            MVCore.Primitives.Sphere sph = new MVCore.Primitives.Sphere(new Vector3(0.0f,0.0f,0.0f), 100.0f);
+            resMgr.GLPrimitiveVaos["default_sphere"] = sph.getVAO();
         }
+
+        private void addTestObjects()
+        {
+            
+        }
+
+        #endregion AddObjectMethods
+
 
         public void issueRequest(ThreadRequest r)
         {
@@ -948,7 +1072,9 @@ namespace Model_Viewer
             //Add defaults
             addDefaultLights();
             addDefaultTextures();
-            addCameras();
+            addCamera(true);
+            addCamera(false);
+            setActiveCam(0);
             addDefaultPrimitives();
 
             //Setup new object
@@ -961,12 +1087,11 @@ namespace Model_Viewer
         }
 
         //Light Functions
-
         private void addDefaultLights()
         {
             //Add one and only light for now
             Light light = new Light();
-            light.shader_programs = new int[] { this.resMgr.shader_programs[7] };
+            light.shader_programs = new int[] { this.resMgr.GLShaders["LIGHT_SHADER"] };
             light.localPosition = new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                             Math.Sin(this.light_angle_y * Math.PI / 180.0)),
                                                 (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
@@ -1046,14 +1171,16 @@ namespace Model_Viewer
             //gpHandler.reportAxes();
 
             //Camera Movement
-            for (int i = 0; i < movement_speed; i++)
-                activeCam.Move(
-                    0.1f * kbHandler.getKeyStatus(OpenTK.Input.Key.D) - 0.1f * kbHandler.getKeyStatus(OpenTK.Input.Key.A), 
-                    0.1f * kbHandler.getKeyStatus(OpenTK.Input.Key.W) - 0.1f * kbHandler.getKeyStatus(OpenTK.Input.Key.S),
-                    0.1f * kbHandler.getKeyStatus(OpenTK.Input.Key.R) - 0.1f * kbHandler.getKeyStatus(OpenTK.Input.Key.F));
+            float step = movement_speed * 0.01f;
+            activeCam.Move(
+                    step * (kbHandler.getKeyStatus(OpenTK.Input.Key.D) - kbHandler.getKeyStatus(OpenTK.Input.Key.A)),
+                    step * (kbHandler.getKeyStatus(OpenTK.Input.Key.W) - kbHandler.getKeyStatus(OpenTK.Input.Key.S)),
+                    step * (kbHandler.getKeyStatus(OpenTK.Input.Key.R) - kbHandler.getKeyStatus(OpenTK.Input.Key.F)));
+
+            //Rotate Axis
+            rot.Y += step * (kbHandler.getKeyStatus(OpenTK.Input.Key.E) - kbHandler.getKeyStatus(OpenTK.Input.Key.Q));
+            rot.X += step * (kbHandler.getKeyStatus(OpenTK.Input.Key.C) - kbHandler.getKeyStatus(OpenTK.Input.Key.Z));
             
-            //Rotate Camera
-            //TODO: Add rotation if necessary
         }
 
         #endregion

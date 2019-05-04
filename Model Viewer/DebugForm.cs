@@ -81,7 +81,7 @@ namespace Model_Viewer
 
         private void renderquad()
         {
-            GL.UseProgram(this.resMgr.shader_programs[3]);
+            GL.UseProgram(this.resMgr.GLShaders["TEXTURE_MIXING_SHADER"]);
             int quad_vbo;
             int quad_ebo;
 
@@ -218,7 +218,7 @@ namespace Model_Viewer
         private void renderTextures()
         {
 
-            int pass_program = this.resMgr.shader_programs[3];
+            int pass_program = this.resMgr.GLShaders["TEXTURE_MIXING_SHADER"];
 
             //BIND TEXTURES
             Material material = part.material;

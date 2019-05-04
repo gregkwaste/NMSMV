@@ -1253,12 +1253,24 @@ namespace Model_Viewer
             Dictionary<string, Dictionary<string, Vector4>> newPal;
             newPal = new Dictionary<string, Dictionary<string, Vector4>>();
 
-            string filepath = "I:\\SteamLibrary1\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS\\METADATA\\SIMULATION\\SOLARSYSTEM\\COLOURS\\BASECOLOURPALETTES.MBIN";
+            string filepath = System.IO.Path.Combine(MVCore.FileUtils.dirpath, "METADATA\\SIMULATION\\SOLARSYSTEM\\COLOURS\\BASECOLOURPALETTES.MBIN");
+             
+            libMBIN.MBINFile mbinf;
+            try
+            {
+                mbinf = new libMBIN.MBINFile(filepath);
+                mbinf.Load();
+                
+            } catch (System.IO.FileNotFoundException)
+            {
+                MVCore.Common.CallBacks.Log("Palette file " + filepath + "not found");
+                MVCore.Common.CallBacks.Log("Using default palettes");
+                newPal = createPalette();
+                return newPal;
+            }
 
-            libMBIN.MBINFile mbinf = new libMBIN.MBINFile(filepath);
-            mbinf.Load();
-            GcPaletteList template = (GcPaletteList) mbinf.GetData();
 
+            GcPaletteList template = (GcPaletteList)mbinf.GetData();
             TkPaletteTexture tkpt = new TkPaletteTexture();
 
             GcPaletteData gcpd = new GcPaletteData();
@@ -1372,9 +1384,6 @@ namespace Model_Viewer
 
         public static void set_palleteColors()
         {
-            //Initialize the palette everytime this is called
-            paletteSel = new Dictionary<string, Dictionary<string, Vector4>>();
-            //paletteSel = createPalette();
             paletteSel = createPalettefromBasePalettes();
         }
 

@@ -1,30 +1,194 @@
 ﻿using System;
 using System.IO;
 using OpenTK.Graphics.OpenGL4;
+using System.Collections.Generic;
 
 
-namespace GLSLHelper
-{
+namespace GLSLHelper { 
+
+    //Delegate function for sending requests to the active GL control
+    public delegate void GLSLShaderModRequest(GLSLShaderConfig config, string shaderText, ShaderType shadertype);
+    public delegate void GLSLShaderCompileRequest(GLSLShaderConfig config);
+
+
+    public class GLSLShaderConfig
+    {
+        public string name = "";
+        //Store the raw shader text temporarily
+        public string vs = "";
+        public string gs = "";
+        public string tcs = "";
+        public string tes = "";
+        public string fs = "";
+
+        //FileSystemWatcher lists
+        private Dictionary<FileSystemWatcher, string> FileWatcherDict = new Dictionary<FileSystemWatcher, string>();
+        
+        //Publically hold the filepaths of the shaders
+        //For now I am keeping the paths in the filewatcher
+        
+        //Program ID
+        public int program_id = -1;
+        //Shader Compilation log
+        public string log = "";
+
+        public GLSLShaderModRequest modifyShader;
+        public GLSLShaderCompileRequest compileShader;
+        
+        public GLSLShaderConfig(string vvs, string ffs, string ggs, string ttcs, string ttes, string nm)
+        {
+            name = nm;
+
+            //Vertex Shader
+            if (vvs != "")
+            {
+                //Fetch data and store it to vs if a file
+                if (vvs.EndsWith(".glsl"))
+                {
+                    FileSystemWatcher fw = new FileSystemWatcher();
+                    fw.Changed += new FileSystemEventHandler(file_changed);
+                    fw.Path = Path.GetDirectoryName(vvs);
+                    fw.Filter = Path.GetFileName(vvs);
+                    fw.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size;
+                    fw.EnableRaisingEvents = true;
+                    vs = GLSL_Preprocessor.Parser(File.ReadAllText(vvs)); //Fetch data 
+                    FileWatcherDict[fw] = "vs"; //Set entry in dictionary
+                }
+                else
+                    vs = GLSL_Preprocessor.Parser(vvs);
+            }
+
+            //Fragment Shader
+            if (ffs != "")
+            {
+                //Fetch data and store it to vs if a file
+                if (ffs.EndsWith(".glsl"))
+                {
+                    //Fetch data and store it to fs
+                    FileSystemWatcher fw = new FileSystemWatcher();
+                    fw.Path = Path.GetDirectoryName(ffs);
+                    fw.Filter = Path.GetFileName(ffs);
+                    fw.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size;
+                    fw.EnableRaisingEvents = true;
+                    fs = GLSL_Preprocessor.Parser(File.ReadAllText(ffs)); //Fetch data 
+                    fw.Changed += new FileSystemEventHandler(file_changed);
+                    FileWatcherDict[fw] = "fs"; //Set entry in dictionary
+                }
+                else
+                    fs = GLSL_Preprocessor.Parser(ffs); ;
+            }
+
+            //Geometry Shader
+            if (ggs != "")
+            {
+                //Fetch data and store it to vs if a file
+                if (ggs.EndsWith(".glsl"))
+                {
+                    //Fetch data and store it to gs
+                    FileSystemWatcher fw = new FileSystemWatcher();
+                    fw.Path = Path.GetDirectoryName(ggs);
+                    fw.Filter = Path.GetFileName(ggs);
+                    fw.NotifyFilter =   NotifyFilters.LastWrite | NotifyFilters.Size;
+                    fw.EnableRaisingEvents = true;
+                    gs = GLSL_Preprocessor.Parser(File.ReadAllText(ggs)); //Fetch data 
+                    fw.Changed += new FileSystemEventHandler(file_changed);
+                    FileWatcherDict[fw] = "gs"; //Set entry in dictionary
+                }
+                else
+                    gs = GLSL_Preprocessor.Parser(ggs);
+            }
+
+        }
+
+        private void file_changed(object sender, FileSystemEventArgs e)
+        {
+            FileSystemWatcher fw = (FileSystemWatcher) sender;
+            string path = Path.Combine(fw.Path, fw.Filter);
+            Console.WriteLine("Reloading {0}", path);
+            string data = "";
+            bool islocked = true;
+            while (islocked)
+            {
+                try
+                {
+                    data = File.ReadAllText(path);
+                    islocked = false;
+                }
+                catch (System.IO.IOException)
+                {
+                    continue;
+                }
+
+            }
+
+            data = GLSL_Preprocessor.Parser(data);
+            string old_data = "";
+
+            //Set data
+            ShaderType typ = ShaderType.VertexShader; //default value, SHOULD change
+
+            switch (FileWatcherDict[fw])
+            {
+                case "vs":
+                    old_data = vs;
+                    vs = data;
+                    typ = ShaderType.VertexShader;
+                    break;
+                case "fs":
+                    old_data = fs;
+                    fs = data;
+                    typ = ShaderType.FragmentShader;
+                    break;
+                case "gs":
+                    old_data = gs;
+                    gs = data;
+                    typ = ShaderType.GeometryShader;
+                    break;
+                case "tes":
+                    old_data = tes;
+                    tes = data;
+                    typ = ShaderType.TessEvaluationShader;
+                    break;
+                case "tcs":
+                    old_data = tcs;
+                    tcs = data;
+                    typ = ShaderType.TessControlShader;
+                    break;
+            }
+
+            //Checksum the shader source before sending a request
+            if (old_data.GetHashCode() != data.GetHashCode())
+            {
+                //Send shader modification request
+                modifyShader(this, data, typ);
+            }
+            
+        }
+    }
+
+
+
     public static class GLShaderHelper
     {
         //Shader Creation
-        static public void CreateShaders(string vs, string fs, string gs, string tcs, string tes, out int vertexObject,
-            out int fragmentObject, out int program, ref string log)
+        static public void CreateShaders(GLSLShaderConfig config, out int vertexObject,
+            out int fragmentObject, out int program)
         {
             int status_code;
             string info;
             bool gsflag = false;
             bool tsflag = false;
-            if (!(gs == "")) gsflag = true;
-            if (!((tcs == "") & (tes == ""))) tsflag = true;
+            if (!(config.gs == "")) gsflag = true;
+            if (!((config.tcs == "") & (config.tes == ""))) tsflag = true;
 
             //Write Shader strings
-            log += vs + "\n";
-            log += fs + "\n";
-            log += gs + "\n";
-            log += tcs + "\n";
-            log += tes + "\n";
+            config.log += config.vs + "\n";
+            config.log += config.fs + "\n";
+            config.log += config.gs + "\n";
+            config.log += config.tcs + "\n";
+            config.log += config.tes + "\n";
             
+
             vertexObject = GL.CreateShader(ShaderType.VertexShader);
             fragmentObject = GL.CreateShader(ShaderType.FragmentShader);
             int geometryObject = -1;
@@ -38,54 +202,54 @@ namespace GLSLHelper
             }
 
             //Compile vertex Shader
-            GL.ShaderSource(vertexObject, vs);
+            GL.ShaderSource(vertexObject, config.vs);
             GL.CompileShader(vertexObject);
             GL.GetShaderInfoLog(vertexObject, out info);
-            log += info + "\n";
+            config.log += info + "\n";
             GL.GetShader(vertexObject, ShaderParameter.CompileStatus, out status_code);
             if (status_code != 1)
-                throwCompilationError(log);
+                throwCompilationError(config.log);
 
             //Compile fragment Shader
-            GL.ShaderSource(fragmentObject, fs);
+            GL.ShaderSource(fragmentObject, config.fs);
             GL.CompileShader(fragmentObject);
             GL.GetShaderInfoLog(fragmentObject, out info);
-            log += info + "\n";
+            config.log += info + "\n";
             GL.GetShader(fragmentObject, ShaderParameter.CompileStatus, out status_code);
             if (status_code != 1)
-                throwCompilationError(log);
+                throwCompilationError(config.log);
 
             //Compile Geometry Shader
             if (gsflag)
             {
-                GL.ShaderSource(geometryObject, gs);
+                GL.ShaderSource(geometryObject, config.gs);
                 GL.CompileShader(geometryObject);
                 GL.GetShaderInfoLog(geometryObject, out info);
-                log += info + "\n";
+                config.log += info + "\n";
                 GL.GetShader(geometryObject, ShaderParameter.CompileStatus, out status_code);
                 if (status_code != 1)
-                    throwCompilationError(log);
+                    throwCompilationError(config.log);
             }
 
             //Compile Tesselation Shaders
             if (tsflag)
             {
                 //Control Shader
-                GL.ShaderSource(tcsObject, tcs);
+                GL.ShaderSource(tcsObject, config.tcs);
                 GL.CompileShader(tcsObject);
                 GL.GetShaderInfoLog(tcsObject, out info);
-                log += info + "\n";
+                config.log += info + "\n";
                 GL.GetShader(tcsObject, ShaderParameter.CompileStatus, out status_code);
                 if (status_code != 1)
-                    throwCompilationError(log);
+                    throwCompilationError(config.log);
 
-                GL.ShaderSource(tesObject, tes);
+                GL.ShaderSource(tesObject, config.tes);
                 GL.CompileShader(tesObject);
                 GL.GetShaderInfoLog(tesObject, out info);
-                log += info + "\n";
+                config.log += info + "\n";
                 GL.GetShader(tesObject, ShaderParameter.CompileStatus, out status_code);
                 if (status_code != 1)
-                    throwCompilationError(log);
+                    throwCompilationError(config.log);
             }
 
             program = GL.CreateProgram();
@@ -98,13 +262,12 @@ namespace GLSLHelper
                 GL.AttachShader(program, tesObject);
             }
             GL.LinkProgram(program);
-
+            
             //Check Linking
             GL.GetProgramInfoLog(program, out info);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out status_code);
             if (status_code != 1)
-                throwCompilationError(log);
-
+                throwCompilationError(config.log);
 
         }
 

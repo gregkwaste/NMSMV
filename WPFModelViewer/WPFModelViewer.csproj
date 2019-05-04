@@ -24,9 +24,11 @@
     <UpdatePeriodically>false</UpdatePeriodically>
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>true</MapFileExtensions>
+    <ProductName>NMS Model Viewer</ProductName>
+    <PublisherName>gregkwaste</PublisherName>
     <AutorunEnabled>true</AutorunEnabled>
-    <ApplicationRevision>2</ApplicationRevision>
-    <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
+    <ApplicationRevision>4</ApplicationRevision>
+    <ApplicationVersion>1.0.0.4</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <PublishWizardCompleted>true</PublishWizardCompleted>
     <BootstrapperEnabled>true</BootstrapperEnabled>
@@ -52,10 +54,10 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup>
-    <ManifestCertificateThumbprint>FCEF6DBEA37C483239AAB97A12E9950AEAC52781</ManifestCertificateThumbprint>
+    <ManifestCertificateThumbprint>FB680EA71436A8EBD471669C282A2B24BFD3A307</ManifestCertificateThumbprint>
   </PropertyGroup>
   <PropertyGroup>
-    <ManifestKeyFile>WPFModelViewer_TemporaryKey.pfx</ManifestKeyFile>
+    <ManifestKeyFile>WPFModelViewer_1_TemporaryKey.pfx</ManifestKeyFile>
   </PropertyGroup>
   <PropertyGroup>
     <GenerateManifests>false</GenerateManifests>
@@ -64,7 +66,7 @@
     <SignManifests>false</SignManifests>
   </PropertyGroup>
   <PropertyGroup>
-    <ApplicationIcon>logo1_moN_icon.ico</ApplicationIcon>
+    <ApplicationIcon>ianm32logo_border.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup />
   <PropertyGroup />
@@ -72,7 +74,7 @@
     <SignAssembly>false</SignAssembly>
   </PropertyGroup>
   <PropertyGroup>
-    <TargetZone>LocalIntranet</TargetZone>
+    <TargetZone>Custom</TargetZone>
   </PropertyGroup>
   <PropertyGroup>
     <ApplicationManifest>Properties\app.manifest</ApplicationManifest>
@@ -80,6 +82,9 @@
   <ItemGroup>
     <Reference Include="libMBIN">
       <HintPath>..\Model Viewer\lib\libMBIN.dll</HintPath>
+    </Reference>
+    <Reference Include="MathNet.Numerics, Version=4.7.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\MathNet.Numerics.4.7.0\lib\net40\MathNet.Numerics.dll</HintPath>
     </Reference>
     <Reference Include="Newtonsoft.Json">
       <HintPath>..\..\..\..\Downloads\Json110r2\Bin\net45\Newtonsoft.Json.dll</HintPath>
@@ -96,6 +101,8 @@
     <Reference Include="System" />
     <Reference Include="System.Data" />
     <Reference Include="System.Drawing" />
+    <Reference Include="System.Numerics" />
+    <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml">
       <Private>False</Private>
@@ -213,7 +220,6 @@
     <None Include="Resources\tess1.tes" />
     <None Include="Resources\text1.frag" />
     <None Include="Resources\text1.vert" />
-    <None Include="WPFModelViewer_TemporaryKey.pfx" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
@@ -232,6 +238,12 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="logo1_moN_icon.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="ianm32logo_border.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\ianm32logo_border.png" />
   </ItemGroup>
   <Import Project="..\MVCore\MVCore.projitems" Label="Shared" />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

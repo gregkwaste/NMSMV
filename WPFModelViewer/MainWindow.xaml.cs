@@ -15,9 +15,9 @@ using Model_Viewer;
 using MVCore;
 using MVCore.Common;
 using MVCore.GMDL;
-using OpenTK.Graphics.OpenGL;
+using OpenTK.Graphics.OpenGL4;
 using OpenTK;
-
+using System.Runtime.InteropServices;
 
 namespace WPFModelViewer
 {
@@ -44,14 +44,18 @@ namespace WPFModelViewer
 
             //Generate CGLControl
             glControl = new CGLControl();
-
             glControl.Update();
             glControl.MakeCurrent();
 
-            //Compile and allocate shaders
-            compileShaders();
 
-            //Load font
+            //Add request timer handler
+            requestHandler.Interval = 10;
+            requestHandler.Elapsed += queryRequests;
+            requestHandler.Start();
+
+            //Compile Shaders before starting the rendering thread
+            compileShaders();
+            //Load font should be done before being used by the rendering thread and after the shaders are live
             glControl.font = setupFont();
             glControl.setupControlParameters();
 
@@ -67,7 +71,7 @@ namespace WPFModelViewer
         {
             Console.WriteLine("Opening File");
             OpenFileDialog openFileDlg = new OpenFileDialog();
-            openFileDlg.Filter = "SCENE Files (*.SCENE.MBIN)|*.SCENE.MBIN;";
+            openFileDlg.Filter = "SCENE Files (*.SCENE.MBIN, *.SCENE.EXML)|*.SCENE.MBIN;*.SCENE.EXML";
             var res = openFileDlg.ShowDialog();
 
             if (res == false)
@@ -87,7 +91,7 @@ namespace WPFModelViewer
 
             //Cleanup resource manager
             Util.setStatus("Ready");
-
+        
         }
 
         //Request Handler
@@ -115,11 +119,19 @@ namespace WPFModelViewer
                             }));
                             Util.setStatus("Ready");
                             GC.Collect();
-                            issuedRequests.RemoveAt(i); //Remove request
+                            break;
+                        case THREAD_REQUEST.COMPILE_SHADER_REQUEST:
+                            //Add Shader to resource manager
+                            GLSLHelper.GLSLShaderConfig shader_conf = (GLSLShaderConfig) req.arguments[0];
+                            RenderState.activeResMgr.GLShaderConfigs[shader_conf.name] = shader_conf;
+                            RenderState.activeResMgr.GLShaders[shader_conf.name] = shader_conf.program_id;
+                            File.WriteAllText("shader_compilation_" + shader_conf.name + ".log", shader_conf.log);
+                            Util.setStatus("Shader Compiled Successfully!");
                             break;
                         default:
                             break;
                     }
+                    issuedRequests.RemoveAt(i); //Remove request
                 }
                 else
                     i++;
@@ -183,13 +195,47 @@ namespace WPFModelViewer
             //Setup Logger
             Util.loggingSr = new StreamWriter("log.out");
 
+
             //Populate GLControl
             scene scene = new scene();
             scene.type = TYPES.SCENE;
             scene.name = "DEFAULT SCENE";
-            scene.shader_programs = new int[] { RenderState.activeResMgr.shader_programs[1],
-                RenderState.activeResMgr.shader_programs[5],
-                RenderState.activeResMgr.shader_programs[6]};
+
+            //Add cube to scene
+            {
+                //Create model
+                Collision so = new Collision();
+
+                //Remove that after implemented all the different collision types
+                so.shader_programs = new int[] { MVCore.Common.RenderState.activeResMgr.GLShaders["MESH_SHADER"],
+                                             MVCore.Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
+                                             MVCore.Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]}; //Use Mesh program for collisions
+                so.debuggable = true;
+                so.name = "TEST_BOX";
+                so.type = TYPES.MESH;
+
+                so.Bbox[0][0] = 1.0f;
+                so.Bbox[0][1] = 1.0f;
+                so.Bbox[0][2] = 1.0f;
+                so.Bbox[1][0] = -1.0f;
+                so.Bbox[1][1] = -1.0f;
+                so.Bbox[1][2] = -1.0f;
+
+                so.main_Vao = MVCore.Common.RenderState.activeResMgr.GLPrimitiveVaos["default_box"];
+                so.collisionType = COLLISIONTYPES.BOX;
+                //Set general vbo properties
+                so.batchstart_graphics = 0;
+                so.batchcount = 36;
+                so.vertrstart_graphics = 0;
+                so.vertrend_graphics = 8 - 1;
+
+                so.scene = scene;
+                so.parent = scene;
+                scene.children.Add(so);
+            }
+
+            
+
             //Force rootobject
             glControl.rootObject = scene;
 
@@ -212,7 +258,7 @@ namespace WPFModelViewer
             Util.activeStatusStrip = StatusLabel;
             Util.activeControl = glControl;
 
-            //FILL THE CALLBACKS OF MVCORE
+            //SETUP THE CALLBACKS OF MVCORE
             MVCore.Common.CallBacks.updateStatus = Util.setStatus;
             MVCore.Common.CallBacks.openAnim = Util.loadAnimationFile;
             MVCore.Common.CallBacks.Log = Util.Log;
@@ -225,11 +271,6 @@ namespace WPFModelViewer
             sliderlightDistance.ValueChanged += Sliders_OnValueChanged;
             sliderMovementSpeed.ValueChanged += Sliders_OnValueChanged;
 
-
-            //Add request timer handler
-            requestHandler.Interval = 10;
-            requestHandler.Elapsed += queryRequests;
-            requestHandler.Start();
 
             //Invoke the method in order to setup the control at startup
             Sliders_OnValueChanged(null, new RoutedPropertyChangedEventArgs<double>(0.0f,0.0f));
@@ -272,7 +313,33 @@ namespace WPFModelViewer
         }
 
 
+        public void issuemodifyShaderRequest(GLSLShaderConfig config, string shaderText, OpenTK.Graphics.OpenGL4.ShaderType shadertype)
+        {
+            Console.WriteLine("Sending Shader Modification Request");
+            ThreadRequest req = new ThreadRequest();
+            req.req = THREAD_REQUEST.MODIFY_SHADER_REQUEST;
+            req.arguments.Add(config);
+            req.arguments.Add(shaderText);
+            req.arguments.Add(shadertype);
+            
+            //Send request
+            glControl.issueRequest(req);
+            issuedRequests.Add(req);
+        }
+
         //GLPreparation
+        private void compileShader(string vs, string fs, string gs, string tes, string tcs, string name, ref string log)
+        {
+            GLSLShaderConfig shader_conf = new GLSLShaderConfig(vs,fs,gs,tcs,tes, name);
+            //Set modify Shader delegate
+            shader_conf.modifyShader = issuemodifyShaderRequest;
+
+            glControl.compileShader(shader_conf);
+            RenderState.activeResMgr.GLShaderConfigs[shader_conf.name] = shader_conf;
+            RenderState.activeResMgr.GLShaders[shader_conf.name] = shader_conf.program_id;
+            log += shader_conf.log; //Append log
+        }
+
         private void compileShaders()
         {
             //Query GL Extensions
@@ -291,7 +358,6 @@ namespace WPFModelViewer
 
             //Populate shader list
             RenderState.activeResMgr = glControl.resMgr;
-            RenderState.activeResMgr.shader_programs = new int[11];
             string vvs, ggs, ffs;
 
             string log = "";
@@ -299,66 +365,68 @@ namespace WPFModelViewer
 
             //Geometry Shader
             //Compile Object Shaders
-            vvs = GLSL_Preprocessor.Parser("Shaders/Simple_VSEmpty.glsl");
-            ggs = GLSL_Preprocessor.Parser("Shaders/Simple_GS.glsl");
-            ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FSEmpty.glsl");
-
-            GLShaderHelper.CreateShaders(vvs, ffs, ggs, "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[5], ref log);
+            //Create Shader Config
+            compileShader("Shaders/Simple_VSEmpty.glsl",
+                            "Shaders/Simple_FSEmpty.glsl",
+                            "Shaders/Simple_GS.glsl",
+                            "", "", "DEBUG_SHADER", ref log);
 
             //Picking Shaders
-            GLShaderHelper.CreateShaders(ProjProperties.Resources.pick_vert, ProjProperties.Resources.pick_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[6], ref log);
+            compileShader(ProjProperties.Resources.pick_vert,
+                            ProjProperties.Resources.pick_frag,
+                            "","", "", "PICKING_SHADER", ref log);
 
-            //Main Shader
-            vvs = GLSL_Preprocessor.Parser("Shaders/Simple_VS.glsl");
-            ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FS.glsl");
-            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[0], ref log);
 
-            //Texture Mixing Shaders
-            vvs = GLSL_Preprocessor.Parser("Shaders/pass_VS.glsl");
-            ffs = GLSL_Preprocessor.Parser("Shaders/pass_FS.glsl");
-            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[3], ref log);
+            //Main Object Shader
+            compileShader("Shaders/Simple_VS.glsl",
+                            "Shaders/Simple_FS.glsl",
+                            "", "", "", "MESH_SHADER", ref log);
+
+
+            //BoundBox Shader
+            compileShader("Shaders/Bound_VS.glsl",
+                            "Shaders/Bound_FS.glsl",
+                            "", "", "", "BBOX_SHADER", ref log);
+
+            //Texture Mixing Shader
+            compileShader("Shaders/pass_VS.glsl",
+                            "Shaders/pass_FS.glsl",
+                            "", "", "", "TEXTURE_MIXING_SHADER", ref log);
 
             //GBuffer Shaders
-            vvs = GLSL_Preprocessor.Parser("Shaders/Gbuffer_VS.glsl");
-            ffs = GLSL_Preprocessor.Parser("Shaders/Gbuffer_FS.glsl");
-            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[9], ref log);
+            compileShader("Shaders/Gbuffer_VS.glsl",
+                            "Shaders/Gbuffer_FS.glsl",
+                            "", "", "", "GBUFFER_SHADER", ref log);
 
             //Decal Shaders
-            vvs = GLSL_Preprocessor.Parser("Shaders/decal_VS.glsl");
-            ffs = GLSL_Preprocessor.Parser("Shaders/Decal_FS.glsl");
-            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[10], ref log);
+            compileShader("Shaders/decal_VS.glsl",
+                            "Shaders/Decal_FS.glsl",
+                            "", "", "", "DECAL_SHADER", ref log);
 
             //Locator Shaders
-            GLShaderHelper.CreateShaders(ProjProperties.Resources.locator_vert, ProjProperties.Resources.locator_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[1], ref log);
+            compileShader(ProjProperties.Resources.locator_vert,
+                            ProjProperties.Resources.locator_frag,
+                            "", "", "", "LOCATOR_SHADER", ref log);
 
             //Joint Shaders
-            GLShaderHelper.CreateShaders(ProjProperties.Resources.joint_vert, ProjProperties.Resources.joint_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[2], ref log);
+            compileShader(ProjProperties.Resources.joint_vert,
+                            ProjProperties.Resources.joint_frag,
+                            "", "", "", "JOINT_SHADER", ref log);
 
             //Text Shaders
-            GLShaderHelper.CreateShaders(ProjProperties.Resources.text_vert, ProjProperties.Resources.text_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[4], ref log);
+            compileShader(ProjProperties.Resources.text_vert,
+                            ProjProperties.Resources.text_frag,
+                            "", "", "", "TEXT_SHADER", ref log);
 
             //Light Shaders
-            GLShaderHelper.CreateShaders(ProjProperties.Resources.light_vert, ProjProperties.Resources.light_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[7], ref log);
+            compileShader(ProjProperties.Resources.light_vert,
+                            ProjProperties.Resources.light_frag,
+                            "", "", "", "LIGHT_SHADER", ref log);
 
             //Camera Shaders
-            GLShaderHelper.CreateShaders(ProjProperties.Resources.camera_vert, ProjProperties.Resources.camera_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[8], ref log);
-
-
-            //Save log
-            StreamWriter sr = new StreamWriter("shader_compilation_log.out");
-            sr.Write(log);
-            sr.Close();
+            compileShader(ProjProperties.Resources.camera_vert,
+                            ProjProperties.Resources.camera_frag,
+                            "", "", "", "CAMERA_SHADER", ref log);
 
         }
 
@@ -377,7 +445,7 @@ namespace WPFModelViewer
             //Testing some inits
             font.initFromImage(bm);
             font.tex = bm.GLid;
-            font.program = RenderState.activeResMgr.shader_programs[4];
+            font.program = RenderState.activeResMgr.GLShaders["TEXT_SHADER"];
 
             //Set default settings
             float scale = 0.75f;
@@ -402,7 +470,7 @@ namespace WPFModelViewer
             FOV = (int) sliderFOV.Value;
 
             glControl.updateActiveCam(FOV, zNear, zFar);
-            glControl.movement_speed = (int) Math.Floor(Math.Pow(2.0f, sliderMovementSpeed.Value));
+            glControl.movement_speed = (int) Math.Floor(Math.Pow(sliderMovementFactor.Value, sliderMovementSpeed.Value));
             glControl.light_distance = (float) Math.Pow(1.25f, sliderlightDistance.Value) - 1.0f;
             glControl.light_intensity = (float) sliderLightIntensity.Value;
         }
@@ -410,6 +478,7 @@ namespace WPFModelViewer
         private void CameraResetPos(object sender, RoutedEventArgs e)
         {
             glControl.updateActiveCamPos(0.0f, 0.0f, 0.0f);
+            glControl.updateControlRotation(0.0f, 0.0f);
         }
 
         private void updateRenderOptions(object sender, RoutedEventArgs e)
@@ -459,15 +528,14 @@ namespace WPFModelViewer
                 //Swap activeModels
                 prev_activeModel = activeModel;
                 activeModel = node.mdl;
+
+                //Set binding to objectinfo box
+                ObjectInfoBox.DataContext = node.mdl;
+                
                 //Set Selected
                 activeModel.selected = 1;
                 //Object Name
-                activeObjectName.Text = node.mdl.name;
-                //Object Type
-                activeObjectType.Text = ((TYPES) node.mdl.type).ToString();
-                //Material Name
-                if (node.mdl.material != null)
-                    activeObjectMatName.Text = node.mdl.material.name;
+                //activeObjectName.Text = node.mdl.name;
                 activeTransform.loadModel(node.mdl);
             }
 
@@ -489,3 +557,35 @@ namespace WPFModelViewer
         }
     }
 }
+
+namespace WPFModelViewer
+{
+    internal static class NativeMethods
+    {
+        // http://msdn.microsoft.com/en-us/library/ms681944(VS.85).aspx
+        /// <summary>
+        /// Allocates a new console for the calling process.
+        /// </summary>
+        /// <returns>nonzero if the function succeeds; otherwise, zero.</returns>
+        /// <remarks>
+        /// A process can be associated with only one console,
+        /// so the function fails if the calling process already has a console.
+        /// </remarks>
+        [DllImport("kernel32.dll", SetLastError = true)]
+        internal static extern int AllocConsole();
+
+        // http://msdn.microsoft.com/en-us/library/ms683150(VS.85).aspx
+        /// <summary>
+        /// Detaches the calling process from its console.
+        /// </summary>
+        /// <returns>nonzero if the function succeeds; otherwise, zero.</returns>
+        /// <remarks>
+        /// If the calling process is not already attached to a console,
+        /// the error code returned is ERROR_INVALID_PARAMETER (87).
+        /// </remarks>
+        [DllImport("kernel32.dll", SetLastError = true)]
+        internal static extern int FreeConsole();
+    }
+}
+
+

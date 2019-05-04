@@ -9,24 +9,6 @@ public class KeyboardHandler
     //Designed for maintaining KeyStroke Status
     public Dictionary<Key, bool> KeyDown = new Dictionary<Key, bool>();
     
-    //Struct for Stick Positions
-    //States are saved as follows : LS_x LS_y RS_x RS_y
-    private float[][] LR = new float[][] { new float[] { 0.0f, 0.0f },
-                                           new float[] { 0.0f, 0.0f },
-                                           new float[] { 0.0f, 0.0f } };
-
-    private float[][] dLR = new float[][] { new float[] { 0.0f, 0.0f },
-                                            new float[] { 0.0f, 0.0f },
-                                            new float[] { 0.0f, 0.0f } };
-    //Calibration coeffs
-    private float[][] clibCoeffs = new float[][] { new float[] { 0.0f, 0.0f },
-                                           new float[] { 0.0f, 0.0f } };
-
-
-    //Buttons are : LB, RB, Y, X, B, A
-    private float[] buttonStates = new float[] { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
-
-
     //Constructor
     public KeyboardHandler()
     {
@@ -36,6 +18,10 @@ public class KeyboardHandler
         KeyDown[Key.D] = false;
         KeyDown[Key.R] = false;
         KeyDown[Key.F] = false;
+        KeyDown[Key.Q] = false;
+        KeyDown[Key.E] = false;
+        KeyDown[Key.Z] = false;
+        KeyDown[Key.C] = false;
     }
 
     //Update Position
@@ -51,7 +37,11 @@ public class KeyboardHandler
         KeyDown[Key.D] = state.IsKeyDown(Key.D);
         KeyDown[Key.R] = state.IsKeyDown(Key.R);
         KeyDown[Key.F] = state.IsKeyDown(Key.F);
-        
+        KeyDown[Key.Q] = state.IsKeyDown(Key.Q);
+        KeyDown[Key.E] = state.IsKeyDown(Key.E);
+        KeyDown[Key.Z] = state.IsKeyDown(Key.Z);
+        KeyDown[Key.C] = state.IsKeyDown(Key.C);
+
     }
 
     public int getKeyStatus(Key k)

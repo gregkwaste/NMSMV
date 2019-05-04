@@ -76,7 +76,7 @@ vec4 MixMaskMaps(){
 	
 	for (int i=0; i<8; i++){
 		lLayerXVec4[i] = texture2D(maskTex[i], uv0);
-		lfAlpha[i] = lLayerXVec4[i].a;
+		lfAlpha[i] = texture2D(diffuseTex[i], uv0).a;
 	}
 
 	//My input
@@ -94,8 +94,8 @@ vec4 MixMaskMaps(){
 	}
 
 	//Blend Layers together
-	bool init = false;
-	for (int i=7; i >= 0; i--){
+	//Blend the opposite way
+	for (int i=7; i>=0; i--) {
 		lFinalDiffColor = mix(lFinalDiffColor, lLayerXVec4[i], lfAlpha[i]);
 	}
 	

@@ -60,6 +60,9 @@ void main()
 		if (matflags[_F01_DIFFUSEMAP]) {
 			mipmaplevel = textureQueryLOD(diffuseTex, uv0).x;
 			diffTexColor = textureLod(diffuseTex, uv0, mipmaplevel);
+			if (!matflags[_F09_TRANSPARENT]){
+				diffTexColor.a = 1.0f;
+			}
 		} else{
 			diffTexColor = gMaterialColourVec4;
 		}
@@ -100,7 +103,7 @@ void main()
 	bshininess = pow(max (dot (E, N), 0.0), 2.0);	
 	
 	ambient = vec3(0.3, 0.3, 0.3);
-	vec3 diff = vec3(0.3, 0.3, 0.3);
+	vec3 diff = vec3(0.0, 0.0, 0.0);
 
 	if (diffuseFlag > 0.0){
 		//Check _F03_NORMALMAP 63
@@ -114,7 +117,7 @@ void main()
 		if (matflags[_F25_ROUGHNESS_MASK]) {
 			lfRoughness = textureLod(maskTex, uv0, mipmaplevel).g;
 			lfRoughness = 1.0 - lfRoughness;
-			lfRoughness * gMaterialParamsVec4.x;
+			lfRoughness *= gMaterialParamsVec4.x;
 		}  
 
 		if (matflags[_F39_METALLIC_MASK]) {
@@ -125,7 +128,7 @@ void main()
 	}
 	
 	diff += ambient * (0.5 + ((lfRoughness) * 0.5));
-    diff *= intensity * lightColor * bshininess * diffTexColor.rgb; //+ lSpecularColourVec3 * PhongApprox( lfRoughness, lfRoL );
+    diff *= (intensity * lightColor * bshininess + 1.0) * diffTexColor.rgb; //+ lSpecularColourVec3 * PhongApprox( lfRoughness, lfRoL );
     //diff += lfShadow * lFresnelColVec3;
     
     if (use_lighting > 0.0){

@@ -40,6 +40,17 @@ namespace MVCore
 
         }
 
+        public static void vectofloatArray(float[] flist, List<Vector3> veclist)
+        {
+            int count = veclist.Count;
+            for (int i = 0; i < count; i++)
+            {
+                flist[3 * i] = veclist[i].X;
+                flist[3 * i + 1] = veclist[i].Y;
+                flist[3 * i + 2] = veclist[i].Z;
+            }
+        }
+
         //Add matrix to JMArray
         public static void insertMatToArray16(float[] array, int offset, Matrix4 mat)
         {
@@ -90,6 +101,15 @@ namespace MVCore
             return (float) (radians * 180.0 / (float) Math.PI);
         }
 
+        public static float clamp(float val, float min, float max)
+        {
+            return (float)Math.Min(Math.Max((double) min, (double) val), (double)max);
+        }
+
+        public static double clamp(double val, double min, double max)
+        {
+            return Math.Min(Math.Max(min, val), max);
+        }
 
     }
 }

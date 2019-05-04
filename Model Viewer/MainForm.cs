@@ -227,7 +227,7 @@ namespace Model_Viewer
             //setupGLControl();
             
             //Load NMSTemplate Enumerators
-            Palettes.loadNMSEnums();
+            //Palettes.loadNMSEnums();
 
             return;
 
@@ -241,9 +241,9 @@ namespace Model_Viewer
             scene scene = new scene();
             scene.type = TYPES.SCENE;
             scene.name = "DEFAULT SCENE";
-            scene.shader_programs = new int[] { RenderState.activeResMgr.shader_programs[1],
-                                                RenderState.activeResMgr.shader_programs[5],
-                                                RenderState.activeResMgr.shader_programs[6]};
+            scene.shader_programs = new int[] { RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
+                                                RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
+                                                RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
 
 
             if (!this.glloaded)
@@ -320,7 +320,7 @@ namespace Model_Viewer
 
             //Add 2 Cams
             Camera cam;
-            cam = new Camera(50, RenderState.activeResMgr.shader_programs[8], 0, true);
+            cam = new Camera(50, RenderState.activeResMgr.GLShaders["CAMERA_SHADER"], 0, true);
             RenderState.activeResMgr.GLCameras.Add(cam);
             //cam = new Camera(50, ResourceMgmt.shader_programs[8], 0, false);
             //ResourceMgmt.GLCameras.Add(cam);
@@ -370,7 +370,7 @@ namespace Model_Viewer
             //Testing some inits
             font.initFromImage(bm);
             font.tex = bm.GLid;
-            font.program = RenderState.activeResMgr.shader_programs[4];
+            font.program = RenderState.activeResMgr.GLShaders["TEXT_SHADER"];
 
             //Set default settings
             float scale = 0.75f;
@@ -397,71 +397,7 @@ namespace Model_Viewer
             //Query maximum buffer sizes
             Console.WriteLine("MaxUniformBlock Size {0}", GL.GetInteger(GetPName.MaxUniformBlockSize));
 
-            //Populate shader list
-            RenderState.activeResMgr.shader_programs = new int[11];
-            string vvs, ggs, ffs;
-            string log="";
-            //Geometry Shader
-            //Compile Object Shaders
-            vvs = GLSL_Preprocessor.Parser("Shaders/Simple_VSEmpty.glsl");
-            ggs = GLSL_Preprocessor.Parser("Shaders/Simple_GS.glsl");
-            ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FSEmpty.glsl");
-
-            GLShaderHelper.CreateShaders(vvs, ffs, ggs, "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[5], ref log);
-
-            //Picking Shaders
-            GLShaderHelper.CreateShaders(Resources.pick_vert, Resources.pick_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[6], ref log);
-
-            //Main Shader
-            vvs = GLSL_Preprocessor.Parser("Shaders/Simple_VS.glsl");
-            ffs = GLSL_Preprocessor.Parser("Shaders/Simple_FS.glsl");
-            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[0], ref log);
-
-            //Texture Mixing Shaders
-            vvs = GLSL_Preprocessor.Parser("Shaders/pass_VS.glsl");
-            ffs = GLSL_Preprocessor.Parser("Shaders/pass_FS.glsl");
-            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[3], ref log);
-
-            //GBuffer Shaders
-            vvs = GLSL_Preprocessor.Parser("Shaders/Gbuffer_VS.glsl");
-            ffs = GLSL_Preprocessor.Parser("Shaders/Gbuffer_FS.glsl");
-            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[9], ref log);
-
-            //Decal Shaders
-            vvs = GLSL_Preprocessor.Parser("Shaders/decal_VS.glsl");
-            ffs = GLSL_Preprocessor.Parser("Shaders/Decal_FS.glsl");
-            GLShaderHelper.CreateShaders(vvs, ffs, "", "", "", out vertex_shader_ob,
-                    out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[10], ref log);
-
-            //Locator Shaders
-            GLShaderHelper.CreateShaders(Resources.locator_vert, Resources.locator_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[1], ref log);
-
-            //Joint Shaders
-            GLShaderHelper.CreateShaders(Resources.joint_vert, Resources.joint_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[2], ref log);
-
-            //Text Shaders
-            GLShaderHelper.CreateShaders(Resources.text_vert, Resources.text_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[4], ref log);
-
-            //Light Shaders
-            GLShaderHelper.CreateShaders(Resources.light_vert, Resources.light_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[7], ref log);
-
-            //Camera Shaders
-            GLShaderHelper.CreateShaders(Resources.camera_vert, Resources.camera_frag, "", "", "", out vertex_shader_ob,
-                out fragment_shader_ob, out RenderState.activeResMgr.shader_programs[8], ref log);
-
-            //Save log
-            StreamWriter sr = new StreamWriter("shader_compilation_log_" + DateTime.Now.ToFileTime() + "_log.out");
-            sr.Write(log);
-            sr.Close();
+            //NOTE: IF I EVER USE THAT AGAIN, COPY THE NEW METHOD FROM THE WPF PROJECT
 
         }
 
@@ -474,7 +410,7 @@ namespace Model_Viewer
             //GL.DepthFunc(DepthFunction.Gequal);
 
 
-            int active_program = RenderState.activeResMgr.shader_programs[10];
+            int active_program = RenderState.activeResMgr.GLShaders["DECAL_SHADER"];
             GL.UseProgram(active_program);
             int loc;
             Matrix4 temp;
@@ -532,7 +468,7 @@ namespace Model_Viewer
 
         private void render_lights()
         {
-            int active_program = RenderState.activeResMgr.shader_programs[7];
+            int active_program = RenderState.activeResMgr.GLShaders["LIGHT_SHADER"];
 
             GL.UseProgram(active_program);
             int loc;
@@ -546,7 +482,7 @@ namespace Model_Viewer
 
         private void render_cameras()
         {
-            int active_program = RenderState.activeResMgr.shader_programs[8];
+            int active_program = RenderState.activeResMgr.GLShaders["CAMERA_SHADER"];
 
             GL.UseProgram(active_program);
             int loc;
@@ -1131,7 +1067,6 @@ namespace Model_Viewer
                 //n.MakeCurrent(); //Make current
 
                 //Prepare control Resource Object
-                n.resMgr.shader_programs = this.glcontrol1.resMgr.shader_programs; //Copy the same shader programs
                 //n.resMgr.GLgeoms = this.resMgr.GLgeoms;
                 //readd textures
                 n.setupControlParameters();

@@ -26,5 +26,13 @@ namespace WPFModelViewer
             //Override version
             Version.Text = Util.Version;
         }
+
+        private void Hyperlink_Click(object sender, RoutedEventArgs e)
+        {
+            //Assuming that the sender is a hyperlink object
+            Hyperlink h = (Hyperlink)sender;
+
+            System.Diagnostics.Process.Start(h.NavigateUri.ToString());
+        }
     }
 }

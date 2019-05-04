@@ -66,45 +66,99 @@
                     <RowDefinition Height="7*"/>
                     <RowDefinition Height="3*"/>
                 </Grid.RowDefinitions>
+                <!--Settings Tab Control-->
+                <TabControl Grid.Row="0">
+                    <TabItem Header="Camera">
+                        <GroupBox>
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
+                                </Grid.RowDefinitions>
+                                <DockPanel Grid.Row="0" HorizontalAlignment="Stretch">
+                                    <TextBlock Width="80">FOV</TextBlock>
+                                    <Slider x:Name="sliderFOV"  Value="35" Minimum="1" Maximum="100" SmallChange="1"></Slider>
+                                </DockPanel>
+                                <DockPanel Grid.Row="1" HorizontalAlignment="Stretch">
+                                    <TextBlock Width="80">Light Distance</TextBlock>
+                                    <Slider x:Name="sliderlightDistance" Value="2.0" Minimum="0" Maximum="20" SmallChange="0.2"></Slider>
+                                </DockPanel>
+                                <DockPanel Grid.Row="2" HorizontalAlignment="Stretch">
+                                    <TextBlock Width="80">Cam Speed</TextBlock>
+                                    <Slider x:Name="sliderMovementSpeed"  Value="1" Minimum="1" Maximum="10" SmallChange="0.01"></Slider>
+                                </DockPanel>
+                                <DockPanel Grid.Row="3" HorizontalAlignment="Stretch">
+                                    <TextBlock Width="80">Cam Speed Factor</TextBlock>
+                                    <Slider x:Name="sliderMovementFactor"  Value="2" Minimum="1" Maximum="10" SmallChange="1"></Slider>
+                                </DockPanel>
+                                <DockPanel Grid.Row="4" HorizontalAlignment="Stretch">
+                                    <TextBlock Width="80">Light Intensity</TextBlock>
+                                    <Slider x:Name="sliderLightIntensity"  Value="3.0" Minimum="0.0" Maximum="20.0" SmallChange="0.1"></Slider>
+                                </DockPanel>
+                                <DockPanel Grid.Row="5" HorizontalAlignment="Stretch">
+                                    <TextBlock Width="80">zNear</TextBlock>
+                                    <Slider x:Name="sliderzNear"  Value="0.05" Minimum="0.01" Maximum="1" SmallChange="0.1"></Slider>
+                                </DockPanel>
+                                <DockPanel Grid.Row="6" HorizontalAlignment="Stretch">
+                                    <TextBlock Width="80">zFar</TextBlock>
+                                    <Slider x:Name="sliderzFar" Value="15000" Minimum="101" Maximum="30000" SmallChange="5"></Slider>
+                                </DockPanel>
+                                <Button Grid.Row="7" Height="20" Click="CameraResetPos">Reset Camera</Button>
+                            </Grid>
+                        </GroupBox>
+                    </TabItem>
+                    <TabItem Header="Render">
+                        <GroupBox MinHeight="100" Header="RenderOptions">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="93*"/>
+                                    <ColumnDefinition Width="148*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
+                                </Grid.RowDefinitions>
+                                <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                    <TextBlock HorizontalAlignment="Left">Wireframe</TextBlock>
+                                    <CheckBox x:Name="toggleWireframe" Width="20" HorizontalAlignment="Right" Click="updateRenderOptions"></CheckBox>
+                                </DockPanel>
+                                <DockPanel Grid.Row="1" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                    <TextBlock HorizontalAlignment="Left">Use Textures</TextBlock>
+                                    <CheckBox x:Name="useTextures" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
+                                </DockPanel>
+                                <DockPanel Grid.Row="2" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                    <TextBlock HorizontalAlignment="Left">Use Lighting</TextBlock>
+                                    <CheckBox x:Name="useLighting" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
+                                </DockPanel>
+                                <DockPanel Grid.Row="3" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                    <TextBlock HorizontalAlignment="Left">Render Info</TextBlock>
+                                    <CheckBox x:Name="toggleInfo" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
+                                </DockPanel>
+                                <DockPanel Grid.Row="4" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                    <TextBlock HorizontalAlignment="Left">Render Lights</TextBlock>
+                                    <CheckBox x:Name="toggleLights" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
+                                </DockPanel>
+                                <DockPanel Grid.Row="5" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                    <TextBlock HorizontalAlignment="Left">Collisions</TextBlock>
+                                    <CheckBox x:Name="toggleCollisions" Width="20" HorizontalAlignment="Right" Click="updateRenderOptions"></CheckBox>
+                                </DockPanel>
+                            </Grid>
+
+                        </GroupBox>
+                    </TabItem>
+                </TabControl>
                 <!--Camera Settings -->
-                <GroupBox Grid.Row="0" Header="Camera Settings" BorderThickness="2">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="20"/>
-                            <RowDefinition Height="20"/>
-                            <RowDefinition Height="20"/>
-                            <RowDefinition Height="20"/>
-                            <RowDefinition Height="20"/>
-                            <RowDefinition Height="20"/>
-                            <RowDefinition Height="20"/>
-                        </Grid.RowDefinitions>
-                        <DockPanel Grid.Row="0" HorizontalAlignment="Stretch">
-                            <TextBlock Width="80">FOV</TextBlock>
-                            <Slider x:Name="sliderFOV"  Value="35" Minimum="1" Maximum="100" SmallChange="1"></Slider>
-                        </DockPanel>
-                        <DockPanel Grid.Row="1" HorizontalAlignment="Stretch">
-                            <TextBlock Width="80">Light Distance</TextBlock>
-                            <Slider x:Name="sliderlightDistance" Value="2.0" Minimum="0" Maximum="20" SmallChange="0.2"></Slider>
-                        </DockPanel>
-                        <DockPanel Grid.Row="2" HorizontalAlignment="Stretch">
-                            <TextBlock Width="80">Movement Speed</TextBlock>
-                            <Slider x:Name="sliderMovementSpeed"  Value="1" Minimum="0" Maximum="10" SmallChange="0.01"></Slider>
-                        </DockPanel>
-                        <DockPanel Grid.Row="3" HorizontalAlignment="Stretch">
-                            <TextBlock Width="80">Light Intensity</TextBlock>
-                            <Slider x:Name="sliderLightIntensity"  Value="3.0" Minimum="0.0" Maximum="20.0" SmallChange="0.1"></Slider>
-                        </DockPanel>
-                        <DockPanel Grid.Row="4" HorizontalAlignment="Stretch">
-                            <TextBlock Width="80">zNear</TextBlock>
-                            <Slider x:Name="sliderzNear"  Value="0.5" Minimum="0.1" Maximum="2" SmallChange="0.1"></Slider>
-                        </DockPanel>
-                        <DockPanel Grid.Row="5" HorizontalAlignment="Stretch">
-                            <TextBlock Width="80">zFar</TextBlock>
-                            <Slider x:Name="sliderzFar" Value="15000" Minimum="1" Maximum="30000" SmallChange="5"></Slider>
-                        </DockPanel>
-                        <Button Grid.Row="6" Height="20" Click="CameraResetPos">Reset Camera</Button>
-                    </Grid>
-                </GroupBox>
+
 
                 <GroupBox Grid.Row="1" Header="SceneGraph" BorderThickness="2">
                     <TreeView x:Name="SceneTreeView"
@@ -125,74 +179,33 @@
             <WindowsFormsHost Grid.Column="2" x:Name="Host" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
             <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch"/>
             <Grid Grid.Column="4">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="3*"/>
-                    <RowDefinition Height="1*"/>
-                </Grid.RowDefinitions>
-                <GroupBox Grid.Row="0" MinHeight="100" Header="Object Information">
+                <GroupBox x:Name="ObjectInfoBox" Header="Object Information">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
-                            <RowDefinition Height="6*"/>
+                            <RowDefinition Height="50*"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <DockPanel Grid.Row="0" >
                             <TextBlock>Name:</TextBlock>
-                            <TextBlock x:Name="activeObjectName" HorizontalAlignment="Right"></TextBlock>
+                            <TextBlock Text="{Binding Name}" HorizontalAlignment="Right"></TextBlock>
                         </DockPanel>
                         <DockPanel Grid.Row="1" >
                             <TextBlock>Type:</TextBlock>
-                            <TextBlock x:Name="activeObjectType" HorizontalAlignment="Right"></TextBlock>
+                            <TextBlock Text="{Binding ModelType}" HorizontalAlignment="Right"></TextBlock>
                         </DockPanel>
                         <DockPanel Grid.Row="2" >
                             <TextBlock>Material Name:</TextBlock>
-                            <TextBlock x:Name="activeObjectMatName" HorizontalAlignment="Right"></TextBlock>
+                            <TextBlock Text="{Binding Material}" HorizontalAlignment="Right"></TextBlock>
                         </DockPanel>
-                        <local:ModelTransform Grid.Row="3" x:Name="activeTransform"></local:ModelTransform>
+                        <StackPanel Grid.Row="3" Orientation="Vertical">
+                            <TextBlock>Texture List:</TextBlock>
+                            <ListBox FontSize="10" ItemsSource="{Binding TextureList}" VerticalAlignment="Stretch" Height="Auto" ></ListBox>
+                        </StackPanel>
+                        <local:ModelTransform Grid.Row="4" VerticalAlignment="Bottom" x:Name="activeTransform"/>
                     </Grid>
-                </GroupBox>
-
-                <GroupBox Grid.Row="1" MinHeight="100" Header="RenderOptions">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="93*"/>
-                            <ColumnDefinition Width="148*"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="20"/>
-                            <RowDefinition Height="20"/>
-                            <RowDefinition Height="20"/>
-                            <RowDefinition Height="20"/>
-                            <RowDefinition Height="20"/>
-                            <RowDefinition Height="20"/>
-                        </Grid.RowDefinitions>
-                        <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                            <TextBlock HorizontalAlignment="Left">Wireframe</TextBlock>
-                            <CheckBox x:Name="toggleWireframe" Width="20" HorizontalAlignment="Right" Click="updateRenderOptions"></CheckBox>
-                        </DockPanel>
-                        <DockPanel Grid.Row="1" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                            <TextBlock HorizontalAlignment="Left">Use Textures</TextBlock>
-                            <CheckBox x:Name="useTextures" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
-                        </DockPanel>
-                        <DockPanel Grid.Row="2" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                            <TextBlock HorizontalAlignment="Left">Use Lighting</TextBlock>
-                            <CheckBox x:Name="useLighting" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
-                        </DockPanel>
-                        <DockPanel Grid.Row="3" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                            <TextBlock HorizontalAlignment="Left">Render Info</TextBlock>
-                            <CheckBox x:Name="toggleInfo" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
-                        </DockPanel>
-                        <DockPanel Grid.Row="4" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                            <TextBlock HorizontalAlignment="Left">Render Lights</TextBlock>
-                            <CheckBox x:Name="toggleLights" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
-                        </DockPanel>
-                        <DockPanel Grid.Row="5" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                            <TextBlock HorizontalAlignment="Left">Collisions</TextBlock>
-                            <CheckBox x:Name="toggleCollisions" Width="20" HorizontalAlignment="Right" Click="updateRenderOptions"></CheckBox>
-                        </DockPanel>
-                    </Grid>
-
                 </GroupBox>
             </Grid>
 

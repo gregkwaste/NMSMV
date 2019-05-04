@@ -5,6 +5,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
+
 /*
  * Kons 2012-12-03 Version .2
  * 
@@ -45,9 +46,9 @@ namespace KUtility {
 		public int dwMagic;
 		public DDS_HEADER header = new DDS_HEADER();
 		public DDS_HEADER_DXT10 header10 = null;//If the DDS_PIXELFORMAT dwFlags is set to DDPF_FOURCC and dwFourCC is set to "DX10"
-		public byte[] bdata;//pointer to an array of bytes that contains the main surface data. 
+		public byte[] bdata;//pointer to an array of bytes that contains all mipmap data. 
 		public byte[] bdata2;//pointer to an array of bytes that contains the remaining surfaces such as; mipmap levels, faces in a cube map, depths in a volume texture.
-	    public List<byte[]> mipMaps = new List<byte[]>(); //TODO load and upload the separately.
+	    public List<byte[]> mipMaps = new List<byte[]>(); //TODO load and upload them separately.
 
 	    public DDSImage(byte[] rawdata) {
 			using (MemoryStream ms = new MemoryStream(rawdata)) {
@@ -106,7 +107,7 @@ namespace KUtility {
             }
 		}
 
-		private Bitmap readBlockImage(byte[] data, int w, int h) {
+        private Bitmap readBlockImage(byte[] data, int w, int h) {
 			switch (header.ddspf.dwFourCC) {
 				case FOURCC_DXT1:
 					return UncompressDXT1(data, w, h);

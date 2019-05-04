@@ -10,7 +10,11 @@ public class _2sComplement
     static public int toInt(uint val, int bits)
     {
         int output;
+        int mask = 1 << (bits - 1);
 
+        return (int) (-(val & mask) + (val & ~mask));
+
+        /*
         //Check MSB
         int one = 1;
         int mask = one << (bits - 1);
@@ -44,6 +48,7 @@ public class _2sComplement
         }
 
         return output;
+        */
     }
 }
 
