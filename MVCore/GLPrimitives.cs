@@ -518,4 +518,83 @@ namespace MVCore.Primitives
         }
     }
 
+    class LineSegment : Primitive
+    {
+        //Constructor
+        public LineSegment(int instance_num, Vector3 color)
+        {
+            instance_num = Math.Max(instance_num, 1); //Should be always >=1
+            verts = new float[instance_num * 2 * 3];
+            Array.Clear(verts, 0, instance_num * 2 * 3);
+            
+            int arraysize = instance_num * 2 * 3;
+            int b_size = 2 * arraysize;
+            float[] verts_combined = new float[b_size];
+
+            Array.Copy(verts, 0, verts_combined, 0, arraysize);
+            //Colors
+            float[] colors = new float[instance_num * 2 * 3];
+
+            for (int i=0; i < instance_num; i++)
+            {
+                colors[6 * i + 0] = color.X;
+                colors[6 * i + 1] = color.Y;
+                colors[6 * i + 2] = color.Z;
+                colors[6 * i + 3] = color.X;
+                colors[6 * i + 4] = color.Y;
+                colors[6 * i + 5] = color.Z;
+            }
+
+            Array.Copy(colors, 0, verts_combined, arraysize, arraysize);
+
+            //Indices
+            indices = new Int32[instance_num * 2];
+            for (int i = 0; i <instance_num * 2; i++)
+                indices[i] = i;
+            
+            //Replace verts
+            verts = verts_combined;
+
+            geom = getGeom();
+        }
+
+        public new GMDL.GeomObject getGeom()
+        {
+            GMDL.GeomObject geom = new GMDL.GeomObject();
+
+            //Set main Geometry Info
+            geom.vertCount = 2;
+            geom.indicesCount = indices.Length;
+            geom.indicesLength = 0x4;
+
+            //Set Strides
+            geom.vx_size = 3 * 4; //3 Floats * 4 Bytes each
+
+            //Set Buffer Offsets
+            geom.offsets = new int[7];
+            geom.bufInfo = new List<GMDL.bufInfo>();
+
+            for (int i = 0; i < 7; i++)
+            {
+                geom.bufInfo.Add(null);
+                geom.offsets[i] = -1;
+            }
+
+            geom.mesh_descr = "vn";
+            geom.offsets[0] = 0;
+            geom.offsets[2] = 0;
+            geom.bufInfo[0] = new GMDL.bufInfo(0, VertexAttribPointerType.Float, 3, 0, "vPosition");
+            geom.bufInfo[2] = new GMDL.bufInfo(2, VertexAttribPointerType.Float, 3, 24, "nPosition");
+
+
+            //Set Buffers
+            geom.ibuffer = new byte[4 * indices.Length];
+            System.Buffer.BlockCopy(indices, 0, geom.ibuffer, 0, geom.ibuffer.Length);
+            geom.vbuffer = new byte[4 * verts.Length];
+            System.Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, geom.vbuffer.Length);
+
+            return geom;
+        }
+    }
+
 }

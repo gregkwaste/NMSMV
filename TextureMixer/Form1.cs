@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Windows.Forms;
 using OpenTK.Graphics.OpenGL4;
-using OpenTK.Math;
+using OpenTK;
 using KUtility;
 using AntTweakBar;
 using GLSLHelper;

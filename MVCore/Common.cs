@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using OpenTK;
 using MVCore.GMDL;
+using MVCore;
 
 namespace MVCore.Common
 {
@@ -29,11 +30,13 @@ namespace MVCore.Common
     public delegate void UpdateStatusCallBack(string msg);
     public delegate void OpenAnimCallBack(string filepath, MVCore.GMDL.scene animScene);
     public delegate void LogCallBack(string msg);
+    public delegate void SendRequestCallBack(ThreadRequest req);
 
     public static class CallBacks
     {
         public static UpdateStatusCallBack updateStatus = null;
         public static OpenAnimCallBack openAnim = null;
         public static LogCallBack Log = null;
+        public static SendRequestCallBack issueRequestToGLControl = null;
     }
 }

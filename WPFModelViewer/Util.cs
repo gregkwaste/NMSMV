@@ -9,6 +9,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using Model_Viewer;
+using MVCore;
 
 namespace WPFModelViewer
 {
@@ -53,6 +54,15 @@ namespace WPFModelViewer
 #endif
             loggingSr.WriteLine(msg);
             loggingSr.Flush();
+        }
+
+        public static void sendRequest(ThreadRequest req)
+        {
+            //This function simply issues the request for handling from the active GL Control
+            //It is the senders responsibility to handle and keep track of any results if necessary
+
+            //Should be awesome for blind requests that have to 
+            activeControl?.issueRequest(req);
         }
     }
 

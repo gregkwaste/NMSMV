@@ -12,11 +12,13 @@ using ProjProperties = WPFModelViewer.Properties;
 using GLSLHelper;
 using Microsoft.Win32;
 using Model_Viewer;
-using MVCore;
+using MVCore.Text;
 using MVCore.Common;
 using MVCore.GMDL;
+using MVCore;
 using OpenTK.Graphics.OpenGL4;
-using OpenTK;
+using QuickFont;
+using QuickFont.Configuration;
 using System.Runtime.InteropServices;
 
 namespace WPFModelViewer
@@ -56,7 +58,7 @@ namespace WPFModelViewer
             //Compile Shaders before starting the rendering thread
             compileShaders();
             //Load font should be done before being used by the rendering thread and after the shaders are live
-            glControl.font = setupFont();
+            glControl.setupTextRenderer();
             glControl.setupControlParameters();
 
             //Load Keyboard Handler
@@ -82,7 +84,7 @@ namespace WPFModelViewer
 
             //Generate Request for rendering thread
             ThreadRequest req = new ThreadRequest();
-            req.req = THREAD_REQUEST.NEW_SCENE_REQUEST;
+            req.type = THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST;
             req.arguments.Clear();
             req.arguments.Add(filename);
 
@@ -103,9 +105,9 @@ namespace WPFModelViewer
                 ThreadRequest req = issuedRequests[i];
                 if (req.status == THREAD_REQUEST_STATUS.FINISHED)
                 {
-                    switch (req.req)
+                    switch (req.type)
                     {
-                        case THREAD_REQUEST.NEW_SCENE_REQUEST:
+                        case THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST:
                             glControl.rootObject.ID = itemCounter;
                             Util.setStatus("Creating Nodes...");
                             ModelNode scn_node = new ModelNode(glControl.rootObject);
@@ -120,7 +122,7 @@ namespace WPFModelViewer
                             Util.setStatus("Ready");
                             GC.Collect();
                             break;
-                        case THREAD_REQUEST.COMPILE_SHADER_REQUEST:
+                        case THREAD_REQUEST_TYPE.COMPILE_SHADER_REQUEST:
                             //Add Shader to resource manager
                             GLSLHelper.GLSLShaderConfig shader_conf = (GLSLShaderConfig) req.arguments[0];
                             RenderState.activeResMgr.GLShaderConfigs[shader_conf.name] = shader_conf;
@@ -154,7 +156,7 @@ namespace WPFModelViewer
 
             //Send Terminate Rendering request to the rt_thread
             ThreadRequest req = new ThreadRequest();
-            req.req = THREAD_REQUEST.TERMINATE_REQUEST;
+            req.type = THREAD_REQUEST_TYPE.TERMINATE_REQUEST;
             req.arguments.Clear();
             glControl.issueRequest(req);
 
@@ -262,6 +264,7 @@ namespace WPFModelViewer
             MVCore.Common.CallBacks.updateStatus = Util.setStatus;
             MVCore.Common.CallBacks.openAnim = Util.loadAnimationFile;
             MVCore.Common.CallBacks.Log = Util.Log;
+            MVCore.Common.CallBacks.issueRequestToGLControl = Util.sendRequest;
 
             //Add event handlers to GUI elements
             sliderzNear.ValueChanged += Sliders_OnValueChanged;
@@ -317,7 +320,7 @@ namespace WPFModelViewer
         {
             Console.WriteLine("Sending Shader Modification Request");
             ThreadRequest req = new ThreadRequest();
-            req.req = THREAD_REQUEST.MODIFY_SHADER_REQUEST;
+            req.type = THREAD_REQUEST_TYPE.MODIFY_SHADER_REQUEST;
             req.arguments.Add(config);
             req.arguments.Add(shaderText);
             req.arguments.Add(shadertype);
@@ -342,6 +345,8 @@ namespace WPFModelViewer
 
         private void compileShaders()
         {
+
+#if(DEBUG)
             //Query GL Extensions
             Console.WriteLine("OPENGL AVAILABLE EXTENSIONS:");
             string[] ext = GL.GetString(StringName.Extensions).Split(' ');
@@ -355,14 +360,12 @@ namespace WPFModelViewer
 
             //Query maximum buffer sizes
             Console.WriteLine("MaxUniformBlock Size {0}", GL.GetInteger(GetPName.MaxUniformBlockSize));
+#endif
 
             //Populate shader list
             RenderState.activeResMgr = glControl.resMgr;
-            string vvs, ggs, ffs;
-
             string log = "";
-            int vertex_shader_ob, fragment_shader_ob;
-
+            
             //Geometry Shader
             //Compile Object Shaders
             //Create Shader Config
@@ -428,32 +431,6 @@ namespace WPFModelViewer
                             ProjProperties.Resources.camera_frag,
                             "", "", "", "CAMERA_SHADER", ref log);
 
-        }
-
-
-        private FontGL setupFont()
-        {
-            FontGL font = new FontGL();
-
-            //Test BMP Image Class
-            //BMPImage bm = new BMPImage("courier.bmp");
-
-            //Create font to memory
-            MemoryStream ms = FontGL.createFont();
-            BMPImage bm = new BMPImage(ms);
-
-            //Testing some inits
-            font.initFromImage(bm);
-            font.tex = bm.GLid;
-            font.program = RenderState.activeResMgr.GLShaders["TEXT_SHADER"];
-
-            //Set default settings
-            float scale = 0.75f;
-            font.space = scale * 0.20f;
-            font.width = scale * 0.20f;
-            font.height = scale * 0.35f;
-
-            return font;
         }
 
 

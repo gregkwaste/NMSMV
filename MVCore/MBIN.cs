@@ -570,9 +570,13 @@ namespace MVCore
                 }
                 root.children.Add(part);
             }
+            
+            //Update Transformations for all objects
+            root.update();
 
             //Set root scene for rootObject
             gobject.rootObject = root;
+            
             return root;
         }
 
@@ -697,7 +701,6 @@ namespace MVCore
                     string mat_exmlPath = Path.GetFullPath(FileUtils.getExmlPath(mat_path));
                     //Console.WriteLine("Loading Scene " + path);
 
-                    Console.WriteLine("Parsing Material File " + mat_path);
                     MVCore.Common.CallBacks.Log(string.Format("Parsing Material File {0}", mat_path));
 
                     //Check if path exists
@@ -832,6 +835,8 @@ namespace MVCore
                 joint.color[0] = Common.RenderState.randgen.Next(255) / 255.0f;
                 joint.color[1] = Common.RenderState.randgen.Next(255) / 255.0f;
                 joint.color[2] = Common.RenderState.randgen.Next(255) / 255.0f;
+
+                joint.main_Vao = new MVCore.Primitives.LineSegment(children.Count, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
 
                 //Handle Children
                 if (children.Count > 0)

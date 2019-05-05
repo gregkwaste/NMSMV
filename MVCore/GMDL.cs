@@ -44,56 +44,66 @@ namespace MVCore.GMDL
         public List<model> children = new List<model>();
         public Dictionary<string, Dictionary<string, Vector3>> palette;
         public bool procFlag = false; //This is used to define procgen usage
+        private bool moved = false; //This flag is used to indicate if the model has been transformed or not
+
+
+
 
         //Transformation Parameters
-        public Vector3 worldPosition {
-            get
-            {
-                if (parent != null)
-                {
-                    //Original working
-                    //return parent.worldPosition + Vector3.Transform(this.localPosition, parent.worldMat);
-                    
-                    //Add Translation as well
-                    return (Vector4.Transform(new Vector4(0.0f,0.0f,0.0f,1.0f), this.worldMat)).Xyz;
-                }
-                    
-                else
-                    return this.localPosition;
-            }
-        }
-        public Matrix4 worldMat
+        public Vector3 worldPosition = new Vector3(0.0f, 0.0f, 0.0f);
+        public Matrix4 worldMat = Matrix4.Identity;
+        public Matrix4 localMat = Matrix4.Identity;
+
+
+        public virtual void update()
         {
-            get
-            {
-                if (parent != null)
-                {
-                    //Original working
-                    return this.localMat * parent.worldMat;
-                    //return this.localMat;
-                }
+            //Update Local Transformation Matrix
+            
+            //Combine localRotation and Position to return the localMatrix
+            //Option 1 use the quaternion - AGAIN NOT FUCKING WORKING FUCK MY LIFE
+            //Matrix4 rot1 = Matrix4.CreateFromQuaternion(localRotationQuaternion);
 
-                else
-                    return this.localMat;
+            //Create scaling matrix
+            Matrix4 scale = Matrix4.Identity;
+            scale[0, 0] = localScale[0];
+            scale[1, 1] = localScale[1];
+            scale[2, 2] = localScale[2];
+
+            localMat = scale * localRotation * Matrix4.CreateTranslation(localPosition);
+
+            //Finally Update world Transformation Matrix
+
+            if (parent != null)
+            {
+                //Original working
+                worldMat = localMat * parent.worldMat;
+                //return this.localMat;
+            }
+
+            else
+                worldMat = localMat;
+
+            //Update worldPosition
+            if (parent != null)
+            {
+                //Original working
+                //return parent.worldPosition + Vector3.Transform(this.localPosition, parent.worldMat);
+
+                //Add Translation as well
+                worldPosition = (Vector4.Transform(new Vector4(0.0f, 0.0f, 0.0f, 1.0f), this.worldMat)).Xyz;
+            }
+
+            else
+                worldPosition = localPosition;
+
+
+            //Trigger the position update of all children nodes
+            foreach (GMDL.model child in children)
+            {
+                child.update();
             }
         }
-        public Matrix4 localMat
-        {
-            get
-            {
-                //Combine localRotation and Position to return the localMatrix
-                //Option 1 use the quaternion - AGAIN NOT FUCKING WORKING FUCK MY LIFE
-                //Matrix4 rot1 = Matrix4.CreateFromQuaternion(localRotationQuaternion);
 
-                //Create scaling matrix
-                Matrix4 scale = Matrix4.Identity;
-                scale[0, 0] = localScale[0];
-                scale[1, 1] = localScale[1];
-                scale[2, 2] = localScale[2];
-
-                return scale * localRotation * Matrix4.CreateTranslation(localPosition);
-            }
-        }
         public Vector3 localPosition = new Vector3(0.0f, 0.0f, 0.0f);
         public Vector3 localScale = new Vector3(1.0f, 1.0f, 1.0f);
         public Vector3 localRotationAngles = new Vector3(0.0f, 0.0f, 0.0f);
@@ -363,7 +373,7 @@ namespace MVCore.GMDL
                 }
                 //Console.WriteLine("Node " + node.name+ " {0} {1} {2}",node.rotIndex,node.transIndex,node.scaleIndex);
             }
-
+            update(); //Trigger the update of transformations for the entire animation scene
             frameCounter += 1;
             if (frameCounter >= animMeta.FrameCount - 1)
                 frameCounter = 0;
@@ -764,7 +774,6 @@ namespace MVCore.GMDL
             GL.BindVertexArray(main_Vao.vao_id);
             GL.PolygonMode(MaterialFace.FrontAndBack, RenderOptions.RENDERMODE);
             GL.DrawElements(PrimitiveType.Triangles, batchcount, indicesLength, (IntPtr) 0);
-
             GL.BindVertexArray(0);
         }
 
@@ -2773,21 +2782,42 @@ namespace MVCore.GMDL
 
     public class Joint : locator
     {
-        private int vertex_buffer_object;
-        private int element_buffer_object;
+        public mainVAO main_Vao;
         public int jointIndex;
         public Vector3 color;
 
         public Joint() :base(0.1f)
         {
-            //Create Buffers
-            GL.GenBuffers(1, out vertex_buffer_object);
-            //GL.GenBuffers(1, out color_buffer_object);
-            GL.GenBuffers(1, out element_buffer_object);
+            
         }
 
-        
-        
+        public override void update()
+        {
+            base.update(); //Call the base function to update the transforms
+
+            //Update Vertex Buffer based on the new positions
+            float[] verts = new float[2 * children.Count * 3];
+            int arraysize = 2 * children.Count * 3 * sizeof(float);
+
+            for (int i = 0; i < children.Count; i++)
+            {
+                verts[i * 6 + 0] = worldPosition.X;
+                verts[i * 6 + 1] = worldPosition.Y;
+                verts[i * 6 + 2] = worldPosition.Z;
+                verts[i * 6 + 3] = children[i].worldPosition.X;
+                verts[i * 6 + 4] = children[i].worldPosition.Y;
+                verts[i * 6 + 5] = children[i].worldPosition.Z;
+            }
+
+            GL.BindVertexArray(main_Vao.vao_id);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, main_Vao.vertex_buffer_object);
+            //Add verts data, color data should stay the same
+            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
+
+        }
+
+
+
         //Empty stuff
         public override model Clone(scene scn)
         {
@@ -2797,8 +2827,7 @@ namespace MVCore.GMDL
             copy.type = this.type;
             copy.name = this.name;
             copy.ID = this.ID;
-            copy.vertex_buffer_object = this.vertex_buffer_object;
-            copy.element_buffer_object = this.element_buffer_object;
+            copy.main_Vao = this.main_Vao;
             copy.jointIndex = this.jointIndex;
             copy.color = this.color;
             
@@ -2823,68 +2852,13 @@ namespace MVCore.GMDL
         private void renderMain(int pass)
         {
             GL.UseProgram(pass);
-            
-            //Draw Lines to children joints
-            List<Vector3> verts = new List<Vector3>();
-            //List<int> indices = new List<int>();
-            List<Vector3> colors = new List<Vector3>();
-            int arraysize = this.children.Count * 2 * 3 * sizeof(float);
-            int[] indices = new int[this.children.Count * 2];
-            for (int i = 0; i < this.children.Count; i++)
-            {
-                verts.Add(this.worldPosition);
-                verts.Add(children[i].worldPosition);
-                ////Choosing red color for the skeleton
-                colors.Add(new Vector3(1.0f, 0.0f, 0.0f));
-                colors.Add(new Vector3(1.0f, 0.0f, 0.0f));
-                //Use Random Color for Testing
-                //colors.Add(color);
-                //colors.Add(color);
 
-                //Add line indices
-                indices[2 * i] = 2 * i;
-                indices[2 * i + 1] = 2 * i + 1;
-            }
-
-            float[] vertsf = new float[verts.Count * 3];
-            float[] colorf = new float[colors.Count * 3];
-            MVCore.MathUtils.vectofloatArray(vertsf, verts);
-            MVCore.MathUtils.vectofloatArray(colorf, colors);
-
-            //Upload vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vertex_buffer_object);
-            //Allocate to NULL
-            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)(2 * arraysize), (IntPtr)null, BufferUsageHint.StaticDraw);
-            //Add verts data
-            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, vertsf);
-            //Add vert color data
-            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)arraysize, (IntPtr)arraysize, colorf);
-
-            ////Upload index buffer
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.element_buffer_object);
-            GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr)(sizeof(int) * indices.Length), indices, BufferUsageHint.StaticDraw);
-
-            //Render Immediately
-            //Bind vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vertex_buffer_object);
-            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, 0);
-            GL.EnableVertexAttribArray(0);
-
-            //Color Attribute
-            GL.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 0, (IntPtr)arraysize);
-            GL.EnableVertexAttribArray(1);
-
-            //Render Elements
-            //Bind elem buffer
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.element_buffer_object);
+            GL.BindVertexArray(main_Vao.vao_id);
             GL.PointSize(5.0f);
+            GL.DrawArrays(PrimitiveType.Lines, 0, 2 * children.Count);
+            GL.DrawArrays(PrimitiveType.Points, 0, 1); //Draw only yourself
+            GL.BindVertexArray(0);
 
-            GL.DrawArrays(PrimitiveType.Lines, 0, indices.Length);
-            GL.DrawArrays(PrimitiveType.Points, 0, indices.Length);
-            
-            //Draw only Joint Point
-            GL.DisableVertexAttribArray(0);
-            GL.DisableVertexAttribArray(1);
         }
 
         public override bool render(int pass)
@@ -2913,21 +2887,10 @@ namespace MVCore.GMDL
         //DIsposal
         protected override void Dispose(bool disposing)
         {
-            if (disposed)
-                return;
-
-            if (disposing)
-            {
-                GL.DeleteBuffer(vertex_buffer_object);
-                GL.DeleteBuffer(element_buffer_object);
-                //Free other resources here
-                base.Dispose(true);
-            }
-
-            //Free unmanaged resources
-            disposed = true;
+            //Dispose GL Stuff
+            main_Vao?.Dispose();
+            base.Dispose(disposing);
         }
-
     }
 
     public class Light : model

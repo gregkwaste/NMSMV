@@ -20,47 +20,10 @@ using GL = OpenTK.Graphics.OpenGL4.GL;
 using PolygonMode = OpenTK.Graphics.OpenGL4.PolygonMode;
 using System.ComponentModel;
 using System.Threading;
+using QuickFont;
 
 namespace Model_Viewer
 {
-    public enum GLTEXT_INDEX
-    {
-        FPS,
-        MSG1,
-        MSG2,
-        COUNT
-    };
-
-    public enum THREAD_REQUEST
-    {
-        NEW_SCENE_REQUEST,
-        RESIZE_REQUEST,
-        TERMINATE_REQUEST,
-        COMPILE_SHADER_REQUEST,
-        MODIFY_SHADER_REQUEST,
-        NULL
-    };
-
-    public enum THREAD_REQUEST_STATUS
-    {
-        ACTIVE,
-        FINISHED,
-        NULL
-    };
-
-    public class ThreadRequest
-    {
-        public List<object> arguments;
-        public THREAD_REQUEST req;
-        public THREAD_REQUEST_STATUS status;
-        public ThreadRequest()
-        {
-            req = THREAD_REQUEST.NULL;
-            status = THREAD_REQUEST_STATUS.ACTIVE;
-            arguments = new List<object>(); 
-        }
-    }
-
     public class CGLControl : GLControl
     {
         public model rootObject;
@@ -87,6 +50,7 @@ namespace Model_Viewer
         //Control Identifier
         private int index;
         private int occludedNum = 0;
+        private float fpsCount = 0;
         private bool has_focus;
 
         //Custom Palette
@@ -114,9 +78,8 @@ namespace Model_Viewer
         public System.Timers.Timer t;
 
         //Control Font and Text Objects
-        public FontGL font;
-        public GLText[] texObs = new GLText[(int) GLTEXT_INDEX.COUNT];
-
+        private MVCore.Text.TextRenderer font_draw_object;
+        
         //Private fps Counter
         private int frames = 0;
         private DateTime oldtime;
@@ -334,6 +297,9 @@ namespace Model_Viewer
             //Update Custom Light Position
             updateLightPosition(0);
 
+            //Update Frame Counter
+            fps();
+
         }
 
         //Main Rendering Routines
@@ -376,9 +342,9 @@ namespace Model_Viewer
 
                     lock (req)
                     {
-                        switch (req.req)
+                        switch (req.type)
                         {
-                            case THREAD_REQUEST.NEW_SCENE_REQUEST:
+                            case THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST:
                                 lock (t)
                                 {
                                     t.Stop();
@@ -387,22 +353,27 @@ namespace Model_Viewer
                                     t.Start();
                                 }
                                 break;
-                            case THREAD_REQUEST.RESIZE_REQUEST:
+                            case THREAD_REQUEST_TYPE.UPDATE_SCENE_REQUEST:
+                                scene req_scn = (scene) req.arguments[0];
+                                req_scn.update();
+                                req.status = THREAD_REQUEST_STATUS.FINISHED;
+                                break;
+                            case THREAD_REQUEST_TYPE.RESIZE_REQUEST:
                                 rt_ResizeViewport((int)req.arguments[0], (int)req.arguments[1]);
                                 req.status = THREAD_REQUEST_STATUS.FINISHED;
                                 break;
-                            case THREAD_REQUEST.MODIFY_SHADER_REQUEST:
+                            case THREAD_REQUEST_TYPE.MODIFY_SHADER_REQUEST:
                                 modifyShader((GLSLShaderConfig) req.arguments[0],
                                              (string)req.arguments[1],
                                              (OpenTK.Graphics.OpenGL4.ShaderType)req.arguments[2]);
                                 req.status = THREAD_REQUEST_STATUS.FINISHED;
                                 break;
-                            case THREAD_REQUEST.TERMINATE_REQUEST:
+                            case THREAD_REQUEST_TYPE.TERMINATE_REQUEST:
                                 rt_exit = true;
                                 t.Stop();
                                 req.status = THREAD_REQUEST_STATUS.FINISHED;
                                 break;
-                            case THREAD_REQUEST.NULL:
+                            case THREAD_REQUEST_TYPE.NULL:
                                 break;
                         }
                     }
@@ -565,21 +536,15 @@ namespace Model_Viewer
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             GL.PolygonMode(OpenTK.Graphics.OpenGL4.MaterialFace.FrontAndBack, PolygonMode.Fill);
 
-            GL.UseProgram(MVCore.Common.RenderState.activeResMgr.GLShaders["TEXT_SHADER"]);
+            var size = font_draw_object.addDrawing(string.Format("FPS: {0:F1}", fpsCount),
+                    new Vector3(Width - 80.0f, 30.0f, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS);
+            
+            //Console.WriteLine(fpsCount.ToString());
+            font_draw_object.addDrawing(string.Format("Occl.: {0}", occludedNum),
+                    new Vector3(Width - 80.0f, 30.0f - size.Height, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.MSG1);
 
-            //Load uniforms
-            int loc;
-            loc = GL.GetUniformLocation(this.resMgr.GLShaders["TEXT_SHADER"], "w");
-            GL.Uniform1(loc, (float) this.Width);
-            loc = GL.GetUniformLocation(this.resMgr.GLShaders["TEXT_SHADER"], "h");
-            GL.Uniform1(loc, (float) this.Height);
-
-            fps();
-            texObs[1]?.Dispose();
-            texObs[1] = font.renderText(occludedNum.ToString(), new Vector2(1.0f, 0.0f), 0.75f);
-            //Render Text Objects
-            foreach (GLText t in texObs)
-                t?.render();
+            //Render drawings
+            font_draw_object.render(Width, Height);
 
             GL.Disable(EnableCap.Blend);
             GL.Enable(EnableCap.DepthTest);
@@ -725,7 +690,7 @@ namespace Model_Viewer
             {
                 //Make new request
                 ThreadRequest req = new ThreadRequest();
-                req.req = THREAD_REQUEST.RESIZE_REQUEST;
+                req.type = THREAD_REQUEST_TYPE.RESIZE_REQUEST;
                 req.arguments.Clear();
                 req.arguments.Add(ClientSize.Width);
                 req.arguments.Add(ClientSize.Height);
@@ -737,7 +702,7 @@ namespace Model_Viewer
                 if (rt_req_queue.Count > 0)
                 {
                     ThreadRequest prev_req = rt_req_queue.Dequeue();
-                    if (prev_req.req != THREAD_REQUEST.RESIZE_REQUEST)
+                    if (prev_req.type != THREAD_REQUEST_TYPE.RESIZE_REQUEST)
                     {
                         rt_req_queue.Enqueue(prev_req);
                     }
@@ -928,6 +893,14 @@ namespace Model_Viewer
         #region ControlSetup_Init
 
         //Setup
+        public void setupTextRenderer()
+        {
+            //Use QFont
+            //string font = "C:\\WINDOWS\\FONTS\\LUCON.TTF";
+            string font = "C:\\WINDOWS\\FONTS\\ARIAL.TTF";
+            font_draw_object = new MVCore.Text.TextRenderer(font, 10);
+        }
+
         public void setupControlParameters()
         {
             //Everything ready to swap threads
@@ -1116,16 +1089,15 @@ namespace Model_Viewer
             //Get FPS
             DateTime now = DateTime.UtcNow;
             TimeSpan time = now - oldtime;
+            int measurement_interval = 100;
 
-            if (time.TotalMilliseconds > 1000)
+            if (time.TotalMilliseconds > measurement_interval)
             {
-                float fps = 1000.0f * frames / (float)time.TotalMilliseconds;
+                fpsCount = 1000 * frames / (float) measurement_interval;
                 //Console.WriteLine("{0} {1}", frames, fps);
                 //Reset
                 frames = 0;
                 oldtime = now;
-                texObs[(int) GLTEXT_INDEX.FPS]?.Dispose(); //Dispose the old text
-                texObs[(int) GLTEXT_INDEX.FPS] = font.renderText("FPS: " + Math.Round(fps, 1).ToString(), new Vector2(1.3f, 0.0f), 0.75f);
             }
             else
                 frames += 1;
@@ -1209,7 +1181,16 @@ namespace Model_Viewer
         {
             //this.MakeCurrent();
             foreach (scene s in animScenes)
-                if (s.animMeta != null) s.animate();
+                if (s.animMeta != null)
+                {
+                    s.animate();
+                    //Generate and send update_scene request
+                    ThreadRequest req = new ThreadRequest();
+                    req.type = THREAD_REQUEST_TYPE.UPDATE_SCENE_REQUEST;
+                    req.arguments.Add(s);
+                    issueRequest(req);
+                }
+
         }
 
         #endregion ANIMATION_PLAYBACK
@@ -1236,7 +1217,7 @@ namespace Model_Viewer
                 //Free other resources here
                 rootObject.Dispose();
                 gbuf.Dispose();
-                font=null;
+                font_draw_object.Dispose();
             }
 
             //Free unmanaged resources
