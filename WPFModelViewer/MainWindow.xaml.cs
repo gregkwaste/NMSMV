@@ -2,13 +2,9 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using gImage;
-using ProjProperties = WPFModelViewer.Properties;
 using GLSLHelper;
 using Microsoft.Win32;
 using Model_Viewer;
@@ -50,26 +46,23 @@ namespace WPFModelViewer
         {
             InitializeComponent();
 
+            //Override Window Title
+            Title += " " + Util.Version;
+
             //Generate CGLControl
             glControl = new CGLControl();
-            glControl.Update();
-            glControl.MakeCurrent();
-
+            RenderState.activeResMgr = glControl.resMgr;
 
             //Add request timer handler
             requestHandler.Interval = 10;
             requestHandler.Elapsed += queryRequests;
             requestHandler.Start();
 
-            //Compile Shaders before starting the rendering thread
-            compileShaders();
-            glControl.setupControlParameters();
-
-            //Load Keyboard Handler
-            glControl.kbHandler = new KeyboardHandler();
-            //glControl.gpHandler = new GamepadHandler(0);
-
             Host.Child = glControl;
+
+            //Improve performance on Treeview
+            SceneTreeView.SetValue(VirtualizingStackPanel.IsVirtualizingProperty, true);
+            SceneTreeView.SetValue(VirtualizingStackPanel.VirtualizationModeProperty, VirtualizationMode.Recycling);
         }
 
         //Open File
@@ -269,47 +262,8 @@ namespace WPFModelViewer
             scene.type = TYPES.SCENE;
             scene.name = "DEFAULT SCENE";
 
-            //Add cube to scene
-            {
-                //Create model
-                Collision so = new Collision();
-
-                //Remove that after implemented all the different collision types
-                so.shader_programs = new int[] { MVCore.Common.RenderState.activeResMgr.GLShaders["MESH_SHADER"],
-                                             MVCore.Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
-                                             MVCore.Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]}; //Use Mesh program for collisions
-                so.debuggable = true;
-                so.name = "TEST_BOX";
-                so.type = TYPES.MESH;
-
-                so.Bbox[0][0] = 1.0f;
-                so.Bbox[0][1] = 1.0f;
-                so.Bbox[0][2] = 1.0f;
-                so.Bbox[1][0] = -1.0f;
-                so.Bbox[1][1] = -1.0f;
-                so.Bbox[1][2] = -1.0f;
-
-                so.main_Vao = MVCore.Common.RenderState.activeResMgr.GLPrimitiveVaos["default_box"];
-                so.collisionType = COLLISIONTYPES.BOX;
-                //Set general vbo properties
-                so.batchstart_graphics = 0;
-                so.batchcount = 36;
-                so.vertrstart_graphics = 0;
-                so.vertrend_graphics = 8 - 1;
-
-                so.scene = scene;
-                so.parent = scene;
-                scene.children.Add(so);
-            }
-
-            
-
             //Force rootobject
             glControl.rootObject = scene;
-
-            //Improve performance on Treeview
-            SceneTreeView.SetValue(VirtualizingStackPanel.IsVirtualizingProperty, true);
-            SceneTreeView.SetValue(VirtualizingStackPanel.VirtualizationModeProperty, VirtualizationMode.Recycling);
 
             SceneTreeView.Items.Clear();
             ModelNode scn_node = new ModelNode(glControl.rootObject);
@@ -381,124 +335,6 @@ namespace WPFModelViewer
         }
 
 
-        public void issuemodifyShaderRequest(GLSLShaderConfig config, string shaderText, OpenTK.Graphics.OpenGL4.ShaderType shadertype)
-        {
-            Console.WriteLine("Sending Shader Modification Request");
-            ThreadRequest req = new ThreadRequest();
-            req.type = THREAD_REQUEST_TYPE.MODIFY_SHADER_REQUEST;
-            req.arguments.Add(config);
-            req.arguments.Add(shaderText);
-            req.arguments.Add(shadertype);
-            
-            //Send request
-            glControl.issueRequest(req);
-            issuedRequests.Add(req);
-        }
-
-        //GLPreparation
-        private void compileShader(string vs, string fs, string gs, string tes, string tcs, string name, ref string log)
-        {
-            GLSLShaderConfig shader_conf = new GLSLShaderConfig(vs,fs,gs,tcs,tes, name);
-            //Set modify Shader delegate
-            shader_conf.modifyShader = issuemodifyShaderRequest;
-
-            glControl.compileShader(shader_conf);
-            RenderState.activeResMgr.GLShaderConfigs[shader_conf.name] = shader_conf;
-            RenderState.activeResMgr.GLShaders[shader_conf.name] = shader_conf.program_id;
-            log += shader_conf.log; //Append log
-        }
-
-        private void compileShaders()
-        {
-
-#if(DEBUG)
-            //Query GL Extensions
-            Console.WriteLine("OPENGL AVAILABLE EXTENSIONS:");
-            string[] ext = GL.GetString(StringName.Extensions).Split(' ');
-            foreach (string s in ext)
-            {
-                if (s.Contains("explicit"))
-                    Console.WriteLine(s);
-                if (s.Contains("16"))
-                    Console.WriteLine(s);
-            }
-
-            //Query maximum buffer sizes
-            Console.WriteLine("MaxUniformBlock Size {0}", GL.GetInteger(GetPName.MaxUniformBlockSize));
-#endif
-
-            //Populate shader list
-            RenderState.activeResMgr = glControl.resMgr;
-            string log = "";
-            
-            //Geometry Shader
-            //Compile Object Shaders
-            //Create Shader Config
-            compileShader("Shaders/Simple_VSEmpty.glsl",
-                            "Shaders/Simple_FSEmpty.glsl",
-                            "Shaders/Simple_GS.glsl",
-                            "", "", "DEBUG_SHADER", ref log);
-
-            //Picking Shaders
-            compileShader(ProjProperties.Resources.pick_vert,
-                            ProjProperties.Resources.pick_frag,
-                            "","", "", "PICKING_SHADER", ref log);
-
-
-            //Main Object Shader
-            compileShader("Shaders/Simple_VS.glsl",
-                            "Shaders/Simple_FS.glsl",
-                            "", "", "", "MESH_SHADER", ref log);
-
-
-            //BoundBox Shader
-            compileShader("Shaders/Bound_VS.glsl",
-                            "Shaders/Bound_FS.glsl",
-                            "", "", "", "BBOX_SHADER", ref log);
-
-            //Texture Mixing Shader
-            compileShader("Shaders/pass_VS.glsl",
-                            "Shaders/pass_FS.glsl",
-                            "", "", "", "TEXTURE_MIXING_SHADER", ref log);
-
-            //GBuffer Shaders
-            compileShader("Shaders/Gbuffer_VS.glsl",
-                            "Shaders/Gbuffer_FS.glsl",
-                            "", "", "", "GBUFFER_SHADER", ref log);
-
-            //Decal Shaders
-            compileShader("Shaders/decal_VS.glsl",
-                            "Shaders/Decal_FS.glsl",
-                            "", "", "", "DECAL_SHADER", ref log);
-
-            //Locator Shaders
-            compileShader(ProjProperties.Resources.locator_vert,
-                            ProjProperties.Resources.locator_frag,
-                            "", "", "", "LOCATOR_SHADER", ref log);
-
-            //Joint Shaders
-            compileShader(ProjProperties.Resources.joint_vert,
-                            ProjProperties.Resources.joint_frag,
-                            "", "", "", "JOINT_SHADER", ref log);
-
-            //Text Shaders
-            compileShader(ProjProperties.Resources.text_vert,
-                            ProjProperties.Resources.text_frag,
-                            "", "", "", "TEXT_SHADER", ref log);
-
-            //Light Shaders
-            compileShader(ProjProperties.Resources.light_vert,
-                            ProjProperties.Resources.light_frag,
-                            "", "", "", "LIGHT_SHADER", ref log);
-
-            //Camera Shaders
-            compileShader(ProjProperties.Resources.camera_vert,
-                            ProjProperties.Resources.camera_frag,
-                            "", "", "", "CAMERA_SHADER", ref log);
-
-        }
-
-
         private void Sliders_OnValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             //Update slider values
@@ -519,7 +355,7 @@ namespace WPFModelViewer
 
         private void CameraResetPos(object sender, RoutedEventArgs e)
         {
-            glControl.updateActiveCamPos(0.0f, 0.0f, 0.0f);
+            glControl.updateActiveCam(new OpenTK.Vector3(0.0f, 0.0f, 0.0f));
             glControl.updateControlRotation(0.0f, 0.0f);
         }
 

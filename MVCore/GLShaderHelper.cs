@@ -271,6 +271,49 @@ namespace GLSLHelper {
 
         }
 
+        static public void modifyShader(GLSLShaderConfig shader_conf, string shaderText, OpenTK.Graphics.OpenGL4.ShaderType shadertype)
+        {
+            Console.WriteLine("Actually Modifying Shader");
+
+            int[] attached_shaders = new int[20];
+            int count;
+            GL.GetAttachedShaders(shader_conf.program_id, 20, out count, attached_shaders);
+
+            for (int i = 0; i < count; i++)
+            {
+                int[] shader_params = new int[10];
+                GL.GetShader(attached_shaders[i], OpenTK.Graphics.OpenGL4.ShaderParameter.ShaderType, shader_params);
+
+                if (shader_params[0] == (int)shadertype)
+                {
+                    Console.WriteLine("Found modified shader");
+
+                    string info;
+                    int status_code;
+                    int new_shader_ob = GL.CreateShader(shadertype);
+                    GL.ShaderSource(new_shader_ob, shaderText);
+                    GL.CompileShader(new_shader_ob);
+                    GL.GetShaderInfoLog(new_shader_ob, out info);
+                    GL.GetShader(new_shader_ob, OpenTK.Graphics.OpenGL4.ShaderParameter.CompileStatus, out status_code);
+                    if (status_code != 1)
+                    {
+                        Console.WriteLine("Shader Compilation Failed, Aborting...");
+                        Console.WriteLine(info);
+                        return;
+                    }
+
+                    //Attach new shader back to program
+                    GL.DetachShader(shader_conf.program_id, attached_shaders[i]);
+                    GL.AttachShader(shader_conf.program_id, new_shader_ob);
+                    GL.LinkProgram(shader_conf.program_id);
+                    Console.WriteLine("Shader was modified successfully");
+                    break;
+                }
+            }
+            Console.WriteLine("Shader was not found...");
+        }
+
+
         private static void throwCompilationError(string log)
         {
             StreamWriter sr = new StreamWriter("shader_compilation_log_" +DateTime.Now.ToFileTime() + "_log.out");

@@ -16,11 +16,12 @@ using OpenTK.Graphics;
 using ClearBufferMask = OpenTK.Graphics.OpenGL.ClearBufferMask;
 using CullFaceMode = OpenTK.Graphics.OpenGL.CullFaceMode;
 using EnableCap = OpenTK.Graphics.OpenGL4.EnableCap;
-using GL = OpenTK.Graphics.OpenGL4.GL;
 using PolygonMode = OpenTK.Graphics.OpenGL4.PolygonMode;
+using GL = OpenTK.Graphics.OpenGL4.GL;
 using System.ComponentModel;
 using System.Threading;
 using QuickFont;
+using ProjProperties = WPFModelViewer.Properties;
 
 namespace Model_Viewer
 {
@@ -99,7 +100,7 @@ namespace Model_Viewer
         private void registerFunctions()
         {
             this.Load += new System.EventHandler(this.genericLoad);
-            this.Paint += new System.Windows.Forms.PaintEventHandler(this.genericPaint);
+            //this.Paint += new System.Windows.Forms.PaintEventHandler(this.genericPaint);
             this.Resize += new System.EventHandler(this.OnResize); 
             this.MouseHover += new System.EventHandler(this.genericHover);
             this.MouseMove += new System.Windows.Forms.MouseEventHandler(this.genericMouseMove);
@@ -123,17 +124,16 @@ namespace Model_Viewer
             inputPollTimer = new System.Timers.Timer();
             inputPollTimer.Elapsed += new System.Timers.ElapsedEventHandler(input_poller);
             inputPollTimer.Interval = 10;
-            inputPollTimer.Start();
-
+            
             //Resize Timer
             resizeTimer = new System.Timers.Timer();
             resizeTimer.Elapsed += new System.Timers.ElapsedEventHandler(ResizeControl);
             resizeTimer.Interval = 10;
-            resizeTimer.Start();
-
+            
             //Set properties
             this.VSync = false;
-            
+
+            //Compile Shaders
         }
 
         //Constructor
@@ -166,7 +166,7 @@ namespace Model_Viewer
         {
             //Console.WriteLine(gpHandler.getAxsState(0, 0).ToString() + " " +  gpHandler.getAxsState(0, 1).ToString());
             //gpHandler.reportButtons();
-            gamepadController(); //Move camera according to input
+            //gamepadController(); //Move camera according to input
             bool focused = false;
 
             this.Invoke((MethodInvoker) delegate
@@ -372,7 +372,7 @@ namespace Model_Viewer
                                 req.status = THREAD_REQUEST_STATUS.FINISHED;
                                 break;
                             case THREAD_REQUEST_TYPE.MODIFY_SHADER_REQUEST:
-                                modifyShader((GLSLShaderConfig) req.arguments[0],
+                                GLShaderHelper.modifyShader((GLSLShaderConfig) req.arguments[0],
                                              (string)req.arguments[1],
                                              (OpenTK.Graphics.OpenGL4.ShaderType)req.arguments[2]);
                                 req.status = THREAD_REQUEST_STATUS.FINISHED;
@@ -401,10 +401,8 @@ namespace Model_Viewer
                 {
                     rt_render();
                 }
-                    
-                
-                this.SwapBuffers();
-                this.Invalidate();
+
+                SwapBuffers();
 
                 Thread.Sleep(2);
 
@@ -424,14 +422,18 @@ namespace Model_Viewer
 
             int loc;
 
-            Matrix4 wMat = root.worldMat;
-            GL.UniformMatrix4(10, false, ref wMat);
-
-            //Send mvp to all shaders
-            GL.UniformMatrix4(7, false, ref mvp);
-
             if (root.renderable)
             {
+                Matrix4 wMat = root.worldMat;
+                GL.UniformMatrix4(10, false, ref wMat);
+
+                //Send mvp to all shaders
+                GL.UniformMatrix4(7, false, ref mvp);
+
+                //Upload Selected Flag
+                loc = GL.GetUniformLocation(active_program, "selected");
+                GL.Uniform1(loc, root.selected);
+
                 if (root.type == TYPES.MESH)
                 {
                     //Sent rotation matrix individually for light calculations
@@ -444,10 +446,6 @@ namespace Model_Viewer
                     //Upload Selected Flag
                     loc = GL.GetUniformLocation(active_program, "use_lighting");
                     GL.Uniform1(loc, RenderOptions.UseLighting);
-
-                    //Upload Selected Flag
-                    loc = GL.GetUniformLocation(active_program, "selected");
-                    GL.Uniform1(loc, root.selected);
 
                     //Object program
                     //Local Transformation is the same for all objects 
@@ -478,7 +476,14 @@ namespace Model_Viewer
                 else if (root.type == TYPES.COLLISION)
                 {
                     if (MVCore.RenderOptions.RenderCollisions)
+                    {
+                        //Send DiffuseFlag
+                        loc = GL.GetUniformLocation(active_program, "diffuseFlag");
+                        GL.Uniform1(loc, 0.0f);
+
                         root.render(program);
+                    }
+                        
                 }
                 else if (root.type == TYPES.LOCATOR || root.type == TYPES.SCENE || root.type == TYPES.LIGHT)
                 {
@@ -601,23 +606,35 @@ namespace Model_Viewer
             //Don't update the control when its not focused
             //Debug.WriteLine("Left Focus of Control "+ index);
             inputPollTimer.Stop();
+
+        }
+
+        private void genericPaint(object sender, PaintEventArgs e)
+        {
+            //TODO: Should I add more stuff in here?
         }
 
         private void genericLoad(object sender, EventArgs e)
         {
 
             this.InitializeComponent();
-            this.Size = new System.Drawing.Size(640, 480);
             this.MakeCurrent();
-            
-            //No Gbuffer Options
-            //GL.Viewport(0, 0, this.ClientSize.Width, this.ClientSize.Height);
-            //GL.ClearColor(RenderOptions.clearColor);
-        }
 
-        private void genericPaint(object sender, EventArgs e)
-        {
-            
+            //Once the context is initialized compile the shaders
+            compileShaders();
+
+            //Load font should be done before being used by the rendering thread and after the shaders are live
+            setupTextRenderer();
+
+
+            kbHandler = new KeyboardHandler();
+            //gpHandler = new GamepadHandler(); TODO: Add support for PS4 controller
+
+            //Everything ready to swap threads
+            setupRenderingThread();
+
+            //Start Timers
+            inputPollTimer.Start();
         }
 
         private void genericMouseMove(object sender, MouseEventArgs e)
@@ -796,6 +813,122 @@ namespace Model_Viewer
 
         #region ShaderMethods
 
+        public void issuemodifyShaderRequest(GLSLShaderConfig config, string shaderText, OpenTK.Graphics.OpenGL4.ShaderType shadertype)
+        {
+            Console.WriteLine("Sending Shader Modification Request");
+            ThreadRequest req = new ThreadRequest();
+            req.type = THREAD_REQUEST_TYPE.MODIFY_SHADER_REQUEST;
+            req.arguments.Add(config);
+            req.arguments.Add(shaderText);
+            req.arguments.Add(shadertype);
+            
+            //Send request
+            issueRequest(req);
+        }
+
+        //GLPreparation
+        private void compileShader(string vs, string fs, string gs, string tes, string tcs, string name, ref string log)
+        {
+            GLSLShaderConfig shader_conf = new GLSLShaderConfig(vs, fs, gs, tcs, tes, name);
+            //Set modify Shader delegate
+            shader_conf.modifyShader = issuemodifyShaderRequest;
+
+            compileShader(shader_conf);
+            resMgr.GLShaderConfigs[shader_conf.name] = shader_conf;
+            resMgr.GLShaders[shader_conf.name] = shader_conf.program_id;
+            log += shader_conf.log; //Append log
+        }
+
+
+        private void compileShaders()
+        {
+
+#if(DEBUG)
+            //Query GL Extensions
+            Console.WriteLine("OPENGL AVAILABLE EXTENSIONS:");
+            string[] ext = GL.GetString(StringName.Extensions).Split(' ');
+            foreach (string s in ext)
+            {
+                if (s.Contains("explicit"))
+                    Console.WriteLine(s);
+                if (s.Contains("16"))
+                    Console.WriteLine(s);
+            }
+
+            //Query maximum buffer sizes
+            Console.WriteLine("MaxUniformBlock Size {0}", GL.GetInteger(GetPName.MaxUniformBlockSize));
+#endif
+
+            //Populate shader list
+            string log = "";
+
+            //Geometry Shader
+            //Compile Object Shaders
+            //Create Shader Config
+            compileShader("Shaders/Simple_VSEmpty.glsl",
+                            "Shaders/Simple_FSEmpty.glsl",
+                            "Shaders/Simple_GS.glsl",
+                            "", "", "DEBUG_SHADER", ref log);
+
+            //Picking Shaders
+            compileShader(ProjProperties.Resources.pick_vert,
+                            ProjProperties.Resources.pick_frag,
+                            "", "", "", "PICKING_SHADER", ref log);
+
+
+            //Main Object Shader
+            compileShader("Shaders/Simple_VS.glsl",
+                            "Shaders/Simple_FS.glsl",
+                            "", "", "", "MESH_SHADER", ref log);
+
+
+            //BoundBox Shader
+            compileShader("Shaders/Bound_VS.glsl",
+                            "Shaders/Bound_FS.glsl",
+                            "", "", "", "BBOX_SHADER", ref log);
+
+            //Texture Mixing Shader
+            compileShader("Shaders/pass_VS.glsl",
+                            "Shaders/pass_FS.glsl",
+                            "", "", "", "TEXTURE_MIXING_SHADER", ref log);
+
+            //GBuffer Shaders
+            compileShader("Shaders/Gbuffer_VS.glsl",
+                            "Shaders/Gbuffer_FS.glsl",
+                            "", "", "", "GBUFFER_SHADER", ref log);
+
+            //Decal Shaders
+            compileShader("Shaders/decal_VS.glsl",
+                            "Shaders/Decal_FS.glsl",
+                            "", "", "", "DECAL_SHADER", ref log);
+
+            //Locator Shaders
+            compileShader(ProjProperties.Resources.locator_vert,
+                            ProjProperties.Resources.locator_frag,
+                            "", "", "", "LOCATOR_SHADER", ref log);
+
+            //Joint Shaders
+            compileShader(ProjProperties.Resources.joint_vert,
+                            ProjProperties.Resources.joint_frag,
+                            "", "", "", "JOINT_SHADER", ref log);
+
+            //Text Shaders
+            compileShader(ProjProperties.Resources.text_vert,
+                            ProjProperties.Resources.text_frag,
+                            "", "", "", "TEXT_SHADER", ref log);
+
+            //Light Shaders
+            compileShader(ProjProperties.Resources.light_vert,
+                            ProjProperties.Resources.light_frag,
+                            "", "", "", "LIGHT_SHADER", ref log);
+
+            //Camera Shaders
+            compileShader(ProjProperties.Resources.camera_vert,
+                            ProjProperties.Resources.camera_frag,
+                            "", "", "", "CAMERA_SHADER", ref log);
+
+        }
+
         public void compileShader(GLSLShaderConfig config)
         {
             int vertexObject;
@@ -807,48 +940,7 @@ namespace Model_Viewer
             GLShaderHelper.CreateShaders(config, out vertexObject, out fragmentObject, out config.program_id);
         }
 
-        public void modifyShader(GLSLShaderConfig shader_conf, string shaderText, OpenTK.Graphics.OpenGL4.ShaderType shadertype)
-        {
-            Console.WriteLine("Actually Modifying Shader");
-
-            int[] attached_shaders = new int[20];
-            int count;
-            GL.GetAttachedShaders(shader_conf.program_id, 20, out count, attached_shaders);
-            
-            for (int i = 0; i < count; i++)
-            {
-                int[] shader_params = new int[10];
-                GL.GetShader(attached_shaders[i], OpenTK.Graphics.OpenGL4.ShaderParameter.ShaderType, shader_params);
-
-                if (shader_params[0] == (int) shadertype)
-                {
-                    Console.WriteLine("Found modified shader");
-
-                    string info;
-                    int status_code;
-                    int new_shader_ob = GL.CreateShader(shadertype);
-                    GL.ShaderSource(new_shader_ob, shaderText);
-                    GL.CompileShader(new_shader_ob);
-                    GL.GetShaderInfoLog(new_shader_ob, out info);
-                    GL.GetShader(new_shader_ob, OpenTK.Graphics.OpenGL4.ShaderParameter.CompileStatus, out status_code);
-                    if (status_code != 1)
-                    {
-                        Console.WriteLine("Shader Compilation Failed, Aborting...");
-                        Console.WriteLine(info);
-                        return;
-                    }
-
-                    //Attach new shader back to program
-                    GL.DetachShader(shader_conf.program_id, attached_shaders[i]);
-                    GL.AttachShader(shader_conf.program_id, new_shader_ob);
-                    GL.LinkProgram(shader_conf.program_id);
-                    Console.WriteLine("Shader was modified successfully");
-                    break;
-                }
-            }
-            Console.WriteLine("Shader was not found...");
-        }
-
+        
         #endregion ShaderMethods
 
         #region ContextMethods
@@ -890,7 +982,6 @@ namespace Model_Viewer
                 if (c.renderable) findGeoms(c, s, ref index);
         }
 
-
         private void loadAnimationToolStripMenuItem_Click(object sender, EventArgs e)
         {
             AnimationSelectForm aform = new AnimationSelectForm(this);
@@ -910,14 +1001,6 @@ namespace Model_Viewer
             font_draw_object = new MVCore.Text.TextRenderer(font, 10);
         }
 
-        public void setupControlParameters()
-        {
-            //Load font should be done before being used by the rendering thread and after the shaders are live
-            setupTextRenderer();
-            //Everything ready to swap threads
-            setupRenderingThread();
-        }
-
         public void setupRenderingThread()
         {
             
@@ -929,7 +1012,6 @@ namespace Model_Viewer
 
             //Start RT Thread
             rendering_thread.Start();
-
         }
 
         #endregion ControlSetup_Init
@@ -952,9 +1034,9 @@ namespace Model_Viewer
             resMgr.GLCameras[0].zNear = zNear;
         }
 
-        public void updateActiveCamPos(float x, float y, float z)
+        public void updateActiveCam(Vector3 pos)
         {
-            activeCam.Position = new Vector3(x, y, z);
+            activeCam.Position = pos;
         }
 
         #endregion
@@ -1160,6 +1242,7 @@ namespace Model_Viewer
                     step * (kbHandler.getKeyStatus(OpenTK.Input.Key.W) - kbHandler.getKeyStatus(OpenTK.Input.Key.S)),
                     step * (kbHandler.getKeyStatus(OpenTK.Input.Key.R) - kbHandler.getKeyStatus(OpenTK.Input.Key.F)));
 
+            
             //Rotate Axis
             rot.Y += step * (kbHandler.getKeyStatus(OpenTK.Input.Key.E) - kbHandler.getKeyStatus(OpenTK.Input.Key.Q));
             rot.X += step * (kbHandler.getKeyStatus(OpenTK.Input.Key.C) - kbHandler.getKeyStatus(OpenTK.Input.Key.Z));
@@ -1184,7 +1267,6 @@ namespace Model_Viewer
                     return;
                 }
             }
-
         }
         
         //Animation Worker

@@ -67,11 +67,6 @@ void main()
         lWorldMat += blendWeights.z * skinMats[index.z];
         lWorldMat += blendWeights.w * skinMats[index.w];
         
-        wPos =  blendWeights.x * skinMats[index.x] * vPosition;
-        wPos += blendWeights.y * skinMats[index.y] * vPosition;
-        wPos += blendWeights.z * skinMats[index.z] * vPosition;
-        wPos += blendWeights.w * skinMats[index.w] * vPosition;
-
         wPos = lWorldMat * vPosition;
 		bColor = blendIndices.x/255.0;
 	    

@@ -15,7 +15,7 @@ namespace WPFModelViewer
 {
     public static class Util
     {
-        public static string Version = "v0.80.6-Test-Version";
+        public static string Version = "v0.81.0-Test-Version";
         public static readonly Random randgen = new Random();
 
         //Current GLControl Handle

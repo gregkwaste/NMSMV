@@ -12,7 +12,6 @@ namespace MVCore.GMDL
         public Vector3 Position = new Vector3(0.0f, 0.0f, 0.0f);
         public Vector3 Movement = new Vector3(0.0f, 0.0f, 0.0f);
 
-
         public float pitch = 0; //Radians rotation on X axis
         public float yaw = (float) Math.PI/2.0f; //Radians rotation on Y axis
         public float roll = 0; //Radians rotation on Z axis

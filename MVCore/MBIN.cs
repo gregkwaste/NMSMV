@@ -17,21 +17,6 @@ using Console = System.Console;
 
 namespace MVCore
 {
-    public static class ANIMMBIN
-    {
-        public static XmlDocument Parse(FileStream fs)
-        {
-            //Readers
-            BinaryReader br = new BinaryReader(fs);
-
-            //Create new xml document
-            XmlDocument xml = new XmlDocument();
-            char[] charbuffer = new char[0x100];
-
-            return xml;
-        }
-    }
-
     public enum TYPES
     {
         MESH=0x0,
@@ -41,6 +26,7 @@ namespace MVCore
         EMITTER,
         COLLISION,
         SCENE,
+        MODEL,
         REFERENCE,
         DECAL,
         UNKNOWN
@@ -522,9 +508,7 @@ namespace MVCore
                 return dummy;
             }
 
-
             fs = new FileStream(Path.Combine(FileUtils.dirpath, geomfile) + ".PC", FileMode.Open);
-            
             GeomObject gobject;
         
             if (!Common.RenderState.activeResMgr.GLgeoms.ContainsKey(geomfile))
@@ -545,37 +529,15 @@ namespace MVCore
             //Random Generetor for colors
             Random randgen = new Random();
 
-            //Create Scene Root
-            scene root = new scene();
-            root.name = scnName;
-            root.mbin_scene = scene;
-            root.type = TYPES.SCENE;
-            root.shader_programs = new int[] {Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
-                                              Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
-                                              Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
+            //Parse root scene
+            scene root = (scene) parseNode(scene, gobject, null, null);
+            gobject.rootObject = root; //TODO: Not sure if this is the correct way
 
-            //Store sections node
-            foreach (TkSceneNodeData node in scene.Children)
-            {
-                model part = parseNode(node, gobject, root, root);
-                //If joint save it also to the jointmodels of the scene
-                if (part.type == TYPES.JOINT)
-                {
-                    Joint j = (Joint)part;
-                    root.jointDict[j.name] = j;
-                }
-                root.children.Add(part);
-            }
-            
             //Update Transformations for all objects
             root.update();
 
-            //Set root scene for rootObject
-            gobject.rootObject = root;
-            
             return root;
         }
-
 
 
         private static string parseNMSTemplateAttrib<T>(List<T> temp, string attrib)
@@ -615,15 +577,15 @@ namespace MVCore
                 name = "_" + name.TrimStart('_');
 
             //Notify
-            Common.CallBacks.Log(string.Format("Importing Scene {0} Node {1}",scene,name));
+            Common.CallBacks.Log(string.Format("Importing Scene {0} Node {1}",scene?.name, name));
             Common.CallBacks.Log(string.Format("Transform {0} {1} {2} {3} {4} {5} {6} {7} {8}",
                 transform.TransX,transform.TransY,transform.TransZ,
                 transform.RotX,transform.RotY,transform.RotZ,
                 transform.ScaleX,transform.ScaleY,transform.ScaleZ));
-            Console.WriteLine("Importing Scene: " + scene.name + " Part: " + name);
-            Common.CallBacks.updateStatus("Importing Scene: " + scene.name + " Part: " + name);
+            Common.CallBacks.updateStatus("Importing Scene: " + scene?.name + " Part: " + name);
             TYPES typeEnum;
-            Enum.TryParse<TYPES>(node.Type, out typeEnum);
+            if (!Enum.TryParse<TYPES>(node.Type, out typeEnum))
+                throw new Exception("Node Type " + node.Type + "Not supported");
 
             if (typeEnum == TYPES.MESH)
             {
@@ -720,11 +682,6 @@ namespace MVCore
                     }
                 }
 
-                //Decide if its a skinned mesh or not
-                so.skinned = 0;
-                if (so.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F02_SKINNED))
-                    so.skinned = 1;
-                
                 //Generate Vao's
                 so.main_Vao = gobject.getMainVao(so);
             
@@ -741,11 +698,6 @@ namespace MVCore
                     foreach (TkSceneNodeData child in children)
                     {
                         model part = parseNode(child, gobject, so, scene);
-                        if (part.type == TYPES.JOINT)
-                        {
-                            Joint j = (Joint) part;
-                            scene.jointDict[j.name] = j;
-                        }
                         so.children.Add(part);
                     }
                 }
@@ -762,6 +714,38 @@ namespace MVCore
                 
                     Common.RenderState.activeResMgr.GLDecals.Add(newso);
                     return newso;
+                }
+
+                return so;
+            }
+            else if (typeEnum == TYPES.MODEL)
+            {
+                Console.WriteLine("Model Detected");
+                scene so = new scene();
+                so.name = name;
+                so.type = typeEnum;
+                //Set Shader Program
+                so.shader_programs = new int[]{Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
+                                               Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
+                                               Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
+                //Get Transformation
+                so.parent = parent;
+                so.scene = scene;
+                so.mbin_scene = node;
+                so.init(transforms);
+
+                //Locator Objects don't have options
+
+                TkSceneNodeAttributeData attrib = new TkSceneNodeAttributeData();
+
+                //Handle Children
+                if (children.Count > 0)
+                {
+                    foreach (TkSceneNodeData child in children)
+                    {
+                        model part = parseNode(child, gobject, so, so);
+                        so.children.Add(part);
+                    }
                 }
 
                 return so;
@@ -795,12 +779,6 @@ namespace MVCore
                     foreach (TkSceneNodeData child in children)
                     {
                         model part = parseNode(child, gobject, so, scene);
-                        //If joint save it also to the jointmodels of the scene
-                        if (part.type == TYPES.JOINT)
-                        {
-                            Joint j = (Joint)part;
-                            scene.jointDict[j.name] = j;
-                        }
                         so.children.Add(part);
                     }
                 }
@@ -831,18 +809,19 @@ namespace MVCore
 
                 joint.main_Vao = new MVCore.Primitives.LineSegment(children.Count, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
 
+                //Try to insert joint to scene dict
+                
+                if (scene != null)
+                {
+                    scene.jointDict[joint.name] = joint;
+                }
+                
                 //Handle Children
                 if (children.Count > 0)
                 {
                     foreach (TkSceneNodeData child in children)
                     {
                         model part = parseNode(child, gobject, joint, scene);
-                        //If joint save it also to the jointmodels of the root scene
-                        if (part.type == TYPES.JOINT)
-                        {
-                            Joint j = (Joint) part;
-                            scene.jointDict[j.name] = j;
-                        }
                         joint.children.Add(part);
                     }
                 }
@@ -883,12 +862,6 @@ namespace MVCore
                         foreach (TkSceneNodeData child in children)
                         {
                             model part = parseNode(child, gobject, so, scene);
-                            //If joint save it also to the jointmodels of the new scene
-                            if (part.type == TYPES.JOINT)
-                            {
-                                Joint j = (Joint) part;
-                                so.jointDict[j.name] = j;
-                            }
                             so.children.Add(part);
                         }
                     }
@@ -945,6 +918,8 @@ namespace MVCore
                     so.firstskinmat = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "FIRSTSKINMAT").Value);
                     so.lastskinmat = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "LASTSKINMAT").Value);
 
+
+
                     //Find id within the vbo
                     int iid = -1;
                     for (int i = 0; i < gobject.vstarts.Count; i++)
@@ -965,7 +940,8 @@ namespace MVCore
                     }
                 
             
-                } else if (collisionType == "CYLINDER")
+                }
+                else if (collisionType == "CYLINDER")
                 {
                     //Console.WriteLine("CYLINDER NODE PARSING NOT IMPLEMENTED");
                     //Set cvbo
@@ -1054,8 +1030,6 @@ namespace MVCore
             }
             else
             {
-                Console.WriteLine();
-                
                 Common.CallBacks.Log(string.Format("Unknown Type, {0}", type));
                 locator so = new locator(0.1f);
                 //Set Properties

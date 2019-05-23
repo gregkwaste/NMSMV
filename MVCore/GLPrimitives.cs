@@ -137,8 +137,6 @@ namespace MVCore.Primitives
             int latBands = 11;
             int longBands = 11;
 
-            float vdistance = height - 2 * radius;
-
             //Init Arrays
             int arraysize = (latBands + 1) * (longBands + 1) * 3;
             int indarraysize = latBands * longBands * 3;
@@ -148,7 +146,6 @@ namespace MVCore.Primitives
 
             List<float> vlist = new List<float>();
             List<int> ilist = new List<int>();
-
 
 
             for (int lat = 0; lat <= latBands; lat++)
@@ -169,9 +166,9 @@ namespace MVCore.Primitives
 
                     verts[lat * (longBands + 1) * 3 + 3 * lng + 0] = center.X + radius * x;
                     if (lat <= latBands / 2)
-                        verts[lat * (longBands + 1) * 3 + 3 * lng + 1] = center.Y + vdistance +  radius * y;
+                        verts[lat * (longBands + 1) * 3 + 3 * lng + 1] = center.Y + (0.5f * height - radius) + radius * y;
                     else
-                        verts[lat * (longBands + 1) * 3 + 3 * lng + 1] = center.Y + radius * y;
+                        verts[lat * (longBands + 1) * 3 + 3 * lng + 1] = center.Y - (0.5f * height - radius) + radius * y;
                     verts[lat * (longBands + 1) * 3 + 3 * lng + 2] = center.Z + radius * z;
 
                     normals[lat * latBands * 3 + 3 * lng + 0] = x;
@@ -199,7 +196,7 @@ namespace MVCore.Primitives
                     indices[lat * longBands * 6 + 6 * lng + 5] = first + 1;
                 }
             }
-            getGeom();
+            geom = getGeom();
         }
 
     }

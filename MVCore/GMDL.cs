@@ -365,7 +365,9 @@ namespace MVCore.GMDL
                 }
                 //Console.WriteLine("Node " + node.name+ " {0} {1} {2}",node.rotIndex,node.transIndex,node.scaleIndex);
             }
-            update(); //Trigger the update of transformations for the entire animation scene
+
+            //Scene update should happen from the rendering thread since joint geometry has to be updated
+            //update(); 
             frameCounter += 1;
             if (frameCounter >= animMeta.FrameCount - 1)
                 frameCounter = 0;
@@ -753,16 +755,14 @@ namespace MVCore.GMDL
             //Multiply matrices before sending them
             //Check if scene has the jointModel
 
-            if (skinned > 0.0f)
-            {
-                for (int i=0; i < BoneRemapIndices.Length; i++)
-                {   
-                    Array.Copy(gobject.skinMats, BoneRemapIndices[i] * 16, BoneRemapMatrices, i * 16, 16);
-                }
-
-                GL.UniformMatrix4(78, 128, false, BoneRemapMatrices);
+            
+            for (int i=0; i < BoneRemapIndices.Length; i++)
+            {   
+                Array.Copy(gobject.skinMats, BoneRemapIndices[i] * 16, BoneRemapMatrices, i * 16, 16);
             }
 
+            GL.UniformMatrix4(78, BoneRemapIndices.Length, false, BoneRemapMatrices);
+            
             //Upload Light Flag
             //loc = GL.GetUniformLocation(pass, "useLighting");
             //GL.Uniform1(loc, 1.0f);
@@ -984,7 +984,7 @@ namespace MVCore.GMDL
                         n_section_bytes = 12;
                         break;
                     case (VertexAttribPointerType.HalfFloat):
-                        uint v1, v2, v3, v4;
+                        uint v1, v2, v3;
                         v1 = vbr.ReadUInt16();
                         v2 = vbr.ReadUInt16();
                         v3 = vbr.ReadUInt16();
@@ -992,7 +992,7 @@ namespace MVCore.GMDL
                         n_section_bytes = 6;
                         break;
                     case (VertexAttribPointerType.Int2101010Rev):
-                        int i1, i2, i3, i4;
+                        int i1, i2, i3;
                         uint value;
                         byte[] a32 = new byte[4];
                         a32 = vbr.ReadBytes(4);
@@ -1031,7 +1031,6 @@ namespace MVCore.GMDL
             vbr.BaseStream.Seek(Math.Max(gobject.offsets[1], 0) + gobject.vx_size * vertrstart_graphics, SeekOrigin.Begin);
             for (int i = 0; i < vertcount; i++)
             {
-                float uv1, uv2, uv3;
                 Vector2 uv;
                 int uv_section_bytes = 0;
                 if (gobject.offsets[1] != -1) //Check if uvs exist
@@ -1136,9 +1135,7 @@ namespace MVCore.GMDL
         public override bool render(int pass)
         {
 
-            return false;
-
-            if (this.main_Vao == null || RenderOptions.RenderCollisions == false)
+            if (this.main_Vao == null)
             {
                 //Console.WriteLine("Not Renderable");
                 return false;
@@ -1443,13 +1440,16 @@ namespace MVCore.GMDL
         //Fetch main VAO
         public mainVAO getMainVao(meshModel so)
         {
+            
+            
             //Make sure that the hash exists in the dictionary
             if (so.hash == 0xFFFFFFFF)
                 throw new System.Collections.Generic.KeyNotFoundException("Invalid Mesh Hash");
 
             if (MVCore.Common.RenderState.activeResMgr.GLVaos.ContainsKey(so.hash))
                 return MVCore.Common.RenderState.activeResMgr.GLVaos[so.hash];
-
+            
+            
             mainVAO vao = new mainVAO();
 
             //Generate VAO
@@ -2740,7 +2740,6 @@ namespace MVCore.GMDL
             GL.BindBuffer(BufferTarget.ArrayBuffer, main_Vao.vertex_buffer_object);
             //Add verts data, color data should stay the same
             GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
-
         }
 
         public override model Clone(scene scn)
@@ -2970,8 +2969,7 @@ namespace MVCore.GMDL
         }
 
     }
-
-
+    
     public class AnimFrameData
     {
         public List<AnimNodeFrameData> frames = new List<AnimNodeFrameData>();
