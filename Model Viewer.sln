@@ -3,8 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.28803.202
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Model Viewer", "Model Viewer\Model Viewer.csproj", "{0FA26E94-47EA-450F-B16A-AEFFAD51F4EB}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TextureMixer", "TextureMixer\TextureMixer.csproj", "{0890732A-E096-4341-865B-8B69B0158CBD}"
 EndProject
 Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "MVCore", "MVCore\MVCore.shproj", "{53C00CB6-A20B-47AE-93DB-82A187F0D3CD}"
@@ -16,7 +14,6 @@ EndProject
 Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
 		MVCore\MVCore.projitems*{0890732a-e096-4341-865b-8b69b0158cbd}*SharedItemsImports = 4
-		MVCore\MVCore.projitems*{0fa26e94-47ea-450f-b16a-aeffad51f4eb}*SharedItemsImports = 4
 		MVCore\MVCore.projitems*{279ad081-59e7-4a87-9e0e-50ec81d87992}*SharedItemsImports = 4
 		MVCore\MVCore.projitems*{53c00cb6-a20b-47ae-93db-82a187f0d3cd}*SharedItemsImports = 13
 		MVCore\MVCore.projitems*{db0fde64-f735-4aab-a123-af701db644fc}*SharedItemsImports = 4
@@ -26,11 +23,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{0FA26E94-47EA-450F-B16A-AEFFAD51F4EB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{0FA26E94-47EA-450F-B16A-AEFFAD51F4EB}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{0FA26E94-47EA-450F-B16A-AEFFAD51F4EB}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{0FA26E94-47EA-450F-B16A-AEFFAD51F4EB}.Release|Any CPU.Build.0 = Release|Any CPU
-		{0FA26E94-47EA-450F-B16A-AEFFAD51F4EB}.Release|Any CPU.Deploy.0 = Release|Any CPU
 		{0890732A-E096-4341-865B-8B69B0158CBD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{0890732A-E096-4341-865B-8B69B0158CBD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0890732A-E096-4341-865B-8B69B0158CBD}.Release|Any CPU.ActiveCfg = Release|Any CPU

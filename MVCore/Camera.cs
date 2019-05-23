@@ -73,14 +73,14 @@ namespace MVCore.GMDL
                 w = h * aspect;       // half width of near plane
 
                 //projMat = Matrix4.CreatePerspectiveOffCenter(-w, w, -h, h, zNear, zFar);
-                projMat = Matrix4.CreatePerspectiveFieldOfView(fov, aspect, zNear, zFar);
+                Matrix4.CreatePerspectiveFieldOfView(fov, aspect, zNear, zFar, out projMat);
                 
                 viewMat = lookMat * projMat;
             }
             else
             {
                 //Create orthographic projection
-                projMat = Matrix4.CreateOrthographic(aspect * 2.0f, 2.0f, zNear, zFar);
+                Matrix4.CreateOrthographic(aspect * 2.0f, 2.0f, zNear, zFar, out projMat);
                 //projMat.Transpose();
                 //Create scale matrix based on the fov
                 Matrix4 scaleMat = Matrix4.CreateScale(0.8f * fov);
@@ -148,7 +148,7 @@ namespace MVCore.GMDL
         {
             //projMat.Transpose();
             //extFrustum.CalculateFrustum(projMat, lookMat); //Old Method
-            extFrustum.CalculateFrustum(lookMat * projMat); // New Method
+            extFrustum.CalculateFrustum(viewMat); // New Method
             return;
             Matrix4 mat = viewMat;
             mat.Transpose();
@@ -488,6 +488,8 @@ namespace MVCore.GMDL
             this._frustum[(int)ClippingPlane.Bottom, 2] = -mvp.M34 - mvp.M32;
             this._frustum[(int)ClippingPlane.Bottom, 3] = -mvp.M44 - mvp.M42;
 
+            
+
             //Invert everything to bring it to the original values
             for (int i = 0; i < 6; i++)
                 for (int j = 0; j < 4; j++)
@@ -500,6 +502,8 @@ namespace MVCore.GMDL
             NormalizePlane(_frustum, (int)ClippingPlane.Front);
             NormalizePlane(_frustum, (int)ClippingPlane.Back);
 
+            /*
+            
             //Find Frustum Points by solving all the systems
             float[] p;
             p = solvePlaneSystem((int)ClippingPlane.Back, (int)ClippingPlane.Left, (int)ClippingPlane.Bottom);
@@ -519,6 +523,7 @@ namespace MVCore.GMDL
             p = solvePlaneSystem((int)ClippingPlane.Front, (int)ClippingPlane.Right, (int)ClippingPlane.Top);
             _frustum_points[7, 0] = p[0]; _frustum_points[7, 1] = p[1]; _frustum_points[7, 2] = p[2];
 
+            */
         }
 
 

@@ -75,7 +75,8 @@ namespace Model_Viewer
         private Form pform;
 
         //Timers
-        public System.Timers.Timer t;
+        public System.Timers.Timer inputPollTimer;
+        public System.Timers.Timer resizeTimer;
 
         //Control Font and Text Objects
         private MVCore.Text.TextRenderer font_draw_object;
@@ -99,7 +100,7 @@ namespace Model_Viewer
         {
             this.Load += new System.EventHandler(this.genericLoad);
             this.Paint += new System.Windows.Forms.PaintEventHandler(this.genericPaint);
-            this.Resize += new System.EventHandler(this.genericResize);
+            this.Resize += new System.EventHandler(this.OnResize); 
             this.MouseHover += new System.EventHandler(this.genericHover);
             this.MouseMove += new System.Windows.Forms.MouseEventHandler(this.genericMouseMove);
             this.MouseClick += new System.Windows.Forms.MouseEventHandler(this.CGLControl_MouseClick);
@@ -118,12 +119,21 @@ namespace Model_Viewer
             this.rot.Y = 131;
             this.light_angle_y = 190;
 
-            //Control Timer
-            t = new System.Timers.Timer();
-            t.Elapsed += new System.Timers.ElapsedEventHandler(input_poller);
-            t.Interval = 10;
-            t.Start();
+            //Input Polling Timer
+            inputPollTimer = new System.Timers.Timer();
+            inputPollTimer.Elapsed += new System.Timers.ElapsedEventHandler(input_poller);
+            inputPollTimer.Interval = 10;
+            inputPollTimer.Start();
 
+            //Resize Timer
+            resizeTimer = new System.Timers.Timer();
+            resizeTimer.Elapsed += new System.Timers.ElapsedEventHandler(ResizeControl);
+            resizeTimer.Interval = 10;
+            resizeTimer.Start();
+
+            //Set properties
+            this.VSync = false;
+            
         }
 
         //Constructor
@@ -146,10 +156,10 @@ namespace Model_Viewer
                 pform = parent;
 
             //Control Timer
-            t = new System.Timers.Timer();
-            t.Elapsed += new System.Timers.ElapsedEventHandler(input_poller);
-            t.Interval = 10;
-            t.Start();
+            inputPollTimer = new System.Timers.Timer();
+            inputPollTimer.Elapsed += new System.Timers.ElapsedEventHandler(input_poller);
+            inputPollTimer.Interval = 10;
+            inputPollTimer.Start();
         }
 
         private void input_poller(object sender, System.Timers.ElapsedEventArgs e)
@@ -212,7 +222,6 @@ namespace Model_Viewer
             //Find animScenes
             findAnimScenes();
             GC.Collect();
-
         }
 
         public void findAnimScenes()
@@ -272,7 +281,6 @@ namespace Model_Viewer
                 }
             }
             
-
             //Calculate skinning matrices for each joint for each geometry object
             foreach (GeomObject g in resMgr.GLgeoms.Values)
             {
@@ -283,7 +291,8 @@ namespace Model_Viewer
             //Camera & Light Positions
             //Update common transforms
             activeCam.aspect = (float) ClientSize.Width / ClientSize.Height;
-            
+                
+            //Apply extra viewport rotation
             Matrix4 Rotx = Matrix4.CreateRotationX(MathUtils.radians(rot[0]));
             Matrix4 Roty = Matrix4.CreateRotationY(MathUtils.radians(rot[1]));
             Matrix4 Rotz = Matrix4.CreateRotationZ(MathUtils.radians(rot[2]));
@@ -296,6 +305,7 @@ namespace Model_Viewer
 
             //Update Custom Light Position
             updateLightPosition(0);
+            resMgr.GLlights[0].update(); //Update transforms
 
             //Update Frame Counter
             fps();
@@ -303,7 +313,7 @@ namespace Model_Viewer
         }
 
         //Main Rendering Routines
-        private void RenderLoop()
+        private void ControlLoop()
         {
             //Setup new Context
             IGraphicsContext new_context = new GraphicsContext(new GraphicsMode(32, 24, 0, 8), this.WindowInfo);
@@ -319,17 +329,16 @@ namespace Model_Viewer
             addDefaultPrimitives();
             addTestObjects();
 
-
             //Create gbuffer
             gbuf = new GBuffer(this.resMgr, this.ClientSize.Width, this.ClientSize.Height);
             MVCore.Common.RenderState.gbuf = gbuf;
             gbuf.init();
 
+            bool renderFlag = true; //Toggle rendering on/off
+
             //Rendering Loop
             while (!rt_exit)
             {
-                rt_render();
-
                 //Check for new scene request
                 if (rt_req_queue.Count > 0)
                 {
@@ -345,12 +354,12 @@ namespace Model_Viewer
                         switch (req.type)
                         {
                             case THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST:
-                                lock (t)
+                                lock (inputPollTimer)
                                 {
-                                    t.Stop();
+                                    inputPollTimer.Stop();
                                     rt_addRootScene((string)req.arguments[0]);
                                     req.status = THREAD_REQUEST_STATUS.FINISHED;
-                                    t.Start();
+                                    inputPollTimer.Start();
                                 }
                                 break;
                             case THREAD_REQUEST_TYPE.UPDATE_SCENE_REQUEST:
@@ -370,7 +379,16 @@ namespace Model_Viewer
                                 break;
                             case THREAD_REQUEST_TYPE.TERMINATE_REQUEST:
                                 rt_exit = true;
-                                t.Stop();
+                                renderFlag = false;
+                                inputPollTimer.Stop();
+                                req.status = THREAD_REQUEST_STATUS.FINISHED;
+                                break;
+                            case THREAD_REQUEST_TYPE.PAUSE_RENDER_REQUEST:
+                                renderFlag = false;
+                                req.status = THREAD_REQUEST_STATUS.FINISHED;
+                                break;
+                            case THREAD_REQUEST_TYPE.RESUME_RENDER_REQUEST:
+                                renderFlag = true;
                                 req.status = THREAD_REQUEST_STATUS.FINISHED;
                                 break;
                             case THREAD_REQUEST_TYPE.NULL:
@@ -379,10 +397,17 @@ namespace Model_Viewer
                     }
                 }
                 
-                Thread.Sleep(2);
-
+                if (renderFlag)
+                {
+                    rt_render();
+                }
+                    
+                
                 this.SwapBuffers();
                 this.Invalidate();
+
+                Thread.Sleep(2);
+
             }
         }
 
@@ -399,22 +424,18 @@ namespace Model_Viewer
 
             int loc;
 
-            loc = GL.GetUniformLocation(active_program, "worldMat");
             Matrix4 wMat = root.worldMat;
-            GL.UniformMatrix4(loc, false, ref wMat);
+            GL.UniformMatrix4(10, false, ref wMat);
 
             //Send mvp to all shaders
-            loc = GL.GetUniformLocation(active_program, "mvp");
-            GL.UniformMatrix4(loc, false, ref mvp);
+            GL.UniformMatrix4(7, false, ref mvp);
 
             if (root.renderable)
             {
                 if (root.type == TYPES.MESH)
                 {
-
                     //Sent rotation matrix individually for light calculations
-                    loc = GL.GetUniformLocation(active_program, "rotMat");
-                    GL.UniformMatrix4(loc, false, ref rotMat);
+                    GL.UniformMatrix4(9, false, ref rotMat);
 
                     //Send DiffuseFlag
                     loc = GL.GetUniformLocation(active_program, "diffuseFlag");
@@ -449,10 +470,18 @@ namespace Model_Viewer
                     else occludedNum++;
                     
                 }
-                else if (root.type == TYPES.LOCATOR || root.type == TYPES.SCENE || root.type == TYPES.JOINT || root.type == TYPES.LIGHT || root.type == TYPES.COLLISION)
+                else if (root.type == TYPES.JOINT)
                 {
-                    //Locator Program
-                    //TESTING
+                    if (MVCore.RenderOptions.RenderJoints)
+                        root.render(program);
+                }
+                else if (root.type == TYPES.COLLISION)
+                {
+                    if (MVCore.RenderOptions.RenderCollisions)
+                        root.render(program);
+                }
+                else if (root.type == TYPES.LOCATOR || root.type == TYPES.SCENE || root.type == TYPES.LIGHT)
+                {
                     root.render(program);
                 }
             }
@@ -468,7 +497,7 @@ namespace Model_Viewer
             //Console.WriteLine("Rendering Scene Cam Position : {0}", this.activeCam.Position);
             //Console.WriteLine("Rendering Scene Cam Orientation: {0}", this.activeCam.Orientation);
             //GL.CullFace(CullFaceMode.Back);
-            GL.Enable(EnableCap.DepthTest);
+            //GL.Enable(EnableCap.DepthTest);
 
             occludedNum = 0; //This will be incremented from traverse_render
             //Render only the first scene for now
@@ -479,7 +508,6 @@ namespace Model_Viewer
                 //Drawing Debug
                 //if (RenderOptions.RenderDebug) traverse_render(this.mainScene, 1);
             }
-
         }
 
         private void render_lights()
@@ -558,21 +586,21 @@ namespace Model_Viewer
         {
             //Start Timer when the glControl gets focus
             //Debug.WriteLine("Entered Focus Control " + index);
-            t.Start();
+            inputPollTimer.Start();
         }
 
         private void genericHover(object sender, EventArgs e)
         {
             //Start Timer when the glControl gets focus
             //this.MakeCurrent(); //Control should have been active on hover
-            t.Start();
+            inputPollTimer.Start();
         }
 
         private void genericLeave(object sender, EventArgs e)
         {
             //Don't update the control when its not focused
             //Debug.WriteLine("Left Focus of Control "+ index);
-            t.Stop();
+            inputPollTimer.Stop();
         }
 
         private void genericLoad(object sender, EventArgs e)
@@ -675,44 +703,25 @@ namespace Model_Viewer
 
         }
 
-        private void genericResize(object sender, EventArgs e)
+        private void ResizeControl(object sender, System.Timers.ElapsedEventArgs e)
         {
-            //DO NOT ALLOW THE HEIGHT TO DROP THAT MUCH. THIS IS STUPID
-            //if (this.ClientSize.Height == 0)
-            //    this.ClientSize = new System.Drawing.Size(this.ClientSize.Width, 1);
+            resizeTimer.Stop();
 
-            //Console.WriteLine("GLControl {0} Resizing {1} x {2}",this.index, this.ClientSize.Width, this.ClientSize.Height);
-            //this.MakeCurrent(); At this point I have to make sure that this control is already the active one
+            //Make new request
+            ThreadRequest req = new ThreadRequest();
+            req.type = THREAD_REQUEST_TYPE.RESIZE_REQUEST;
+            req.arguments.Clear();
+            req.arguments.Add(ClientSize.Width);
+            req.arguments.Add(ClientSize.Height);
 
-            //Request a resize
+            issueRequest(req);
+        }
 
-            lock (rt_req_queue)
-            {
-                //Make new request
-                ThreadRequest req = new ThreadRequest();
-                req.type = THREAD_REQUEST_TYPE.RESIZE_REQUEST;
-                req.arguments.Clear();
-                req.arguments.Add(ClientSize.Width);
-                req.arguments.Add(ClientSize.Height);
-
-
-                //SLOPPY SOLUTION
-                //TODO USE A LINKED LIST AND DO NOT DESTROY THE ORDER OF THE REQUESTS
-                //Check last request
-                if (rt_req_queue.Count > 0)
-                {
-                    ThreadRequest prev_req = rt_req_queue.Dequeue();
-                    if (prev_req.type != THREAD_REQUEST_TYPE.RESIZE_REQUEST)
-                    {
-                        rt_req_queue.Enqueue(prev_req);
-                    }
-                }
-
-                rt_req_queue.Enqueue(req);
-
-
-            }
-                
+        private void OnResize(object sender, EventArgs e)
+        {
+            //Check the resizeTimer
+            resizeTimer.Stop();
+            resizeTimer.Start();
         }
 
         private void InitializeComponent()
@@ -903,9 +912,10 @@ namespace Model_Viewer
 
         public void setupControlParameters()
         {
+            //Load font should be done before being used by the rendering thread and after the shaders are live
+            setupTextRenderer();
             //Everything ready to swap threads
             setupRenderingThread();
-
         }
 
         public void setupRenderingThread()
@@ -913,8 +923,9 @@ namespace Model_Viewer
             
             //Setup rendering thread
             Context.MakeCurrent(null);
-            rendering_thread = new Thread(RenderLoop);
+            rendering_thread = new Thread(ControlLoop);
             rendering_thread.IsBackground = true;
+            rendering_thread.Priority = ThreadPriority.AboveNormal;
 
             //Start RT Thread
             rendering_thread.Start();
@@ -1197,15 +1208,7 @@ namespace Model_Viewer
 
         #region DISPOSE_METHODS
 
-        public void Dispose()
-        {
-            Dispose(true);
-#if DEBUG
-            GC.SuppressFinalize(this);
-#endif
-        }
-
-        protected virtual void Dispose(bool disposing)
+        protected override void Dispose(bool disposing)
         {
             if (disposed)
                 return;
@@ -1218,6 +1221,7 @@ namespace Model_Viewer
                 rootObject.Dispose();
                 gbuf.Dispose();
                 font_draw_object.Dispose();
+
             }
 
             //Free unmanaged resources

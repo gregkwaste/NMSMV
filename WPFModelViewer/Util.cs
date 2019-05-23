@@ -32,7 +32,7 @@ namespace WPFModelViewer
         //Update Status strip
         public static void setStatus(string status)
         {
-            Application.Current.Dispatcher.Invoke((Action)(() =>
+            Application.Current.Dispatcher.BeginInvoke((Action)(() =>
             {
                 activeStatusStrip.Text = status;
             }));

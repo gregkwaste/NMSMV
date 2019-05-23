@@ -270,7 +270,6 @@ namespace MVCore
                 geom.bufInfo.Add(null);
             }
 
-        
             for (int i = 0; i < buf_count; i++)
             {
                 var buf_id = br.ReadInt32();
@@ -281,9 +280,9 @@ namespace MVCore
                 mesh_offsets[buf_id] = buf_localoffset;
                 fs.Seek(0x10, SeekOrigin.Current);
             }
+
             //Get Descr
             mesh_desc = getDescr(ref mesh_offsets, buf_count);
-
             Console.WriteLine("Mesh Description: " + mesh_desc);
 
             //Store description
@@ -298,7 +297,6 @@ namespace MVCore
             //Set all offsets to -1
             for (int i = 0; i < 7; i++)
                 small_mesh_offsets[i] = -1;
-
 
             for (int i = 0; i < small_bufcount; i++)
             {
@@ -320,7 +318,7 @@ namespace MVCore
             //Set geom interleaved
             geom.interleaved = true;
 
-
+            
             //Try to fetch the geometry.data.mbin file in order to fetch the streams
             string gstream_path = "";
             MVCore.Common.CallBacks.Log(string.Format("Trying to load GStream {0}", fs.Name));
@@ -391,8 +389,6 @@ namespace MVCore
                 default:
                     return "shit"; //Default
             }
-
-        
         }
 
         private static OpenTK.Graphics.OpenGL4.VertexAttribPointerType get_type(int val){
@@ -631,7 +627,6 @@ namespace MVCore
 
             if (typeEnum == TYPES.MESH)
             {
-                Console.WriteLine("Mesh Detected " + name);
                 MVCore.Common.CallBacks.Log(string.Format("Parsing Mesh {0}", name));
                 //Create model
                 meshModel so = new meshModel();
@@ -644,7 +639,7 @@ namespace MVCore
                 so.color[1] = Common.RenderState.randgen.Next(255) / 255.0f;
                 so.color[2] = Common.RenderState.randgen.Next(255) / 255.0f;
 
-                Console.WriteLine("Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]);
+                MVCore.Common.CallBacks.Log(string.Format("Randomized Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]));
                 //Get Options
                 so.batchstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHSTARTPHYSI"));
                 so.vertrstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRSTARTPHYSI"));
@@ -677,20 +672,22 @@ namespace MVCore
                 so.shader_programs = new int[] { Common.RenderState.activeResMgr.GLShaders["MESH_SHADER"],
                                                  Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
                                                  Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
-            
+
                 so.Bbox = gobject.bboxes[iid];
                 so.setupBSphere();
                 so.parent = parent;
                 so.scene = scene;
                 so.mbin_scene = node;
                 so.gobject = gobject; //Store the gobject for easier access of uniforms
-                so.init(transforms);
+                so.init(transforms); //Init object transforms
 
                 //Get Material
                 string matname = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "MATERIAL");
                 MVCore.Common.CallBacks.Log(string.Format("Trying to load Material {0}", matname));
                 string[] split = matname.Split('\\');
-                string matkey = split[split.Length - 1];
+                //string matkey = split[split.Length - 1];
+                string matkey = matname; //Use the entire path
+                
                 //Check if material already in Resources
                 if (Common.RenderState.activeResMgr.GLmaterials.ContainsKey(matkey))
                     so.material = Common.RenderState.activeResMgr.GLmaterials[matkey];
@@ -706,15 +703,11 @@ namespace MVCore
                     //Check if path exists
                     if (File.Exists(mat_path))
                     {
-                        //if (!File.Exists(mat_exmlPath))
-                        //    Util.MbinToExml(mat_path, mat_exmlPath);
-
                         //Material mat = MATERIALMBIN.Parse(newXml);
                         Material mat = Material.Parse(mat_path);
                         //Load default form palette on init
                         mat.palette = Model_Viewer.Palettes.paletteSel;
-
-                        mat.prepTextures();
+                        mat.prepTextures(); //Prepare-Mix Material Textures
                         so.material = mat;
                         //Store the material to the Resources
                         Common.RenderState.activeResMgr.GLmaterials[matkey] = mat;
@@ -736,9 +729,9 @@ namespace MVCore
                 so.main_Vao = gobject.getMainVao(so);
             
                 //Configure boneRemap properly
-                so.BoneRemap = new int[so.lastskinmat - so.firstskinmat];
+                so.BoneRemapIndices = new int[so.lastskinmat - so.firstskinmat];
                 for (int i = 0; i < so.lastskinmat - so.firstskinmat; i++)
-                    so.BoneRemap[i] = gobject.boneRemap[so.firstskinmat + i];
+                    so.BoneRemapIndices[i] = gobject.boneRemap[so.firstskinmat + i];
                
                 Console.WriteLine("Object {0}, Number of skinmatrices required: {1}", so.name, so.lastskinmat - so.firstskinmat);
 

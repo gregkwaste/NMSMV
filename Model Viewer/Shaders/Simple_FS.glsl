@@ -6,10 +6,6 @@
 //Includes
 #include "/common.glsl"
 
-/* Copies incoming fragment color without change. */
-uniform vec3 color;
-uniform float intensity;
-
 layout(location=11) uniform bool matflags[64];
 layout(location=75) uniform sampler2D diffuseTex;
 layout(location=76) uniform sampler2D maskTex;
@@ -17,12 +13,14 @@ layout(location=77) uniform sampler2D normalTex;
 
 
 //Material Options
-uniform vec4 gMaterialColourVec4;
-uniform vec4 gMaterialParamsVec4;
-uniform vec4 gMaterialSFXVec4;
-uniform vec4 gMaterialSFXColVec4;
-uniform vec4 gDissolveDataVec4;
+layout(location=206) uniform vec4 gMaterialColourVec4;
+layout(location=207) uniform vec4 gMaterialParamsVec4;
+layout(location=208) uniform vec4 gMaterialSFXVec4;
+layout(location=209) uniform vec4 gMaterialSFXColVec4;
+layout(location=210) uniform vec4 gDissolveDataVec4;
 
+layout(location=211) uniform vec3 color;
+uniform float intensity;
 
 //Rendering Options
 uniform float diffuseFlag; //Enable Textures

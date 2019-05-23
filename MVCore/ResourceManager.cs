@@ -53,9 +53,7 @@ namespace MVCore
             //foreach (GMDL.Camera p in GLCameras)
             //    p.Dispose();
             GLCameras.Clear();
-
-            GC.Collect();
-
+        
         }
 
         

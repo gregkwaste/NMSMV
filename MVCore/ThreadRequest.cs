@@ -12,6 +12,8 @@ namespace MVCore
         TERMINATE_REQUEST,
         COMPILE_SHADER_REQUEST,
         MODIFY_SHADER_REQUEST,
+        RESUME_RENDER_REQUEST,
+        PAUSE_RENDER_REQUEST,
         NULL
     };
 

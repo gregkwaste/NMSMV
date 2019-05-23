@@ -47,8 +47,6 @@ namespace MVCore.GMDL
         private bool moved = false; //This flag is used to indicate if the model has been transformed or not
 
 
-
-
         //Transformation Parameters
         public Vector3 worldPosition = new Vector3(0.0f, 0.0f, 0.0f);
         public Matrix4 worldMat = Matrix4.Identity;
@@ -134,6 +132,12 @@ namespace MVCore.GMDL
         public string Name
         {
             get { return name; }
+        }
+
+        //TODO: Consider converting all such attributes using properties
+        public void updatePosition(Vector3 newPosition)
+        {
+            localPosition = newPosition;
         }
 
         public string ModelType
@@ -262,18 +266,6 @@ namespace MVCore.GMDL
        
     }
 
-    //public interface model{
-    //    bool render();
-    //    GMDL.model Clone();
-    //    bool Renderable { get; set; }
-    //    int ShaderProgram { set; get; }
-    //    int Index { set; get; }
-    //    string Type { set; get; }
-    //    string Name { set; get; }
-    //    GMDL.Material material { set; get; }
-    //    List<model> Children { set; get; }
-    //};
-    
     public class scene : locator
     {
         public scene() : base(0.1f) { }
@@ -423,13 +415,27 @@ namespace MVCore.GMDL
                 MVCore.Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
         }
 
-        //Deconstructor
+
+        #region IDisposable Support
         protected override void Dispose(bool disposing)
         {
-            vao_id = -1;
-            base.Dispose(disposing);
+            if (!disposed)
+            {
+                if (disposing)
+                {
+                    // TODO: dispose managed state (managed objects).
+                    vao_id = -1; //VAO will be deleted from the resource manager since it is a common mesh
+                    shader_programs = null;
+
+                    base.Dispose(disposing);
+                }
+
+            }
         }
+
         
+        #endregion
+
         private void renderMain(int pass)
         {
             //Console.WriteLine("Rendering Locator {0}", this.name);
@@ -495,12 +501,31 @@ namespace MVCore.GMDL
             element_buffer_object = -1;
         }
 
+        #region IDisposable Support
+        private bool disposedValue = false; // To detect redundant calls
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    // TODO: dispose managed state (managed objects).
+                    GL.DeleteVertexArray(vao_id);
+                    GL.DeleteBuffer(vertex_buffer_object);
+                    GL.DeleteBuffer(element_buffer_object);
+                }
+
+                disposedValue = true;
+            }
+        }
+
+        // This code added to correctly implement the disposable pattern.
         public void Dispose()
         {
-            GL.DeleteVertexArray(vao_id);
-            GL.DeleteBuffer(vertex_buffer_object);
-            GL.DeleteBuffer(element_buffer_object);
+            Dispose(true);
         }
+        #endregion
 
     }
 
@@ -520,20 +545,31 @@ namespace MVCore.GMDL
         public int boundhullstart = 0;
         public int boundhullend = 0;
         public DrawElementsType indicesLength = DrawElementsType.UnsignedShort;
-        
+
         public int skinned = 1;
         public ulong hash = 0xFFFFFFFF;
         //Accurate boneRemap
-        public int[] BoneRemap;
+        public int[] BoneRemapIndices;
+        public float[] BoneRemapMatrices = new float[16 * 128];
         public mainVAO main_Vao;
         public mainVAO debug_Vao;
         public mainVAO pick_Vao;
         public mainVAO bsh_Vao;
 
         public Vector3 color = new Vector3();
-        //public bool renderable = true;
-        //public int shader_program = -1;
-        //public int index;
+
+        //TODO: I'm not sure if this should be here
+        //Keep a static dictionary for the material uniforms
+        private Dictionary<string, int> uniformLocationDict = new Dictionary<string, int> {
+            { "gMaterialColourVec4" , 206 },
+            { "gMaterialParamsVec4" , 207 },
+            { "gMaterialSFXVec4" , 208 },
+            { "gMaterialSFXColVec4" , 209 },
+            { "gDissolveDataVec4" , 210 },
+            { "gCustomParams01Vec4" , -1 },
+            { "gUVScrollStepVec4" , -1 },
+            { "gRingParamsVec4" , -1 },
+        };
         
         //BSphere calculator
         public void setupBSphere()
@@ -579,6 +615,7 @@ namespace MVCore.GMDL
                                            Bbox[0].X, Bbox[1].Y, Bbox[1].Z,
                                            Bbox[1].X, Bbox[1].Y, Bbox[1].Z };
 
+
             float[] colors = new float[] { color.X,color.Y,color.Z,
                                                 color.X,color.Y,color.Z,
                                                 color.X,color.Y,color.Z,
@@ -610,7 +647,7 @@ namespace MVCore.GMDL
             //Upload vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, vb_bbox);
             //Allocate to NULL
-            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)(2*arraysize), (IntPtr)null, BufferUsageHint.StaticDraw);
+            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)(2 * arraysize), (IntPtr)null, BufferUsageHint.StaticDraw);
             //Add verts data
             GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts1);
             //Add vert color data
@@ -657,10 +694,9 @@ namespace MVCore.GMDL
 
             GL.DisableVertexAttribArray(0);
 
-
             GL.DeleteBuffer(vb_bbox);
             GL.DeleteBuffer(eb_bbox);
-            
+
         }
 
         public void renderBSphere(int pass)
@@ -699,40 +735,34 @@ namespace MVCore.GMDL
 
             //Step 1 Upload uniform variables
             int loc;
-            //Upload Material Flags here
-            //Reset
-            loc = GL.GetUniformLocation(pass, "matflags");
-            //loc = 11;
 
-            for (int i = 0; i < 64; i++)
-                GL.Uniform1(loc + i, 0.0f);
-
-            for (int i = 0; i < material.nms_mat.Flags.Count; i++)
-                GL.Uniform1(loc + (int) material.nms_mat.Flags[i].MaterialFlag, 1.0f);
+            GL.Uniform1(11, 64, material.material_flags); //Upload Material Flags
             
             //Upload Material Uniforms
             for (int i = 0; i < material.nms_mat.Uniforms.Count; i++)
             {
-                TkMaterialUniform un = material.nms_mat.Uniforms[i]; 
-                loc = GL.GetUniformLocation(pass, un.Name);
-                GL.Uniform4(loc, un.Values.x, un.Values.y, un.Values.z, un.Values.t);
+                TkMaterialUniform un = material.nms_mat.Uniforms[i];
+                if (!uniformLocationDict.Keys.Contains(un.Name)){
+                    MVCore.Common.CallBacks.Log("Uniform Missing! Adding " + un.Name + " to the uniform dictionary");
+                    uniformLocationDict[un.Name] = -1;
+                } else
+                    GL.Uniform4(uniformLocationDict[un.Name], un.Values.x, un.Values.y, un.Values.z, un.Values.t);
             }
-            
+
             //Upload joint transform data
             //Multiply matrices before sending them
             //Check if scene has the jointModel
 
             if (skinned > 0.0f)
             {
-                float[] remapped = new float[128 * 16];
-                for (int i=0; i<BoneRemap.Length; i++)
-                {
-                    Array.Copy(gobject.skinMats, BoneRemap[i] * 16, remapped, i*16, 16);
+                for (int i=0; i < BoneRemapIndices.Length; i++)
+                {   
+                    Array.Copy(gobject.skinMats, BoneRemapIndices[i] * 16, BoneRemapMatrices, i * 16, 16);
                 }
-                
-                GL.UniformMatrix4(78, 128, false, remapped);
+
+                GL.UniformMatrix4(78, 128, false, BoneRemapMatrices);
             }
-            
+
             //Upload Light Flag
             //loc = GL.GetUniformLocation(pass, "useLighting");
             //GL.Uniform1(loc, 1.0f);
@@ -768,7 +798,6 @@ namespace MVCore.GMDL
             loc = GL.GetUniformLocation(pass, "color");
             GL.Uniform3(loc, this.color);
 
-
             //Step 2 Bind & Render Vao
             //Render Elements
             GL.BindVertexArray(main_Vao.vao_id);
@@ -794,7 +823,7 @@ namespace MVCore.GMDL
 
             //Upload BoneRemap Information
             loc = GL.GetUniformLocation(pass, "boneRemap");
-            GL.Uniform1(loc, BoneRemap.Length, BoneRemap);
+            GL.Uniform1(loc, BoneRemapMatrices.Length, BoneRemapMatrices);
 
             //Upload joint transform data
             //Multiply matrices before sending them
@@ -851,7 +880,8 @@ namespace MVCore.GMDL
             //Skinning Stuff
             copy.firstskinmat = this.firstskinmat;
             copy.lastskinmat = this.lastskinmat;
-            copy.BoneRemap = this.BoneRemap;
+            copy.BoneRemapMatrices = this.BoneRemapMatrices;
+            copy.BoneRemapIndices = this.BoneRemapIndices;
             copy.skinned = this.skinned;
 
             copy.main_Vao = main_Vao;
@@ -1062,17 +1092,33 @@ namespace MVCore.GMDL
             index += (uint) vertcount;
         }
 
-        //Deconstructor
+        #region IDisposable Support
+        
         protected override void Dispose(bool disposing)
         {
-            //if (material != null) material.Dispose();
-            //NOTE: No need to dispose material, because the materials reside in the resource manager
-            //vbo.Dispose(); I assume the the vbo's will be cleared with Resourcegmt cleanup
-            BoneRemap = null;
-            //Dispose GL Stuff
-            main_Vao?.Dispose();
-            base.Dispose(disposing);
+            if (!disposed)
+            {
+                if (disposing)
+                {
+
+                    // TODO: dispose managed state (managed objects).
+                    //if (material != null) material.Dispose();
+                    //NOTE: No need to dispose material, because the materials reside in the resource manager
+                    //vbo.Dispose(); I assume the the vbo's will be cleared with Resourcegmt cleanup
+                    BoneRemapIndices = null;
+                    BoneRemapMatrices = null;
+                    //Dispose GL Stuff
+                    main_Vao?.Dispose();
+                    debug_Vao?.Dispose();
+                    pick_Vao?.Dispose();
+                    bsh_Vao?.Dispose();
+
+                    base.Dispose(disposing);
+                }
+            }
         }
+
+        #endregion
 
     }
 
@@ -1089,6 +1135,9 @@ namespace MVCore.GMDL
 
         public override bool render(int pass)
         {
+
+            return false;
+
             if (this.main_Vao == null || RenderOptions.RenderCollisions == false)
             {
                 //Console.WriteLine("Not Renderable");
@@ -1180,14 +1229,7 @@ namespace MVCore.GMDL
                DrawElementsType.UnsignedShort, IntPtr.Zero);
             GL.BindVertexArray(0);
         }
-
-        //Deconstructor
-        protected override void Dispose(bool disposing)
-        {
-            //Call Dispose of the meshModel
-            base.Dispose(disposing);
-        }
-
+    
     }
 
     public class Decal : meshModel
@@ -1219,7 +1261,8 @@ namespace MVCore.GMDL
             this.batchstart_physics = root.batchstart_physics;
             this.color = root.color;
             this.material = root.material;
-            this.BoneRemap = root.BoneRemap;
+            this.BoneRemapMatrices = root.BoneRemapMatrices;
+            this.BoneRemapIndices = root.BoneRemapIndices;
             this.skinned = root.skinned;
             this.palette = root.palette;
             this.cIndex = root.cIndex;
@@ -1328,144 +1371,8 @@ namespace MVCore.GMDL
 
     }
 
-    public class customVBO: IDisposable
-    {
-        private bool disposed = false;
-        public int vertex_buffer_object;
-        public int small_vertex_buffer_object;
-        public int element_buffer_object;
-
-        public List<JointBindingData> jointData;
-        public List<GMDL.bufInfo> bufInfo;
-        public float[] invBMats;
-        public int vx_size;
-        public int vx_stride;
-        public int n_stride;
-        public int t_stride;
-        public int b_stride;
-        public int uv0_stride;
-        public int blendI_stride;
-        public int blendW_stride;
-
-        //Small Stuff
-        public int small_vx_size;
-        public int small_vx_stride;
-        public int small_blendI_stride;
-        public int small_blendW_stride;
-
-        public int trisCount;
-        public int iCount;
-        public int vCount;
-        public int iLength;
-        public short[] boneRemap = new short[512];
-        public DrawElementsType iType;
-        public byte[] geomVbuf;
-        public byte[] geomIbuf;
-
-        public customVBO()
-        {
-        }
-
-        public customVBO(GeomObject geom, int streamID)
-        {
-            this.LoadFromGeom(geom, streamID);
-        }
-
-        public void LoadFromGeom(GeomObject geom, int streamID)
-        {
-            //Set essential parameters
-            this.vx_size = geom.vx_size;
-            this.small_vx_size = geom.small_vx_size;
-            this.vx_stride = geom.offsets[0];
-            this.bufInfo = geom.bufInfo;
-            this.small_vx_stride = geom.small_offsets[0];
-            this.uv0_stride = geom.offsets[1];
-            this.n_stride = geom.offsets[2];
-            this.t_stride = geom.offsets[3];
-            this.b_stride = geom.offsets[4];
-            this.blendI_stride = geom.offsets[5];
-            this.small_blendI_stride = geom.small_offsets[5];
-            this.blendW_stride = geom.offsets[6];
-            this.small_blendW_stride = geom.small_offsets[6];
-            this.vCount = (int) geom.vertCount;
-            this.iCount = (int) geom.indicesCount;
-            this.trisCount = (int) geom.indicesCount / 3;
-            this.iLength = (int) geom.indicesLength;
-            this.boneRemap = geom.boneRemap;
-            this.geomVbuf = geom.vbuffer;
-            this.geomIbuf = geom.ibuffer;
-            
-            if (geom.indicesLength == 0x2)
-                this.iType = DrawElementsType.UnsignedShort;
-            else
-                this.iType = DrawElementsType.UnsignedInt;
-            //Set Joint Data
-            this.jointData = geom.jointData;
-            
-            ////Explicitly Parse BlendIndices
-            //int offset = blendI_stride;
-            //int[] bIndices = new int[geom.vertCount * 4];
-            //float[] bWeights = new float[geom.vertCount * 4];
-
-            ////Binary Reader
-            //MemoryStream ms = new MemoryStream();
-            //ms.Write(geom.vbuffer, 0, geom.vbuffer.Length);
-            //BinaryReader br = new BinaryReader(ms);
-            //ms.Position = blendI_stride;
-            //for (int i = 0; i < geom.vertCount; i++)
-            //{
-            //    //bIndices[4 * i] = br.ReadByte();
-            //    //bIndices[4 * i + 1] = br.ReadByte();
-            //    //bIndices[4 * i + 2] = br.ReadByte();
-            //    //bIndices[4 * i + 3] = br.ReadByte();
-
-            //    Console.WriteLine("Indices {0} {1} {2} {3}", br.ReadByte(), br.ReadByte(), br.ReadByte(), br.ReadByte());
-            //    ms.Position += geom.vx_size - 4;
-            //}
-
-            //GL.BindBuffer(BufferTarget.ArrayBuffer, bIndices_buffer_object);
-            //GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr) (sizeof(int) * 4 * geom.vertCount),
-            //    bIndices, BufferUsageHint.StaticDraw);
-
-        }
-
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (disposed)
-                return;
-
-            if (disposing)
-            {
-                bufInfo.Clear();
-                jointData.Clear();
-                //Clear gl arrays
-                GL.DeleteBuffer(vertex_buffer_object);
-                GL.DeleteBuffer(small_vertex_buffer_object);
-                GL.DeleteBuffer(element_buffer_object);
-                //Free other resources here
-            }
-
-            //Free unmanaged resources
-            disposed = true;
-        }
-
-        ~customVBO()
-        {
-            Dispose(false);
-        }
-
-        
-    }
-
     public class GeomObject : IDisposable
     {
-        private bool disposed = false;
         public string mesh_descr;
         public string small_mesh_descr;
 
@@ -1672,40 +1579,55 @@ namespace MVCore.GMDL
         }
 
 
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
+        #region IDisposable Support
+        private bool disposedValue = false; // To detect redundant calls
 
         protected virtual void Dispose(bool disposing)
         {
-            if (disposed)
-                return;
-
-            if (disposing)
+            if (!disposedValue)
             {
-                bIndices.Clear();
-                bWeights.Clear();
-                bufInfo.Clear();
-                bboxes.Clear();
-                vstarts.Clear();
+                if (disposing)
+                {
+                    // TODO: dispose managed state (managed objects).
+                    ibuffer = null;
+                    vbuffer = null;
+                    small_vbuffer = null;
+                    offsets = null;
+                    small_offsets = null;
+                    boneRemap = null;
+                    skinMats = null;
+                    invBMats = null;
+                    
+                    
+                    rootObject = null;
 
-                //Clear buffers
-                foreach (KeyValuePair<ulong, meshMetaData> pair in meshMetaDataDict)
-                    meshDataDict[pair.Key] = null;
+                    bIndices.Clear();
+                    bWeights.Clear();
+                    bufInfo.Clear();
+                    bboxes.Clear();
+                    bhullverts.Clear();
+                    vstarts.Clear();
+                    jointData.Clear();
 
-                GC.Collect();
+                    //Clear buffers
+                    foreach (KeyValuePair<ulong, meshMetaData> pair in meshMetaDataDict)
+                        meshDataDict[pair.Key] = null;
+
+                    meshDataDict.Clear();
+                    meshMetaDataDict.Clear();
+
+                }
+
+                disposedValue = true;
             }
-
-            //Free unmanaged resources
-            disposed = true;
         }
 
-        ~GeomObject()
+        // This code added to correctly implement the disposable pattern.
+        public void Dispose()
         {
-            Dispose(false);
+            Dispose(true);
         }
+        #endregion
 
         
     }
@@ -1735,6 +1657,7 @@ namespace MVCore.GMDL
         private bool disposed = false;
         public bool proc = false;
         public TkMaterialData nms_mat;
+        public float[] material_flags = new float[64];
         public string name
         {
             get
@@ -1775,12 +1698,17 @@ namespace MVCore.GMDL
             }
 
         }
-        
+
         public static Material Parse(string path)
         {
             //Make new material
             Material mat = new Material();
+            mat.ParseFromPath(path);
+            return mat;
+        }
 
+        public void ParseFromPath(string path)
+        {
             //Try to use libMBIN to load the Material files
             libMBIN.MBINFile mbinf = new libMBIN.MBINFile(path);
             mbinf.Load();
@@ -1792,14 +1720,22 @@ namespace MVCore.GMDL
             template.WriteToExml("Temp\\" + template.Name + ".exml");
 #endif
 
-            mat.nms_mat = template; //Save the template in the material
+            nms_mat = template; //Save the template in the material
+
+            //Clear Flags
+            for (int i = 0; i < 64; i++)
+                material_flags[i] = 0.0f;
 
             //Get MaterialFlags
             MVCore.Common.CallBacks.Log("Material Flags: ");
+            
             foreach (TkMaterialFlags f in template.Flags)
-                MVCore.Common.CallBacks.Log(((TkMaterialFlags.MaterialFlagEnum) f.MaterialFlag).ToString() + " ");
+            {
+                material_flags[(int) f.MaterialFlag] = 1.0f;
+                MVCore.Common.CallBacks.Log(((TkMaterialFlags.MaterialFlagEnum)f.MaterialFlag).ToString() + " ");
+            }
+                
             MVCore.Common.CallBacks.Log("\n");
-            return mat;
         }
 
         public bool has_flag(TkMaterialFlags.MaterialFlagEnum flag)
@@ -2091,7 +2027,7 @@ namespace MVCore.GMDL
                             break;
                         }
                     default :
-                        Console.WriteLine("Unknown Sampler Name");
+                        MVCore.Common.CallBacks.Log("Unknown Sampler Name " + sam.Name);
                         break;
                 }
 
@@ -2632,7 +2568,7 @@ namespace MVCore.GMDL
             int mm_count = ddsImage.header.dwMipMapCount;
             int temp_size = ddsImage.header.dwPitchOrLinearSize;
             int offset = 0;
-            for (int i=0; i < 7; i++)
+            for (int i=0; i < Math.Min(7, mm_count); i++)
             {
                 byte[] tex_data = new byte[temp_size];
                 Array.Copy(ddsImage.bdata, offset, tex_data, 0, temp_size);
@@ -2767,15 +2703,6 @@ namespace MVCore.GMDL
 
             long temp;
 
-            
- 
-	
-        }
-
-
-        ~Texture()
-        {
-            Dispose(false);
         }
 
     }
@@ -2816,9 +2743,6 @@ namespace MVCore.GMDL
 
         }
 
-
-
-        //Empty stuff
         public override model Clone(scene scn)
         {
             Joint copy = new Joint();
@@ -2973,11 +2897,6 @@ namespace MVCore.GMDL
         public override model Clone(scene scene)
         {
             throw new NotImplementedException();
-        }
-
-        public void updatePosition(Vector3 newPosition)
-        {
-            this.localPosition = newPosition;
         }
 
         //DIsposal

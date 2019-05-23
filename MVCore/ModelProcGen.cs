@@ -19,10 +19,11 @@ namespace MVCore
         public static PolygonMode RENDERMODE = PolygonMode.Fill;
         public static float UseTextures = 1.0f;
         public static float UseLighting = 1.0f;
-        public static System.Drawing.Color clearColor = System.Drawing.Color.FromArgb(255, 63, 63, 63);
+        public static System.Drawing.Color clearColor = System.Drawing.Color.FromArgb(255, 33, 33, 33);
         public static bool RenderInfo = true;
         public static bool RenderLights = true;
-        public static bool RenderCollisions = false;
+        public static bool RenderJoints = true;
+        public static bool RenderCollisions = true;
         public static bool RenderDebug = false;
         public static int animFPS = 50;
     }

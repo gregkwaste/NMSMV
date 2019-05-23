@@ -20,13 +20,16 @@ using OpenTK.Graphics.OpenGL4;
 using QuickFont;
 using QuickFont.Configuration;
 using System.Runtime.InteropServices;
+using System.Windows.Interop;
 
 namespace WPFModelViewer
 {
-    
+
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
+    /// 
+
     public partial class MainWindow : Window
     {
         private CGLControl glControl;
@@ -39,6 +42,9 @@ namespace WPFModelViewer
         //Handle Async Requests
         private List<ThreadRequest> issuedRequests= new List<ThreadRequest>();
         private System.Timers.Timer requestHandler = new System.Timers.Timer();
+
+        private const int WmExitSizeMove = 0x232; //Custom Windows Messages
+        private const int WmEnterSizeMove = 0x231;
 
         public MainWindow()
         {
@@ -57,8 +63,6 @@ namespace WPFModelViewer
 
             //Compile Shaders before starting the rendering thread
             compileShaders();
-            //Load font should be done before being used by the rendering thread and after the shaders are live
-            glControl.setupTextRenderer();
             glControl.setupControlParameters();
 
             //Load Keyboard Handler
@@ -93,50 +97,52 @@ namespace WPFModelViewer
 
             //Cleanup resource manager
             Util.setStatus("Ready");
-        
         }
 
         //Request Handler
         private void queryRequests(object sender, System.Timers.ElapsedEventArgs e)
         {
             int i = 0;
-            while ( i < issuedRequests.Count)
-            {
-                ThreadRequest req = issuedRequests[i];
-                if (req.status == THREAD_REQUEST_STATUS.FINISHED)
+            lock (issuedRequests) {
+                while ( i < issuedRequests.Count)
                 {
-                    switch (req.type)
+                    ThreadRequest req = issuedRequests[i];
+                    lock (req)
                     {
-                        case THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST:
-                            glControl.rootObject.ID = itemCounter;
-                            Util.setStatus("Creating Nodes...");
-                            ModelNode scn_node = new ModelNode(glControl.rootObject);
-                            traverse_oblist(glControl.rootObject, scn_node);
-                            //Add to UI
-                            Application.Current.Dispatcher.Invoke((Action)(() =>
+                        if (req.status == THREAD_REQUEST_STATUS.FINISHED)
+                        {
+                            switch (req.type)
                             {
-                                SceneTreeView.Items.Clear();
-                                SceneTreeView.Items.Add(scn_node);
-                                
-                            }));
-                            Util.setStatus("Ready");
-                            GC.Collect();
-                            break;
-                        case THREAD_REQUEST_TYPE.COMPILE_SHADER_REQUEST:
-                            //Add Shader to resource manager
-                            GLSLHelper.GLSLShaderConfig shader_conf = (GLSLShaderConfig) req.arguments[0];
-                            RenderState.activeResMgr.GLShaderConfigs[shader_conf.name] = shader_conf;
-                            RenderState.activeResMgr.GLShaders[shader_conf.name] = shader_conf.program_id;
-                            File.WriteAllText("shader_compilation_" + shader_conf.name + ".log", shader_conf.log);
-                            Util.setStatus("Shader Compiled Successfully!");
-                            break;
-                        default:
-                            break;
+                                case THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST:
+                                    glControl.rootObject.ID = itemCounter;
+                                    Util.setStatus("Creating Nodes...");
+                                    ModelNode scn_node = new ModelNode(glControl.rootObject);
+                                    traverse_oblist(glControl.rootObject, scn_node);
+                                    //Add to UI
+                                    Application.Current.Dispatcher.BeginInvoke((Action)(() =>
+                                    {
+                                        SceneTreeView.Items.Clear();
+                                        SceneTreeView.Items.Add(scn_node);
+                                    }));
+                                    Util.setStatus("Ready");
+                                    break;
+                                case THREAD_REQUEST_TYPE.COMPILE_SHADER_REQUEST:
+                                    //Add Shader to resource manager
+                                    GLSLHelper.GLSLShaderConfig shader_conf = (GLSLShaderConfig)req.arguments[0];
+                                    RenderState.activeResMgr.GLShaderConfigs[shader_conf.name] = shader_conf;
+                                    RenderState.activeResMgr.GLShaders[shader_conf.name] = shader_conf.program_id;
+                                    File.WriteAllText("shader_compilation_" + shader_conf.name + ".log", shader_conf.log);
+                                    Util.setStatus("Shader Compiled Successfully!");
+                                    break;
+                                default:
+                                    break;
+                            }
+                            issuedRequests.RemoveAt(i); //Remove request
+                        }
+                        else
+                            i++;
                     }
-                    issuedRequests.RemoveAt(i); //Remove request
                 }
-                else
-                    i++;
             }
         }
 
@@ -184,12 +190,72 @@ namespace WPFModelViewer
             Util.loggingSr.Close();
         }
 
+
+        private IntPtr HwndMessageHook(IntPtr wnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            switch (msg)
+            {
+                case WmExitSizeMove:
+                    {
+                        //Send resizing request
+                        ThreadRequest req = new ThreadRequest();
+                        req.type = THREAD_REQUEST_TYPE.RESIZE_REQUEST;
+                        req.arguments.Clear();
+                        req.arguments.Add(glControl.Width);
+                        req.arguments.Add(glControl.Height);
+
+                        //Send request
+                        glControl.issueRequest(req);
+                        issuedRequests.Add(req);
+
+                        //Send Unpause rendering requenst
+                        req = new ThreadRequest();
+                        req.type = THREAD_REQUEST_TYPE.RESUME_RENDER_REQUEST;
+                        req.arguments.Clear();
+
+                        //Send request
+                        glControl.issueRequest(req);
+                        issuedRequests.Add(req);
+
+                        //Mark as handled event
+                        handled = true;
+                        break;
+                    }
+                case WmEnterSizeMove:
+                    {
+                        //Send Unpause rendering requenst
+                        ThreadRequest req = new ThreadRequest();
+                        req.type = THREAD_REQUEST_TYPE.PAUSE_RENDER_REQUEST;
+                        req.arguments.Clear();
+
+                        //Send request
+                        glControl.issueRequest(req);
+                        issuedRequests.Add(req);
+
+                        //Mark as handled event
+                        handled = true;
+                        break;
+                    }
+            }
+            return IntPtr.Zero;
+        }
+
+
         //Do stuff once the GUI is ready
         private void MainWindow_OnLoaded(object sender, RoutedEventArgs e)
         {
+            //Add Hook for catching the end of resizing event in WPF
+            var helper = new WindowInteropHelper(this);
+            if (helper.Handle != null)
+            {
+                var source = HwndSource.FromHwnd(helper.Handle);
+                if (source != null)
+                    source.AddHook(HwndMessageHook);
+            }
+            
             //OVERRIDE SETTINGS
             //FileUtils.dirpath = "I:\\SteamLibrary1\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
-            
+
             //Load Settings
             settings = SettingsForm.loadSettingsStatic();
             SettingsForm.saveSettingsToEnv(settings);
@@ -249,8 +315,7 @@ namespace WPFModelViewer
             ModelNode scn_node = new ModelNode(glControl.rootObject);
             traverse_oblist(glControl.rootObject, scn_node);
             SceneTreeView.Items.Add(scn_node);
-            GC.Collect();
-
+            
 
             //Check if Temp folder exists
 #if DEBUG
@@ -489,6 +554,12 @@ namespace WPFModelViewer
                 RenderOptions.RenderLights = true;
             else
                 RenderOptions.RenderLights = false;
+
+            //Toggle Joints Render
+            if (toggleJoints.IsChecked.Value)
+                RenderOptions.RenderJoints = true;
+            else
+                RenderOptions.RenderJoints = false;
 
             //Toggle Collisions Render
             if (toggleCollisions.IsChecked.Value)

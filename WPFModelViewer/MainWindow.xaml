@@ -62,7 +62,7 @@
             </Grid.ColumnDefinitions>
             <Grid Grid.Column="0">
                 <Grid.RowDefinitions>
-                    <RowDefinition MinHeight="180"/>
+                    <RowDefinition MinHeight="200"/>
                     <RowDefinition Height="7*"/>
                     <RowDefinition Height="3*"/>
                 </Grid.RowDefinitions>
@@ -114,13 +114,14 @@
                         </GroupBox>
                     </TabItem>
                     <TabItem Header="Render">
-                        <GroupBox MinHeight="100" Header="RenderOptions">
+                        <GroupBox MinHeight="150" Header="RenderOptions">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="93*"/>
                                     <ColumnDefinition Width="148*"/>
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="20"/>
                                     <RowDefinition Height="20"/>
                                     <RowDefinition Height="20"/>
                                     <RowDefinition Height="20"/>
@@ -149,8 +150,12 @@
                                     <CheckBox x:Name="toggleLights" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
                                 </DockPanel>
                                 <DockPanel Grid.Row="5" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                                    <TextBlock HorizontalAlignment="Left">Collisions</TextBlock>
-                                    <CheckBox x:Name="toggleCollisions" Width="20" HorizontalAlignment="Right" Click="updateRenderOptions"></CheckBox>
+                                    <TextBlock HorizontalAlignment="Left">Render Joints</TextBlock>
+                                    <CheckBox x:Name="toggleJoints" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
+                                </DockPanel>
+                                <DockPanel Grid.Row="6" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                    <TextBlock HorizontalAlignment="Left">Render Collisions</TextBlock>
+                                    <CheckBox x:Name="toggleCollisions" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
                                 </DockPanel>
                             </Grid>
 
