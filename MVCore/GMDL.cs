@@ -1,4 +1,4 @@
-﻿//#define DUMP_TEXTURES
+﻿#define DUMP_TEXTURES
 
 using System;
 using System.Collections.Generic;
@@ -9,6 +9,7 @@ using System.Drawing.Imaging;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK;
 using MathNet.Numerics.LinearAlgebra;
+using MIConvexHull;
 using KUtility;
 using Model_Viewer;
 using System.Linq;
@@ -28,30 +29,39 @@ namespace MVCore.GMDL
     public abstract class model: IDisposable, INotifyPropertyChanged
     {
         public abstract bool render(int pass);
-        public abstract model Clone(scene scn);
-        public scene scene;
-        public TkSceneNodeData mbin_scene;
-        public GeomObject gobject;
         public GLControl pcontrol;
-        public bool renderable = true;
-        public bool debuggable = false;
-        public int selected = 0;
+        public bool renderable;
+        public bool debuggable;
+        public int selected;
         public int[] shader_programs;
         public int ID;
         public TYPES type;
-        public string name = "";
-        public Material material;
+        public string name;
         public List<model> children = new List<model>();
         public Dictionary<string, Dictionary<string, Vector3>> palette;
-        public bool procFlag = false; //This is used to define procgen usage
-        private bool moved = false; //This flag is used to indicate if the model has been transformed or not
-
+        public bool procFlag; //This is used to define procgen usage
+        public TkSceneNodeData nms_template;
 
         //Transformation Parameters
-        public Vector3 worldPosition = new Vector3(0.0f, 0.0f, 0.0f);
-        public Matrix4 worldMat = Matrix4.Identity;
-        public Matrix4 localMat = Matrix4.Identity;
+        public Vector3 worldPosition;
+        public Matrix4 worldMat;
+        public Matrix4 localMat;
 
+        public Vector3 localPosition;
+        public Vector3 localScale;
+        public Vector3 localRotationAngles;
+        public Matrix4 localRotation;
+        
+        public model parent;
+        public int cIndex = 0;
+        //Disposable Stuff
+        public bool disposed = false;
+        public Microsoft.Win32.SafeHandles.SafeFileHandle handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(IntPtr.Zero, true);
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+
+        public abstract model Clone(model refScene);
 
         public virtual void update()
         {
@@ -102,33 +112,10 @@ namespace MVCore.GMDL
             }
         }
 
-        public Vector3 localPosition = new Vector3(0.0f, 0.0f, 0.0f);
-        public Vector3 localScale = new Vector3(1.0f, 1.0f, 1.0f);
-        public Vector3 localRotationAngles = new Vector3(0.0f, 0.0f, 0.0f);
-        public Matrix4 localRotation = Matrix4.Identity;
-        //public OpenTK.Quaternion localRotationQuaternion = OpenTK.Quaternion.FromEulerAngles(0.0f,0.0f,0.0f);
-        public Vector3[] Bbox = new Vector3[2];
-
-        public model parent;
-        public int cIndex = 0;
-        //Disposable Stuff
-        public bool disposed = false;
-        public Microsoft.Win32.SafeHandles.SafeFileHandle handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(IntPtr.Zero, true);
-
-        public event PropertyChangedEventHandler PropertyChanged;
-
+        
         //Properties for Data Binding
         
-        public string Material
-        {
-            get
-            {
-                if (material != null)
-                    return material.name;
-                return "";
-            }
-        }
-
+        
         public string Name
         {
             get { return name; }
@@ -143,23 +130,6 @@ namespace MVCore.GMDL
         public string ModelType
         {
             get { return type.ToString(); }
-        }
-
-        public List<string> TextureList
-        {
-            get {
-                List<string> l = new List<string>();
-                if (material != null)
-                {
-                    for (int i = 0; i < material.difftextures.Count; i++)
-                    {
-                        if (material.difftextures[i] != null)
-                            l.Add(material.difftextures[i].name);
-                    }
-                }
-
-                return l;
-            }
         }
 
         public void init(float[] trans)
@@ -200,9 +170,35 @@ namespace MVCore.GMDL
                 this.cIndex = this.parent.children.Count;
         }
 
-        public void TakeValuesFrom(GMDL.model input)
+        //Default Constructor
+        protected model()
         {
-            this.renderable = true; //Override Renderability
+            renderable = true;
+            debuggable = false;
+            selected = 0;
+            ID = -1;
+            name = "";
+            procFlag = false;    //This is used to define procgen usage
+        
+            //Transformation Parameters
+            worldPosition = new Vector3(0.0f, 0.0f, 0.0f);
+            worldMat = Matrix4.Identity;
+            localMat = Matrix4.Identity;
+
+            localPosition = new Vector3(0.0f, 0.0f, 0.0f);
+            localScale = new Vector3(1.0f, 1.0f, 1.0f);
+            localRotationAngles = new Vector3(0.0f, 0.0f, 0.0f);
+            localRotation = Matrix4.Identity;
+            
+            cIndex = 0;
+    }
+
+
+        public virtual void copyFrom(model input)
+        {
+            this.renderable = input.renderable; //Override Renderability
+            this.debuggable = input.debuggable;
+            this.selected = 0;
             this.shader_programs = input.shader_programs;
             this.type = input.type;
             this.name = input.name;
@@ -213,17 +209,20 @@ namespace MVCore.GMDL
             this.localRotationAngles = input.localRotationAngles;
             this.localRotation = input.localRotation;
             this.localScale = input.localScale;
+
             
+        }
+        //Copy Constructor
+        public model(model input, model refScene)
+        {
+            this.copyFrom(input);
             foreach (GMDL.model child in input.children)
             {
-                GMDL.model nChild = child.Clone(this.scene);
+                GMDL.model nChild = child.Clone(refScene);
                 nChild.parent = this;
                 this.children.Add(nChild);
             }
         }
-
-        
-
 
         public void Dispose()
         {
@@ -268,34 +267,63 @@ namespace MVCore.GMDL
 
     public class scene : locator
     {
-        public scene() : base(0.1f) { }
-        public override model Clone(scene scn)
-        {
-            GMDL.scene copy = new GMDL.scene();
-            copy.TakeValuesFrom(this);
-            copy.scene = scn; //Explicitly assign scene
-
-            //ANIMATION DATA
-            copy.jointDict = new Dictionary<string, model>();
-            copy.JMArray = (float[]) this.JMArray.Clone();
-            foreach (GMDL.Joint j in this.jointDict.Values)
-                copy.jointDict[j.name] = (GMDL.Joint) j.Clone(copy);
-
-            //When cloning scene objects the scene has the scn arguments as its parent scene
-            //BUT children will have this copy as their scene
-            //Clone Children as well
-
-            return copy;
-        }
-
-
+        public GeomObject gobject; //Keep GeomObject reference
         //Animation Stuff
-        public float[] JMArray = new float[256 * 16];
+        public float[] JMArray;
 
-        //public List<GMDL.Joint> jointModel = new List<GMDL.Joint>(); The dict should be more than enough
-        public Dictionary<string, model> jointDict = new Dictionary<string, model>();
+        public Dictionary<string, Joint> jointDict;
         public TkAnimMetadata animMeta = null;
         public int frameCounter = 0;
+
+
+        public scene() : base(0.1f) {
+            type = TYPES.MODEL;
+            JMArray = new float[256 * 16];
+            jointDict = new Dictionary<string, Joint>();
+        }
+
+        public scene(scene input, model refScene) :base(input, refScene)
+        {
+            //ANIMATION DATA
+            this.jointDict = new Dictionary<string, Joint>();
+            this.JMArray = (float[]) input.JMArray.Clone();
+            
+            animMeta = input.animMeta;
+            gobject = input.gobject;
+
+        }
+
+        public void copyFrom(scene input)
+        {
+            base.copyFrom(input); //Copy base stuff
+
+            //ANIMATION DATA
+            this.jointDict = new Dictionary<string, Joint>();
+            this.JMArray = (float[]) input.JMArray.Clone();
+
+            this.animMeta = input.animMeta;
+            this.gobject = input.gobject;
+        }
+
+        public model Clone()
+        {
+            scene scn = new scene();
+            scn.copyFrom(this); //COpy basic info
+
+            //Handle Children
+            foreach (model child in this.children)
+            {
+                model new_child = (model) child.Clone(scn);
+                scn.children.Add(new_child);
+            }
+
+            return scn;
+        }
+
+        public override model Clone(model refScene)
+        {
+            return new scene(this, refScene);
+        }
 
         public void animate()
         {
@@ -398,7 +426,6 @@ namespace MVCore.GMDL
 
     public class locator: model
     {
-        //public bool renderable = true;
         int vao_id;
         public float scale;
         
@@ -415,6 +442,24 @@ namespace MVCore.GMDL
             shader_programs = new int[] { MVCore.Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
                 MVCore.Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
                 MVCore.Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
+        }
+
+        public void copyFrom(locator input)
+        {
+            base.copyFrom(input); //Copy stuff from base class
+
+            this.scale = input.scale;
+            this.vao_id = input.vao_id;
+        }
+
+        protected locator(locator input, model refScene) : base(input, refScene)
+        {
+            this.copyFrom(input);
+        }
+
+        public override GMDL.model Clone(model refScene)
+        {
+            return new locator(this, refScene);
         }
 
 
@@ -477,13 +522,7 @@ namespace MVCore.GMDL
             return true;
         }
 
-        public override GMDL.model Clone(GMDL.scene scn)
-        {
-            GMDL.locator copy = new GMDL.locator(0.01f);
-            copy.TakeValuesFrom(this);
-            copy.scene = scn;
-            return (GMDL.model) copy;
-        }
+        
     }
 
     //Place holder struct for all rendered meshes
@@ -546,33 +585,121 @@ namespace MVCore.GMDL
         public int lod_level = 0;
         public int boundhullstart = 0;
         public int boundhullend = 0;
+        public Vector3[] Bbox;
         public DrawElementsType indicesLength = DrawElementsType.UnsignedShort;
+
+        public Material material;
+        public Vector3 color = new Vector3();
 
         public int skinned = 1;
         public ulong hash = 0xFFFFFFFF;
         //Accurate boneRemap
+        public int BoneRemapIndicesCount;
         public int[] BoneRemapIndices;
         public float[] BoneRemapMatrices = new float[16 * 128];
         public mainVAO main_Vao;
         public mainVAO debug_Vao;
         public mainVAO pick_Vao;
         public mainVAO bsh_Vao;
-
-        public Vector3 color = new Vector3();
-
-        //TODO: I'm not sure if this should be here
-        //Keep a static dictionary for the material uniforms
-        private Dictionary<string, int> uniformLocationDict = new Dictionary<string, int> {
-            { "gMaterialColourVec4" , 206 },
-            { "gMaterialParamsVec4" , 207 },
-            { "gMaterialSFXVec4" , 208 },
-            { "gMaterialSFXColVec4" , 209 },
-            { "gDissolveDataVec4" , 210 },
-            { "gCustomParams01Vec4" , -1 },
-            { "gUVScrollStepVec4" , -1 },
-            { "gRingParamsVec4" , -1 },
-        };
+        public mainVAO bhull_Vao;
+        public GeomObject gobject; //Ref to the geometry shit
         
+        //TODO: I'm not sure if this should be here
+        //Keep a static dictionary for the common mesh uniforms
+        private Dictionary<string, int> CommonPerMeshUniformLocationDict = new Dictionary<string, int> {
+            { "gMaterialColourVec4" , 211 },
+        };
+
+        //Keep a static dictionary for the custom mesh uniforms
+        private Dictionary<string, int> CustomPerMeshUniformLocationDict = new Dictionary<string, int> {
+            { "gMaterialColourVec4" , 211 },
+        };
+
+
+        //Properties
+        public string Material
+        {
+            get
+            {
+                if (material != null)
+                    return material.name;
+                return "";
+            }
+        }
+
+        public List<string> TextureList
+        {
+            get
+            {
+                List<string> l = new List<string>();
+                if (material != null)
+                {
+                    for (int i = 0; i < material.difftextures.Count; i++)
+                    {
+                        if (material.difftextures[i] != null)
+                            l.Add(material.difftextures[i].name);
+                    }
+                }
+
+                return l;
+            }
+        }
+
+
+        //Constructor
+        public meshModel()
+        {
+
+        }
+
+        public meshModel(meshModel input, model refScene) :base(input, refScene)
+        {
+            //Copy attributes
+            this.vertrstart_graphics = input.vertrstart_graphics;
+            this.vertrstart_physics = input.vertrstart_physics;
+            this.vertrend_graphics = input.vertrend_graphics;
+            this.vertrend_physics = input.vertrend_physics;
+            //Render Tris
+            this.batchcount = input.batchcount;
+            this.batchstart_graphics = input.batchstart_graphics;
+            this.batchstart_physics = input.batchstart_physics;
+
+            //Bound Hulls
+            this.boundhullstart = input.boundhullstart;
+            this.boundhullend = input.boundhullend;
+            this.Bbox = input.Bbox;
+            
+            //Skinning Stuff
+            this.firstskinmat = input.firstskinmat;
+            this.lastskinmat = input.lastskinmat;
+            this.BoneRemapMatrices = input.BoneRemapMatrices;
+            this.BoneRemapIndices = input.BoneRemapIndices;
+            this.skinned = input.skinned;
+
+            this.main_Vao = input.main_Vao;
+            this.debug_Vao = input.debug_Vao;
+            this.pick_Vao = input.pick_Vao;
+
+            //Material Stuff
+            this.color = input.color;
+            if (input.material.name_key != "")
+            {
+                this.material = MVCore.Common.RenderState.activeResMgr.GLmaterials[input.material.name_key]; // Keep reference
+                //this.material = input.material.Clone(); //Clone material
+            }
+            else
+                this.material = new Material();
+                
+            this.palette = input.palette;
+            this.gobject = input.gobject; //Leave geometry file intact, no need to copy anything here
+        }
+
+        public override model Clone(model refScene)
+        {
+            return new meshModel(this, refScene);
+        }
+
+
         //BSphere calculator
         public void setupBSphere()
         {
@@ -739,29 +866,24 @@ namespace MVCore.GMDL
             int loc;
 
             GL.Uniform1(11, 64, material.material_flags); //Upload Material Flags
-            
+            //Upload Color Flag
+            GL.Uniform3(209, color);
+
             //Upload Material Uniforms
+            /*
             for (int i = 0; i < material.nms_mat.Uniforms.Count; i++)
             {
                 TkMaterialUniform un = material.nms_mat.Uniforms[i];
-                if (!uniformLocationDict.Keys.Contains(un.Name)){
+                if (!material.CustomPerMaterialUniformLocationDict.Keys.Contains(un.Name)){
                     MVCore.Common.CallBacks.Log("Uniform Missing! Adding " + un.Name + " to the uniform dictionary");
-                    uniformLocationDict[un.Name] = -1;
+                    material.CustomPerMaterialUniformLocationDict[un.Name] = -1;
                 } else
-                    GL.Uniform4(uniformLocationDict[un.Name], un.Values.x, un.Values.y, un.Values.z, un.Values.t);
+                    GL.Uniform4(material.CustomPerMaterialUniformLocationDict[un.Name], un.Values.x, un.Values.y, un.Values.z, un.Values.t);
             }
+            */
 
             //Upload joint transform data
-            //Multiply matrices before sending them
-            //Check if scene has the jointModel
-
-            
-            for (int i=0; i < BoneRemapIndices.Length; i++)
-            {   
-                Array.Copy(gobject.skinMats, BoneRemapIndices[i] * 16, BoneRemapMatrices, i * 16, 16);
-            }
-
-            GL.UniformMatrix4(78, BoneRemapIndices.Length, false, BoneRemapMatrices);
+            GL.UniformMatrix4(75, BoneRemapIndicesCount, false, BoneRemapMatrices);
             
             //Upload Light Flag
             //loc = GL.GetUniformLocation(pass, "useLighting");
@@ -770,22 +892,28 @@ namespace MVCore.GMDL
             //BIND TEXTURES
             int tex0Id = (int)TextureUnit.Texture0;
             //Diffuse Texture
-            GL.Uniform1(75, 0); // I need to upload the texture unit number
+            
+            if (material.material_flags[(int) TkMaterialFlags.MaterialFlagEnum._F55_MULTITEXTURE] > 0.0f)
+            {
+                //Upload depth : gUserVecData
+                GL.Uniform4(216, new Vector4(0.0f));
+            }
 
+            GL.Uniform1(203, 0); // I need to upload the texture unit number
             GL.ActiveTexture((TextureUnit)(tex0Id + 0));
-            GL.BindTexture(TextureTarget.Texture2D, material.fDiffuseMap.bufferID);
+            GL.BindTexture(material.fDiffuseMap.target, material.fDiffuseMap.bufferID);
 
             //Mask Texture
-            GL.Uniform1(76, 1); // I need to upload the texture unit number
+            GL.Uniform1(204, 1); // I need to upload the texture unit number
 
             GL.ActiveTexture((TextureUnit)(tex0Id + 1));
-            GL.BindTexture(TextureTarget.Texture2D, material.fMaskMap.bufferID);
+            GL.BindTexture(material.fMaskMap.target, material.fMaskMap.bufferID);
 
             //Normal Texture
-            GL.Uniform1(77, 2); // I need to upload the texture unit number
+            GL.Uniform1(205, 2); // I need to upload the texture unit number
 
             GL.ActiveTexture((TextureUnit)(tex0Id + 2));
-            GL.BindTexture(TextureTarget.Texture2D, material.fNormalMap.bufferID);
+            GL.BindTexture(material.fNormalMap.target, material.fNormalMap.bufferID);
 
 
             //GL.Enable(EnableCap.Blend);
@@ -795,16 +923,50 @@ namespace MVCore.GMDL
             //If there are samples defined, there are diffuse textures for sure
 
             //Upload Default Color
-            loc = GL.GetUniformLocation(pass, "color");
-            GL.Uniform3(loc, this.color);
+            //Color is already uploaded on the main loop
+            //loc = GL.GetUniformLocation(pass, "color");
+            //GL.Uniform3(loc, this.color);
 
             //Step 2 Bind & Render Vao
             //Render Elements
             GL.BindVertexArray(main_Vao.vao_id);
-            GL.PolygonMode(MaterialFace.FrontAndBack, RenderOptions.RENDERMODE);
+            GL.PolygonMode(MaterialFace.FrontAndBack, Common.RenderOptions.RENDERMODE);
             GL.DrawElements(PrimitiveType.Triangles, batchcount, indicesLength, (IntPtr) 0);
             GL.BindVertexArray(0);
         }
+
+        private void renderBHull(int pass) {
+            GL.UseProgram(pass);
+
+            //Step 1: Upload Uniforms
+            int loc;
+            //Upload Material Flags here
+            //Reset
+            loc = GL.GetUniformLocation(pass, "matflags");
+            for (int i = 0; i < 64; i++)
+                GL.Uniform1(loc + i, 0.0f);
+
+            //Upload Default Color
+            loc = GL.GetUniformLocation(pass, "color");
+            //GL.Uniform3(loc, this.color);
+            GL.Uniform3(loc, this.color);
+
+            //Upload Light Flag
+            loc = GL.GetUniformLocation(pass, "useLighting");
+            GL.Uniform1(loc, 0.0f);
+
+            //Step 2: Render Elements
+            GL.PointSize(10.0f);
+            GL.BindVertexArray(bhull_Vao.vao_id);
+            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+
+            GL.DrawElementsBaseVertex(PrimitiveType.Points, batchcount,
+                        indicesLength, IntPtr.Zero, -vertrstart_physics);
+            GL.DrawElementsBaseVertex(PrimitiveType.Triangles, batchcount,
+                        indicesLength, IntPtr.Zero, -vertrstart_physics);
+            GL.BindVertexArray(0);
+        }
+
 
         public virtual void renderDebug(int pass)
         {
@@ -852,6 +1014,7 @@ namespace MVCore.GMDL
                     renderMain(program);
                     //renderBSphere(MVCore.Common.RenderState.activeResMgr.GLShaders["BBOX_SHADER"]);
                     //renderBbox(MVCore.Common.RenderState.activeResMgr.GLShaders["BBOX_SHADER"]);
+                    //renderBHull(program);
                     break;
                 //Render Debug
                 case 1:
@@ -869,43 +1032,18 @@ namespace MVCore.GMDL
             return true;
         }
 
-        public override GMDL.model Clone(GMDL.scene scn)
+        public override void update()
         {
-            GMDL.meshModel copy = new GMDL.meshModel();
-            copy.TakeValuesFrom(this);
-            copy.vertrstart_graphics = this.vertrstart_graphics;
-            copy.vertrstart_physics = this.vertrstart_physics;
-            copy.vertrend_graphics = this.vertrend_graphics;
-            copy.vertrend_physics = this.vertrend_physics;
-            //Skinning Stuff
-            copy.firstskinmat = this.firstskinmat;
-            copy.lastskinmat = this.lastskinmat;
-            copy.BoneRemapMatrices = this.BoneRemapMatrices;
-            copy.BoneRemapIndices = this.BoneRemapIndices;
-            copy.skinned = this.skinned;
+            //Update the mesh remap matrices and continue with the transform updates
+            for (int i = 0; i < BoneRemapIndicesCount; i++)
+            {
+                Array.Copy(gobject.skinMats, BoneRemapIndices[i] * 16, BoneRemapMatrices, i * 16, 16);
+            }
 
-            copy.main_Vao = main_Vao;
-            copy.debug_Vao = debug_Vao;
-            copy.pick_Vao = pick_Vao;
-            
-            //Render Tris
-            copy.batchcount = this.batchcount;
-            copy.batchstart_graphics = this.batchstart_graphics;
-            copy.batchstart_physics = this.batchstart_physics;
-            //Bound Hulls
-            copy.boundhullstart = this.boundhullstart;
-            copy.boundhullend = this.boundhullend;
-            copy.color = this.color;
-            if (this.material != null)
-                copy.material = this.material.Clone();
-            copy.palette = this.palette;
-            
-            //In sharedVBO objects, both this and all the children have the same scene
-            copy.scene = scn;
-            copy.gobject = gobject; //Leave geometry file intact, no need to copy anything here
-            
-            return (GMDL.model)copy;
+            base.update();
         }
+
+
 
         public void writeGeomToStream(StreamWriter s, ref uint index)
         {
@@ -1124,12 +1262,22 @@ namespace MVCore.GMDL
     public class Collision : meshModel
     {
         public COLLISIONTYPES collisionType;
-
+        
         //Custom constructor
         public Collision()
         {
             this.skinned = 0; //Collision objects are not skinned (at least for now)
             this.color = new Vector3(1.0f, 1.0f, 0.0f); //Set Yellow Color for collision objects
+        }
+
+        public override model Clone(model refScene)
+        {
+            return new Collision(this, refScene);
+        }
+
+        protected Collision(Collision input, model refScene) : base(input, refScene)
+        {
+            collisionType = input.collisionType;
         }
 
         public override bool render(int pass)
@@ -1171,32 +1319,28 @@ namespace MVCore.GMDL
             //Step 1: Upload Uniforms
             int loc;
             //Upload Material Flags here
-            //Reset
-            loc = GL.GetUniformLocation(pass, "matflags");
+            
+            GL.Uniform1(11, 64, material.material_flags); //Upload Material Flags
+            //Upload Color Flag
 
-            for (int i = 0; i < 64; i++)
-                GL.Uniform1(loc + i, 0.0f);
-
-            //Upload Default Color
-            loc = GL.GetUniformLocation(pass, "color");
-            //GL.Uniform3(loc, this.color);
-            GL.Uniform3(loc, this.color);
-
-            //Upload Light Flag
-            loc = GL.GetUniformLocation(pass, "useLighting");
-            GL.Uniform1(loc, 0.0f);
+            GL.Uniform3(209, color);
 
             //Step 2: Render Elements
-            GL.PointSize(5.0f);
+            GL.PointSize(10.0f);
             GL.BindVertexArray(main_Vao.vao_id);
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
 
             switch (collisionType)
             {
+                //Rendering based on the original mesh buffers
                 case COLLISIONTYPES.MESH:
-                    GL.DrawElements(PrimitiveType.Triangles, batchcount,
-                        DrawElementsType.UnsignedShort, IntPtr.Zero);
+                    GL.DrawElementsBaseVertex(PrimitiveType.Points, batchcount,
+                        indicesLength, IntPtr.Zero, -vertrstart_physics);
+                    GL.DrawElementsBaseVertex(PrimitiveType.Triangles, batchcount,
+                        indicesLength, IntPtr.Zero, -vertrstart_physics);
                     break;
+                
+                //Rendering custom geometry
                 case COLLISIONTYPES.BOX:
                 case COLLISIONTYPES.CYLINDER:
                 case COLLISIONTYPES.CAPSULE:
@@ -1207,11 +1351,6 @@ namespace MVCore.GMDL
 
             }
             
-            //GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
-
-            //Console.WriteLine("Normal Object {2} vpos {0} cpos {1} prog {3}", vpos, npos, this.name, this.shader_program);
-            //Console.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vbo.vertex_buffer_object, this.vbo.color_buffer_object);
-
             GL.BindVertexArray(0);
         }
 
@@ -1226,7 +1365,8 @@ namespace MVCore.GMDL
                DrawElementsType.UnsignedShort, IntPtr.Zero);
             GL.BindVertexArray(0);
         }
-    
+
+        
     }
 
     public class Decal : meshModel
@@ -1234,42 +1374,10 @@ namespace MVCore.GMDL
         //Custom constructor
         public Decal() { }
 
-        public Decal(GMDL.meshModel root) {
-            //Copy attributes from root object
-            this.vertrend_graphics = root.vertrend_graphics;
-            this.vertrend_physics = root.vertrend_physics;
-            this.vertrstart_graphics = root.vertrstart_graphics;
-            this.vertrstart_physics = root.vertrstart_physics;
-            this.renderable = true; //Override Renderability
-            this.shader_programs = root.shader_programs;
-            this.type = TYPES.DECAL;
-            this.main_Vao = root.main_Vao;
-            this.name = root.name;
-            this.ID = root.ID;
-            //Clone transformation
-            this.localPosition = root.localPosition;
-            this.localRotation = root.localRotation;
-            this.localScale = root.localScale;
-            //Skinning Stuff
-            this.firstskinmat = root.firstskinmat;
-            this.lastskinmat = root.lastskinmat;
-            this.batchcount = root.batchcount;
-            this.batchstart_graphics = root.batchstart_graphics;
-            this.batchstart_physics = root.batchstart_physics;
-            this.color = root.color;
-            this.material = root.material;
-            this.BoneRemapMatrices = root.BoneRemapMatrices;
-            this.BoneRemapIndices = root.BoneRemapIndices;
-            this.skinned = root.skinned;
-            this.palette = root.palette;
-            this.cIndex = root.cIndex;
-            
-            //In sharedVBO objects, both root and all the children have the same scene
-            this.scene = root.scene;
-            this.children = root.children; //Just assign them by ref
+        public Decal(meshModel input, scene refScene):base(input, refScene) { }
+        public Decal(Decal input, scene refScene) : base(input, refScene) { }
 
-        }
-
+        
         public override bool render(int pass)
         {
             if (this.main_Vao == null)
@@ -1277,6 +1385,8 @@ namespace MVCore.GMDL
                 //Console.WriteLine("Not Renderable");
                 return false;
             }
+
+            return false;//Skip decal rendering for now
 
             int program;
             //Render Object
@@ -1326,7 +1436,7 @@ namespace MVCore.GMDL
             GL.Uniform1(loc, 0); // I need to upload the texture unit number
 
             GL.ActiveTexture((TextureUnit) (tex0Id + 0));
-            GL.BindTexture(TextureTarget.Texture2D, material.fDiffuseMap.bufferID);
+            GL.BindTexture(material.fDiffuseMap.target, material.fDiffuseMap.bufferID);
 
             //Depth Texture
             test = "depthTex";
@@ -1380,10 +1490,12 @@ namespace MVCore.GMDL
         //Counters
         public int indicesCount=0;
         public int indicesLength = 0;
+        public DrawElementsType indicesLengthType;
         public int vertCount = 0;
 
         //make sure there are enough buffers for non interleaved formats
         public byte[] ibuffer;
+        public int[] ibuffer_int;
         public byte[] vbuffer;
         public byte[] small_vbuffer;
         public byte[] cbuffer;
@@ -1398,6 +1510,9 @@ namespace MVCore.GMDL
         public short[] boneRemap;
         public List<Vector3[]> bboxes = new List<Vector3[]>();
         public List<Vector3> bhullverts = new List<Vector3>();
+        public List<int> bhullstarts = new List<int>();
+        public List<int> bhullends = new List<int>();
+        public List<int[]> bhullindices = new List<int[]>();
         public List<int> vstarts = new List<int>();
         public Dictionary<ulong, meshMetaData> meshMetaDataDict = new Dictionary<ulong, meshMetaData>();
         public Dictionary<ulong, meshData> meshDataDict = new Dictionary<ulong, meshData>();
@@ -1406,8 +1521,6 @@ namespace MVCore.GMDL
         public List<JointBindingData> jointData = new List<JointBindingData>();
         public float[] invBMats = new float[256 * 16];
         public float[] skinMats = new float[256 * 16]; //Final Matrices
-
-        public GMDL.scene rootObject = null;
 
         public Vector3 get_vec3_half(BinaryReader br)
         {
@@ -1435,6 +1548,7 @@ namespace MVCore.GMDL
             temp.Y = Half.decompress(val2);
             return temp;
         }
+
 
 
         //Fetch main VAO
@@ -1521,7 +1635,59 @@ namespace MVCore.GMDL
 
             return vao;
         }
-        
+
+        public mainVAO getCollisionMeshVao(meshModel so)
+        {
+            //Collision Mesh isn't used anywhere else.
+            //No need to check for hashes and shit
+
+            float[] vx_buffer_float = new float[(so.boundhullend - so.boundhullstart) * 3];
+
+            for (int i = 0; i < so.boundhullend - so.boundhullstart; i++)
+            {
+                Vector3 v = so.gobject.bhullverts[i + so.boundhullstart];
+                vx_buffer_float[3 * i + 0] = v.X;
+                vx_buffer_float[3 * i + 1] = v.Y;
+                vx_buffer_float[3 * i + 2] = v.Z;
+            }
+
+            //Generate intermediate geom
+            GMDL.GeomObject temp_geom = new GMDL.GeomObject();
+
+            //Set main Geometry Info
+            temp_geom.vertCount = vx_buffer_float.Length / 3;
+            temp_geom.indicesCount = so.batchcount;
+            temp_geom.indicesLength = so.gobject.indicesLength; 
+
+            //Set Strides
+            temp_geom.vx_size = 3 * 4; //3 Floats * 4 Bytes each
+
+            //Set Buffer Offsets
+            temp_geom.offsets = new int[7];
+            temp_geom.bufInfo = new List<GMDL.bufInfo>();
+
+            for (int i = 0; i < 7; i++)
+            {
+                temp_geom.bufInfo.Add(null);
+                temp_geom.offsets[i] = -1;
+            }
+
+            temp_geom.mesh_descr = "vn";
+            temp_geom.offsets[0] = 0;
+            temp_geom.offsets[2] = 0;
+            temp_geom.bufInfo[0] = new GMDL.bufInfo(0, VertexAttribPointerType.Float, 3, 0, "vPosition");
+            temp_geom.bufInfo[2] = new GMDL.bufInfo(2, VertexAttribPointerType.Float, 3, 0, "nPosition");
+
+            //Set Buffers
+            temp_geom.ibuffer = new byte[temp_geom.indicesLength * so.batchcount];
+            temp_geom.vbuffer = new byte[sizeof(float) * vx_buffer_float.Length];
+
+            System.Buffer.BlockCopy(so.gobject.ibuffer, so.batchstart_physics * temp_geom.indicesLength, temp_geom.ibuffer, 0, temp_geom.ibuffer.Length);
+            System.Buffer.BlockCopy(vx_buffer_float, 0, temp_geom.vbuffer, 0, temp_geom.vbuffer.Length);
+
+            return temp_geom.getMainVao();
+        }
+
         public mainVAO getMainVao()
         {
             //This method works with custom vbuffer and ibuffer
@@ -1579,7 +1745,7 @@ namespace MVCore.GMDL
         }
 
 
-        #region IDisposable Support
+#region IDisposable Support
         private bool disposedValue = false; // To detect redundant calls
 
         protected virtual void Dispose(bool disposing)
@@ -1599,8 +1765,6 @@ namespace MVCore.GMDL
                     invBMats = null;
                     
                     
-                    rootObject = null;
-
                     bIndices.Clear();
                     bWeights.Clear();
                     bufInfo.Clear();
@@ -1627,7 +1791,7 @@ namespace MVCore.GMDL
         {
             Dispose(true);
         }
-        #endregion
+#endregion
 
         
     }
@@ -1658,6 +1822,7 @@ namespace MVCore.GMDL
         public bool proc = false;
         public TkMaterialData nms_mat;
         public float[] material_flags = new float[64];
+        public string name_key = "";
         public string name
         {
             get
@@ -1685,6 +1850,19 @@ namespace MVCore.GMDL
         public Texture fMaskMap = new Texture();
         public Texture fNormalMap = new Texture();
 
+
+        public Dictionary<string, int> CustomPerMaterialUniformLocationDict = new Dictionary<string, int> {
+            { "gMaterialColourVec4" , 211 },
+            { "gMaterialParamsVec4" , 212 },
+            { "gMaterialSFXVec4" , 213 },
+            { "gMaterialSFXColVec4" , 214 },
+            { "gDissolveDataVec4" , 215 },
+            { "gCustomParams01Vec4" , -1 },
+            { "gUVScrollStepVec4" , -1 },
+            { "gRingParamsVec4" , -1 },
+        };
+
+
         public Material()
         {
             //Init texture buffers
@@ -1696,6 +1874,10 @@ namespace MVCore.GMDL
                 reColourings.Add(new float[] { 1.0f, 1.0f, 1.0f, 0.0f });
                 palOpts.Add(null);
             }
+
+            //Clear material flags
+            for (int i = 0; i < 64; i++)
+                material_flags[i] = 0.0f;
 
         }
 
@@ -2086,10 +2268,25 @@ namespace MVCore.GMDL
             return tex_id;
         }
 
-        private void generate2DTextureMipmaps(int texture)
+        private int generateTexture2DArray(PixelInternalFormat fmt, int w, int h, int d, PixelFormat pix_fmt, PixelType pix_type, int mipmap_count)
+        {
+            int tex_id = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2DArray, tex_id);
+            GL.TexImage3D(TextureTarget.Texture2DArray, 0, fmt, w, h, d, 0, pix_fmt, pix_type, IntPtr.Zero);
+            return tex_id;
+        }
+
+        private void generateTexture2DMipmaps(int texture)
         {
             GL.BindTexture(TextureTarget.Texture2D, texture);
             GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+        }
+
+        private void generateTexture2DArrayMipmaps(int texture)
+        {
+            GL.BindTexture(TextureTarget.Texture2DArray, texture);
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2DArray);
+            Console.WriteLine(GL.GetError());
         }
 
         private void setupTextureParameters(int texture, int wrapMode, int magFilter, int minFilter, float af_amount)
@@ -2121,6 +2318,9 @@ namespace MVCore.GMDL
                     break;
                 }
             }
+
+
+            //TODO: Since I have to read the buffers and generate 2DTextureArrays, I can use render buffers at this point
             
             //Generate Textures for the FBO
 
@@ -2143,10 +2343,14 @@ namespace MVCore.GMDL
             int fb_diffuse = GL.GenFramebuffer();
 
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, fb_diffuse);
+            
             //Attach Textures to this FBO
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, out_tex_diffuse, 0);
+            Console.WriteLine(GL.GetError());
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment1, TextureTarget.Texture2D, out_tex_mask, 0);
+            Console.WriteLine(GL.GetError());
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment2, TextureTarget.Texture2D, out_tex_normal, 0);
+
 
             //Check
             Debug.Assert(GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer) == FramebufferErrorCode.FramebufferComplete);
@@ -2205,7 +2409,7 @@ namespace MVCore.GMDL
                 int tex0Id = (int)TextureUnit.Texture0;
 
                 GL.ActiveTexture((TextureUnit) (tex0Id + active_id));
-                GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
+                GL.BindTexture(tex.target, tex.bufferID);
 
             }
 
@@ -2326,20 +2530,52 @@ namespace MVCore.GMDL
             GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, IntPtr.Zero);
 
             //Console.WriteLine("MixTextures5, Last GL Error: " + GL.GetError());
+            int out_tex_2darray_diffuse = generateTexture2DArray(PixelInternalFormat.Rgba8, texWidth, texHeight, 1, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
+            setupTextureParameters(out_tex_diffuse, (int)TextureWrapMode.Repeat,
+                (int)TextureMagFilter.Linear, (int)TextureMinFilter.LinearMipmapLinear, 4.0f);
 
+            Console.WriteLine(GL.GetError());
+            int out_tex_2darray_mask = generateTexture2DArray(PixelInternalFormat.Rgba8, texWidth, texHeight, 1, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
+            setupTextureParameters(out_tex_diffuse, (int)TextureWrapMode.Repeat,
+                (int)TextureMagFilter.Linear, (int)TextureMinFilter.LinearMipmapLinear, 4.0f);
+
+            Console.WriteLine(GL.GetError());
+            int out_tex_2darray_normal = generateTexture2DArray(PixelInternalFormat.Rgba8, texWidth, texHeight, 1, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
+            setupTextureParameters(out_tex_diffuse, (int)TextureWrapMode.Repeat,
+                (int)TextureMagFilter.Linear, (int)TextureMinFilter.LinearMipmapLinear, 4.0f);
+
+            
+            //Copy the read buffers to the 
+
+            GL.BindTexture(TextureTarget.Texture2DArray, out_tex_2darray_diffuse);
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+            GL.CopyTexSubImage3D(TextureTarget.Texture2DArray, 0, 0, 0, 0, 0, 0, texWidth, texHeight);
+            
+            GL.BindTexture(TextureTarget.Texture2DArray, out_tex_2darray_mask);
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment1);
+            GL.CopyTexSubImage3D(TextureTarget.Texture2DArray, 0, 0, 0, 0, 0, 0, texWidth, texHeight);
+
+            GL.BindTexture(TextureTarget.Texture2DArray, out_tex_2darray_normal);
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment2);
+            GL.CopyTexSubImage3D(TextureTarget.Texture2DArray, 0, 0, 0, 0, 0, 0, texWidth, texHeight);
+
+            
             //Generate Mipmaps to the new textures from the base level
-            generate2DTextureMipmaps(out_tex_diffuse);
-            generate2DTextureMipmaps(out_tex_mask);
-            generate2DTextureMipmaps(out_tex_normal);
+            generateTexture2DArrayMipmaps(out_tex_2darray_diffuse);
+            generateTexture2DArrayMipmaps(out_tex_2darray_mask);
+            generateTexture2DArrayMipmaps(out_tex_2darray_normal);
 
             //Store Diffuse Texture to material
-            fDiffuseMap.bufferID = out_tex_diffuse;
+            fDiffuseMap.bufferID = out_tex_2darray_diffuse;
+            fDiffuseMap.target = TextureTarget.Texture2DArray;
             //Store Mask Texture to material
-            fMaskMap.bufferID = out_tex_mask;
+            fMaskMap.bufferID = out_tex_2darray_mask;
+            fMaskMap.target = TextureTarget.Texture2DArray;
             //Store Normal Texture to material
-            fNormalMap.bufferID = out_tex_normal;
+            fNormalMap.bufferID = out_tex_2darray_normal;
+            fNormalMap.target = TextureTarget.Texture2DArray;
 
-#if (DUMP_TEXTURES)
+#if (DUMP_TEXTURESNONO)
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             dump_texture("diffuse", texWidth, texHeight);
 
@@ -2483,6 +2719,7 @@ namespace MVCore.GMDL
     {
         private bool disposed = false;
         public int bufferID = -1;
+        public TextureTarget target;
         public string name;
         public int width;
         public int height;
@@ -2555,25 +2792,37 @@ namespace MVCore.GMDL
             }
             //Force RGBA for now
             pf = PixelFormat.Rgba;
-            //Upload to GPU
-            bufferID = GL.GenTexture();
-            GL.BindTexture(TextureTarget.Texture2D, bufferID);
-            //When manually loading mipmaps, levels should be loaded first
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureBaseLevel, 0);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 6);
+            
             
             //Temp Variables
             int w = width;
             int h = height;
-            int mm_count = ddsImage.header.dwMipMapCount;
+            int mm_count = Math.Min(7, ddsImage.header.dwMipMapCount); //Load only 7 or less mipmaps
+            int depth_count = Math.Max(1, ddsImage.header.dwDepth); //Fix the counter to 1 to fit the texture in a 3D container
             int temp_size = ddsImage.header.dwPitchOrLinearSize;
+
+            Console.WriteLine(GL.GetError());
+
+            //Upload to GPU
+            bufferID = GL.GenTexture();
+            target = TextureTarget.Texture2DArray;
+
+            GL.BindTexture(target, bufferID);
+            
+            //When manually loading mipmaps, levels should be loaded first
+            GL.TexParameter(target, TextureParameterName.TextureBaseLevel, 0);
+            GL.TexParameter(target, TextureParameterName.TextureMaxLevel, mm_count - 1);
+            
             int offset = 0;
-            for (int i=0; i < Math.Min(7, mm_count); i++)
+            for (int i=0; i < mm_count; i++)
             {
-                byte[] tex_data = new byte[temp_size];
-                Array.Copy(ddsImage.bdata, offset, tex_data, 0, temp_size);
-                GL.CompressedTexImage2D(TextureTarget.Texture2D, i, this.pif, w, h, 0, temp_size, tex_data);
-                offset += temp_size;
+                byte[] tex_data = new byte[temp_size * depth_count];
+                Array.Copy(ddsImage.bdata, offset, tex_data, 0, temp_size * depth_count);
+                GL.CompressedTexImage3D(target, i, this.pif, w, h, depth_count, 0, temp_size * depth_count, tex_data);
+                //GL.TexImage3D(target, i, PixelInternalFormat.Rgba8, w, h, depth_count, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+                Console.WriteLine(GL.GetError());
+
+                offset += temp_size * depth_count;
                 temp_size = Math.Max(temp_size/4, blocksize);
                 w = Math.Max(w >> 1, 4);
                 h = Math.Max(h >> 1, 4);
@@ -2581,10 +2830,10 @@ namespace MVCore.GMDL
             
             //Console.WriteLine(GL.GetError());
             //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureLodBias, -0.2f);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int) TextureWrapMode.Repeat);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int) TextureWrapMode.Repeat);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int) TextureMagFilter.Linear);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int) TextureMinFilter.LinearMipmapLinear);
+            GL.TexParameter(target, TextureParameterName.TextureWrapS, (int) TextureWrapMode.Repeat);
+            GL.TexParameter(target, TextureParameterName.TextureWrapT, (int) TextureWrapMode.Repeat);
+            GL.TexParameter(target, TextureParameterName.TextureMagFilter, (int) TextureMagFilter.Linear);
+            GL.TexParameter(target, TextureParameterName.TextureMinFilter, (int) TextureMinFilter.LinearMipmapLinear);
             //GL.GenerateMipmap(GenerateMipmapTarget.Texture2D); //Generate Mipmaps from the base level
             //Console.WriteLine(GL.GetError());
 
@@ -2593,15 +2842,15 @@ namespace MVCore.GMDL
             af_amount = (float) Math.Max(af_amount, 4.0f);
             //GL.TexParameter(TextureTarget.Texture2D,  (TextureParameterName) 0x84FE, af_amount);
             int max_level = 0;
-            GL.GetTexParameter(TextureTarget.Texture2D, GetTextureParameter.TextureMaxLevel, out max_level);
+            GL.GetTexParameter(target, GetTextureParameter.TextureMaxLevel, out max_level);
             int base_level = 0;
-            GL.GetTexParameter(TextureTarget.Texture2D, GetTextureParameter.TextureBaseLevel, out base_level);
+            GL.GetTexParameter(target, GetTextureParameter.TextureBaseLevel, out base_level);
 
             int maxsize = Math.Max(height, width);
             int p = (int) Math.Floor(Math.Log(maxsize, 2)) + base_level;
             int q = Math.Min(p, max_level);
 
-#if(DEBUG_DISABLE)
+#if (DEBUGNONO)
             //Get all mipmaps
             temp_size = ddsImage.header.dwPitchOrLinearSize;
             for (int i = 0; i < q; i++)
@@ -2718,6 +2967,17 @@ namespace MVCore.GMDL
             
         }
 
+        protected Joint(Joint input, model refScene) : base(input, refScene)
+        {
+            this.main_Vao = input.main_Vao;
+            this.jointIndex = input.jointIndex;
+            this.color = input.color;
+
+            //Save self to jointDictionary
+            ((scene) refScene).jointDict[name] = this;
+
+        }
+
         public override void update()
         {
             base.update(); //Call the base function to update the transforms
@@ -2742,34 +3002,12 @@ namespace MVCore.GMDL
             GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
         }
 
-        public override model Clone(scene scn)
+        public override model Clone(model refScene)
         {
-            Joint copy = new Joint();
-            copy.renderable = true; //Override Renderability
-            copy.shader_programs = this.shader_programs;
-            copy.type = this.type;
-            copy.name = this.name;
-            copy.ID = this.ID;
-            copy.main_Vao = this.main_Vao;
-            copy.jointIndex = this.jointIndex;
-            copy.color = this.color;
-            
-            //Copy Transformations
-            copy.localPosition = this.localPosition;
-            copy.localScale = this.localScale;
-            copy.localRotation = this.localRotation;
-            copy.scene = scn;
-
-            //Clone Children as well
-            foreach (model child in this.children)
-            {
-                model nChild = child.Clone(scn);
-                nChild.parent = copy;
-                copy.children.Add(nChild);
-            }
-
-            return copy;
+            return new Joint(this, refScene);
         }
+
+        
 
         //Render should render Bones from joint to children
         private void renderMain(int pass)
@@ -2825,7 +3063,7 @@ namespace MVCore.GMDL
         private int vertex_buffer_object;
         private int element_buffer_object;
 
-
+        
         public Light()
         {
             type = TYPES.LIGHT;
@@ -2833,6 +3071,20 @@ namespace MVCore.GMDL
             GL.GenBuffers(1, out element_buffer_object);
             if (GL.GetError() != ErrorCode.NoError)
                 Console.WriteLine(GL.GetError());
+        }
+
+        protected Light(Light input, model refScene) : base(input, refScene)
+        {
+            this.intensity = input.intensity;
+            this.distance = input.distance;
+            this.vertex_buffer_object = input.vertex_buffer_object;
+            this.element_buffer_object = input.element_buffer_object;
+        }
+
+
+        public override model Clone(model refScene)
+        {
+            return new Light(this, refScene);
         }
 
         private void renderMain(int pass)
@@ -2893,12 +3145,7 @@ namespace MVCore.GMDL
             return true;
         }
 
-        public override model Clone(scene scene)
-        {
-            throw new NotImplementedException();
-        }
-
-        //DIsposal
+        //Disposal
         protected override void Dispose(bool disposing)
         {
             if (disposed)

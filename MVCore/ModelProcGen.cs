@@ -13,21 +13,6 @@ using libMBIN.Models.Structs;
 
 namespace MVCore
 {
-    public static class RenderOptions
-    {
-        //Set Full rendermode by default
-        public static PolygonMode RENDERMODE = PolygonMode.Fill;
-        public static float UseTextures = 1.0f;
-        public static float UseLighting = 1.0f;
-        public static System.Drawing.Color clearColor = System.Drawing.Color.FromArgb(255, 33, 33, 33);
-        public static bool RenderInfo = true;
-        public static bool RenderLights = true;
-        public static bool RenderJoints = true;
-        public static bool RenderCollisions = true;
-        public static bool RenderDebug = false;
-        public static int animFPS = 50;
-    }
-
     public class ModelProcGen
     {
         //static Random randgen = new Random();
@@ -119,7 +104,7 @@ namespace MVCore
         public static GMDL.model get_procgen_parts(ref List<string> descriptors, GMDL.model root)
         {
             //Make deep copy of root 
-            GMDL.model newRoot = root.Clone(null);
+            GMDL.model newRoot = ((GMDL.scene) root).Clone();
             root.procFlag = true; //Always keep the root node
 
             //PHASE 1

@@ -99,14 +99,17 @@ namespace MVCore
             fs.Seek(0x4, SeekOrigin.Current);
             var partcount = br.ReadInt32();
             fs.Seek(0x4, SeekOrigin.Current);
+            
             //VertEnds
             fs.Seek(0x10, SeekOrigin.Current);
 
             //Bound Hull Vert start
-            fs.Seek(0x10, SeekOrigin.Current);
-        
+            var boundhull_vertstart_offset = fs.Position + br.ReadInt32();
+            fs.Seek(0xC, SeekOrigin.Current);
+
             //Bound Hull Vert end
-            fs.Seek(0x10, SeekOrigin.Current);
+            var boundhull_vertend_offset = fs.Position + br.ReadInt32();
+            fs.Seek(0xC, SeekOrigin.Current);
 
             //MatrixLayouts
             fs.Seek(0x10, SeekOrigin.Current);
@@ -118,8 +121,10 @@ namespace MVCore
             fs.Seek(0xC, SeekOrigin.Current);
 
             //Bound Hull Verts
-            var bhulloffset = fs.Position + br.ReadInt64();
-            fs.Seek(0x8, SeekOrigin.Current);
+            var bhulloffset = fs.Position + br.ReadInt32();
+            fs.Seek(0x4, SeekOrigin.Current);
+            var bhull_count = br.ReadInt32();
+            fs.Seek(0x4, SeekOrigin.Current);
 
 
             var lod_count = br.ReadInt32();
@@ -158,10 +163,16 @@ namespace MVCore
             //Store Counts
             geom.indicesCount = indices_num;
             if (indices_flag == 0x1)
+            {
                 geom.indicesLength = 0x2;
+                geom.indicesLengthType = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedShort;
+            }
             else
+            {
                 geom.indicesLength = 0x4;
-
+                geom.indicesLengthType = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedInt;
+            }
+                
             geom.vertCount = vert_num;
             geom.vx_size = vx_type;
             geom.small_vx_size = small_vx_type;
@@ -214,13 +225,26 @@ namespace MVCore
             }
 
             //Get BoundHullStarts
+            fs.Seek(boundhull_vertstart_offset, SeekOrigin.Begin);
+            for (int i = 0; i < partcount; i++)
+            {
+                geom.bhullstarts.Add(br.ReadInt32());
+            }
+
+            //Get BoundHullEnds
+            fs.Seek(boundhull_vertend_offset, SeekOrigin.Begin);
+            for (int i = 0; i < partcount; i++)
+            {
+                geom.bhullends.Add(br.ReadInt32());
+            }
+
             //TODO : Recheck and fix that shit
-            //fs.Seek(bboxminoffset, SeekOrigin.Begin);
-            //for (int i = 0; i < partcount; i++)
-            //{
-            //    geom.bhullverts[i] = new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
-            //    br.ReadBytes(4);
-            //}
+            fs.Seek(bhulloffset, SeekOrigin.Begin);
+            for (int i = 0; i < bhull_count; i++)
+            {
+                geom.bhullverts.Add(new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle()));
+                br.ReadBytes(4);
+            }
 
             //Get indices buffer
             fs.Seek(indices_offset, SeekOrigin.Begin);
@@ -448,8 +472,6 @@ namespace MVCore
                 }
             }
 
-
-
             return mesh_desc;
         }
 
@@ -499,7 +521,7 @@ namespace MVCore
                 //Create Dummy Scene
                 scene dummy = new scene();
                 dummy.name = "DUMMY_SCENE";
-                dummy.mbin_scene = null;
+                dummy.nms_template = null;
                 dummy.type = TYPES.SCENE;
                 dummy.shader_programs = new int[] {Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
                                               Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
@@ -531,10 +553,6 @@ namespace MVCore
 
             //Parse root scene
             scene root = (scene) parseNode(scene, gobject, null, null);
-            gobject.rootObject = root; //TODO: Not sure if this is the correct way
-
-            //Update Transformations for all objects
-            root.update();
 
             return root;
         }
@@ -638,8 +656,7 @@ namespace MVCore
                 so.Bbox = gobject.bboxes[iid];
                 so.setupBSphere();
                 so.parent = parent;
-                so.scene = scene;
-                so.mbin_scene = node;
+                so.nms_template = node;
                 so.gobject = gobject; //Store the gobject for easier access of uniforms
                 so.init(transforms); //Init object transforms
 
@@ -669,6 +686,7 @@ namespace MVCore
                         Material mat = Material.Parse(mat_path);
                         //Load default form palette on init
                         mat.palette = Model_Viewer.Palettes.paletteSel;
+                        mat.name_key = matkey; //Store the material key to the resource manager
                         mat.prepTextures(); //Prepare-Mix Material Textures
                         so.material = mat;
                         //Store the material to the Resources
@@ -684,9 +702,11 @@ namespace MVCore
 
                 //Generate Vao's
                 so.main_Vao = gobject.getMainVao(so);
-            
+                //so.bhull_Vao = gobject.getCollisionMeshVao(so); //Missing data
+
                 //Configure boneRemap properly
-                so.BoneRemapIndices = new int[so.lastskinmat - so.firstskinmat];
+                so.BoneRemapIndicesCount = so.lastskinmat - so.firstskinmat;
+                so.BoneRemapIndices = new int[so.BoneRemapIndicesCount];
                 for (int i = 0; i < so.lastskinmat - so.firstskinmat; i++)
                     so.BoneRemapIndices[i] = gobject.boneRemap[so.firstskinmat + i];
                
@@ -706,7 +726,7 @@ namespace MVCore
                 if (so.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F51_DECAL_DIFFUSE) ||
                     so.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F52_DECAL_NORMAL))
                 {
-                    Decal newso = new Decal(so);
+                    Decal newso = new Decal(so, scene);
                     so.Dispose(); //Through away the old object
                     //Change object type
                     newso.type = TYPES.DECAL;
@@ -721,6 +741,7 @@ namespace MVCore
             else if (typeEnum == TYPES.MODEL)
             {
                 Console.WriteLine("Model Detected");
+
                 scene so = new scene();
                 so.name = name;
                 so.type = typeEnum;
@@ -730,14 +751,10 @@ namespace MVCore
                                                Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
                 //Get Transformation
                 so.parent = parent;
-                so.scene = scene;
-                so.mbin_scene = node;
+                so.nms_template = node;
                 so.init(transforms);
-
-                //Locator Objects don't have options
-
-                TkSceneNodeAttributeData attrib = new TkSceneNodeAttributeData();
-
+                so.gobject = gobject;
+                
                 //Handle Children
                 if (children.Count > 0)
                 {
@@ -758,14 +775,13 @@ namespace MVCore
                 //Testingso.Name = name + "_LOC";
                 so.name = name;
                 so.type = typeEnum;
+                so.nms_template = node;
                 //Set Shader Program
                 so.shader_programs = new int[]{Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
                                                Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
                                                Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
                 //Get Transformation
                 so.parent = parent;
-                so.scene = scene;
-                so.mbin_scene = node;
                 so.init(transforms);
 
                 //Locator Objects don't have options
@@ -792,13 +808,12 @@ namespace MVCore
                 //Set properties
                 joint.name = name;
                 joint.type = typeEnum;
+                joint.nms_template = node;
                 joint.shader_programs = new int[]{ Common.RenderState.activeResMgr.GLShaders["JOINT_SHADER"],
                                                    Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
                                                    Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
                 //Get Transformation
                 joint.parent = parent;
-                joint.scene = scene;
-                joint.mbin_scene = node;
                 joint.init(transforms);
                 //Get JointIndex
                 joint.jointIndex = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "JOINTINDEX").Value);
@@ -850,9 +865,9 @@ namespace MVCore
                     //Read new Scene
                     scene so = LoadObjects(path);
                     so.parent = parent;
-                    so.scene = null;
                     //Override Name
                     so.name = name;
+                    so.nms_template = node;
                     //Override transforms
                     so.init(transforms);
 
@@ -861,9 +876,15 @@ namespace MVCore
                     {
                         foreach (TkSceneNodeData child in children)
                         {
-                            model part = parseNode(child, gobject, so, scene);
+                            model part = parseNode(child, gobject, so, so);
                             so.children.Add(part);
                         }
+                    }
+
+                    //Check if root node is in the resMgr
+                    if (!Common.RenderState.activeResMgr.GLScenes.ContainsKey(name))
+                    {
+                        Common.RenderState.activeResMgr.GLScenes[name] = so;
                     }
 
                     //Load Objects from new xml
@@ -900,6 +921,7 @@ namespace MVCore
                 so.debuggable = true;
                 so.name = name + "_COLLISION";
                 so.type = typeEnum;
+                so.nms_template = node;
 
                 //Get Options
                 //In collision objects first child is probably the type
@@ -908,17 +930,36 @@ namespace MVCore
 
                 Console.WriteLine("Collision Detected " + name + "TYPE: " + collisionType);
                 Common.CallBacks.Log(string.Format("Collision Detected {0} {1}", name, collisionType));
+
+                //Get Material for all types
+                string matkey = name; //I will index the collision materials by their name, it shouldn't hurt anywhere
+                                      // + cleaning up will be up to the resource manager
+
+                //Check if material already in Resources
+                if (Common.RenderState.activeResMgr.GLmaterials.ContainsKey(matkey))
+                    so.material = Common.RenderState.activeResMgr.GLmaterials[matkey];
+                else
+                {
+                    Material mat = new Material();
+                    mat.name_key = matkey;
+                    so.material = mat;
+
+                    //Store the material to the Resources
+                    Common.RenderState.activeResMgr.GLmaterials[matkey] = mat;
+                }
+
                 if (collisionType == "MESH")
                 {
                     so.collisionType = (int) COLLISIONTYPES.MESH;
-                    so.batchstart_physics = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "BATCHSTART").Value);
-                    so.batchcount = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "BATCHCOUNT").Value);
-                    so.vertrstart_physics = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "VERTRSTART").Value);
-                    so.vertrend_physics = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "VERTREND").Value);
-                    so.firstskinmat = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "FIRSTSKINMAT").Value);
-                    so.lastskinmat = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "LASTSKINMAT").Value);
-
-
+                    so.batchstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHSTART"));
+                    so.batchcount = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHCOUNT"));
+                    so.vertrstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRSTART"));
+                    so.vertrend_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTREND"));
+                    so.firstskinmat = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "FIRSTSKINMAT"));
+                    so.lastskinmat = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LASTSKINMAT"));
+                    so.boundhullstart = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BOUNDHULLST"));
+                    so.boundhullend = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BOUNDHULLED"));
+                    so.gobject = gobject;
 
                     //Find id within the vbo
                     int iid = -1;
@@ -929,31 +970,46 @@ namespace MVCore
                             break;
                         }
 
-                    //Set cvbo
+                    //Configure boneRemap properly
+                    so.BoneRemapIndicesCount = so.lastskinmat - so.firstskinmat;
+                    so.BoneRemapIndices = new int[so.BoneRemapIndicesCount];
+                    for (int i = 0; i < so.lastskinmat - so.firstskinmat; i++)
+                        so.BoneRemapIndices[i] = gobject.boneRemap[so.firstskinmat + i];
+
+                    if (so.BoneRemapIndicesCount > 0)
+                    {
+                        throw new Exception("SKINNED COLLISION. CHECK YOUR SHIT!");
+                    }
+
+                    //Set vao
                     try
                     {
-                        so.main_Vao = gobject.getMainVao(so);
+                        so.main_Vao = gobject.getCollisionMeshVao(so);
+                        //Use indiceslength from the gobject
+                        so.indicesLength = so.gobject.indicesLengthType;
                     } catch (System.Collections.Generic.KeyNotFoundException e)
                     {
                         Common.CallBacks.Log("Missing Collision Mesh " + so.name);
                         so.main_Vao = null;
                     }
-                
-            
+
                 }
                 else if (collisionType == "CYLINDER")
                 {
                     //Console.WriteLine("CYLINDER NODE PARSING NOT IMPLEMENTED");
                     //Set cvbo
 
-                    float radius = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "RADIUS").Value,
+                    float radius = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "RADIUS"),
                         CultureInfo.InvariantCulture);
-                    float height = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "HEIGHT").Value,
+                    float height = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HEIGHT"),
                         CultureInfo.InvariantCulture);
                     Common.CallBacks.Log(string.Format("Cylinder Collision r:{0} h:{1}", radius, height));
                     so.main_Vao = (new MVCore.Primitives.Cylinder(radius,height)).getVAO();
                     so.collisionType = COLLISIONTYPES.CYLINDER;
-
+                    so.batchstart_graphics = 0;
+                    so.batchcount = 120;
+                    so.vertrstart_graphics = 0;
+                    so.vertrend_graphics = 22 - 1;
                 }
                 else if (collisionType == "BOX")
                 {
@@ -969,7 +1025,7 @@ namespace MVCore
                     Common.CallBacks.Log(string.Format("Sphere Collision w:{0} h:{0} d:{0}", width, height, depth));
                     so.main_Vao = (new MVCore.Primitives.Box(width, height, depth)).getVAO();
                     so.collisionType = COLLISIONTYPES.BOX;
-                    //Set general vbo properties
+                    //Set general vao properties
                     so.batchstart_graphics = 0;
                     so.batchcount = 36;
                     so.vertrstart_graphics = 0;
@@ -979,9 +1035,9 @@ namespace MVCore
                 else if (collisionType == "CAPSULE")
                 {
                     //Set cvbo
-                    float radius = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "RADIUS").Value,
+                    float radius = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "RADIUS"),
                         CultureInfo.InvariantCulture);
-                    float height = float.Parse(node.Attributes.FirstOrDefault(item => item.Name == "HEIGHT").Value,
+                    float height = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HEIGHT"),
                         CultureInfo.InvariantCulture);
 
                     Common.CallBacks.Log(string.Format("Capsule Collision r:{0} h:{1}", radius, height));
@@ -1016,8 +1072,6 @@ namespace MVCore
                     so.batchstart_physics, so.batchcount);
 
                 so.parent = parent;
-                so.mbin_scene = node;
-                so.scene = scene;
                 so.init(transforms);
 
                 //Collision probably has no children biut I'm leaving that code here
@@ -1035,6 +1089,7 @@ namespace MVCore
                 //Set Properties
                 so.name = name + "_UNKNOWN";
                 so.type = TYPES.UNKNOWN;
+                so.nms_template = node;
                 //Set Shader Program
                 so.shader_programs = new int[] { Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
                                                  Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],

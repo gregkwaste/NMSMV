@@ -25,6 +25,7 @@ namespace MVCore.Text
     {
         private QFont _font;
         private List<QFontDrawing> _drawings;
+        private List<QFontRenderOptions> _textOptions;
         private Matrix4 projMat = Matrix4.Identity;
         
         public TextRenderer(string font_path, int size)
@@ -32,19 +33,25 @@ namespace MVCore.Text
             _font = new QFont(font_path, size, new QFontBuilderConfiguration(true));
             //Init drawings list to null
             _drawings = new List<QFontDrawing>();
+            _textOptions = new List<QFontRenderOptions>();
 
+            //Setup Text Options
+            QFontRenderOptions fro = new QFontRenderOptions();
+            
 
             //Add Custom text
             QFontDrawing df = new QFontDrawing();
             QFontDrawingPrimitive prim = new QFontDrawingPrimitive(_font);
             prim.Print("Test", new Vector3(0.0f, 0.0f, 0.0f), QFontAlignment.Centre);
             df.DrawingPrimitives.Add(prim);
+            df.RefreshBuffers();
             _drawings.Add(df);
 
             df = new QFontDrawing();
             prim = new QFontDrawingPrimitive(_font);
             prim.Print("Test", new Vector3(0.0f, 0.0f, 0.0f), QFontAlignment.Centre);
             df.DrawingPrimitives.Add(prim);
+            df.RefreshBuffers();
             _drawings.Add(df);
 
 
@@ -57,13 +64,12 @@ namespace MVCore.Text
             textOpts.DropShadowActive = true;
 
             SizeF size;
-            QFontDrawing df = _drawings[(int)text_type]; 
-            df.DrawingPrimitives.Clear(); //Clear Primitives
+            QFontDrawing df = _drawings[(int)text_type];
+            df.DrawingPrimitives.Clear();
             QFontDrawingPrimitive prim = new QFontDrawingPrimitive(_font, textOpts);
-            size = prim.Print(text, pos, QFontAlignment.Left); //Print text to drawing
             df.DrawingPrimitives.Add(prim);
+            size = prim.Print(text, pos, QFontAlignment.Left); //Print text to drawing
             df.RefreshBuffers();
-
             return size;
         }
 

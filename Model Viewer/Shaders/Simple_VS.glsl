@@ -24,7 +24,7 @@ layout(location=9) uniform mat4 rotMat;
 layout(location=10) uniform mat4 worldMat;
 
 layout(location=11) uniform bool matflags[64];
-layout(location=78) uniform mat4 skinMats[128];
+layout(location=75) uniform mat4 skinMats[128];
 
 uniform vec3 light;
 

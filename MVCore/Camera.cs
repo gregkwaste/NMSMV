@@ -177,7 +177,7 @@ namespace MVCore.GMDL
 
         }
 
-        public bool frustum_occlude(GMDL.model cand, Matrix4 transform)
+        public bool frustum_occlude(GMDL.meshModel cand, Matrix4 transform)
         {
             if (!culling) return true;
 

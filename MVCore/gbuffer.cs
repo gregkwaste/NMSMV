@@ -8,6 +8,7 @@ using libMBIN.Models.Structs;
 using OpenTK;
 using OpenTK.Graphics.OpenGL;
 
+
 namespace MVCore
 {
     public class GBuffer : IDisposable
@@ -119,7 +120,6 @@ namespace MVCore
 
         public void setup_texture(ref int handle, int attachment)
         {
-
             handle = GL.Ext.GenTexture();
 
             GL.Ext.BindTexture(TextureTarget.Texture2DMultisample, handle);
@@ -238,7 +238,7 @@ namespace MVCore
             //Bind Gbuffer fbo
             GL.Ext.BindFramebuffer(FramebufferTarget.DrawFramebuffer, fbo);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            GL.ClearColor(RenderOptions.clearColor);
+            GL.ClearColor(Common.RenderOptions.clearColor);
             
             //GL.ClearTexImage(positions, 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
             //GL.ClearTexImage(depth, 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);

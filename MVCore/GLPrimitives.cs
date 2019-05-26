@@ -258,7 +258,6 @@ namespace MVCore.Primitives
                 verts[voff + 3 + 3 * lat + 2] = radius * (float)Math.Sin(theta);
             }
 
-
             //Bottom Cap Indices
             int ioff = latBands + 1;
             int array_ioff = 3 * latBands;
@@ -296,8 +295,6 @@ namespace MVCore.Primitives
             indices[array_ioff + 6 * (latBands - 1) + 3] = 1;
             indices[array_ioff + 6 * (latBands - 1) + 4] = latBands;
             indices[array_ioff + 6 * (latBands - 1) + 5] = latBands +2;
-
-
 
             geom = getGeom();
         }

@@ -1,9 +1,9 @@
 #version 330
 /* Copies incoming fragment color without change. */
 //Diffuse Textures
-uniform sampler2D diffuseTex[8];
-uniform sampler2D maskTex[8];
-uniform sampler2D normalTex[8];
+uniform sampler2DArray diffuseTex[8];
+uniform sampler2DArray maskTex[8];
+uniform sampler2DArray normalTex[8];
 uniform float d_lbaseLayersUsed[8];
 uniform float m_lbaseLayersUsed[8]; //Masks
 uniform float n_lbaseLayersUsed[8]; //Normals
@@ -75,8 +75,8 @@ vec4 MixMaskMaps(){
 	vec4 lFinalDiffColor = vec4(0.0, 0.0, 0.0, 0.0);
 	
 	for (int i=0; i<8; i++){
-		lLayerXVec4[i] = texture2D(maskTex[i], uv0);
-		lfAlpha[i] = texture2D(diffuseTex[i], uv0).a;
+		lLayerXVec4[i] = texture(maskTex[i], vec3(uv0, 0.0));
+		lfAlpha[i] = texture(diffuseTex[i], vec3(uv0, 0.0)).a;
 	}
 
 	//My input
@@ -124,7 +124,7 @@ vec4 MixDiffuseMaps(){
 
 	//Fetch Diffuse Colors
 	for (int i=0; i<8; i++){
-		lLayerXVec4[i] = texture2D(diffuseTex[i], uv0);
+		lLayerXVec4[i] = texture(diffuseTex[i], vec3(uv0, 0.0));
 		lfAlpha[i] = lLayerXVec4[i].a;
 	}
 
@@ -209,8 +209,8 @@ vec4 MixNormalMaps(){
 
 	//Fetch Normal Colors
 	for (int i=0; i<8; i++){
-		lLayerXVec4[i] = texture2D(normalTex[i], uv0);
-		lfAlpha[i] = texture2D(diffuseTex[i], uv0).a;
+		lLayerXVec4[i] = texture(normalTex[i], vec3(uv0, 0.0));
+		lfAlpha[i] = texture(diffuseTex[i], vec3(uv0, 0.0)).a;
 	}
 
 	//My input

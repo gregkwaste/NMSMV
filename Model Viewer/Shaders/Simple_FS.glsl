@@ -7,25 +7,31 @@
 #include "/common.glsl"
 
 layout(location=11) uniform bool matflags[64];
-layout(location=75) uniform sampler2D diffuseTex;
-layout(location=76) uniform sampler2D maskTex;
-layout(location=77) uniform sampler2D normalTex;
 
-
-//Material Options
-layout(location=206) uniform vec4 gMaterialColourVec4;
-layout(location=207) uniform vec4 gMaterialParamsVec4;
-layout(location=208) uniform vec4 gMaterialSFXVec4;
-layout(location=209) uniform vec4 gMaterialSFXColVec4;
-layout(location=210) uniform vec4 gDissolveDataVec4;
-
-layout(location=211) uniform vec3 color;
-uniform float intensity;
+layout(location=203) uniform sampler2DArray diffuseTex;
+layout(location=204) uniform sampler2DArray maskTex;
+layout(location=205) uniform sampler2DArray normalTex;
 
 //Rendering Options
-uniform float diffuseFlag; //Enable Textures
-uniform float use_lighting; //Enable lighting
-uniform int selected; //Selected
+
+layout(location=206) uniform float diffuseFlag; //Enable Textures
+layout(location=207) uniform float use_lighting; //Enable lighting
+layout(location=208) uniform int selected; //Selected
+layout(location=209) uniform vec3 color;
+layout(location=210) uniform float intensity;
+
+
+//Uniforms
+layout(location=211) uniform vec4 gMaterialColourVec4;
+layout(location=212) uniform vec4 gMaterialParamsVec4;
+layout(location=213) uniform vec4 gMaterialSFXVec4;
+layout(location=214) uniform vec4 gMaterialSFXColVec4;
+layout(location=215) uniform vec4 gDissolveDataVec4;
+layout(location=216) uniform vec4 gUserDataVec4;
+
+//layout(location=217) uniform sampler2DArray diffuseTexArray;
+//layout(location=218) uniform sampler2DArray maskTexArray;
+//layout(location=219) uniform sampler2DArray maskTexArray;
 
 in vec3 E;
 in vec3 N;
@@ -56,12 +62,21 @@ void main()
 	//Check _F01_DIFFUSEMAP
 	if (diffuseFlag > 0.0){
 		if (matflags[_F01_DIFFUSEMAP]) {
-			mipmaplevel = textureQueryLOD(diffuseTex, uv0).x;
-			diffTexColor = textureLod(diffuseTex, uv0, mipmaplevel);
-			if (!matflags[_F09_TRANSPARENT]){
-				diffTexColor.a = 1.0f;
+			if (matflags[_F55_MULTITEXTURE]){	
+				mipmaplevel = textureQueryLOD(diffuseTex, uv0).x;
+				diffTexColor = textureLod(diffuseTex, vec3(uv0, gUserDataVec4.w), mipmaplevel);
+				//diffTexColor = texture(diffuseTex, vec3(uv0, gUserDataVec4.w));
 			}
-		} else{
+			else {
+				mipmaplevel = textureQueryLOD(diffuseTex, uv0).x;
+				diffTexColor = textureLod(diffuseTex, vec3(uv0, 0.0), mipmaplevel);
+				//diffTexColor = texture(diffuseTex, vec3(uv0, 0.0));
+			}
+
+			if (!matflags[_F09_TRANSPARENT]){
+					diffTexColor.a = 1.0f;
+			}
+		} else {
 			diffTexColor = gMaterialColourVec4;
 		}
 	}
@@ -82,7 +97,7 @@ void main()
 	
 	//Check _F11_ALPHACUTOUT
 	if (matflags[_F11_ALPHACUTOUT]) {
-		float maskalpha =  textureLod(diffuseTex, uv0, mipmaplevel).a;
+		float maskalpha =  textureLod(diffuseTex, vec3(uv0, 0.0), mipmaplevel).a;
 		if (maskalpha <= 0.05) discard;
 	}
 
@@ -93,7 +108,7 @@ void main()
 	
 	//Check _F24_AOMAP
  	if ((matflags[_F24_AOMAP])  && (diffuseFlag > 0.0)){
- 		float maskalpha =  textureLod(maskTex, uv0, mipmaplevel).r;
+ 		float maskalpha =  textureLod(maskTex, vec3(uv0, 0.0), mipmaplevel).r;
  		diffTexColor.rgb *= maskalpha; //Is the r channel the ambient occlusion map?
  	}
 	
@@ -107,13 +122,13 @@ void main()
 		//Check _F03_NORMALMAP 63
 		if (matflags[_F03_NORMALMAP]) {
 			//Normal Checks
-	  		normal = DecodeNormalMap(textureLod(normalTex, uv0, mipmaplevel));
+	  		normal = DecodeNormalMap(textureLod(normalTex, vec3(uv0,0.0), mipmaplevel));
 	  		normal = normalize(TBN * normal);
 	  		bshininess = pow(max (dot (E, normal), 0.0), 2.0);
 	  	}
 
 		if (matflags[_F25_ROUGHNESS_MASK]) {
-			lfRoughness = textureLod(maskTex, uv0, mipmaplevel).g;
+			lfRoughness = textureLod(maskTex, vec3(uv0, 0.0), mipmaplevel).g;
 			lfRoughness = 1.0 - lfRoughness;
 			lfRoughness *= gMaterialParamsVec4.x;
 		}  

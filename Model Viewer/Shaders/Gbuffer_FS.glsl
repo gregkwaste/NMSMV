@@ -44,6 +44,7 @@ void main()
 	//sample our texture
 	vec4 texelValue = texelFetch(diffuseTex, ivec2(gl_FragCoord.xy), 0);
 	//vec4 texelValue = texelFetch(depthTex, ivec2(gl_FragCoord.xy), 0);
+	//vec4 texelValue = texelFetch(positionTex, ivec2(gl_FragCoord.xy), 0);
 	vec4 texColor = vec4(texelValue.rgb, 1.0);
 	
 	gl_FragColor = texColor;

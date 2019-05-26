@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 using OpenTK;
+using OpenTK.Graphics.OpenGL4;
 using MVCore.GMDL;
 using MVCore;
 
@@ -24,6 +25,22 @@ namespace MVCore.Common
         //ResourceManager
         public static MVCore.ResourceMgr activeResMgr;
 
+    }
+
+    public static class RenderOptions
+    {
+        //Set Full rendermode by default
+        public static PolygonMode RENDERMODE = PolygonMode.Fill;
+        public static float UseTextures = 1.0f;
+        public static float UseLighting = 1.0f;
+        public static System.Drawing.Color clearColor = System.Drawing.Color.FromArgb(255, 33, 33, 33);
+        public static bool RenderInfo = true;
+        public static bool RenderLights = true;
+        public static bool RenderJoints = true;
+        public static bool RenderCollisions = true;
+        public static bool RenderBoundHulls = true;
+        public static bool RenderDebug = false;
+        public static int animFPS = 50;
     }
 
     //Delegates - Function Types for Callbacks

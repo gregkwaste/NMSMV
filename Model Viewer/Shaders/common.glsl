@@ -24,6 +24,7 @@
 #define _F41_DETAIL_DIFFUSE 40
 #define _F42_DETAIL_NORMAL 41
 #define _F53_COLOURISABLE 52
+#define _F55_MULTITEXTURE 54
 
 vec3 GammaCorrectInput(
     in vec3 lColourVec3 )

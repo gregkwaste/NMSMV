@@ -336,7 +336,8 @@ namespace KUtility {
 			h.dwWidth = r.ReadInt32();
 			h.dwPitchOrLinearSize = r.ReadInt32();
 			h.dwDepth = r.ReadInt32();
-			h.dwMipMapCount = r.ReadInt32();
+            //Hack for handling unused mipmaps
+            h.dwMipMapCount = Math.Max(r.ReadInt32(), 1); 
 			for (int i = 0; i < 11; ++i) {
 				h.dwReserved1[i] = r.ReadInt32();
 			}

@@ -12,6 +12,7 @@
         Loaded="MainWindow_OnLoaded">
     <Window.Resources>
         <ResourceDictionary>
+            
             <Style x:Key="TreeViewItemStyle" TargetType="TreeViewItem">
                 <Setter Property="IsExpanded" Value="False" />
                 <Setter Property="IsSelected" Value="{Binding IsInitiallySelected, Mode=OneTime}" />
@@ -62,7 +63,7 @@
             </Grid.ColumnDefinitions>
             <Grid Grid.Column="0">
                 <Grid.RowDefinitions>
-                    <RowDefinition MinHeight="200"/>
+                    <RowDefinition MinHeight="220"/>
                     <RowDefinition Height="7*"/>
                     <RowDefinition Height="3*"/>
                 </Grid.RowDefinitions>
@@ -83,7 +84,7 @@
                                 </Grid.RowDefinitions>
                                 <DockPanel Grid.Row="0" HorizontalAlignment="Stretch">
                                     <TextBlock Width="80">FOV</TextBlock>
-                                    <Slider x:Name="sliderFOV"  Value="35" Minimum="1" Maximum="100" SmallChange="1"></Slider>
+                                    <Slider x:Name="sliderFOV"  Value="60" Minimum="1" Maximum="100" SmallChange="1"></Slider>
                                 </DockPanel>
                                 <DockPanel Grid.Row="1" HorizontalAlignment="Stretch">
                                     <TextBlock Width="80">Light Distance</TextBlock>
@@ -114,13 +115,14 @@
                         </GroupBox>
                     </TabItem>
                     <TabItem Header="Render">
-                        <GroupBox MinHeight="150" Header="RenderOptions">
+                        <GroupBox Header="RenderOptions">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="93*"/>
                                     <ColumnDefinition Width="148*"/>
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="20"/>
                                     <RowDefinition Height="20"/>
                                     <RowDefinition Height="20"/>
                                     <RowDefinition Height="20"/>
@@ -157,6 +159,10 @@
                                     <TextBlock HorizontalAlignment="Left">Render Collisions</TextBlock>
                                     <CheckBox x:Name="toggleCollisions" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
                                 </DockPanel>
+                                <DockPanel Grid.Row="7" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                    <TextBlock HorizontalAlignment="Left">Render BoundHulls</TextBlock>
+                                    <CheckBox x:Name="toggleBoundHulls" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
+                                </DockPanel>
                             </Grid>
 
                         </GroupBox>
@@ -167,12 +173,13 @@
 
                 <GroupBox Grid.Row="1" Header="SceneGraph" BorderThickness="2">
                     <TreeView x:Name="SceneTreeView"
-                                  ItemContainerStyle="{StaticResource TreeViewItemStyle}"
-                                  ItemsSource="{Binding Mode=OneTime}"
-                                  ItemTemplate="{StaticResource CheckBoxItemTemplate}"
-                                  SelectedItemChanged="SceneTreeView_OnSelectedItemChanged">
-
-                    </TreeView>
+                                ItemContainerStyle="{StaticResource TreeViewItemStyle}"
+                                ItemsSource="{Binding Mode=OneTime}"
+                                ItemTemplate="{StaticResource CheckBoxItemTemplate}"
+                                SelectedItemChanged="SceneTreeView_OnSelectedItemChanged"
+                                PreviewMouseLeftButtonDown="SceneTreeView_PreviewMouseLeftButtonDown"
+                                Drop="SceneTreeView_Drop"
+                                ScrollViewer.CanContentScroll="True" AllowDrop="True" GiveFeedback="SceneTreeView_GiveFeedback"/>
                 </GroupBox>
 
                 <GroupBox Grid.Row="3" Header="ProcGenTools" BorderThickness="2">
@@ -186,6 +193,10 @@
             <Grid Grid.Column="4">
                 <GroupBox x:Name="ObjectInfoBox" Header="Object Information">
                     <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="41*"/>
+                            <ColumnDefinition Width="200*"/>
+                        </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
@@ -193,23 +204,23 @@
                             <RowDefinition Height="50*"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
-                        <DockPanel Grid.Row="0" >
+                        <DockPanel Grid.Row="0" Grid.ColumnSpan="2" >
                             <TextBlock>Name:</TextBlock>
                             <TextBlock Text="{Binding Name}" HorizontalAlignment="Right"></TextBlock>
                         </DockPanel>
-                        <DockPanel Grid.Row="1" >
+                        <DockPanel Grid.Row="1" Grid.ColumnSpan="2" >
                             <TextBlock>Type:</TextBlock>
                             <TextBlock Text="{Binding ModelType}" HorizontalAlignment="Right"></TextBlock>
                         </DockPanel>
-                        <DockPanel Grid.Row="2" >
+                        <DockPanel Grid.Row="2" Grid.ColumnSpan="2" >
                             <TextBlock>Material Name:</TextBlock>
                             <TextBlock Text="{Binding Material}" HorizontalAlignment="Right"></TextBlock>
                         </DockPanel>
-                        <StackPanel Grid.Row="3" Orientation="Vertical">
+                        <StackPanel Grid.Row="3" Orientation="Vertical" Grid.ColumnSpan="2">
                             <TextBlock>Texture List:</TextBlock>
                             <ListBox FontSize="10" ItemsSource="{Binding TextureList}" VerticalAlignment="Stretch" Height="Auto" ></ListBox>
                         </StackPanel>
-                        <local:ModelTransform Grid.Row="4" VerticalAlignment="Bottom" x:Name="activeTransform"/>
+                        <local:ModelTransform Grid.Row="4" VerticalAlignment="Bottom" x:Name="activeTransform" Grid.ColumnSpan="2"/>
                     </Grid>
                 </GroupBox>
             </Grid>

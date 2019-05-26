@@ -17,6 +17,7 @@ using QuickFont;
 using QuickFont.Configuration;
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
+using System.Windows.Input;
 
 namespace WPFModelViewer
 {
@@ -41,6 +42,11 @@ namespace WPFModelViewer
 
         private const int WmExitSizeMove = 0x232; //Custom Windows Messages
         private const int WmEnterSizeMove = 0x231;
+
+        //Treeview Helpers
+        TextBlock old_tb;
+        TextBlock start_tb;
+
 
         public MainWindow()
         {
@@ -379,29 +385,13 @@ namespace WPFModelViewer
             else
                 RenderOptions.UseLighting = 0.0f;
 
-            //Toggle Info Render
-            if (toggleInfo.IsChecked.Value)
-                RenderOptions.RenderInfo = true;
-            else
-                RenderOptions.RenderInfo = false;
+            //Boolean Flags
+            RenderOptions.RenderInfo = toggleInfo.IsChecked.Value; //Toggle Info Render
+            RenderOptions.RenderLights = toggleLights.IsChecked.Value; //Toggle Light Render
+            RenderOptions.RenderJoints = toggleJoints.IsChecked.Value; //Toggle Joints Render
+            RenderOptions.RenderCollisions = toggleCollisions.IsChecked.Value; //Toggle Collisions Render
+            RenderOptions.RenderBoundHulls = toggleBoundHulls.IsChecked.Value; //Toggle Bound Hull Renering
 
-            //Toggle Light Render
-            if (toggleLights.IsChecked.Value)
-                RenderOptions.RenderLights = true;
-            else
-                RenderOptions.RenderLights = false;
-
-            //Toggle Joints Render
-            if (toggleJoints.IsChecked.Value)
-                RenderOptions.RenderJoints = true;
-            else
-                RenderOptions.RenderJoints = false;
-
-            //Toggle Collisions Render
-            if (toggleCollisions.IsChecked.Value)
-                RenderOptions.RenderCollisions = true;
-            else
-                RenderOptions.RenderCollisions = false;
         }
 
         private void SceneTreeView_OnSelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -439,6 +429,80 @@ namespace WPFModelViewer
             Window setWin = new SettingsForm(settings);
             setWin.Show();
         }
+
+        private void SceneTreeView_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.OriginalSource is TextBlock)
+            {
+                ModelNode node = (ModelNode) SceneTreeView.SelectedItem;
+                Console.WriteLine("Grabbed " + node.Name);
+                var tv = sender as TreeView;
+
+                //Fetch textblock
+                old_tb = (TextBlock) e.OriginalSource;
+                start_tb = (TextBlock) e.OriginalSource;
+
+                DragDrop.DoDragDrop(tv, node, DragDropEffects.Move);
+            }
+
+        }
+
+        private void SceneTreeView_Drop(object sender, DragEventArgs e)
+        {
+            var tv = sender as TreeView;
+            IInputElement target = SceneTreeView.InputHitTest(e.GetPosition(SceneTreeView));
+            if (old_tb != start_tb)
+                old_tb.Background = null;
+            TextBlock tb = (TextBlock)target;
+
+            if (tb != null)
+            {
+                Console.WriteLine("Dropped Over " + tb.DataContext);
+            }
+            
+        }
+
+        private void SceneTreeView_GiveFeedback(object sender, GiveFeedbackEventArgs e)
+        {
+            // update the position of the visual feedback item
+            Win32Point w32Mouse = new Win32Point();
+            GetCursorPos(ref w32Mouse);
+            var pfs = SceneTreeView.PointFromScreen(new Point(w32Mouse.X, w32Mouse.Y));
+            var tb = SceneTreeView.InputHitTest(pfs) as TextBlock;
+            
+            if (tb != null)
+            {
+
+                if (tb != old_tb) {
+
+                    if (old_tb != start_tb)
+                        old_tb.Background = null;
+
+                    if (tb != start_tb)
+                        tb.Background = System.Windows.Media.Brushes.DarkGray;
+                    old_tb = tb;
+                }
+
+                
+                var s1 = System.Windows.Media.VisualTreeHelper.GetParent(tb);
+                StackPanel s2 = (StackPanel) System.Windows.Media.VisualTreeHelper.GetParent(s1);
+                
+                ModelNode mn = (ModelNode) s2.DataContext;
+                //Console.WriteLine("Cursor Over " + mn.Name);
+            }
+        
+        }
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetCursorPos(ref Win32Point pt);
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct Win32Point
+        {
+            public Int32 X;
+            public Int32 Y;
+        };
     }
 }
 
@@ -469,6 +533,8 @@ namespace WPFModelViewer
         /// </remarks>
         [DllImport("kernel32.dll", SetLastError = true)]
         internal static extern int FreeConsole();
+
+        
     }
 }
 

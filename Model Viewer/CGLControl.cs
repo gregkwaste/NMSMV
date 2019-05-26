@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
 using OpenTK;
@@ -9,6 +9,7 @@ using System.Reflection;
 
 //Custom Imports
 using MVCore;
+using MVCore.Common;
 using MVCore.GMDL;
 using GLSLHelper;
 using gImage;
@@ -183,7 +184,7 @@ namespace Model_Viewer
             //Update per frame data
             frameUpdate();
 
-            gbuf?.start();
+            gbuf.start();
 
             //Console.WriteLine(active_fbo);
             render_scene();
@@ -226,18 +227,25 @@ namespace Model_Viewer
 
         public void findAnimScenes()
         {
-            foreach (GeomObject geom in resMgr.GLgeoms.Values)
+            foreach (scene scn in resMgr.GLScenes.Values)
             {
-                if (geom.rootObject.jointDict.Values.Count > 0)
-                    this.animScenes.Add(geom.rootObject);
+                if (scn.jointDict.Values.Count > 0)
+                    this.animScenes.Add(scn);
             }
         }
 
         public void traverse_oblistPalette(model root,Dictionary<string,Dictionary<string,Vector4>> palette)
         {
-            foreach (model m in root.children)
+            foreach (model in_m in root.children)
             {
-                
+                if (in_m.type != TYPES.MESH)
+                {
+                    if (in_m.children.Count != 0)
+                        traverse_oblistPalette(in_m, palette);
+                }
+
+                meshModel m = (meshModel) in_m;
+
                 //Fix New Recoulors
                 if (m.material != null)
                 {
@@ -263,8 +271,6 @@ namespace Model_Viewer
                     m.material.prepTextures();
                     m.material.mixTextures();
                 }
-                if (m.children.Count != 0)
-                    traverse_oblistPalette(m, palette);
             }
         }
 
@@ -279,14 +285,14 @@ namespace Model_Viewer
                 {
                     MathUtils.insertMatToArray16(animScene.JMArray, j.jointIndex * 16, j.worldMat);
                 }
+
+                //Calculate skinning matrices for each joint for each geometry object
+                MathUtils.mulMatArrays(ref animScene.gobject.skinMats, animScene.gobject.invBMats,
+                    animScene.JMArray, animScene.jointDict.Keys.Count);
             }
             
-            //Calculate skinning matrices for each joint for each geometry object
-            foreach (GeomObject g in resMgr.GLgeoms.Values)
-            {
-                MathUtils.mulMatArrays(ref g.skinMats, g.invBMats, g.rootObject.JMArray, 256);
-            }
-
+            
+            rootObject?.update();
 
             //Camera & Light Positions
             //Update common transforms
@@ -323,8 +329,8 @@ namespace Model_Viewer
             //Add default primitives trying to avoid Vao Request queue traffic
             addDefaultLights();
             addDefaultTextures();
-            addCamera(true);
-            addCamera(false); //Add second camera
+            addCamera();
+            addCamera(cull:false); //Add second camera
             setActiveCam(0);
             addDefaultPrimitives();
             addTestObjects();
@@ -431,8 +437,7 @@ namespace Model_Viewer
                 GL.UniformMatrix4(7, false, ref mvp);
 
                 //Upload Selected Flag
-                loc = GL.GetUniformLocation(active_program, "selected");
-                GL.Uniform1(loc, root.selected);
+                GL.Uniform1(208, root.selected);
 
                 if (root.type == TYPES.MESH)
                 {
@@ -440,12 +445,10 @@ namespace Model_Viewer
                     GL.UniformMatrix4(9, false, ref rotMat);
 
                     //Send DiffuseFlag
-                    loc = GL.GetUniformLocation(active_program, "diffuseFlag");
-                    GL.Uniform1(loc, RenderOptions.UseTextures);
+                    GL.Uniform1(206, RenderOptions.UseTextures);
 
                     //Upload Selected Flag
-                    loc = GL.GetUniformLocation(active_program, "use_lighting");
-                    GL.Uniform1(loc, RenderOptions.UseLighting);
+                    GL.Uniform1(207, RenderOptions.UseLighting);
 
                     //Object program
                     //Local Transformation is the same for all objects 
@@ -455,32 +458,31 @@ namespace Model_Viewer
 
                     //Upload Light Intensity
                     loc = GL.GetUniformLocation(active_program, "intensity");
-                    //GL.Uniform1(loc, this.resMgr.GLlights[0].intensity);
-                    GL.Uniform1(loc, light_intensity);
-
+                    GL.Uniform1(210, light_intensity);
 
                     //Upload camera position as the light
                     //GL.Uniform3(loc, cam.Position);
 
                     //Apply frustum culling only for mesh objects
-                    if (activeCam.frustum_occlude(root, rotMat))
+                    if (activeCam.frustum_occlude((meshModel) root, rotMat))
                         root.render(program);
                     else occludedNum++;
                     
                 }
                 else if (root.type == TYPES.JOINT)
                 {
-                    if (MVCore.RenderOptions.RenderJoints)
+                    if (RenderOptions.RenderJoints)
                         root.render(program);
                 }
                 else if (root.type == TYPES.COLLISION)
                 {
-                    if (MVCore.RenderOptions.RenderCollisions)
+                    if (RenderOptions.RenderCollisions)
                     {
                         //Send DiffuseFlag
-                        loc = GL.GetUniformLocation(active_program, "diffuseFlag");
-                        GL.Uniform1(loc, 0.0f);
+                        GL.Uniform1(206, 0.0f);
 
+                        //Upload Selected Flag
+                        GL.Uniform1(207, 0.0f);
                         root.render(program);
                     }
                         
@@ -567,7 +569,7 @@ namespace Model_Viewer
             GL.Enable(EnableCap.Blend);
             GL.Disable(EnableCap.DepthTest);
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-            GL.PolygonMode(OpenTK.Graphics.OpenGL4.MaterialFace.FrontAndBack, PolygonMode.Fill);
+            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
 
             var size = font_draw_object.addDrawing(string.Format("FPS: {0:F1}", fpsCount),
                     new Vector3(Width - 80.0f, 30.0f, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS);
@@ -1049,7 +1051,7 @@ namespace Model_Viewer
 
         #region AddObjectMethods
 
-        private void addCamera(bool cull)
+        private void addCamera(bool cull = true)
         {
             //Set Camera position
             Camera cam = new Camera(60, this.resMgr.GLShaders["BBOX_SHADER"], 0, cull);
@@ -1132,7 +1134,7 @@ namespace Model_Viewer
             //Clear animScenes
             animScenes.Clear();
             //Throw away the old model
-            rootObject.Dispose(); //Prevent rendering
+            rootObject.Dispose();
             rootObject = null;
 
             //Add defaults
@@ -1144,11 +1146,13 @@ namespace Model_Viewer
             addDefaultPrimitives();
 
             //Setup new object
-            scene new_scn = GEOMMBIN.LoadObjects(filename);
-            rootObject = new_scn;
-
+            rootObject = GEOMMBIN.LoadObjects(filename);
+             
             //find Animation Capable Scenes
             this.findAnimScenes();
+
+            //Refresh all transforms
+            rootObject.update();
 
         }
 
@@ -1272,16 +1276,10 @@ namespace Model_Viewer
         //Animation Worker
         private void backgroundWorker1_ProgressChanged(object sender, System.ComponentModel.ProgressChangedEventArgs e)
         {
-            //this.MakeCurrent();
             foreach (scene s in animScenes)
                 if (s.animMeta != null)
                 {
                     s.animate();
-                    //Generate and send update_scene request
-                    ThreadRequest req = new ThreadRequest();
-                    req.type = THREAD_REQUEST_TYPE.UPDATE_SCENE_REQUEST;
-                    req.arguments.Add(s);
-                    issueRequest(req);
                 }
 
         }
