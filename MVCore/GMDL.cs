@@ -21,12 +21,13 @@ using System.ComponentModel;
 using MVCore;
 using ExtTextureFilterAnisotropic = OpenTK.Graphics.ES30.ExtTextureFilterAnisotropic;
 using PixelFormat = OpenTK.Graphics.OpenGL4.PixelFormat;
+using System.Collections.ObjectModel;
 //using Matrix4 = MathNet.Numerics.LinearAlgebra.Matrix<float>;
 
 
 namespace MVCore.GMDL
 {
-    public abstract class model: IDisposable, INotifyPropertyChanged
+    public abstract class model : IDisposable, INotifyPropertyChanged
     {
         public abstract bool render(int pass);
         public GLControl pcontrol;
@@ -37,7 +38,7 @@ namespace MVCore.GMDL
         public int ID;
         public TYPES type;
         public string name;
-        public List<model> children = new List<model>();
+        public ObservableCollection<model> children = new ObservableCollection<model>();
         public Dictionary<string, Dictionary<string, Vector3>> palette;
         public bool procFlag; //This is used to define procgen usage
         public TkSceneNodeData nms_template;
@@ -51,22 +52,20 @@ namespace MVCore.GMDL
         public Vector3 localScale;
         public Vector3 localRotationAngles;
         public Matrix4 localRotation;
-        
+
         public model parent;
         public int cIndex = 0;
         //Disposable Stuff
         public bool disposed = false;
         public Microsoft.Win32.SafeHandles.SafeFileHandle handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(IntPtr.Zero, true);
 
-        public event PropertyChangedEventHandler PropertyChanged;
-
-
+        
         public abstract model Clone(model refScene);
 
         public virtual void update()
         {
             //Update Local Transformation Matrix
-            
+
             //Combine localRotation and Position to return the localMatrix
             //Option 1 use the quaternion - AGAIN NOT FUCKING WORKING FUCK MY LIFE
             //Matrix4 rot1 = Matrix4.CreateFromQuaternion(localRotationQuaternion);
@@ -106,30 +105,62 @@ namespace MVCore.GMDL
 
 
             //Trigger the position update of all children nodes
+            
             foreach (GMDL.model child in children)
             {
                 child.update();
             }
         }
 
-        
         //Properties for Data Binding
-        
+        public ObservableCollection<model> Children{
+            get
+            {
+                return children;
+            }
+        }
+
+        public GMDL.model BindingNode
+        {
+            get { return this;}
+        }
         
         public string Name
         {
             get { return name; }
         }
 
+        
         //TODO: Consider converting all such attributes using properties
         public void updatePosition(Vector3 newPosition)
         {
             localPosition = newPosition;
         }
 
-        public string ModelType
+        public string Type
         {
             get { return type.ToString(); }
+        }
+
+        public bool IsChecked
+        {
+            get {
+                return renderable;
+            }
+
+            set
+            {
+                renderable = value;
+                foreach (var child in Children)
+                    child.IsChecked = value;
+                NotifyPropertyChanged("isChecked");
+            }
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+        private void NotifyPropertyChanged(String info)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(info));
         }
 
         public void init(float[] trans)
@@ -209,9 +240,8 @@ namespace MVCore.GMDL
             this.localRotationAngles = input.localRotationAngles;
             this.localRotation = input.localRotation;
             this.localScale = input.localScale;
-
-            
         }
+
         //Copy Constructor
         public model(model input, model refScene)
         {
@@ -245,6 +275,8 @@ namespace MVCore.GMDL
                 if (children!=null)
                     foreach (model c in children) c.Dispose();
                 children.Clear();
+
+                //Free textureManager
             }
 
             //Free unmanaged resources
@@ -268,6 +300,7 @@ namespace MVCore.GMDL
     public class scene : locator
     {
         public GeomObject gobject; //Keep GeomObject reference
+        public textureManager texMgr;
         //Animation Stuff
         public float[] JMArray;
 
@@ -278,6 +311,7 @@ namespace MVCore.GMDL
 
         public scene() : base(0.1f) {
             type = TYPES.MODEL;
+            texMgr = new textureManager();
             JMArray = new float[256 * 16];
             jointDict = new Dictionary<string, Joint>();
         }
@@ -285,9 +319,13 @@ namespace MVCore.GMDL
         public scene(scene input, model refScene) :base(input, refScene)
         {
             //ANIMATION DATA
-            this.jointDict = new Dictionary<string, Joint>();
-            this.JMArray = (float[]) input.JMArray.Clone();
+            jointDict = new Dictionary<string, Joint>();
+            JMArray = (float[]) input.JMArray.Clone();
+
+            //Copy textures
             
+
+
             animMeta = input.animMeta;
             gobject = input.gobject;
 
@@ -588,7 +626,7 @@ namespace MVCore.GMDL
         public Vector3[] Bbox;
         public DrawElementsType indicesLength = DrawElementsType.UnsignedShort;
 
-        public Material material;
+        public Material Material {get; set;}
         public Vector3 color = new Vector3();
 
         public int skinned = 1;
@@ -603,48 +641,19 @@ namespace MVCore.GMDL
         public mainVAO bsh_Vao;
         public mainVAO bhull_Vao;
         public GeomObject gobject; //Ref to the geometry shit
-        
+
         //TODO: I'm not sure if this should be here
         //Keep a static dictionary for the common mesh uniforms
-        private Dictionary<string, int> CommonPerMeshUniformLocationDict = new Dictionary<string, int> {
-            { "gMaterialColourVec4" , 211 },
-        };
+        private Dictionary<string, Uniform> CommonPerMeshUniforms = new Dictionary<string, Uniform>();
+        private Dictionary<string, int> CommonPerMeshUniformLocationDict = new Dictionary<string, int> ();
+
+        private Dictionary<string, Uniform> CustomPerMeshUniforms = new Dictionary<string, Uniform>();
+        private Dictionary<string, int> CustomPerMeshUniformDict = new Dictionary<string, int>();
 
         //Keep a static dictionary for the custom mesh uniforms
-        private Dictionary<string, int> CustomPerMeshUniformLocationDict = new Dictionary<string, int> {
-            { "gMaterialColourVec4" , 211 },
-        };
+        private Dictionary<string, int> CustomPerMeshUniformLocationDict = new Dictionary<string, int> ();
 
-
-        //Properties
-        public string Material
-        {
-            get
-            {
-                if (material != null)
-                    return material.name;
-                return "";
-            }
-        }
-
-        public List<string> TextureList
-        {
-            get
-            {
-                List<string> l = new List<string>();
-                if (material != null)
-                {
-                    for (int i = 0; i < material.difftextures.Count; i++)
-                    {
-                        if (material.difftextures[i] != null)
-                            l.Add(material.difftextures[i].name);
-                    }
-                }
-
-                return l;
-            }
-        }
-
+        
 
         //Constructor
         public meshModel()
@@ -682,13 +691,13 @@ namespace MVCore.GMDL
 
             //Material Stuff
             this.color = input.color;
-            if (input.material.name_key != "")
+            if (input.Material.name_key != "")
             {
-                this.material = MVCore.Common.RenderState.activeResMgr.GLmaterials[input.material.name_key]; // Keep reference
+                this.Material = MVCore.Common.RenderState.activeResMgr.GLmaterials[input.Material.name_key]; // Keep reference
                 //this.material = input.material.Clone(); //Clone material
             }
             else
-                this.material = new Material();
+                this.Material = new Material();
                 
             this.palette = input.palette;
             this.gobject = input.gobject; //Leave geometry file intact, no need to copy anything here
@@ -865,23 +874,22 @@ namespace MVCore.GMDL
             //Step 1 Upload uniform variables
             int loc;
 
-            GL.Uniform1(11, 64, material.material_flags); //Upload Material Flags
+            GL.Uniform1(11, 64, Material.material_flags); //Upload Material Flags
             //Upload Color Flag
             GL.Uniform3(209, color);
 
-            //Upload Material Uniforms
-            /*
-            for (int i = 0; i < material.nms_mat.Uniforms.Count; i++)
+            //Upload Custom Per Material Uniforms
+            foreach (Uniform un in Material.CustomPerMaterialUniforms.Values)
             {
-                TkMaterialUniform un = material.nms_mat.Uniforms[i];
-                if (!material.CustomPerMaterialUniformLocationDict.Keys.Contains(un.Name)){
+                if (!Material.CustomPerMaterialUniformLocationDict.Keys.Contains(un.Name))
+                {
                     MVCore.Common.CallBacks.Log("Uniform Missing! Adding " + un.Name + " to the uniform dictionary");
-                    material.CustomPerMaterialUniformLocationDict[un.Name] = -1;
-                } else
-                    GL.Uniform4(material.CustomPerMaterialUniformLocationDict[un.Name], un.Values.x, un.Values.y, un.Values.z, un.Values.t);
+                    Material.CustomPerMaterialUniformLocationDict[un.Name] = -1;
+                }
+                else
+                    GL.Uniform4(Material.CustomPerMaterialUniformLocationDict[un.Name], un.vec.Vec);
             }
-            */
-
+            
             //Upload joint transform data
             GL.UniformMatrix4(75, BoneRemapIndicesCount, false, BoneRemapMatrices);
             
@@ -893,27 +901,21 @@ namespace MVCore.GMDL
             int tex0Id = (int)TextureUnit.Texture0;
             //Diffuse Texture
             
-            if (material.material_flags[(int) TkMaterialFlags.MaterialFlagEnum._F55_MULTITEXTURE] > 0.0f)
+            if (Material.material_flags[(int) TkMaterialFlags.MaterialFlagEnum._F55_MULTITEXTURE] > 0.0f)
             {
                 //Upload depth : gUserVecData
                 GL.Uniform4(216, new Vector4(0.0f));
             }
 
-            GL.Uniform1(203, 0); // I need to upload the texture unit number
-            GL.ActiveTexture((TextureUnit)(tex0Id + 0));
-            GL.BindTexture(material.fDiffuseMap.target, material.fDiffuseMap.bufferID);
+            int sampler_counter = 0;
+            foreach (Sampler s in Material.PSamplers.Values)
+            {
+                GL.Uniform1(s.texUnit.location, sampler_counter);
+                GL.ActiveTexture(s.texUnit.texUnit);
+                GL.BindTexture(s.tex.target, s.tex.bufferID);
+                sampler_counter++;
+            }
 
-            //Mask Texture
-            GL.Uniform1(204, 1); // I need to upload the texture unit number
-
-            GL.ActiveTexture((TextureUnit)(tex0Id + 1));
-            GL.BindTexture(material.fMaskMap.target, material.fMaskMap.bufferID);
-
-            //Normal Texture
-            GL.Uniform1(205, 2); // I need to upload the texture unit number
-
-            GL.ActiveTexture((TextureUnit)(tex0Id + 2));
-            GL.BindTexture(material.fNormalMap.target, material.fNormalMap.bufferID);
 
 
             //GL.Enable(EnableCap.Blend);
@@ -980,8 +982,8 @@ namespace MVCore.GMDL
             for (int i = 0; i < 64; i++)
                 GL.Uniform1(loc + i, 0.0f);
 
-            for (int i = 0; i < material.nms_mat.Flags.Count; i++)
-                GL.Uniform1(loc + (int) material.nms_mat.Flags[i].MaterialFlag, 1.0f);
+            for (int i = 0; i < Material.nms_mat.Flags.Count; i++)
+                GL.Uniform1(loc + (int) Material.nms_mat.Flags[i].MaterialFlag, 1.0f);
 
             //Upload BoneRemap Information
             loc = GL.GetUniformLocation(pass, "boneRemap");
@@ -1320,7 +1322,7 @@ namespace MVCore.GMDL
             int loc;
             //Upload Material Flags here
             
-            GL.Uniform1(11, 64, material.material_flags); //Upload Material Flags
+            GL.Uniform1(11, 64, Material.material_flags); //Upload Material Flags
             //Upload Color Flag
 
             GL.Uniform3(209, color);
@@ -1421,13 +1423,12 @@ namespace MVCore.GMDL
                 for (int i = 0; i < 64; i++)
                     GL.Uniform1(loc + i, 0.0f);
 
-                for (int i = 0; i < material.nms_mat.Flags.Count; i++)
-                    GL.Uniform1(loc + (int) material.nms_mat.Flags[i].MaterialFlag, 1.0f);
+                for (int i = 0; i < Material.nms_mat.Flags.Count; i++)
+                    GL.Uniform1(loc + (int) Material.nms_mat.Flags[i].MaterialFlag, 1.0f);
             }
             
 
             //Upload decalTexture
-
             //BIND TEXTURES
             int tex0Id = (int)TextureUnit.Texture0;
             //Diffuse Texture
@@ -1435,8 +1436,9 @@ namespace MVCore.GMDL
             loc = GL.GetUniformLocation(pass, test);
             GL.Uniform1(loc, 0); // I need to upload the texture unit number
 
-            GL.ActiveTexture((TextureUnit) (tex0Id + 0));
-            GL.BindTexture(material.fDiffuseMap.target, material.fDiffuseMap.bufferID);
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(Material.PSamplers["diffuseMap"].tex.target, Material.PSamplers["diffuseMap"].tex.bufferID);
+
 
             //Depth Texture
             test = "depthTex";
@@ -1816,42 +1818,63 @@ namespace MVCore.GMDL
 
 
 
-    public class Material: IDisposable
+    public class Material : TkMaterialData, IDisposable
     {
         private bool disposed = false;
         public bool proc = false;
         public TkMaterialData nms_mat;
         public float[] material_flags = new float[64];
         public string name_key = "";
-        public string name
+        public textureManager texMgr;
+
+
+        public string PName
         {
             get
             {
-                if (nms_mat != null)
-                    return nms_mat.Name;
-                else
-                    return "Null_Material";
+                return Name;
+            }
+            set
+            {
+                Name = value;
             }
         }
+
+        public List<string> MaterialFlags
+        {
+            get
+            {
+                List<string> l = new List<string>();
+
+                foreach (TkMaterialFlags f in nms_mat.Flags)
+                {
+                    l.Add(f.MaterialFlag.ToString());
+                }
+
+                return l;
+            }
+        }
+
         public string type;
         //public MatOpts opts;
-        //public List<MATERIALMBIN.MATERIALFLAGS> materialflags = new List<MATERIALMBIN.MATERIALFLAGS>();
-        //public List<Uniform> uniforms = new List<Uniform>();
-        //public List<Sampler> samplers = new List<Sampler>();
-        public Dictionary<string, Dictionary<string, Vector4>> palette = new Dictionary<string, Dictionary<string, Vector4>>();
-        public List<PaletteOpt> palOpts = new List<PaletteOpt>();
-        public List<Texture> difftextures = new List<Texture>(8);
-        public List<Texture> masktextures = new List<Texture>(8);
-        public List<Texture> normaltextures = new List<Texture>(8);
-        public float[] baseLayersUsed = new float[8];
-        public float[] alphaLayersUsed = new float[8];
-        public List<float[]> reColourings = new List<float[]>(8);
-        public Texture fDiffuseMap = new Texture();
-        public Texture fMaskMap = new Texture();
-        public Texture fNormalMap = new Texture();
+        public Dictionary<string, Sampler> _PSamplers = new Dictionary<string, Sampler>();
 
+        public Dictionary<string, Sampler> PSamplers {
+            get
+            {
+                return _PSamplers;
+            }
+        }
 
-        public Dictionary<string, int> CustomPerMaterialUniformLocationDict = new Dictionary<string, int> {
+        private Dictionary<string, Uniform> _CustomPerMaterialUniforms = new Dictionary<string, Uniform>();
+        public Dictionary<string, Uniform> CustomPerMaterialUniforms {
+            get
+            {
+                return _CustomPerMaterialUniforms;
+            }
+        }
+
+        public static Dictionary<string, int> CustomPerMaterialUniformLocationDict = new Dictionary<string, int> {
             { "gMaterialColourVec4" , 211 },
             { "gMaterialParamsVec4" , 212 },
             { "gMaterialSFXVec4" , 213 },
@@ -1865,26 +1888,21 @@ namespace MVCore.GMDL
 
         public Material()
         {
-            //Init texture buffers
-            for (int i = 0; i < 8; i++)
-            {
-                difftextures.Add(null);
-                masktextures.Add(null);
-                normaltextures.Add(null);
-                reColourings.Add(new float[] { 1.0f, 1.0f, 1.0f, 0.0f });
-                palOpts.Add(null);
-            }
-
             //Clear material flags
             for (int i = 0; i < 64; i++)
                 material_flags[i] = 0.0f;
+        }
+
+        public Material(TkMaterialData md)
+        {
 
         }
 
-        public static Material Parse(string path)
+        public static Material Parse(string path, textureManager input_texMgr)
         {
             //Make new material
             Material mat = new Material();
+            mat.texMgr = input_texMgr;
             mat.ParseFromPath(path);
             return mat;
         }
@@ -1916,7 +1934,22 @@ namespace MVCore.GMDL
                 material_flags[(int) f.MaterialFlag] = 1.0f;
                 MVCore.Common.CallBacks.Log(((TkMaterialFlags.MaterialFlagEnum)f.MaterialFlag).ToString() + " ");
             }
-                
+
+            //Get Uniforms
+            foreach (TkMaterialUniform un in template.Uniforms)
+            {
+                Uniform my_un = new Uniform(un);
+                CustomPerMaterialUniforms[my_un.name] = my_un;
+            }
+
+            //Get Samplers
+            foreach (TkMaterialSampler sm in template.Samplers)
+            {
+                Sampler s = new Sampler(sm);
+                s.init(texMgr);
+                PSamplers[s.PName] = s;
+            }
+
             MVCore.Common.CallBacks.Log("\n");
         }
 
@@ -1934,76 +1967,252 @@ namespace MVCore.GMDL
         {
             GMDL.Material newmat = new GMDL.Material();
 
-            //Copy arrays
-            for (int i = 0; i < 8; i++)
-            {
-                //newmat.alphaLayersUsed = this.alphaLayersUsed;
-                //newmat.baseLayersUsed = this.baseLayersUsed;
-                //newmat.difftextures[i] = this.difftextures[i];
-                //newmat.masktextures[i] = this.masktextures[i];
-                //newmat.normaltextures[i] = this.normaltextures[i];
-                //newmat.reColourings[i] = this.reColourings[i];
-                
-                //Create palOpts
-                if (this.palOpts[i] != null)
-                {
-                    PaletteOpt palOpt = new PaletteOpt();
-                    palOpt.ColorName = this.palOpts[i].ColorName;
-                    palOpt.PaletteName = this.palOpts[i].PaletteName;
-                    newmat.palOpts[i] = palOpt;
-                }
-            }
-
             //Remix textures
 
             return newmat;
         }
 
-        private void prepProcTextures()
-        {
-            //At this point, at least one sampler exists, so for now I assume that the first sampler
-            //is always the diffuse sampler and I can initiate the mixing process
 
-            string[] split = nms_mat.Samplers[0].Map.Split('.');
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposed)
+                return;
+
+            if (disposing)
+            {
+                //DISPOSE SAMPLERS HERE
+            }
+
+            //Free unmanaged resources
+            disposed = true;
+        }
+
+        ~Material()
+        {
+            Dispose(false);
+        }
+
+    }
+    
+    public class Uniform
+    {
+        public string name;
+        public MVector4 vec;
+
+        public Uniform()
+        {
+            name = "";
+            vec = new MVector4(0.0f);
+        }
+
+        public Uniform(TkMaterialUniform un)
+        {
+            name = un.Name;
+            vec = new MVector4(un.Values.x, un.Values.y, un.Values.z, un.Values.t);
+        }
+
+        public string Name
+        {
+            get { return name; }
+            
+        }
+
+        public MVector4 Vec
+        {
+            get {
+                return vec;
+            }
+
+            set
+            {
+                vec = value;
+            }
+        }
+
+    }
+
+    public class MVector4
+    {
+        private Vector4 vec4;
+
+        public MVector4(Vector4 v)
+        {
+            vec4 = v;
+        }
+
+        public MVector4(float x , float y, float z, float w)
+        {
+            vec4 = new Vector4(x, y, z, w);
+        }
+
+        public MVector4(float x)
+        {
+            vec4 = new Vector4(x);
+        }
+
+        //Properties
+        public Vector4 Vec
+        {
+            get { return vec4; }
+            set { vec4 = value; }
+        }
+        public float X
+        {
+            get { return vec4.X; }
+            set { vec4.X = value; }
+        }
+        public float Y
+        {
+            get { return vec4.Y; }
+            set { vec4.Y = value; }
+        }
+
+        public float Z
+        {
+            get { return vec4.Z; }
+            set { vec4.Z = value; }
+        }
+
+        public float W
+        {
+            get { return vec4.W; }
+            set { vec4.W = value; }
+        }
+    }
+
+    public class MatOpts
+    {
+        public int transparency;
+        public bool castshadow;
+        public bool disableTestz;
+        public string link;
+        public string shadername;
+    }
+
+
+    public class MyTextureUnit
+    {
+        public int location;
+        public OpenTK.Graphics.OpenGL4.TextureUnit texUnit;
+
+        public static Dictionary<string, int> MapLocation = new Dictionary<string, int> {
+            { "gDiffuseMap" , 203 },
+            { "gMasksMap" ,   204 },
+            { "gNormalMap" ,  205 }
+        };
+
+        public static Dictionary<string, TextureUnit> MapTextureUnit = new Dictionary<string, TextureUnit> {
+            { "gDiffuseMap" , TextureUnit.Texture0 },
+            { "gMasksMap" ,   TextureUnit.Texture1 },
+            { "gNormalMap" ,  TextureUnit.Texture2 }
+        };
+
+        public MyTextureUnit(string sampler_name)
+        {
+            location = MapLocation[sampler_name];
+            texUnit = MapTextureUnit[sampler_name];
+        }
+    }
+
+
+    public static class TextureMixer
+    {
+        //Local storage
+        public static Dictionary<string, Dictionary<string, Vector4>> palette = new Dictionary<string, Dictionary<string, Vector4>>();
+        public static List<PaletteOpt> palOpts = new List<PaletteOpt>();
+        public static List<Texture> difftextures = new List<Texture>(8);
+        public static List<Texture> masktextures = new List<Texture>(8);
+        public static List<Texture> normaltextures = new List<Texture>(8);
+        public static float[] baseLayersUsed = new float[8];
+        public static float[] alphaLayersUsed = new float[8];
+        public static List<float[]> reColourings = new List<float[]>(8);
+
+    public static void combineTextures(string path, Dictionary<string, Dictionary<string, Vector4>> pal_input, ref textureManager texMgr)
+        {
+            //Cleanup temp buffers
+            difftextures.Clear();
+            masktextures.Clear();
+            normaltextures.Clear();
+            reColourings.Clear();
+            for (int i = 0; i < 8; i++)
+            {
+                difftextures.Add(null);
+                masktextures.Add(null);
+                normaltextures.Add(null);
+                reColourings.Add(new float[] { 1.0f, 1.0f, 1.0f, 0.0f });
+                palOpts.Add(null);
+            }
+            palette = pal_input;
+
+            //Contruct .mbin file from dds
+            string[] split = path.Split('.');
             //Construct main filename
             string temp = "";
             for (int i = 0; i < split.Length - 1; i++)
                 temp += split[i] + ".";
-            string texMbin = temp + "TEXTURE.MBIN";
-            texMbin = Path.GetFullPath(Path.Combine(FileUtils.dirpath, texMbin));
 
-            //Force procgen if there is a sub procgen texture defined in the sampler
-            //NOTE: I have absolutely no idea why the fuck this shit is here
-            if (Common.RenderState.forceProcGen)
-            {
-                texMbin = split[0] + ".TEXTURE.MBIN";
-                texMbin = Path.GetFullPath(Path.Combine(FileUtils.dirpath, texMbin));
-            }
-            
+            //Prepare output textures
+            Texture diffTex = new Texture();
+            diffTex.name = temp + "DDS";
+            Texture maskTex = new Texture();
+            maskTex.name = temp + "MASKS.DDS";
+            Texture normalTex = new Texture();
+            normalTex.name = temp + "NORMAL.DDS";
+
+            List<GMDL.Texture> tex_list = new List<Texture>();
+            tex_list.Add(diffTex);
+            tex_list.Add(maskTex);
+            tex_list.Add(normalTex);
+
+            string mbinPath = temp + "TEXTURE.MBIN";
+            mbinPath = Path.GetFullPath(Path.Combine(FileUtils.dirpath, mbinPath));
+
+            prepareTextures(texMgr, mbinPath);
+            mixTextures(ref tex_list);
+
+            //Add the new textures to the textureManager
+            texMgr.addTexture(diffTex);
+            texMgr.addTexture(maskTex);
+            texMgr.addTexture(normalTex);
+        }
+
+        //Generate procedural textures
+        private static void prepareTextures(textureManager texMgr, string path)
+        {
+            //At this point, at least one sampler exists, so for now I assume that the first sampler
+            //is always the diffuse sampler and I can initiate the mixing process
+            string texMbin = Path.GetFullPath(Path.Combine(FileUtils.dirpath, path));
+
             Console.WriteLine("Procedural Texture Detected: " + texMbin);
             MVCore.Common.CallBacks.Log(string.Format("Parsing Procedural Texture"));
-            this.proc = true;
 
             libMBIN.MBINFile mbinf = new libMBIN.MBINFile(texMbin);
             mbinf.Load();
             TkProceduralTextureList template = (TkProceduralTextureList)mbinf.GetData();
             mbinf.Dispose();
 
-                
+
             List<TkProceduralTexture> texList = new List<TkProceduralTexture>(8);
             for (int i = 0; i < 8; i++) texList.Add(null);
             ModelProcGen.parse_procTexture(ref texList, template);
 
 #if DEBUG
             Console.WriteLine("Proc Texture Selection");
-            for (int i = 0; i < 8; i++) {
+            for (int i = 0; i < 8; i++)
+            {
                 if (texList[i] != null)
                 {
                     string partNameDiff = texList[i].Diffuse;
                     Console.WriteLine(partNameDiff);
                 }
             }
-                        
+
 #endif
             Console.WriteLine("Procedural Material. Trying to generate procTextures...");
 
@@ -2046,7 +2255,7 @@ namespace MVCore.GMDL
                     //Add White
                     baseLayersUsed[i] = 0.0f;
                 }
-                else if (!Common.RenderState.activeResMgr.GLtextures.ContainsKey(partNameDiff))
+                else if (!texMgr.hasTexture(partNameDiff))
                 {
                     //Construct Texture paths
                     string pathDiff = Path.Combine(FileUtils.dirpath, partNameDiff);
@@ -2057,11 +2266,11 @@ namespace MVCore.GMDL
                         Texture tex = new Texture(partNameDiff);
                         tex.palOpt = palOpt;
                         tex.procColor = palColor;
-                        //store to global dict
-                        Common.RenderState.activeResMgr.GLtextures[partNameDiff] = tex;
+                        //Store to texture manager
+                        texMgr.addTexture(tex);
 
                         //Save Texture to material
-                        this.difftextures[i] = tex;
+                        difftextures[i] = tex;
                         baseLayersUsed[i] = 1.0f;
                         alphaLayersUsed[i] = 1.0f;
                     }
@@ -2076,12 +2285,11 @@ namespace MVCore.GMDL
                 else
                 //Load texture from dict
                 {
-                    Texture tex = Common.RenderState.activeResMgr.GLtextures[partNameDiff];
+                    Texture tex = texMgr.getTexture(partNameDiff);
                     //Save Texture to material
-                    this.difftextures[i] = tex;
+                    difftextures[i] = tex;
                     baseLayersUsed[i] = 1.0f;
                 }
-
 
                 //MASK
                 if (partNameMask == "")
@@ -2089,17 +2297,16 @@ namespace MVCore.GMDL
                     //Skip
                     alphaLayersUsed[i] = 0.0f;
                 }
-                else if (!Common.RenderState.activeResMgr.GLtextures.ContainsKey(partNameMask))
+                else if (!texMgr.hasTexture(partNameMask))
                 {
                     string pathMask = Path.Combine(FileUtils.dirpath, partNameMask);
                     //Configure Mask
                     try
                     {
                         Texture texmask = new Texture(partNameMask);
-                        //store to global dict
-                        Common.RenderState.activeResMgr.GLtextures[partNameMask] = texmask;
+                        texMgr.addTexture(texmask);
                         //Store Texture to material
-                        this.masktextures[i] = texmask;
+                        masktextures[i] = texmask;
                         alphaLayersUsed[i] = 0.0f;
                     }
                     catch (System.IO.FileNotFoundException)
@@ -2113,9 +2320,9 @@ namespace MVCore.GMDL
                 else
                 //Load texture from dict
                 {
-                    Texture tex = Common.RenderState.activeResMgr.GLtextures[partNameMask];
+                    Texture tex = texMgr.getTexture(partNameMask);
                     //Store Texture to material
-                    this.masktextures[i] = tex;
+                    masktextures[i] = tex;
                     alphaLayersUsed[i] = 1.0f;
                 }
 
@@ -2126,7 +2333,7 @@ namespace MVCore.GMDL
                     //Skip
 
                 }
-                else if (!Common.RenderState.activeResMgr.GLtextures.ContainsKey(partNameNormal))
+                else if (!texMgr.hasTexture(partNameNormal))
                 {
                     string pathNormal = Path.Combine(FileUtils.dirpath, partNameNormal);
 
@@ -2134,9 +2341,9 @@ namespace MVCore.GMDL
                     {
                         Texture texnormal = new Texture(partNameNormal);
                         //store to global dict
-                        Common.RenderState.activeResMgr.GLtextures[partNameNormal] = texnormal;
+                        texMgr.addTexture(texnormal);
                         //Store Texture to material
-                        this.normaltextures[i] = texnormal;
+                        normaltextures[i] = texnormal;
                     }
                     catch (System.IO.FileNotFoundException)
                     {
@@ -2149,162 +2356,17 @@ namespace MVCore.GMDL
                 else
                 //Load texture from dict
                 {
-                    Texture tex = Common.RenderState.activeResMgr.GLtextures[partNameNormal];
+                    Texture tex = texMgr.getTexture(partNameNormal);
                     //Store Texture to material
-                    this.normaltextures[i] = tex;
+                    normaltextures[i] = tex;
                 }
 
-            }
-
-            //Mix Textures now
-            this.mixTextures();
-            
-        }
-
-        private void prepRegularTextures()
-        {
-            int active_id = 0;
-            Console.WriteLine("Regular Material. Trying to parse all samplers...");
-            
-            foreach (TkMaterialSampler sam in nms_mat.Samplers)
-            {
-                if (sam.Map == "")
-                    continue;
-
-                //Try to load the texture
-                Texture tex;
-                if (Common.RenderState.activeResMgr.GLtextures.ContainsKey(sam.Map))
-                {
-                    tex = Common.RenderState.activeResMgr.GLtextures[sam.Map];
-                }
-                else
-                {
-                    tex = new Texture(sam.Map);
-                    tex.palOpt = new PaletteOpt(false);
-                    tex.procColor = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
-                    //Store to resource
-                    Common.RenderState.activeResMgr.GLtextures[sam.Map] = tex;
-                }
-
-                //Save texture to material
-                switch (sam.Name)
-                {
-                    case "gDiffuseMap":
-                        {
-                            fDiffuseMap = tex;
-                            difftextures[0] = tex; //save it so we can access them later on
-                            break;
-                        }
-                        
-                    case "gMasksMap":
-                        {
-                            fMaskMap = tex;
-                            masktextures[0] = tex; //save it so we can access them later on
-                            break;
-                        }
-                    case "gNormalMap":
-                        {
-                            fNormalMap = tex;
-                            normaltextures[0] = tex; //save it so we can access them later on
-                            break;
-                        }
-                    default :
-                        MVCore.Common.CallBacks.Log("Unknown Sampler Name " + sam.Name);
-                        break;
-                }
 
             }
         }
 
-
-        public void prepTextures()
+        private static void mixTextures(ref List<GMDL.Texture> out_tex_list)
         {
-            //At first figure out if the material is proc_gen or not.
-            //For this reason we iterate in the samplers, find the diffusemap and look for 
-            //the appropriate mbin file.
-            bool is_proc_gen = false;
-            foreach (TkMaterialSampler sam in nms_mat.Samplers)
-            {
-                if (sam.Name != "gDiffuseMap") continue;
-
-                string[] split = sam.Map.Split('.');
-                //Construct main filename
-                string temp = "";
-                for (int i = 0; i < split.Length - 1; i++)
-                    temp += split[i] + ".";
-                string texMbin = temp + "TEXTURE.MBIN";
-                texMbin = Path.GetFullPath(Path.Combine(FileUtils.dirpath, texMbin));
-
-                //Force procgen if there is a sub procgen texture defined in the sampler
-                if (Common.RenderState.forceProcGen)
-                {
-                    texMbin = split[0] + ".TEXTURE.MBIN";
-                    texMbin = Path.GetFullPath(Path.Combine(FileUtils.dirpath, texMbin));
-                }
-
-                //Detect Procedural Texture
-                if (File.Exists(texMbin))
-                {
-                    is_proc_gen = true;
-                    break;
-                }
-            }
-
-            if (is_proc_gen)
-            {
-                prepProcTextures();
-            }   
-            else
-                prepRegularTextures();
-
-        }
-
-
-        private int generate2DTexture(PixelInternalFormat fmt, int w, int h, PixelFormat pix_fmt, PixelType pix_type, int mipmap_count)
-        {
-            int tex_id = GL.GenTexture();
-            GL.BindTexture(TextureTarget.Texture2D, tex_id);
-            GL.TexImage2D(TextureTarget.Texture2D, 0, fmt, w, h, 0, pix_fmt, pix_type, IntPtr.Zero);
-            return tex_id;
-        }
-
-        private int generateTexture2DArray(PixelInternalFormat fmt, int w, int h, int d, PixelFormat pix_fmt, PixelType pix_type, int mipmap_count)
-        {
-            int tex_id = GL.GenTexture();
-            GL.BindTexture(TextureTarget.Texture2DArray, tex_id);
-            GL.TexImage3D(TextureTarget.Texture2DArray, 0, fmt, w, h, d, 0, pix_fmt, pix_type, IntPtr.Zero);
-            return tex_id;
-        }
-
-        private void generateTexture2DMipmaps(int texture)
-        {
-            GL.BindTexture(TextureTarget.Texture2D, texture);
-            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
-        }
-
-        private void generateTexture2DArrayMipmaps(int texture)
-        {
-            GL.BindTexture(TextureTarget.Texture2DArray, texture);
-            GL.GenerateMipmap(GenerateMipmapTarget.Texture2DArray);
-            Console.WriteLine(GL.GetError());
-        }
-
-        private void setupTextureParameters(int texture, int wrapMode, int magFilter, int minFilter, float af_amount)
-        {
-            GL.BindTexture(TextureTarget.Texture2D, texture);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, wrapMode);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, wrapMode);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, magFilter);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, minFilter);
-            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 4.0f);
-            
-            //Use anisotropic filtering
-            af_amount = Math.Max(af_amount, GL.GetFloat((GetPName)All.MaxTextureMaxAnisotropy));
-            GL.TexParameter(TextureTarget.Texture2D, (TextureParameterName)0x84FE, af_amount);
-        }
-
-
-        public void mixTextures() {
             //Find texture sizes
             int texWidth = 0;
             int texHeight = 0;
@@ -2319,44 +2381,38 @@ namespace MVCore.GMDL
                 }
             }
 
-
             //TODO: Since I have to read the buffers and generate 2DTextureArrays, I can use render buffers at this point
-            
             //Generate Textures for the FBO
 
             //Diffuse Output
-            int out_tex_diffuse = generate2DTexture(PixelInternalFormat.Rgba, texWidth, texHeight, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
-            setupTextureParameters(out_tex_diffuse, (int) TextureWrapMode.Repeat, 
-                (int) TextureMagFilter.Linear, (int)TextureMinFilter.LinearMipmapLinear, 4.0f);
-            
+            int out_tex_diffuse = Sampler.generate2DTexture(PixelInternalFormat.Rgba, texWidth, texHeight, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
+            Sampler.setupTextureParameters(out_tex_diffuse, (int)TextureWrapMode.Repeat,
+                (int)TextureMagFilter.Linear, (int)TextureMinFilter.LinearMipmapLinear, 4.0f);
+
             //Mask Output
-            int out_tex_mask = generate2DTexture(PixelInternalFormat.Rgba, texWidth, texHeight, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
-            setupTextureParameters(out_tex_mask, (int)TextureWrapMode.Repeat,
+            int out_tex_mask = Sampler.generate2DTexture(PixelInternalFormat.Rgba, texWidth, texHeight, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
+            Sampler.setupTextureParameters(out_tex_mask, (int)TextureWrapMode.Repeat,
                 (int)TextureMagFilter.Linear, (int)TextureMinFilter.LinearMipmapLinear, 4.0f);
 
             //Normal Output
-            int out_tex_normal = generate2DTexture(PixelInternalFormat.Rgba, texWidth, texHeight, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
-            setupTextureParameters(out_tex_normal, (int)TextureWrapMode.Repeat,
+            int out_tex_normal = Sampler.generate2DTexture(PixelInternalFormat.Rgba, texWidth, texHeight, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
+            Sampler.setupTextureParameters(out_tex_normal, (int)TextureWrapMode.Repeat,
                 (int)TextureMagFilter.Nearest, (int)TextureMinFilter.LinearMipmapNearest, 4.0f);
 
             //Create New RenderBuffer for the diffuse
             int fb_diffuse = GL.GenFramebuffer();
-
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, fb_diffuse);
-            
+
             //Attach Textures to this FBO
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, out_tex_diffuse, 0);
-            Console.WriteLine(GL.GetError());
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment1, TextureTarget.Texture2D, out_tex_mask, 0);
-            Console.WriteLine(GL.GetError());
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment2, TextureTarget.Texture2D, out_tex_normal, 0);
-
 
             //Check
             Debug.Assert(GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer) == FramebufferErrorCode.FramebufferComplete);
-            
+
             //Upload Textures
-            
+
             //BIND TEXTURES
             Texture tex;
             int loc;
@@ -2373,8 +2429,8 @@ namespace MVCore.GMDL
             //GL.Enable(EnableCap.Blend);
             //GL.BlendFunc(BlendingFactorSrc.ConstantAlpha, BlendingFactorDest.OneMinusConstantAlpha);
 
-            Texture dMask = Common.RenderState.activeResMgr.GLtextures["default_mask.dds"];
-            Texture dDiff = Common.RenderState.activeResMgr.GLtextures["default.dds"];
+            Texture dMask = Common.RenderState.activeResMgr.texMgr.getTexture("default_mask.dds");
+            Texture dDiff = Common.RenderState.activeResMgr.texMgr.getTexture("default.dds");
 
             //USE PROGRAM
             int pass_program = Common.RenderState.activeResMgr.GLShaders["TEXTURE_MIXING_SHADER"];
@@ -2408,20 +2464,10 @@ namespace MVCore.GMDL
 
                 int tex0Id = (int)TextureUnit.Texture0;
 
-                GL.ActiveTexture((TextureUnit) (tex0Id + active_id));
+                GL.ActiveTexture((TextureUnit)(tex0Id + active_id));
                 GL.BindTexture(tex.target, tex.bufferID);
 
             }
-
-            //Seems like alphaChannel variable is set from the _F24_AOMAP flag
-            //^^^ AO Map flag probably does not fix the alpha situation.
-            //Decals don't have the flag but their textures contain alpha. For now I'm adding the Transparent flag on the check as well
-            loc = GL.GetUniformLocation(pass_program, "hasAlphaChannel");
-            if (has_flag(TkMaterialFlags.MaterialFlagEnum._F24_AOMAP) ||
-                has_flag(TkMaterialFlags.MaterialFlagEnum._F09_TRANSPARENT))
-                GL.Uniform1(loc, 1.0f);
-            else
-                GL.Uniform1(loc, 0.0f);
 
             loc = GL.GetUniformLocation(pass_program, "baseLayerIndex");
             GL.Uniform1(loc, baseLayerIndex);
@@ -2466,7 +2512,7 @@ namespace MVCore.GMDL
                 //Use Texture paletteOpt and object palette to load the palette color
                 //GL.Uniform3(loc, palette[tex.palOpt.PaletteName][tex.palOpt.ColorName]);
 
-                GL.ActiveTexture((TextureUnit) (tex0Id + 8 + active_id));
+                GL.ActiveTexture((TextureUnit)(tex0Id + 8 + active_id));
                 GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
 
             }
@@ -2506,10 +2552,10 @@ namespace MVCore.GMDL
                 int active_id = i;
                 loc = GL.GetUniformLocation(pass_program, "lRecolours[" + active_id.ToString() + "]");
                 //GL.Uniform4(loc, reColourings[active_id][0], reColourings[active_id][1], reColourings[active_id][2], reColourings[active_id][3]);
-                GL.Uniform4(loc, (float) reColourings[active_id][0],
-                                 (float) reColourings[active_id][1],
-                                 (float) reColourings[active_id][2],
-                                 (float) reColourings[active_id][3]);
+                GL.Uniform4(loc, (float)reColourings[active_id][0],
+                                 (float)reColourings[active_id][1],
+                                 (float)reColourings[active_id][2],
+                                 (float)reColourings[active_id][3]);
                 //GL.Uniform4(loc, 1.0f, 1.0f, 1.0f, 1.0f);
             }
 
@@ -2530,27 +2576,25 @@ namespace MVCore.GMDL
             GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, IntPtr.Zero);
 
             //Console.WriteLine("MixTextures5, Last GL Error: " + GL.GetError());
-            int out_tex_2darray_diffuse = generateTexture2DArray(PixelInternalFormat.Rgba8, texWidth, texHeight, 1, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
-            setupTextureParameters(out_tex_diffuse, (int)TextureWrapMode.Repeat,
+            int out_tex_2darray_diffuse = Sampler.generateTexture2DArray(PixelInternalFormat.Rgba8, texWidth, texHeight, 1, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
+            Sampler.setupTextureParameters(out_tex_diffuse, (int)TextureWrapMode.Repeat,
                 (int)TextureMagFilter.Linear, (int)TextureMinFilter.LinearMipmapLinear, 4.0f);
 
-            Console.WriteLine(GL.GetError());
-            int out_tex_2darray_mask = generateTexture2DArray(PixelInternalFormat.Rgba8, texWidth, texHeight, 1, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
-            setupTextureParameters(out_tex_diffuse, (int)TextureWrapMode.Repeat,
+            int out_tex_2darray_mask = Sampler.generateTexture2DArray(PixelInternalFormat.Rgba8, texWidth, texHeight, 1, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
+            Sampler.setupTextureParameters(out_tex_diffuse, (int)TextureWrapMode.Repeat,
                 (int)TextureMagFilter.Linear, (int)TextureMinFilter.LinearMipmapLinear, 4.0f);
 
-            Console.WriteLine(GL.GetError());
-            int out_tex_2darray_normal = generateTexture2DArray(PixelInternalFormat.Rgba8, texWidth, texHeight, 1, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
-            setupTextureParameters(out_tex_diffuse, (int)TextureWrapMode.Repeat,
+            int out_tex_2darray_normal = Sampler.generateTexture2DArray(PixelInternalFormat.Rgba8, texWidth, texHeight, 1, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
+            Sampler.setupTextureParameters(out_tex_diffuse, (int)TextureWrapMode.Repeat,
                 (int)TextureMagFilter.Linear, (int)TextureMinFilter.LinearMipmapLinear, 4.0f);
 
-            
+
             //Copy the read buffers to the 
 
             GL.BindTexture(TextureTarget.Texture2DArray, out_tex_2darray_diffuse);
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             GL.CopyTexSubImage3D(TextureTarget.Texture2DArray, 0, 0, 0, 0, 0, 0, texWidth, texHeight);
-            
+
             GL.BindTexture(TextureTarget.Texture2DArray, out_tex_2darray_mask);
             GL.ReadBuffer(ReadBufferMode.ColorAttachment1);
             GL.CopyTexSubImage3D(TextureTarget.Texture2DArray, 0, 0, 0, 0, 0, 0, texWidth, texHeight);
@@ -2559,21 +2603,24 @@ namespace MVCore.GMDL
             GL.ReadBuffer(ReadBufferMode.ColorAttachment2);
             GL.CopyTexSubImage3D(TextureTarget.Texture2DArray, 0, 0, 0, 0, 0, 0, texWidth, texHeight);
 
-            
+
             //Generate Mipmaps to the new textures from the base level
-            generateTexture2DArrayMipmaps(out_tex_2darray_diffuse);
-            generateTexture2DArrayMipmaps(out_tex_2darray_mask);
-            generateTexture2DArrayMipmaps(out_tex_2darray_normal);
+            Sampler.generateTexture2DArrayMipmaps(out_tex_2darray_diffuse);
+            Sampler.generateTexture2DArrayMipmaps(out_tex_2darray_mask);
+            Sampler.generateTexture2DArrayMipmaps(out_tex_2darray_normal);
+
+
+            //Find name for textures
 
             //Store Diffuse Texture to material
-            fDiffuseMap.bufferID = out_tex_2darray_diffuse;
-            fDiffuseMap.target = TextureTarget.Texture2DArray;
+            out_tex_list[0].bufferID = out_tex_2darray_diffuse;
+            out_tex_list[0].target = TextureTarget.Texture2DArray;
             //Store Mask Texture to material
-            fMaskMap.bufferID = out_tex_2darray_mask;
-            fMaskMap.target = TextureTarget.Texture2DArray;
+            out_tex_list[1].bufferID = out_tex_2darray_mask;
+            out_tex_list[1].target = TextureTarget.Texture2DArray;
             //Store Normal Texture to material
-            fNormalMap.bufferID = out_tex_2darray_normal;
-            fNormalMap.target = TextureTarget.Texture2DArray;
+            out_tex_list[2].bufferID = out_tex_2darray_normal;
+            out_tex_list[2].target = TextureTarget.Texture2DArray;
 
 #if (DUMP_TEXTURESNONO)
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
@@ -2590,7 +2637,142 @@ namespace MVCore.GMDL
                 MVCore.Common.RenderState.gbuf.size[1]);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
             GL.DeleteFramebuffer(fb_diffuse);
+
+            //Delete Fraomebuffer Textures
+            GL.DeleteTexture(out_tex_diffuse);
+            GL.DeleteTexture(out_tex_mask);
+            GL.DeleteTexture(out_tex_normal);
+
         }
+    }
+
+
+
+
+    public class Sampler: TkMaterialSampler, IDisposable
+    {
+        public MyTextureUnit texUnit;
+        public Texture tex;
+        public textureManager texMgr; //For now it should be inherited from the scene. In the future I can use a delegate
+
+        //Override Properties
+        public string PName
+        {
+            get {
+                return Name;
+            }
+            set
+            {
+                Name = value;
+            }
+        }
+
+        public string PMap
+        {
+            get
+            {
+                return Map;
+            }
+            set
+            {
+                Map = value;
+            }
+        }
+                
+        public Sampler() {
+            
+        }
+
+        public Sampler(TkMaterialSampler ms) {
+            //Pass everything here because there is no base copy constructor in the NMS template
+            this.Name = ms.Name;
+            this.Map = ms.Map;
+            this.IsCube = ms.IsCube;
+            this.IsSRGB = ms.IsSRGB;
+            this.UseCompression = ms.UseCompression;
+            this.UseMipMaps = ms.UseMipMaps;
+        }
+
+        public Sampler Clone()
+        {
+            Sampler newsampler = new Sampler();
+            
+            newsampler.PName = PName;
+            newsampler.PMap = PMap;
+            newsampler.texMgr = texMgr;
+            newsampler.tex = tex;
+            newsampler.texUnit = texUnit;
+            newsampler.TextureAddressMode = TextureAddressMode;
+            newsampler.TextureFilterMode = TextureFilterMode;
+
+            return newsampler;
+        }
+
+
+        public void init(textureManager input_texMgr)
+        {
+            texMgr = input_texMgr;
+
+            //Save texture to material
+            switch (Name)
+            {
+                case "gDiffuseMap":
+                case "gMasksMap":
+                case "gNormalMap":
+                    prepTextures();
+                    texUnit = new MyTextureUnit(Name);
+                    break;
+                default:
+                    MVCore.Common.CallBacks.Log("Not sure how to handle Sampler " + Name);
+                    break;
+            }
+        }
+        
+
+        public void prepTextures()
+        {
+            string[] split = Map.Split('.');
+            //Construct main filename
+            string temp = "";
+            for (int i = 0; i < split.Length - 1; i++)
+                temp += split[i] + ".";
+            string texMbin = temp + "TEXTURE.MBIN";
+            texMbin = Path.GetFullPath(Path.Combine(FileUtils.dirpath, texMbin));
+
+            //Detect Procedural Texture
+            if (File.Exists(texMbin))
+            {
+                TextureMixer.combineTextures(Map, Palettes.paletteSel, ref texMgr);
+            }
+
+            //Load the texture to the sampler
+            loadTexture();
+        }
+
+
+        private void loadTexture()
+        {
+            Console.WriteLine("Trying to load Texture");
+
+            if (Map == "")
+                return;
+
+            //Try to load the texture
+            if (texMgr.hasTexture(Map))
+            {
+                tex = texMgr.getTexture(Map);
+            }
+            else
+            {
+                tex = new Texture(Map);
+                tex.palOpt = new PaletteOpt(false);
+                tex.procColor = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
+                //Store to resource
+                texMgr.addTexture(tex);
+            }
+
+        }
+
 
         private void dump_texture(string name, int width, int height)
         {
@@ -2598,103 +2780,88 @@ namespace MVCore.GMDL
             GL.ReadPixels(0, 0, width, height, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             var bmp = new Bitmap(width, height);
             for (int i = 0; i < height; i++)
-            for (int j = 0; j < width; j++)
-                bmp.SetPixel(j, i, Color.FromArgb(pixels[4 * (width * i + j) + 3],
-                    (int)pixels[4 * (width * i + j) + 0],
-                    (int)pixels[4 * (width * i + j) + 1],
-                    (int)pixels[4 * (width * i + j) + 2]));
-            bmp.Save("Temp//framebuffer_raw_"+ name + "_" + this.name + ".png", ImageFormat.Png);
+                for (int j = 0; j < width; j++)
+                    bmp.SetPixel(j, i, Color.FromArgb(pixels[4 * (width * i + j) + 3],
+                        (int)pixels[4 * (width * i + j) + 0],
+                        (int)pixels[4 * (width * i + j) + 1],
+                        (int)pixels[4 * (width * i + j) + 2]));
+            bmp.Save("Temp//framebuffer_raw_" + name + "_" + this.PName + ".png", ImageFormat.Png);
         }
 
-        public void Dispose()
+
+        public static int generate2DTexture(PixelInternalFormat fmt, int w, int h, PixelFormat pix_fmt, PixelType pix_type, int mipmap_count)
         {
-            Dispose(true);
-            GC.SuppressFinalize(this);
+            int tex_id = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, tex_id);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, fmt, w, h, 0, pix_fmt, pix_type, IntPtr.Zero);
+            return tex_id;
         }
+
+        public static int generateTexture2DArray(PixelInternalFormat fmt, int w, int h, int d, PixelFormat pix_fmt, PixelType pix_type, int mipmap_count)
+        {
+            int tex_id = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2DArray, tex_id);
+            GL.TexImage3D(TextureTarget.Texture2DArray, 0, fmt, w, h, d, 0, pix_fmt, pix_type, IntPtr.Zero);
+            return tex_id;
+        }
+
+        public static void generateTexture2DMipmaps(int texture)
+        {
+            GL.BindTexture(TextureTarget.Texture2D, texture);
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+        }
+
+        public static void generateTexture2DArrayMipmaps(int texture)
+        {
+            GL.BindTexture(TextureTarget.Texture2DArray, texture);
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2DArray);
+        }
+
+        public static void setupTextureParameters(int texture, int wrapMode, int magFilter, int minFilter, float af_amount)
+        {
+            GL.BindTexture(TextureTarget.Texture2D, texture);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, wrapMode);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, wrapMode);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, magFilter);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, minFilter);
+            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 4.0f);
+
+            //Use anisotropic filtering
+            af_amount = Math.Max(af_amount, GL.GetFloat((GetPName)All.MaxTextureMaxAnisotropy));
+            GL.TexParameter(TextureTarget.Texture2D, (TextureParameterName)0x84FE, af_amount);
+        }
+
+        #region IDisposable Support
+        private bool disposedValue = false; // To detect redundant calls
 
         protected virtual void Dispose(bool disposing)
         {
-            if (disposed)
-                return;
-
-            if (disposing)
+            if (!disposedValue)
             {
-                palette.Clear();
-                //materialflags.Clear();
-                //uniforms.Clear();
-                //samplers.Clear();
-                reColourings.Clear();
-                //Texture lists should have been disposed from the dictionary
-                cleanupOriginals();
+                if (disposing)
+                {
+                    //Texture lists should have been disposed from the dictionary
+                    //Free other resources here
+                }
 
-                if (fDiffuseMap != null) fDiffuseMap.Dispose();
-                if (fMaskMap != null) fMaskMap.Dispose();
-                if (fNormalMap != null) fNormalMap.Dispose();
-                //Free other resources here
+                // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
+                // TODO: set large fields to null.
+
+                disposedValue = true;
             }
-
-            //Free unmanaged resources
-            disposed = true;
         }
 
-        ~Material()
+        // This code added to correctly implement the disposable pattern.
+        public void Dispose()
         {
-            Dispose(false);
+            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+            Dispose(true);
+            // TODO: uncomment the following line if the finalizer is overridden above.
+            // GC.SuppressFinalize(this);
         }
+        #endregion
 
-        public void cleanupOriginals()
-        {
-            foreach (Texture t in difftextures)
-                if (t != null) t.Dispose();
-            difftextures.Clear();
-            foreach (Texture t in masktextures)
-                if (t != null) t.Dispose();
-            masktextures.Clear();
-            foreach (Texture t in normaltextures)
-                if (t != null) t.Dispose();
-            normaltextures.Clear();
 
-        }
-        
-    }
-    
-    public class Uniform
-    {
-        public string name;
-        public Vector4 value;
-    }
-
-    public class MatOpts
-    {
-        public int transparency;
-        public bool castshadow;
-        public bool disableTestz;
-        public string link;
-        public string shadername;
-    }
-
-    public class Sampler
-    {
-        public string name;
-        public string map;
-        //public string pathDiff;
-        //public string pathMask = null;
-        //public string pathNormal = null;
-        public bool proc = false;
-        //public List<Texture> procTextures = new List<Texture>();
-
-        public Sampler Clone()
-        {
-            Sampler newsampler = new Sampler();
-            newsampler.name = name;
-            newsampler.map = map;
-            //newsampler.pathDiff = pathDiff;
-            //newsampler.pathMask = pathMask;
-            //newsampler.pathNormal = pathNormal;
-            newsampler.proc = proc;
-            return newsampler;
-
-        }
     }
 
     public class PaletteOpt
@@ -2801,8 +2968,6 @@ namespace MVCore.GMDL
             int depth_count = Math.Max(1, ddsImage.header.dwDepth); //Fix the counter to 1 to fit the texture in a 3D container
             int temp_size = ddsImage.header.dwPitchOrLinearSize;
 
-            Console.WriteLine(GL.GetError());
-
             //Upload to GPU
             bufferID = GL.GenTexture();
             target = TextureTarget.Texture2DArray;
@@ -2820,7 +2985,7 @@ namespace MVCore.GMDL
                 Array.Copy(ddsImage.bdata, offset, tex_data, 0, temp_size * depth_count);
                 GL.CompressedTexImage3D(target, i, this.pif, w, h, depth_count, 0, temp_size * depth_count, tex_data);
                 //GL.TexImage3D(target, i, PixelInternalFormat.Rgba8, w, h, depth_count, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
-                Console.WriteLine(GL.GetError());
+                //Console.WriteLine(GL.GetError());
 
                 offset += temp_size * depth_count;
                 temp_size = Math.Max(temp_size/4, blocksize);
@@ -2828,7 +2993,6 @@ namespace MVCore.GMDL
                 h = Math.Max(h >> 1, 4);
             }
             
-            //Console.WriteLine(GL.GetError());
             //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureLodBias, -0.2f);
             GL.TexParameter(target, TextureParameterName.TextureWrapS, (int) TextureWrapMode.Repeat);
             GL.TexParameter(target, TextureParameterName.TextureWrapT, (int) TextureWrapMode.Repeat);

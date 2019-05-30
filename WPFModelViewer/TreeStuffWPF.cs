@@ -5,13 +5,14 @@ using MVCore.GMDL;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Windows.Markup;
+using System.Collections.ObjectModel;
 
 namespace WPFModelViewer
 {
 
     public class ModelNode : INotifyPropertyChanged
     {
-        public List<ModelNode> Children { get; set; }
+        public ObservableCollection<ModelNode> Children { get; set; }
         public model mdl;
         private bool _isChecked;
         public bool IsInitiallySelected { get; }
@@ -35,7 +36,7 @@ namespace WPFModelViewer
         {
             Name = md.name;
             mdl = md;
-            Children = new List<ModelNode>();
+            Children = new ObservableCollection<ModelNode>();
             IsInitiallySelected = true;
             IsChecked = true;
         }

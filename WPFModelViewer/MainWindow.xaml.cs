@@ -46,7 +46,8 @@ namespace WPFModelViewer
         //Treeview Helpers
         TextBlock old_tb;
         TextBlock start_tb;
-
+        model init_drag;
+        model target_drag;
 
         public MainWindow()
         {
@@ -69,6 +70,8 @@ namespace WPFModelViewer
             //Improve performance on Treeview
             SceneTreeView.SetValue(VirtualizingStackPanel.IsVirtualizingProperty, true);
             SceneTreeView.SetValue(VirtualizingStackPanel.VirtualizationModeProperty, VirtualizationMode.Recycling);
+            System.Diagnostics.PresentationTraceSources.DataBindingSource.Switch.Level = System.Diagnostics.SourceLevels.Error;
+            System.Diagnostics.PresentationTraceSources.DataBindingSource.Listeners.Add(new BindingErrorTraceListener());
         }
 
         //Open File
@@ -85,13 +88,21 @@ namespace WPFModelViewer
             var filename = openFileDlg.FileName;
             Console.WriteLine("Importing " + filename);
 
+
+            //Clear treeview
+            Application.Current.Dispatcher.BeginInvoke((Action)(() =>
+            {
+                SceneTreeView.Items.Clear();
+                glControl.rootObject.Dispose();
+            }));
+            
             //Generate Request for rendering thread
             ThreadRequest req = new ThreadRequest();
             req.type = THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST;
             req.arguments.Clear();
             req.arguments.Add(filename);
 
-            glControl.issueRequest(req);
+            glControl.issueRequest(ref req);
             issuedRequests.Add(req);
 
             //Cleanup resource manager
@@ -114,14 +125,11 @@ namespace WPFModelViewer
                             {
                                 case THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST:
                                     glControl.rootObject.ID = itemCounter;
-                                    Util.setStatus("Creating Nodes...");
-                                    ModelNode scn_node = new ModelNode(glControl.rootObject);
-                                    traverse_oblist(glControl.rootObject, scn_node);
+                                    Util.setStatus("Creating Treeview...");
                                     //Add to UI
                                     Application.Current.Dispatcher.BeginInvoke((Action)(() =>
                                     {
-                                        SceneTreeView.Items.Clear();
-                                        SceneTreeView.Items.Add(scn_node);
+                                        SceneTreeView.Items.Add(glControl.rootObject);
                                     }));
                                     Util.setStatus("Ready");
                                     break;
@@ -163,7 +171,7 @@ namespace WPFModelViewer
             ThreadRequest req = new ThreadRequest();
             req.type = THREAD_REQUEST_TYPE.TERMINATE_REQUEST;
             req.arguments.Clear();
-            glControl.issueRequest(req);
+            glControl.issueRequest(ref req);
 
             //Wait for the request to finish
             while (true)
@@ -204,7 +212,7 @@ namespace WPFModelViewer
                         req.arguments.Add(glControl.Height);
 
                         //Send request
-                        glControl.issueRequest(req);
+                        glControl.issueRequest(ref req);
                         issuedRequests.Add(req);
 
                         //Send Unpause rendering requenst
@@ -213,7 +221,7 @@ namespace WPFModelViewer
                         req.arguments.Clear();
 
                         //Send request
-                        glControl.issueRequest(req);
+                        glControl.issueRequest(ref req);
                         issuedRequests.Add(req);
 
                         //Mark as handled event
@@ -228,7 +236,7 @@ namespace WPFModelViewer
                         req.arguments.Clear();
 
                         //Send request
-                        glControl.issueRequest(req);
+                        glControl.issueRequest(ref req);
                         issuedRequests.Add(req);
 
                         //Mark as handled event
@@ -272,9 +280,7 @@ namespace WPFModelViewer
             glControl.rootObject = scene;
 
             SceneTreeView.Items.Clear();
-            ModelNode scn_node = new ModelNode(glControl.rootObject);
-            traverse_oblist(glControl.rootObject, scn_node);
-            SceneTreeView.Items.Add(scn_node);
+            SceneTreeView.Items.Add(scene);
             
 
             //Check if Temp folder exists
@@ -321,26 +327,8 @@ namespace WPFModelViewer
         }
 
 
-        //Helpers
-        private void traverse_oblist(model ob, ModelNode parent)
-        {
-            ob.ID = this.itemCounter;
-            this.itemCounter++;
-            
-            if (ob.children.Count > 0)
-            {
-                foreach (model child in ob.children)
-                {
-                    //Set object index
-                    //Check if child is a scene
-                    ModelNode node = new ModelNode(child);
-                    parent.Children.Add(node);
-                    traverse_oblist(child, node);
-                }
-            }
-        }
-
-
+        //Event Handlers
+        
         private void Sliders_OnValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             //Update slider values
@@ -396,26 +384,25 @@ namespace WPFModelViewer
 
         private void SceneTreeView_OnSelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
         {
-            ModelNode node = (ModelNode) SceneTreeView.SelectedItem;
+            model node = (model) SceneTreeView.SelectedItem;
             if (node != null)
             {
                 //Swap activeModels
                 prev_activeModel = activeModel;
-                activeModel = node.mdl;
+                activeModel = node;
 
                 //Set binding to objectinfo box
-                ObjectInfoBox.DataContext = node.mdl;
-                
+                ObjectInfoBox.Content = node;
+
                 //Set Selected
                 activeModel.selected = 1;
-                //Object Name
-                //activeObjectName.Text = node.mdl.name;
-                activeTransform.loadModel(node.mdl);
-            }
 
-            //Deselect Previews model
-            if (prev_activeModel != null)
-                prev_activeModel.selected = 0;
+                //Deselect Previews model
+                if (prev_activeModel != null)
+                    prev_activeModel.selected = 0;
+
+                return;
+            }
         }
 
         private void showAboutDialog(object sender, RoutedEventArgs e)
@@ -432,10 +419,14 @@ namespace WPFModelViewer
 
         private void SceneTreeView_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (e.OriginalSource is TextBlock)
+            //Todo Maybe add a timer to prevent the grabbing process from starting on single clicks
+
+
+            if ((e.OriginalSource is TextBlock) && (SceneTreeView.SelectedItem != null))
             {
-                ModelNode node = (ModelNode) SceneTreeView.SelectedItem;
-                Console.WriteLine("Grabbed " + node.Name);
+                model node = (model) SceneTreeView.SelectedItem;
+                init_drag = node; //Set start model node
+                //Console.WriteLine("Grabbed " + node.Name);
                 var tv = sender as TreeView;
 
                 //Fetch textblock
@@ -453,13 +444,46 @@ namespace WPFModelViewer
             IInputElement target = SceneTreeView.InputHitTest(e.GetPosition(SceneTreeView));
             if (old_tb != start_tb)
                 old_tb.Background = null;
-            TextBlock tb = (TextBlock)target;
+            TextBlock tb = (TextBlock) target;
 
-            if (tb != null)
+            if (tb == null || target_drag == null)
+                return;
+
+            if (init_drag != target_drag)
             {
-                Console.WriteLine("Dropped Over " + tb.DataContext);
+                //Remove child from parent model node
+                ThreadRequest req = new ThreadRequest();
+                req.type = THREAD_REQUEST_TYPE.CHANGE_MODEL_PARENT_REQUEST;
+                req.arguments.Add(init_drag);
+                req.arguments.Add(target_drag);
+                glControl.issueRequest(ref req);
+
+                /*
+                lock (init_drag)
+                {
+                    if (init_drag.parent != null)
+                    {
+                        lock (init_drag.parent.Children)
+                        {
+                            init_drag.parent.Children.Remove(init_drag);
+                        }
+                    }
+                    
+                    //Add to target node
+                    init_drag.parent = target_drag;
+                }
+
+                lock (target_drag.Children)
+                {
+                    target_drag.Children.Add(init_drag);
+                }
+                */
+
+                init_drag = null;
+                target_drag = null;
+                e.Handled = true;
             }
-            
+
         }
 
         private void SceneTreeView_GiveFeedback(object sender, GiveFeedbackEventArgs e)
@@ -479,19 +503,23 @@ namespace WPFModelViewer
                         old_tb.Background = null;
 
                     if (tb != start_tb)
+                    {
                         tb.Background = System.Windows.Media.Brushes.DarkGray;
+                        var s1 = System.Windows.Media.VisualTreeHelper.GetParent(tb);
+                        StackPanel s2 = (StackPanel)System.Windows.Media.VisualTreeHelper.GetParent(s1);
+                        target_drag = (model) s2.DataContext; //Set current target drag
+                        //Console.WriteLine("Cursor Over " + target_drag.Name);
+                    }
+
                     old_tb = tb;
                 }
-
-                
-                var s1 = System.Windows.Media.VisualTreeHelper.GetParent(tb);
-                StackPanel s2 = (StackPanel) System.Windows.Media.VisualTreeHelper.GetParent(s1);
-                
-                ModelNode mn = (ModelNode) s2.DataContext;
-                //Console.WriteLine("Cursor Over " + mn.Name);
+    
             }
         
         }
+
+
+
 
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
@@ -503,7 +531,23 @@ namespace WPFModelViewer
             public Int32 X;
             public Int32 Y;
         };
+
     }
+
+
+    public class BindingErrorTraceListener : System.Diagnostics.TraceListener
+    {
+        public override void Write(string message)
+        {
+            System.Diagnostics.Trace.WriteLine(string.Format("==[Write]{0}==", message));
+        }
+
+        public override void WriteLine(string message)
+        {
+            System.Diagnostics.Trace.WriteLine(string.Format("==[WriteLine]{0}==", message));
+        }
+    }
+
 }
 
 namespace WPFModelViewer

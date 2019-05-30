@@ -214,63 +214,12 @@ namespace Model_Viewer
                 render_info();
         }
 
-        public void SetupItems()
-        {
-            //This function is used to setup all necessary additional parameters on the objects.
-            
-            //Set new palettes
-            traverse_oblistPalette(rootObject, palette);
-            //Find animScenes
-            findAnimScenes();
-            GC.Collect();
-        }
-
         public void findAnimScenes()
         {
             foreach (scene scn in resMgr.GLScenes.Values)
             {
                 if (scn.jointDict.Values.Count > 0)
                     this.animScenes.Add(scn);
-            }
-        }
-
-        public void traverse_oblistPalette(model root,Dictionary<string,Dictionary<string,Vector4>> palette)
-        {
-            foreach (model in_m in root.children)
-            {
-                if (in_m.type != TYPES.MESH)
-                {
-                    if (in_m.children.Count != 0)
-                        traverse_oblistPalette(in_m, palette);
-                }
-
-                meshModel m = (meshModel) in_m;
-
-                //Fix New Recoulors
-                if (m.material != null)
-                {
-                    m.material.palette = palette;
-                    for (int i = 0; i < 8; i++)
-                    {
-                        PaletteOpt palOpt = m.material.palOpts[i];
-                        if (palOpt != null)
-                            m.material.reColourings[i] = new float[] { palette[palOpt.PaletteName][palOpt.ColorName][0],
-                                                                       palette[palOpt.PaletteName][palOpt.ColorName][1],
-                                                                       palette[palOpt.PaletteName][palOpt.ColorName][2],
-                                                                                                                   1.0f };
-                        else
-                            m.material.reColourings[i] = new float[] { 1.0f, 1.0f, 1.0f, 0.0f};
-                    }
-
-                    //Recalculate Textures
-                    GL.DeleteTexture(m.material.fDiffuseMap.bufferID);
-                    GL.DeleteTexture(m.material.fMaskMap.bufferID);
-                    GL.DeleteTexture(m.material.fNormalMap.bufferID);
-
-
-                    m.material.prepTextures();
-                    m.material.mixTextures();
-                }
             }
         }
 
@@ -368,6 +317,24 @@ namespace Model_Viewer
                                     inputPollTimer.Start();
                                 }
                                 break;
+                            case THREAD_REQUEST_TYPE.CHANGE_MODEL_PARENT_REQUEST:
+                                model source = (model) req.arguments[0];
+                                model target = (model) req.arguments[1];
+
+
+                                System.Windows.Application.Current.Dispatcher.Invoke((Action)(() =>
+                                {
+                                    if (source.parent != null)
+                                        source.parent.Children.Remove(source);
+
+                                    //Add to target node
+                                    source.parent = target;
+
+                                    target.Children.Add(source);
+                                }));
+                                
+                                req.status = THREAD_REQUEST_STATUS.FINISHED;
+                                break;
                             case THREAD_REQUEST_TYPE.UPDATE_SCENE_REQUEST:
                                 scene req_scn = (scene) req.arguments[0];
                                 req_scn.update();
@@ -410,7 +377,7 @@ namespace Model_Viewer
 
                 SwapBuffers();
 
-                Thread.Sleep(2);
+                Thread.Sleep(1);
 
             }
         }
@@ -494,7 +461,7 @@ namespace Model_Viewer
             }
 
             //Render children
-            foreach (model child in root.children)
+            foreach (model child in root.Children)
                 traverse_render(child, program);
 
         }
@@ -733,7 +700,7 @@ namespace Model_Viewer
             req.arguments.Add(ClientSize.Width);
             req.arguments.Add(ClientSize.Height);
 
-            issueRequest(req);
+            issueRequest(ref req);
         }
 
         private void OnResize(object sender, EventArgs e)
@@ -825,7 +792,7 @@ namespace Model_Viewer
             req.arguments.Add(shadertype);
             
             //Send request
-            issueRequest(req);
+            issueRequest(ref req);
         }
 
         //GLPreparation
@@ -1068,12 +1035,13 @@ namespace Model_Viewer
             //White tex
             string texpath = Path.Combine(execpath, "default.dds");
             Texture tex = new Texture(texpath);
-            this.resMgr.GLtextures["default.dds"] = tex;
+            tex.name = "default.dds";
+            resMgr.texMgr.addTexture(tex);
             //Transparent Mask
             texpath = Path.Combine(execpath, "default_mask.dds");
             tex = new Texture(texpath);
-            this.resMgr.GLtextures["default_mask.dds"] = tex;
-
+            tex.name = "default_mask.dds";
+            resMgr.texMgr.addTexture(tex);
         }
 
         private void addDefaultPrimitives()
@@ -1107,7 +1075,7 @@ namespace Model_Viewer
         #endregion AddObjectMethods
 
 
-        public void issueRequest(ThreadRequest r)
+        public void issueRequest(ref ThreadRequest r)
         {
             lock (rt_req_queue)
             {
@@ -1133,8 +1101,6 @@ namespace Model_Viewer
             ModelProcGen.procDecisions.Clear();
             //Clear animScenes
             animScenes.Clear();
-            //Throw away the old model
-            rootObject.Dispose();
             rootObject = null;
 
             //Add defaults

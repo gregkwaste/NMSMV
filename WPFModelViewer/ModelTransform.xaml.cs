@@ -14,11 +14,36 @@ namespace WPFModelViewer
     /// </summary>
     public partial class ModelTransform : UserControl
     {
-        public model mdl;
         //Old Transforms
         private Vector3 oldtranslation;
         private Matrix4 oldrotation;
         private Vector3 oldscale;
+
+        private model _mdl;
+
+        public static readonly DependencyProperty ModelProperty =
+         DependencyProperty.Register("Model", typeof(model), typeof(ModelTransform), new
+            PropertyMetadata((model) null, new PropertyChangedCallback(OnModelChanged)));
+
+        public model Model
+        {
+            get {
+                return (model) GetValue(ModelProperty);
+            }
+
+            set {
+                SetValue(ModelProperty, value);
+            }
+        }
+
+
+        private static void OnModelChanged(DependencyObject d,
+         DependencyPropertyChangedEventArgs e)
+        {
+            ModelTransform mt = d as ModelTransform;
+            if (e.NewValue != null)
+                mt.loadModel((model)e.NewValue);
+        }
 
         public ModelTransform()
         {
@@ -27,29 +52,30 @@ namespace WPFModelViewer
 
         public void loadModel(model m)
         {
-            mdl = m;
+
+            //Store model locally
+            _mdl = m;
 
             //Save old Transforms
-            oldtranslation = m.localPosition;
-            oldrotation = m.localRotation;
-            oldscale = m.localScale;
+            oldtranslation = _mdl.localPosition;
+            oldrotation = _mdl.localRotation;
+            oldscale = _mdl.localScale;
 
             //Setup Values to the control
-            translationX.Text = m.localPosition.X.ToString();
-            translationY.Text = m.localPosition.Y.ToString();
-            translationZ.Text = m.localPosition.Z.ToString();
+            translationX.Text = _mdl.localPosition.X.ToString();
+            translationY.Text = _mdl.localPosition.Y.ToString();
+            translationZ.Text = _mdl.localPosition.Z.ToString();
 
             //Vector3 q_euler = quaternionToEuler(m.localRotationQuaternion);
-            Vector3 q_euler = matrixToEuler(m.localRotation, "ZXY");
+            Vector3 q_euler = matrixToEuler(_mdl.localRotation, "ZXY");
             //For some reason results are inverted
             rotationX.Text = (-q_euler.X).ToString();
             rotationY.Text = (-q_euler.Y).ToString();
             rotationZ.Text = (-q_euler.Z).ToString();
 
-            scaleX.Text = m.localScale.X.ToString();
-            scaleY.Text = m.localScale.Y.ToString();
-            scaleZ.Text = m.localScale.Z.ToString();
-
+            scaleX.Text = _mdl.localScale.X.ToString();
+            scaleY.Text = _mdl.localScale.Y.ToString();
+            scaleZ.Text = _mdl.localScale.Z.ToString();
         }
 
         private void applyTransformButtonTrigger(object sender, RoutedEventArgs e)
@@ -65,7 +91,7 @@ namespace WPFModelViewer
             float.TryParse(translationX.Text, out lX);
             float.TryParse(translationY.Text, out lY);
             float.TryParse(translationZ.Text, out lZ);
-            mdl.localPosition = new Vector3(lX, lY, lZ);
+            _mdl.localPosition = new Vector3(lX, lY, lZ);
 
             //Apply rotation
             float.TryParse(rotationX.Text, out lX);
@@ -80,34 +106,34 @@ namespace WPFModelViewer
             //                                            MathUtils.radians((float)rotationY.Value),
             //                                            MathUtils.radians((float)rotationZ.Value));
 
-            mdl.localRotation = rotz * rotx * roty;
+            _mdl.localRotation = rotz * rotx * roty;
 
             //Apply scale
             float.TryParse(scaleX.Text, out lX);
             float.TryParse(scaleY.Text, out lY);
             float.TryParse(scaleZ.Text, out lZ);
-            mdl.localScale = new Vector3(lX, lY, lZ);
-            mdl.update(); //Trigger a scene update
+            _mdl.localScale = new Vector3(lX, lY, lZ);
+            _mdl.update(); //Trigger a scene update
 
             
             //Save values to underlying SceneNode
-            if (mdl.nms_template != null)
+            if (_mdl.nms_template != null)
             {
-                float.TryParse(rotationX.Text, out mdl.nms_template.Transform.RotX);
-                float.TryParse(rotationY.Text, out mdl.nms_template.Transform.RotY);
-                float.TryParse(rotationZ.Text, out mdl.nms_template.Transform.RotZ);
+                float.TryParse(rotationX.Text, out _mdl.nms_template.Transform.RotX);
+                float.TryParse(rotationY.Text, out _mdl.nms_template.Transform.RotY);
+                float.TryParse(rotationZ.Text, out _mdl.nms_template.Transform.RotZ);
                 //mdl.mbin_scene.Transform.RotX = (float)rotationX.Value;
                 //mdl.mbin_scene.Transform.RotY = (float)rotationY.Value;
                 //mdl.mbin_scene.Transform.RotZ = (float)rotationZ.Value;
-                float.TryParse(translationX.Text, out mdl.nms_template.Transform.TransX);
-                float.TryParse(translationY.Text, out mdl.nms_template.Transform.TransY);
-                float.TryParse(translationZ.Text, out mdl.nms_template.Transform.TransZ);
+                float.TryParse(translationX.Text, out _mdl.nms_template.Transform.TransX);
+                float.TryParse(translationY.Text, out _mdl.nms_template.Transform.TransY);
+                float.TryParse(translationZ.Text, out _mdl.nms_template.Transform.TransZ);
                 //mdl.mbin_scene.Transform.TransX = (float)translationX.Value;
                 //mdl.mbin_scene.Transform.TransY = (float)translationY.Value;
                 //mdl.mbin_scene.Transform.TransZ = (float)translationZ.Value;
-                float.TryParse(scaleX.Text, out mdl.nms_template.Transform.ScaleX);
-                float.TryParse(scaleY.Text, out mdl.nms_template.Transform.ScaleY);
-                float.TryParse(scaleZ.Text, out mdl.nms_template.Transform.ScaleZ);
+                float.TryParse(scaleX.Text, out _mdl.nms_template.Transform.ScaleX);
+                float.TryParse(scaleY.Text, out _mdl.nms_template.Transform.ScaleY);
+                float.TryParse(scaleZ.Text, out _mdl.nms_template.Transform.ScaleZ);
                 //mdl.mbin_scene.Transform.ScaleX = (float) scaleX.Value;
                 //mdl.mbin_scene.Transform.ScaleY = (float)scaleY.Value;
                 //mdl.mbin_scene.Transform.ScaleZ = (float)scaleZ.Value;
@@ -119,31 +145,31 @@ namespace WPFModelViewer
         //Reset transform
         private void resetTransform(object sender, RoutedEventArgs e)
         {
-            mdl.localPosition = oldtranslation;
-            mdl.localRotation = oldrotation;
-            mdl.localScale = oldscale;
+            _mdl.localPosition = oldtranslation;
+            _mdl.localRotation = oldrotation;
+            _mdl.localScale = oldscale;
 
             //Reload Values to the control
-            loadModel(mdl);
+            loadModel(_mdl);
             
             //Save values to underlying SceneNode
-            if (mdl.nms_template != null)
+            if (_mdl.nms_template != null)
             {
-                mdl.nms_template.Transform.ScaleX = oldscale.X;
-                mdl.nms_template.Transform.ScaleY = oldscale.Y;
-                mdl.nms_template.Transform.ScaleZ = oldscale.Z;
-                mdl.nms_template.Transform.TransX = oldtranslation.X;
-                mdl.nms_template.Transform.TransY = oldtranslation.Y;
-                mdl.nms_template.Transform.TransZ = oldtranslation.Z;
+                _mdl.nms_template.Transform.ScaleX = oldscale.X;
+                _mdl.nms_template.Transform.ScaleY = oldscale.Y;
+                _mdl.nms_template.Transform.ScaleZ = oldscale.Z;
+                _mdl.nms_template.Transform.TransX = oldtranslation.X;
+                _mdl.nms_template.Transform.TransY = oldtranslation.Y;
+                _mdl.nms_template.Transform.TransZ = oldtranslation.Z;
                 //Convert rotation from matrix to angles
                 //Vector3 q_euler = quaternionToEuler(oldrotation);
                 Matrix4 tempMat = oldrotation;
                 tempMat.Transpose();
                 Vector3 q_euler = matrixToEuler(tempMat, "ZXY");
 
-                mdl.nms_template.Transform.RotX = q_euler.X;
-                mdl.nms_template.Transform.RotY = q_euler.Y;
-                mdl.nms_template.Transform.RotZ = q_euler.Z;
+                _mdl.nms_template.Transform.RotX = q_euler.X;
+                _mdl.nms_template.Transform.RotY = q_euler.Y;
+                _mdl.nms_template.Transform.RotZ = q_euler.Z;
                 
             }
         }
@@ -151,12 +177,12 @@ namespace WPFModelViewer
         //Export to EXML
         private void exportToEXML(object sender, RoutedEventArgs e)
         {
-            if (mdl?.nms_template != null)
+            if (_mdl?.nms_template != null)
             {
                 //Fetch scene name
-                string[] split = mdl.nms_template.Name.Split('\\');
+                string[] split = _mdl.nms_template.Name.Split('\\');
                 string scnName = split[split.Length - 1];
-                mdl.nms_template.WriteToExml(scnName + ".SCENE.EXML");
+                _mdl.nms_template.WriteToExml(scnName + ".SCENE.EXML");
                 MessageBox.Show("Scene successfully exported to " + scnName + ".exml");
             }
         }
@@ -164,12 +190,12 @@ namespace WPFModelViewer
         //Export to MBIN
         private void exportToMBIN(object sender, RoutedEventArgs e)
         {
-            if (mdl?.nms_template != null)
+            if (_mdl?.nms_template != null)
             {
                 //Fetch scene name
-                string[] split = mdl.nms_template.Name.Split('\\');
+                string[] split = _mdl.nms_template.Name.Split('\\');
                 string scnName = split[split.Length - 1];
-                mdl.nms_template.WriteToMbin(scnName.ToUpper() + ".SCENE.MBIN");
+                _mdl.nms_template.WriteToMbin(scnName.ToUpper() + ".SCENE.MBIN");
                 MessageBox.Show("Scene successfully exported to " + scnName.ToUpper() + ".MBIN");
             }
         }

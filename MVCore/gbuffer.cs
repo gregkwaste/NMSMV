@@ -115,7 +115,6 @@ namespace MVCore
             GL.FramebufferTexture2D(FramebufferTarget.FramebufferExt, FramebufferAttachment.DepthAttachmentExt, TextureTarget.Texture2D, dump_depth, 0);
             //Console.WriteLine("Dump, Last GL Error: " + GL.GetError());
 
-
         }
 
         public void setup_texture(ref int handle, int attachment)

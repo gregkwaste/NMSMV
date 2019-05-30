@@ -15,8 +15,10 @@ using MVCore;
 using MVCore.GMDL;
 using Console = System.Console;
 
+
 namespace MVCore
 {
+    
     public enum TYPES
     {
         MESH=0x0,
@@ -475,6 +477,8 @@ namespace MVCore
             return mesh_desc;
         }
 
+        private static textureManager localTexMgr;
+
         public static scene LoadObjects(string filepath)
         {
             TkSceneNodeData scene;
@@ -654,7 +658,7 @@ namespace MVCore
                                                  Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
 
                 so.Bbox = gobject.bboxes[iid];
-                so.setupBSphere();
+                //so.setupBSphere();
                 so.parent = parent;
                 so.nms_template = node;
                 so.gobject = gobject; //Store the gobject for easier access of uniforms
@@ -669,7 +673,7 @@ namespace MVCore
                 
                 //Check if material already in Resources
                 if (Common.RenderState.activeResMgr.GLmaterials.ContainsKey(matkey))
-                    so.material = Common.RenderState.activeResMgr.GLmaterials[matkey];
+                    so.Material = Common.RenderState.activeResMgr.GLmaterials[matkey];
                 else
                 {
                     //Parse material file
@@ -683,12 +687,11 @@ namespace MVCore
                     if (File.Exists(mat_path))
                     {
                         //Material mat = MATERIALMBIN.Parse(newXml);
-                        Material mat = Material.Parse(mat_path);
+                        Material mat = Material.Parse(mat_path, localTexMgr);
                         //Load default form palette on init
-                        mat.palette = Model_Viewer.Palettes.paletteSel;
+                        //mat.palette = Model_Viewer.Palettes.paletteSel;
                         mat.name_key = matkey; //Store the material key to the resource manager
-                        mat.prepTextures(); //Prepare-Mix Material Textures
-                        so.material = mat;
+                        so.Material = mat;
                         //Store the material to the Resources
                         Common.RenderState.activeResMgr.GLmaterials[matkey] = mat;
                     } else
@@ -696,7 +699,7 @@ namespace MVCore
                         MVCore.Common.CallBacks.Log(string.Format("Warning Material Missing!!!"));
                         //Generate empty material
                         Material mat = new Material();
-                        so.material = mat;
+                        so.Material = mat;
                     }
                 }
 
@@ -723,8 +726,8 @@ namespace MVCore
                 }
 
                 //Check if it is a decal object
-                if (so.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F51_DECAL_DIFFUSE) ||
-                    so.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F52_DECAL_NORMAL))
+                if (so.Material.has_flag(TkMaterialFlags.MaterialFlagEnum._F51_DECAL_DIFFUSE) ||
+                    so.Material.has_flag(TkMaterialFlags.MaterialFlagEnum._F52_DECAL_NORMAL))
                 {
                     Decal newso = new Decal(so, scene);
                     so.Dispose(); //Through away the old object
@@ -754,6 +757,10 @@ namespace MVCore
                 so.nms_template = node;
                 so.init(transforms);
                 so.gobject = gobject;
+
+                //Setup model texture manager
+                so.texMgr = new textureManager();
+                localTexMgr = so.texMgr; //setup local texMgr
                 
                 //Handle Children
                 if (children.Count > 0)
@@ -763,6 +770,12 @@ namespace MVCore
                         model part = parseNode(child, gobject, so, so);
                         so.children.Add(part);
                     }
+                }
+
+                //Check if root node is in the resMgr
+                if (!Common.RenderState.activeResMgr.GLScenes.ContainsKey(name))
+                {
+                    Common.RenderState.activeResMgr.GLScenes[name] = so;
                 }
 
                 return so;
@@ -881,12 +894,6 @@ namespace MVCore
                         }
                     }
 
-                    //Check if root node is in the resMgr
-                    if (!Common.RenderState.activeResMgr.GLScenes.ContainsKey(name))
-                    {
-                        Common.RenderState.activeResMgr.GLScenes[name] = so;
-                    }
-
                     //Load Objects from new xml
                     return so;
                 
@@ -937,12 +944,12 @@ namespace MVCore
 
                 //Check if material already in Resources
                 if (Common.RenderState.activeResMgr.GLmaterials.ContainsKey(matkey))
-                    so.material = Common.RenderState.activeResMgr.GLmaterials[matkey];
+                    so.Material = Common.RenderState.activeResMgr.GLmaterials[matkey];
                 else
                 {
                     Material mat = new Material();
                     mat.name_key = matkey;
-                    so.material = mat;
+                    so.Material = mat;
 
                     //Store the material to the Resources
                     Common.RenderState.activeResMgr.GLmaterials[matkey] = mat;
