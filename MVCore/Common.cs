@@ -16,6 +16,8 @@ namespace MVCore.Common
         //Force Procgen
         public static bool forceProcGen;
 
+        
+
         //Temporarily store mvp matrix
         public static Matrix4 mvp;
 
@@ -41,6 +43,22 @@ namespace MVCore.Common
         public static bool RenderBoundHulls = true;
         public static bool RenderDebug = false;
         public static int animFPS = 50;
+    }
+
+    public static class RenderStats
+    {
+        //Set Full rendermode by default
+        public static int vertNum = 0;
+        public static int trisNum = 0;
+        public static int texturesNum = 0;
+
+
+        public static void clearStats()
+        {
+            vertNum = 0;
+            trisNum = 0;
+            texturesNum = 0;
+        }
     }
 
     //Delegates - Function Types for Callbacks

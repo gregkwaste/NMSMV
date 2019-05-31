@@ -14,39 +14,39 @@
         </Grid.RowDefinitions>
         <GroupBox Grid.Row="0" Header="Translation">
             <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="20"/>
-                    <RowDefinition Height="20"/>
-                    <RowDefinition Height="20"/>
-                </Grid.RowDefinitions>
-                <TextBox Grid.Row="0" x:Name="translationX" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
-                <TextBox Grid.Row="1" x:Name="translationY" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
-                <TextBox Grid.Row="2" x:Name="translationZ" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="33*"/>
+                    <ColumnDefinition Width="33*"/>
+                    <ColumnDefinition Width="33*"/>
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0" x:Name="translationX" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
+                <TextBox Grid.Column="1" x:Name="translationY" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
+                <TextBox Grid.Column="2" x:Name="translationZ" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
                 
             </Grid>
         </GroupBox>
         <GroupBox Grid.Row="1" Header="Rotation">
             <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="20"/>
-                    <RowDefinition Height="20"/>
-                    <RowDefinition Height="20"/>
-                </Grid.RowDefinitions>
-                <TextBox Grid.Row="0" x:Name="rotationX" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
-                <TextBox Grid.Row="1" x:Name="rotationY" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
-                <TextBox Grid.Row="2" x:Name="rotationZ" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="33*"/>
+                    <ColumnDefinition Width="33*"/>
+                    <ColumnDefinition Width="33*"/>
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0" x:Name="rotationX" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
+                <TextBox Grid.Column="1" x:Name="rotationY" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
+                <TextBox Grid.Column="2" x:Name="rotationZ" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
             </Grid>
         </GroupBox>
         <GroupBox Grid.Row="2" Header="Scale">
             <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="20"/>
-                    <RowDefinition Height="20"/>
-                    <RowDefinition Height="20"/>
-                </Grid.RowDefinitions>
-                <TextBox Grid.Row="0" x:Name="scaleX" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
-                <TextBox Grid.Row="1" x:Name="scaleY" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
-                <TextBox Grid.Row="2" x:Name="scaleZ" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="33*"/>
+                    <ColumnDefinition Width="33*"/>
+                    <ColumnDefinition Width="33*"/>
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0" x:Name="scaleX" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
+                <TextBox Grid.Column="1" x:Name="scaleY" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
+                <TextBox Grid.Column="2" x:Name="scaleZ" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True" FontSize="10"/>
             </Grid>
         </GroupBox>
         <Grid Grid.Row="3">

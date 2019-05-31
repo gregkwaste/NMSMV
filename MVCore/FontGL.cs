@@ -24,7 +24,7 @@ namespace MVCore.Text
     public class TextRenderer :IDisposable
     {
         private QFont _font;
-        private List<QFontDrawing> _drawings;
+        private QFontDrawing _drawing;
         private List<QFontRenderOptions> _textOptions;
         private Matrix4 projMat = Matrix4.Identity;
         
@@ -32,7 +32,7 @@ namespace MVCore.Text
         {
             _font = new QFont(font_path, size, new QFontBuilderConfiguration(true));
             //Init drawings list to null
-            _drawings = new List<QFontDrawing>();
+            _drawing = new QFontDrawing();
             _textOptions = new List<QFontRenderOptions>();
 
             //Setup Text Options
@@ -40,21 +40,26 @@ namespace MVCore.Text
             
 
             //Add Custom text
-            QFontDrawing df = new QFontDrawing();
             QFontDrawingPrimitive prim = new QFontDrawingPrimitive(_font);
             prim.Print("Test", new Vector3(0.0f, 0.0f, 0.0f), QFontAlignment.Centre);
-            df.DrawingPrimitives.Add(prim);
-            df.RefreshBuffers();
-            _drawings.Add(df);
-
-            df = new QFontDrawing();
+            _drawing.DrawingPrimitives.Add(prim);
+            
             prim = new QFontDrawingPrimitive(_font);
             prim.Print("Test", new Vector3(0.0f, 0.0f, 0.0f), QFontAlignment.Centre);
-            df.DrawingPrimitives.Add(prim);
-            df.RefreshBuffers();
-            _drawings.Add(df);
+            _drawing.DrawingPrimitives.Add(prim);
 
+            _drawing.RefreshBuffers();
 
+        }
+
+        public void clearPrimities()
+        {
+            _drawing.DrawingPrimitives.Clear();
+        }
+
+        public void update()
+        {
+            _drawing.RefreshBuffers();
         }
 
         public SizeF addDrawing(string text, Vector3 pos, System.Drawing.Color col, GLTEXT_INDEX text_type)
@@ -62,25 +67,24 @@ namespace MVCore.Text
             var textOpts = new QFontRenderOptions();
             textOpts.Colour = col;
             textOpts.DropShadowActive = true;
+            
 
             SizeF size;
-            QFontDrawing df = _drawings[(int)text_type];
-            df.DrawingPrimitives.Clear();
             QFontDrawingPrimitive prim = new QFontDrawingPrimitive(_font, textOpts);
-            df.DrawingPrimitives.Add(prim);
-            size = prim.Print(text, pos, QFontAlignment.Left); //Print text to drawing
-            df.RefreshBuffers();
+            _drawing.DrawingPrimitives.Add(prim);
+            size = prim.Print(text, pos, QFontAlignment.Right); //Print text to drawing
             return size;
         }
 
         public void render(int width, int height)
         {
             Matrix4.CreateOrthographicOffCenter(0, width, 0, height, -1.0f, 1.0f, out projMat);
-            foreach ( QFontDrawing df in _drawings)
+            if ( _drawing != null)
             {
-                df.ProjectionMatrix = projMat;
-                df?.Draw();
+                _drawing.ProjectionMatrix = projMat;
+                _drawing?.Draw();
             }
+            
         }
 
         #region IDisposable Support
@@ -94,12 +98,8 @@ namespace MVCore.Text
                 {
                     // TODO: dispose managed state (managed objects).
                     _font.Dispose();
-                    foreach (QFontDrawing fd in _drawings)
-                    {
-                        fd?.DrawingPrimitives.Clear();
-                        fd?.Dispose();
-                    }
-                    _drawings.Clear();
+                    _drawing?.DrawingPrimitives.Clear();
+                    _drawing?.Dispose();
                 }
 
                 disposedValue = true;

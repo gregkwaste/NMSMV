@@ -43,6 +43,7 @@ namespace MVCore
             //Init size to the current GLcontrol size
             size = new int[] { x, y };
 
+            init();
             setup();
 
         }

@@ -101,10 +101,10 @@
                                 </ListBox.ItemTemplate>
                             </ListBox>
                         </StackPanel>
-                        <StackPanel Grid.Row="4">
+                        <!--<StackPanel Grid.Row="4">
                             <TextBlock Text="Loaded Textures"></TextBlock>
                             <ListBox ItemsSource="{Binding Textures}" HorizontalContentAlignment="Right"></ListBox>
-                        </StackPanel>
+                        </StackPanel>-->
                     </Grid>
                 </GroupBox>
             </DataTemplate>
@@ -311,7 +311,14 @@
             <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"/>
             <WindowsFormsHost Grid.Column="2" x:Name="Host" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
             <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch" />
-            <ContentControl Grid.Column="4" x:Name="ObjectInfoBox"></ContentControl>
+            <Grid Grid.Column="4">
+                <Grid.RowDefinitions>
+                    <RowDefinition/>
+                </Grid.RowDefinitions>
+                <ScrollViewer Grid.Row="0" Height="{Binding ElementName=scrollpanel, Path=ActualHeight}">
+                    <ContentControl  x:Name="ObjectInfoBox"></ContentControl>
+                </ScrollViewer>
+            </Grid>
         </Grid>
 
         <StatusBar HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="30" Grid.Row="2">

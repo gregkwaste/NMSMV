@@ -100,16 +100,16 @@ namespace Model_Viewer
         
         private void registerFunctions()
         {
-            this.Load += new System.EventHandler(this.genericLoad);
+            this.Load += new System.EventHandler(genericLoad);
             //this.Paint += new System.Windows.Forms.PaintEventHandler(this.genericPaint);
-            this.Resize += new System.EventHandler(this.OnResize); 
-            this.MouseHover += new System.EventHandler(this.genericHover);
-            this.MouseMove += new System.Windows.Forms.MouseEventHandler(this.genericMouseMove);
-            this.MouseClick += new System.Windows.Forms.MouseEventHandler(this.CGLControl_MouseClick);
+            this.Resize += new System.EventHandler(OnResize); 
+            this.MouseHover += new System.EventHandler(genericHover);
+            this.MouseMove += new System.Windows.Forms.MouseEventHandler(genericMouseMove);
+            this.MouseClick += new System.Windows.Forms.MouseEventHandler(CGLControl_MouseClick);
             //this.glControl1.MouseWheel += new System.Windows.Forms.MouseEventHandler(this.glControl1_Scroll);
-            this.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.generic_KeyDown);
-            this.Enter += new System.EventHandler(this.genericEnter);
-            this.Leave += new System.EventHandler(this.genericLeave);
+            this.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(generic_KeyDown);
+            this.Enter += new System.EventHandler(genericEnter);
+            this.Leave += new System.EventHandler(genericLeave);
         }
 
         //Default Constructor
@@ -130,11 +130,10 @@ namespace Model_Viewer
             resizeTimer = new System.Timers.Timer();
             resizeTimer.Elapsed += new System.Timers.ElapsedEventHandler(ResizeControl);
             resizeTimer.Interval = 10;
-            
-            //Set properties
-            this.VSync = false;
 
-            //Compile Shaders
+            //Set properties
+            DoubleBuffered = true;
+            VSync = true;
         }
 
         //Constructor
@@ -144,7 +143,7 @@ namespace Model_Viewer
             
             //Set Control Identifiers
             this.index = index;
-
+            
             //Default Setup
             this.rot.Y = 131;
             this.light_angle_y = 190;
@@ -287,8 +286,7 @@ namespace Model_Viewer
             //Create gbuffer
             gbuf = new GBuffer(this.resMgr, this.ClientSize.Width, this.ClientSize.Height);
             MVCore.Common.RenderState.gbuf = gbuf;
-            gbuf.init();
-
+            
             bool renderFlag = true; //Toggle rendering on/off
 
             //Rendering Loop
@@ -375,9 +373,8 @@ namespace Model_Viewer
                     rt_render();
                 }
 
-                SwapBuffers();
-
                 Thread.Sleep(1);
+                SwapBuffers();
 
             }
         }
@@ -538,14 +535,46 @@ namespace Model_Viewer
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
 
-            var size = font_draw_object.addDrawing(string.Format("FPS: {0:F1}", fpsCount),
-                    new Vector3(Width - 80.0f, 30.0f, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS);
-            
-            //Console.WriteLine(fpsCount.ToString());
-            font_draw_object.addDrawing(string.Format("Occl.: {0}", occludedNum),
-                    new Vector3(Width - 80.0f, 30.0f - size.Height, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.MSG1);
+            float text_pos_x = Width - 20.0f;
+            float text_pos_y = 80.0f;
+
+
+            font_draw_object.clearPrimities();
+
+            System.Drawing.SizeF size = new System.Drawing.SizeF();
+            for (int i = 0; i < 5; i++)
+            {
+                switch (i)
+                {
+                    case 0:
+                        size = font_draw_object.addDrawing(string.Format("FPS: {0:F1}", fpsCount),
+                            new Vector3(text_pos_x, text_pos_y, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS);
+                        break;
+                    case 1:
+                        size = font_draw_object.addDrawing(string.Format("OccludedNum: {0:D1}", occludedNum),
+                            new Vector3(text_pos_x, text_pos_y, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS);
+                        break;
+                    case 2:
+                        size = font_draw_object.addDrawing(string.Format("Total Vertices: {0:D1}", RenderStats.vertNum),
+                            new Vector3(text_pos_x, text_pos_y, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS);
+                        break;
+                    case 3:
+                        size = font_draw_object.addDrawing(string.Format("Total Triangles: {0:D1}", RenderStats.trisNum),
+                            new Vector3(text_pos_x, text_pos_y, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS);
+                        break;
+                    case 4:
+                        size = font_draw_object.addDrawing(string.Format("Textures: {0:D1}", RenderStats.texturesNum),
+                            new Vector3(text_pos_x, text_pos_y, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS);
+                        break;
+                }
+                text_pos_y -= (size.Height + 2.0f);
+            }
+
+
+
 
             //Render drawings
+            font_draw_object.update();
             font_draw_object.render(Width, Height);
 
             GL.Disable(EnableCap.Blend);
@@ -1094,7 +1123,7 @@ namespace Model_Viewer
         {
             //Once the new scene has been loaded, 
             //Initialize Palettes
-            Model_Viewer.Palettes.set_palleteColors();
+            Palettes.set_palleteColors();
 
             //Clear Form Resources
             resMgr.Cleanup();
@@ -1103,6 +1132,9 @@ namespace Model_Viewer
             animScenes.Clear();
             rootObject = null;
 
+            //Clear RenderStats
+            RenderStats.clearStats();
+            
             //Add defaults
             addDefaultLights();
             addDefaultTextures();
