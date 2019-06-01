@@ -479,24 +479,57 @@ namespace MVCore
 
         private static textureManager localTexMgr;
 
-        public static scene LoadObjects(string filepath)
+        private static NMSTemplate LoadNMSFile(string filepath)
         {
-            TkSceneNodeData scene;
+            int load_mode = 0;
+            string load_path;
+            NMSTemplate template;
+
             if (filepath.ToUpper().EndsWith(".EXML"))
             {
-                string xml = File.ReadAllText(filepath);
-                scene = (TkSceneNodeData) EXmlFile.ReadTemplateFromString(xml);
-            } else
+                load_mode = 0;
+                load_path = filepath;
+            }
+            else
             {
-                libMBIN.MBINFile mbinf = new libMBIN.MBINFile(filepath);
+                //Try to find if there is an exml file first
+                string exmlpath = Path.ChangeExtension(filepath, "exml");
+                if (File.Exists(exmlpath))
+                {
+                    load_mode = 0;
+                    load_path = exmlpath;
+                }
+                else
+                {
+                    load_mode = 1;
+                    load_path = filepath;
+                }
+            }
+
+
+            if (load_mode == 0)
+            {
+                //Load Exml
+                string xml = File.ReadAllText(load_path);
+                template = EXmlFile.ReadTemplateFromString(xml);
+            }
+            else
+            {
+                libMBIN.MBINFile mbinf = new libMBIN.MBINFile(load_path);
                 mbinf.Load();
-                scene = (TkSceneNodeData)mbinf.GetData();
+                template = mbinf.GetData();
                 mbinf.Dispose();
             }
-            
 
+            return template;
+        }
+
+        public static scene LoadObjects(string filepath)
+        {
+            TkSceneNodeData scene = (TkSceneNodeData) LoadNMSFile(filepath);
+            
             Console.WriteLine("Loading Objects from MBINFile");
-            //Get TkSceneNodeData
+
             string sceneName = scene.Name;
             MVCore.Common.CallBacks.Log(string.Format("Trying to load Scene {0}", sceneName));
             string[] split = sceneName.Split('\\');

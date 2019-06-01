@@ -16,16 +16,17 @@ namespace MVCore.Common
         //Force Procgen
         public static bool forceProcGen;
 
-        
-
-        //Temporarily store mvp matrix
+        //Keep the mvp matrix
         public static Matrix4 mvp;
 
-        //Current Gbuffer
-        public static GBuffer gbuf;
+        //Keep the view rotation Matrix
+        public static Matrix4 rotMat;
+
+        //Keep the main camera global
+        public static Camera activeCam;
 
         //ResourceManager
-        public static MVCore.ResourceMgr activeResMgr;
+        public static MVCore.ResourceManager activeResMgr;
 
     }
 
@@ -51,8 +52,8 @@ namespace MVCore.Common
         public static int vertNum = 0;
         public static int trisNum = 0;
         public static int texturesNum = 0;
-
-
+        public static int fpsCount = 0;
+        
         public static void clearStats()
         {
             vertNum = 0;

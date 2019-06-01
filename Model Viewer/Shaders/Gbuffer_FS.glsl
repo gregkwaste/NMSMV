@@ -49,7 +49,7 @@ void main()
 	//vec4 texelValue = texelFetch(depthTex, ivec2(gl_FragCoord.xy), 0);
 	//vec4 texelValue = texelFetch(positionTex, ivec2(gl_FragCoord.xy), 0);
 	
-	gl_FragColor = texColor;
+	gl_FragColor = 0.125 * texColor;
 	
 	//gl_FragColor = vec4(texture2D(depthTex, uv0).rrr, 1.0);
 	//vec4 world = worldfromDepth();

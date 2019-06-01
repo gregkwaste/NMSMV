@@ -32,11 +32,10 @@ namespace MVCore
         public int[] size;
         private int msaa_samples = 8;
 
-        public GBuffer(ResourceMgr mgr, int x, int y)
+        public GBuffer(ResourceManager mgr, int x, int y)
         {
             //Create Quad Geometry
             program = mgr.GLShaders["GBUFFER_SHADER"];
-
             quad_vao = mgr.GLPrimitiveVaos["default_renderquad"].vao_id;
 
             //Setup all stuff
@@ -45,7 +44,6 @@ namespace MVCore
 
             init();
             setup();
-
         }
 
         public void setup()

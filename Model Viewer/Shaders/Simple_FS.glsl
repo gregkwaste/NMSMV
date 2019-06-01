@@ -73,7 +73,7 @@ void main()
 				//diffTexColor = texture(diffuseTex, vec3(uv0, 0.0));
 			}
 
-			if (!matflags[_F09_TRANSPARENT]){
+			if ((!matflags[_F09_TRANSPARENT]) || (!matflags[_F22_TRANSPARENT_SCALAR])){
 					diffTexColor.a = 1.0f;
 			}
 		} else {
@@ -97,12 +97,16 @@ void main()
 	
 	//Check _F11_ALPHACUTOUT
 	if (matflags[_F11_ALPHACUTOUT]) {
-		float maskalpha =  textureLod(diffuseTex, vec3(uv0, 0.0), mipmaplevel).a;
-		if (maskalpha <= 0.05) discard;
+		if (alpha <= 0.05) discard;
+	}
+
+	if (matflags[_F22_TRANSPARENT_SCALAR]){
+		// Transparency scalar comes from float in Material
+        alpha *= gMaterialColourVec4.a;	
 	}
 
 	//Check _F9_TRANSPARENT
-	if (matflags[_F09_TRANSPARENT]) {
+	if (matflags[_F09_TRANSPARENT] || matflags[_F22_TRANSPARENT_SCALAR]) {
 		if (alpha <= 0.05) discard;
 	}
 	
@@ -145,10 +149,10 @@ void main()
     //diff += lfShadow * lFresnelColVec3;
     
     if (use_lighting > 0.0){
-		outcolors[0] = vec4(diff.rgb, 1.0);
+		outcolors[0] = vec4(diff.rgb, alpha);
 	}
 	else {
-		outcolors[0] = vec4(diffTexColor.rgb, 1.0);
+		outcolors[0] = vec4(diffTexColor.rgb, alpha);
 	}
 
     //outcolors[0] = vec4(1.0, 1.0, 1.0, 1.0);

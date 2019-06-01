@@ -10,11 +10,10 @@ namespace MVCore
         void cleanup();
         
     }
-
-
+    
 
     //Class Which will store all the texture resources for better memory management
-    public class ResourceMgr
+    public class ResourceManager
     {
         //public Dictionary<string, GMDL.Texture> GLtextures = new Dictionary<string, GMDL.Texture>();
         public Dictionary<string, GMDL.Material> GLmaterials = new Dictionary<string, GMDL.Material>();
@@ -132,4 +131,6 @@ namespace MVCore
 
     }
 
+
+   
 }

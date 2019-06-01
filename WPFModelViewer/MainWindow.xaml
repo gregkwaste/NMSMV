@@ -140,7 +140,7 @@
                     <!-- These elements are bound to a FooViewModel object. -->
                     <CheckBox
                             Focusable="False" 
-                            IsChecked="{Binding IsChecked}" 
+                            IsChecked="{Binding IsRenderable}" 
                             VerticalAlignment="Center"
                         />
                     <ContentPresenter 
@@ -225,7 +225,7 @@
                                 </DockPanel>
                                 <DockPanel Grid.Row="5" HorizontalAlignment="Stretch">
                                     <TextBlock Width="80">zNear</TextBlock>
-                                    <Slider x:Name="sliderzNear"  Value="0.05" Minimum="0.01" Maximum="1" SmallChange="0.1"></Slider>
+                                    <Slider x:Name="sliderzNear"  Value="1" Minimum="0.01" Maximum="10" SmallChange="0.1"></Slider>
                                 </DockPanel>
                                 <DockPanel Grid.Row="6" HorizontalAlignment="Stretch">
                                     <TextBlock Width="80">zFar</TextBlock>
@@ -315,7 +315,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition/>
                 </Grid.RowDefinitions>
-                <ScrollViewer Grid.Row="0" Height="{Binding ElementName=scrollpanel, Path=ActualHeight}">
+                <ScrollViewer Grid.Row="0">
                     <ContentControl  x:Name="ObjectInfoBox"></ContentControl>
                 </ScrollViewer>
             </Grid>

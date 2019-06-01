@@ -12,7 +12,6 @@ using MVCore;
 using MVCore.Common;
 using MVCore.GMDL;
 using GLSLHelper;
-using gImage;
 using OpenTK.Graphics;
 using ClearBufferMask = OpenTK.Graphics.OpenGL.ClearBufferMask;
 using CullFaceMode = OpenTK.Graphics.OpenGL.CullFaceMode;
@@ -31,10 +30,10 @@ namespace Model_Viewer
         public model rootObject;
 
         //Common Transforms
-        private Matrix4 rotMat, mvp;
+        //private Matrix4 rotMat, mvp;
 
         private Vector3 rot = new Vector3(0.0f, 0.0f, 0.0f);
-        private Camera activeCam;
+        //private Camera activeCam;
 
         //Use public variables for now because getters/setters are so not worth it for our purpose
         public float light_angle_y = 0.0f;
@@ -62,11 +61,10 @@ namespace Model_Viewer
         private bool animationStatus = false;
         public List<scene> animScenes = new List<scene>();
         
-        //Control private ResourceManagement
-        public ResourceMgr resMgr = new ResourceMgr();
-
-        public GBuffer gbuf;
-
+        //Control private Managers
+        public ResourceManager resMgr = new ResourceManager();
+        public renderManager renderMgr = new renderManager();
+        
         //Init-GUI Related
         private ContextMenuStrip contextMenuStrip1;
         private System.ComponentModel.IContainer components;
@@ -80,9 +78,6 @@ namespace Model_Viewer
         public System.Timers.Timer inputPollTimer;
         public System.Timers.Timer resizeTimer;
 
-        //Control Font and Text Objects
-        private MVCore.Text.TextRenderer font_draw_object;
-        
         //Private fps Counter
         private int frames = 0;
         private DateTime oldtime;
@@ -183,34 +178,8 @@ namespace Model_Viewer
             //Update per frame data
             frameUpdate();
 
-            gbuf.start();
+            renderMgr.render(0); //Render Everything
 
-            //Console.WriteLine(active_fbo);
-            render_scene();
-
-            //Store the dumps
-
-            //gbuf.dump();
-            //render_decals();
-
-            //render_cameras();
-
-            if (RenderOptions.RenderLights)
-                render_lights();
-
-            //Dump Gbuffer
-            //gbuf.dump();
-            //System.Threading.Thread.Sleep(1000);
-
-            //Render Deferred
-            gbuf.render();
-
-            //No need to blit without a renderbuffer
-            //gbuf?.stop();
-
-            //Render info right on the 0 buffer
-            if (RenderOptions.RenderInfo)
-                render_info();
         }
 
         public void findAnimScenes()
@@ -244,16 +213,15 @@ namespace Model_Viewer
 
             //Camera & Light Positions
             //Update common transforms
-            activeCam.aspect = (float) ClientSize.Width / ClientSize.Height;
+            RenderState.activeCam.aspect = (float) ClientSize.Width / ClientSize.Height;
                 
             //Apply extra viewport rotation
             Matrix4 Rotx = Matrix4.CreateRotationX(MathUtils.radians(rot[0]));
             Matrix4 Roty = Matrix4.CreateRotationY(MathUtils.radians(rot[1]));
             Matrix4 Rotz = Matrix4.CreateRotationZ(MathUtils.radians(rot[2]));
-            rotMat = Rotz * Rotx * Roty;
-            mvp = rotMat * activeCam.viewMat; //Full mvp matrix
-            MVCore.Common.RenderState.mvp = mvp;
-
+            RenderState.rotMat = Rotz * Rotx * Roty;
+            RenderState.mvp = RenderState.rotMat * RenderState.activeCam.viewMat; //Full mvp matrix
+            
             resMgr.GLCameras[0].updateViewMatrix();
             resMgr.GLCameras[1].updateViewMatrix();
 
@@ -283,9 +251,7 @@ namespace Model_Viewer
             addDefaultPrimitives();
             addTestObjects();
 
-            //Create gbuffer
-            gbuf = new GBuffer(this.resMgr, this.ClientSize.Width, this.ClientSize.Height);
-            MVCore.Common.RenderState.gbuf = gbuf;
+            renderMgr.setupGBuffer(ClientSize.Width, ClientSize.Height);
             
             bool renderFlag = true; //Toggle rendering on/off
 
@@ -379,210 +345,7 @@ namespace Model_Viewer
             }
         }
 
-        #region Rendering Methods
-
-        private void traverse_render(model root, int program)
-        {
-            int active_program = root.shader_programs[program];
-
-            GL.UseProgram(active_program);
-
-            if (active_program == -1)
-                throw new ApplicationException("Shit program");
-
-            int loc;
-
-            if (root.renderable)
-            {
-                Matrix4 wMat = root.worldMat;
-                GL.UniformMatrix4(10, false, ref wMat);
-
-                //Send mvp to all shaders
-                GL.UniformMatrix4(7, false, ref mvp);
-
-                //Upload Selected Flag
-                GL.Uniform1(208, root.selected);
-
-                if (root.type == TYPES.MESH)
-                {
-                    //Sent rotation matrix individually for light calculations
-                    GL.UniformMatrix4(9, false, ref rotMat);
-
-                    //Send DiffuseFlag
-                    GL.Uniform1(206, RenderOptions.UseTextures);
-
-                    //Upload Selected Flag
-                    GL.Uniform1(207, RenderOptions.UseLighting);
-
-                    //Object program
-                    //Local Transformation is the same for all objects 
-                    //Pending - Personalize local matrix on each object
-                    loc = GL.GetUniformLocation(active_program, "light");
-                    GL.Uniform3(loc, this.resMgr.GLlights[0].localPosition);
-
-                    //Upload Light Intensity
-                    loc = GL.GetUniformLocation(active_program, "intensity");
-                    GL.Uniform1(210, light_intensity);
-
-                    //Upload camera position as the light
-                    //GL.Uniform3(loc, cam.Position);
-
-                    //Apply frustum culling only for mesh objects
-                    if (activeCam.frustum_occlude((meshModel) root, rotMat))
-                        root.render(program);
-                    else occludedNum++;
-                    
-                }
-                else if (root.type == TYPES.JOINT)
-                {
-                    if (RenderOptions.RenderJoints)
-                        root.render(program);
-                }
-                else if (root.type == TYPES.COLLISION)
-                {
-                    if (RenderOptions.RenderCollisions)
-                    {
-                        //Send DiffuseFlag
-                        GL.Uniform1(206, 0.0f);
-
-                        //Upload Selected Flag
-                        GL.Uniform1(207, 0.0f);
-                        root.render(program);
-                    }
-                        
-                }
-                else if (root.type == TYPES.LOCATOR || root.type == TYPES.SCENE || root.type == TYPES.LIGHT)
-                {
-                    root.render(program);
-                }
-            }
-
-            //Render children
-            foreach (model child in root.Children)
-                traverse_render(child, program);
-
-        }
         
-        private void render_scene()
-        {
-            //Console.WriteLine("Rendering Scene Cam Position : {0}", this.activeCam.Position);
-            //Console.WriteLine("Rendering Scene Cam Orientation: {0}", this.activeCam.Orientation);
-            //GL.CullFace(CullFaceMode.Back);
-            //GL.Enable(EnableCap.DepthTest);
-
-            occludedNum = 0; //This will be incremented from traverse_render
-            //Render only the first scene for now
-            if (this.rootObject != null)
-            {
-                //Drawing Phase
-                traverse_render(this.rootObject, 0);
-                //Drawing Debug
-                //if (RenderOptions.RenderDebug) traverse_render(this.mainScene, 1);
-            }
-        }
-
-        private void render_lights()
-        {
-            int active_program = MVCore.Common.RenderState.activeResMgr.GLShaders["LIGHT_SHADER"];
-            GL.UseProgram(active_program);
-            
-            //Send mvp to all shaders
-            int loc = GL.GetUniformLocation(active_program, "mvp");
-            GL.UniformMatrix4(loc, false, ref mvp);
-            for (int i=0; i<resMgr.GLlights.Count; i++)
-                resMgr.GLlights[i].render(0);
-        }
-
-        private void render_cameras()
-        {
-            int active_program = resMgr.GLShaders["BBOX_SHADER"];
-
-            GL.UseProgram(active_program);
-            int loc;
-            //Send mvp matrix to all shaders
-            loc = GL.GetUniformLocation(active_program, "mvp");
-            GL.UniformMatrix4(loc, false, ref activeCam.viewMat);
-            //Send object world Matrix to all shaders
-
-            foreach (Camera cam in resMgr.GLCameras)
-            {
-                //Old rendering the inverse clip space
-                //Upload uniforms
-                //loc = GL.GetUniformLocation(active_program, "self_mvp");
-                //Matrix4 self_mvp = cam.viewMat;
-                //GL.UniformMatrix4(loc, false, ref self_mvp);
-
-                //New rendering the exact frustum plane
-                loc = GL.GetUniformLocation(active_program, "worldMat");
-                Matrix4 test = Matrix4.Identity;
-                test[0,0] = -1.0f;
-                test[1,1] = -1.0f;
-                test[2,2] = -1.0f;
-                GL.UniformMatrix4(loc, false, ref test);
-
-                //Render all inactive cameras
-                if (!cam.isActive) cam.render();
-                    
-            }
-
-        }
-
-        private void render_info()
-        {
-            //GL.Clear(ClearBufferMask.DepthBufferBit);
-            GL.Enable(EnableCap.Blend);
-            GL.Disable(EnableCap.DepthTest);
-            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
-
-            float text_pos_x = Width - 20.0f;
-            float text_pos_y = 80.0f;
-
-
-            font_draw_object.clearPrimities();
-
-            System.Drawing.SizeF size = new System.Drawing.SizeF();
-            for (int i = 0; i < 5; i++)
-            {
-                switch (i)
-                {
-                    case 0:
-                        size = font_draw_object.addDrawing(string.Format("FPS: {0:F1}", fpsCount),
-                            new Vector3(text_pos_x, text_pos_y, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS);
-                        break;
-                    case 1:
-                        size = font_draw_object.addDrawing(string.Format("OccludedNum: {0:D1}", occludedNum),
-                            new Vector3(text_pos_x, text_pos_y, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS);
-                        break;
-                    case 2:
-                        size = font_draw_object.addDrawing(string.Format("Total Vertices: {0:D1}", RenderStats.vertNum),
-                            new Vector3(text_pos_x, text_pos_y, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS);
-                        break;
-                    case 3:
-                        size = font_draw_object.addDrawing(string.Format("Total Triangles: {0:D1}", RenderStats.trisNum),
-                            new Vector3(text_pos_x, text_pos_y, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS);
-                        break;
-                    case 4:
-                        size = font_draw_object.addDrawing(string.Format("Textures: {0:D1}", RenderStats.texturesNum),
-                            new Vector3(text_pos_x, text_pos_y, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS);
-                        break;
-                }
-                text_pos_y -= (size.Height + 2.0f);
-            }
-
-
-
-
-            //Render drawings
-            font_draw_object.update();
-            font_draw_object.render(Width, Height);
-
-            GL.Disable(EnableCap.Blend);
-            GL.Enable(EnableCap.DepthTest);
-
-        }
-
-        #endregion Rendering Methods
 
         #region GLControl Methods
         private void genericEnter(object sender, EventArgs e)
@@ -621,10 +384,9 @@ namespace Model_Viewer
             //Once the context is initialized compile the shaders
             compileShaders();
 
-            //Load font should be done before being used by the rendering thread and after the shaders are live
-            setupTextRenderer();
-
-
+            //Initialize the render manager (Does some pretty lame shit for now)
+            renderMgr.init(resMgr);
+            
             kbHandler = new KeyboardHandler();
             //gpHandler = new GamepadHandler(); TODO: Add support for PS4 controller
 
@@ -649,7 +411,7 @@ namespace Model_Viewer
             if (e.Button == MouseButtons.Left)
             {
                 //Debug.WriteLine("Deltas {0} {1} {2}", delta_x, delta_y, e.Button);
-                activeCam.AddRotation(delta_x, delta_y);
+                RenderState.activeCam.AddRotation(delta_x, delta_y);
             }
 
             mouse_x = e.X;
@@ -849,6 +611,8 @@ namespace Model_Viewer
             {
                 if (s.Contains("explicit"))
                     Console.WriteLine(s);
+                if (s.Contains("texture"))
+                    Console.WriteLine(s);
                 if (s.Contains("16"))
                     Console.WriteLine(s);
             }
@@ -991,14 +755,7 @@ namespace Model_Viewer
         #region ControlSetup_Init
 
         //Setup
-        public void setupTextRenderer()
-        {
-            //Use QFont
-            //string font = "C:\\WINDOWS\\FONTS\\LUCON.TTF";
-            string font = "C:\\WINDOWS\\FONTS\\ARIAL.TTF";
-            font_draw_object = new MVCore.Text.TextRenderer(font, 10);
-        }
-
+        
         public void setupRenderingThread()
         {
             
@@ -1017,10 +774,10 @@ namespace Model_Viewer
         #region Camera Update Functions
         public void setActiveCam(int index)
         {
-            if (activeCam != null)
-                activeCam.isActive = false;
-            activeCam = resMgr.GLCameras[index];
-            activeCam.isActive = true;
+            if (RenderState.activeCam != null)
+                RenderState.activeCam.isActive = false;
+            RenderState.activeCam = resMgr.GLCameras[index];
+            RenderState.activeCam.isActive = true;
             Console.WriteLine("Switching Camera to {0}", index);
         }
 
@@ -1034,7 +791,7 @@ namespace Model_Viewer
 
         public void updateActiveCam(Vector3 pos)
         {
-            activeCam.Position = pos;
+            RenderState.activeCam.Position = pos;
         }
 
         #endregion
@@ -1114,9 +871,7 @@ namespace Model_Viewer
 
         private void rt_ResizeViewport(int w, int h)
         {
-            gbuf?.resize(w, h);
-            GL.Viewport(0, 0, w, h);
-            //GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
+            renderMgr.resize(w, h);
         }
 
         private void rt_addRootScene(string filename)
@@ -1145,6 +900,9 @@ namespace Model_Viewer
 
             //Setup new object
             rootObject = GEOMMBIN.LoadObjects(filename);
+
+            //Populate RenderManager
+            renderMgr.populate(rootObject);
              
             //find Animation Capable Scenes
             this.findAnimScenes();
@@ -1188,7 +946,7 @@ namespace Model_Viewer
 
             if (time.TotalMilliseconds > measurement_interval)
             {
-                fpsCount = 1000 * frames / (float) measurement_interval;
+                RenderStats.fpsCount = (int) (1000 * frames / (float) measurement_interval);
                 //Console.WriteLine("{0} {1}", frames, fps);
                 //Reset
                 frames = 0;
@@ -1215,13 +973,13 @@ namespace Model_Viewer
             //Console.WriteLine(gpHandler.getBtnState(1) - gpHandler.getBtnState(0));
             //Console.WriteLine(gpHandler.getAxsState(0, 1));
             for (int i = 0; i < movement_speed; i++)
-                activeCam.Move(0.1f * gpHandler.getAxsState(0, 0),
+                RenderState.activeCam.Move(0.1f * gpHandler.getAxsState(0, 0),
                                0.1f * gpHandler.getAxsState(0, 1),
                                gpHandler.getBtnState(1) - gpHandler.getBtnState(0));
-            
+
             //Rotate Camera
             //for (int i = 0; i < movement_speed; i++)
-            activeCam.AddRotation(-3.0f * gpHandler.getAxsState(1, 0), 3.0f * gpHandler.getAxsState(1, 1));
+            RenderState.activeCam.AddRotation(-3.0f * gpHandler.getAxsState(1, 0), 3.0f * gpHandler.getAxsState(1, 1));
             //Console.WriteLine("Camera Orientation {0} {1}", activeCam.Orientation.X,
             //    activeCam.Orientation.Y,
             //    activeCam.Orientation.Z);
@@ -1239,15 +997,15 @@ namespace Model_Viewer
 
             //Camera Movement
             float step = movement_speed * 0.01f;
-            activeCam.Move(
+            RenderState.activeCam.Move(
                     step * (kbHandler.getKeyStatus(OpenTK.Input.Key.D) - kbHandler.getKeyStatus(OpenTK.Input.Key.A)),
                     step * (kbHandler.getKeyStatus(OpenTK.Input.Key.W) - kbHandler.getKeyStatus(OpenTK.Input.Key.S)),
                     step * (kbHandler.getKeyStatus(OpenTK.Input.Key.R) - kbHandler.getKeyStatus(OpenTK.Input.Key.F)));
 
             
             //Rotate Axis
-            rot.Y += step * (kbHandler.getKeyStatus(OpenTK.Input.Key.E) - kbHandler.getKeyStatus(OpenTK.Input.Key.Q));
-            rot.X += step * (kbHandler.getKeyStatus(OpenTK.Input.Key.C) - kbHandler.getKeyStatus(OpenTK.Input.Key.Z));
+            rot.Y += 50 * step * (kbHandler.getKeyStatus(OpenTK.Input.Key.E) - kbHandler.getKeyStatus(OpenTK.Input.Key.Q));
+            rot.X += 50 * step * (kbHandler.getKeyStatus(OpenTK.Input.Key.C) - kbHandler.getKeyStatus(OpenTK.Input.Key.Z));
             
         }
 
@@ -1297,9 +1055,6 @@ namespace Model_Viewer
 
                 //Free other resources here
                 rootObject.Dispose();
-                gbuf.Dispose();
-                font_draw_object.Dispose();
-
             }
 
             //Free unmanaged resources
