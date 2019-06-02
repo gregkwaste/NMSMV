@@ -59,6 +59,19 @@ namespace Model_Viewer
 
         //Animation Stuff
         private bool animationStatus = false;
+        public bool PAnimationStatus
+        {
+            get
+            {
+                return animationStatus;
+            }
+
+            set
+            {
+                animationStatus = value;
+            }
+        }
+
         public List<scene> animScenes = new List<scene>();
         
         //Control private Managers
@@ -467,17 +480,12 @@ namespace Model_Viewer
                     break;
                 //Animation playback (Play/Pause Mode) with Space
                 case Keys.Space:
-                    animationStatus = !animationStatus;
-                    if (animationStatus)
-                        backgroundWorker1.RunWorkerAsync();
-                    else
-                        backgroundWorker1.CancelAsync();
+                    toggleAnimation();
                     break;
                 default:
                     //Console.WriteLine("Not Implemented Yet");
                     break;
             }
-
         }
 
         private void ResizeControl(object sender, System.Timers.ElapsedEventArgs e)
@@ -746,7 +754,7 @@ namespace Model_Viewer
 
         private void loadAnimationToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            AnimationSelectForm aform = new AnimationSelectForm(this);
+            AnimationSelectForm aform = new AnimationSelectForm(animScenes);
             aform.Show();
         }
 
@@ -903,7 +911,7 @@ namespace Model_Viewer
 
             //Populate RenderManager
             renderMgr.populate(rootObject);
-             
+            
             //find Animation Capable Scenes
             this.findAnimScenes();
 
@@ -1013,6 +1021,16 @@ namespace Model_Viewer
 
         #region ANIMATION_PLAYBACK
         //Animation Playback
+
+        public void toggleAnimation()
+        {
+            animationStatus = !animationStatus;
+            if (animationStatus)
+                backgroundWorker1.RunWorkerAsync();
+            else
+                backgroundWorker1.CancelAsync();
+        }
+
         private void backgroundWorker1_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
         {
             while (true)

@@ -39,6 +39,7 @@ namespace Model_Viewer
             this.textBox1 = new System.Windows.Forms.TextBox();
             this.button2 = new System.Windows.Forms.Button();
             this.label1 = new System.Windows.Forms.Label();
+            this.button3 = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // listBox1
@@ -74,9 +75,9 @@ namespace Model_Viewer
             // 
             this.button2.Location = new System.Drawing.Point(187, 52);
             this.button2.Name = "button2";
-            this.button2.Size = new System.Drawing.Size(327, 43);
+            this.button2.Size = new System.Drawing.Size(160, 43);
             this.button2.TabIndex = 3;
-            this.button2.Text = "IMPORT";
+            this.button2.Text = "IMPORT ANIMATION";
             this.button2.UseVisualStyleBackColor = true;
             this.button2.Click += new System.EventHandler(this.button2_Click);
             // 
@@ -89,11 +90,22 @@ namespace Model_Viewer
             this.label1.TabIndex = 4;
             this.label1.Text = "Select Scene";
             // 
+            // button3
+            // 
+            this.button3.Location = new System.Drawing.Point(353, 52);
+            this.button3.Name = "button3";
+            this.button3.Size = new System.Drawing.Size(161, 43);
+            this.button3.TabIndex = 5;
+            this.button3.Text = "IMPORT POSE";
+            this.button3.UseVisualStyleBackColor = true;
+            this.button3.Click += new System.EventHandler(this.Button3_Click);
+            // 
             // AnimationSelectForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(526, 107);
+            this.Controls.Add(this.button3);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.button2);
             this.Controls.Add(this.textBox1);
@@ -118,25 +130,20 @@ namespace Model_Viewer
         private System.Windows.Forms.Label label1;
 
         private string animpath;
-        private List<model> animScenes;
-
-        public AnimationSelectForm(object parent)
+        private Button button3;
+        private List<scene> _animScenes;
+        
+        public AnimationSelectForm(List<scene> animScenes)
         {
             InitializeComponent();
-            //Get type of parent
-            Type typ = parent.GetType();
-            Console.WriteLine(typ);
-            CGLControl parent_control = (CGLControl)parent;
-            animScenes = new List<model>();
-            foreach (scene s in parent_control.animScenes)
-                animScenes.Add(s);
+            _animScenes = animScenes;
         }
 
         private void AnimationSelectForm_Load(object sender, EventArgs e)
         {
             //Set up droplist
-            foreach (model s in animScenes)
-                this.listBox1.Items.Add(s.name);
+            foreach (scene s in _animScenes)
+                listBox1.Items.Add(s.name);
         }
 
         private void button2_Click(object sender, EventArgs e)
@@ -157,11 +164,10 @@ namespace Model_Viewer
 
             //Proceed to import
             //Select Scene
-            scene activeScene = (scene)this.animScenes[this.listBox1.SelectedIndex];
+            scene activeScene = _animScenes[this.listBox1.SelectedIndex];
             MVCore.Common.CallBacks.openAnim(animpath, activeScene);
 
             this.Close();
-
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -174,14 +180,36 @@ namespace Model_Viewer
                 return;
 
             animpath = openFileDialog1.FileName;
-            this.textBox1.Text = animpath;
+            textBox1.Text = animpath;
         }
 
         private void AnimationSelectForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            //Cleanup
-            animScenes.Clear();
+            
         }
 
+        private void Button3_Click(object sender, EventArgs e)
+        {
+            //Get scene selection
+            Console.WriteLine(this.listBox1.SelectedIndex);
+            if (this.listBox1.SelectedIndex == -1)
+            {
+                MessageBox.Show("No Scene Selected", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (animpath == null)
+            {
+                MessageBox.Show("No ANIM File Selected", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            //Proceed to import
+            //Select Scene
+            scene activeScene = _animScenes[this.listBox1.SelectedIndex];
+            MVCore.Common.CallBacks.openPose(animpath, activeScene);
+
+            this.Close();
+        }
     }
 }

@@ -53,9 +53,16 @@ namespace MVCore.GMDL
         public Vector3 _localRotationAngles;
         public Matrix4 _localRotation;
 
+        //keep original transforms just in case
+        public Vector3 _origlocalPosition;
+        public Vector3 _origlocalScale;
+        public Vector3 _origlocalRotationAngles;
+        public Matrix4 _origlocalRotation;
+
+
         public model parent;
         public int cIndex = 0;
-        private bool changed = true;
+        public bool changed = true; //Making it public just for the joints
 
         //Disposable Stuff
         public bool disposed = false;
@@ -194,14 +201,14 @@ namespace MVCore.GMDL
             //Get Local Position
             Vector3 rotation;
             _localPosition = new Vector3(trans[0], trans[1], trans[2]);
-
+            _origlocalPosition = _localPosition;
             //Save raw rotations
             rotation.X = MathUtils.radians(trans[3]);
             rotation.Y = MathUtils.radians(trans[4]);
             rotation.Z = MathUtils.radians(trans[5]);
 
-            _localRotationAngles = rotation;
-
+            _localRotationAngles = new Vector3(trans[3], trans[4], trans[5]);
+            _origlocalRotationAngles = _localRotationAngles;
             //IF PARSED SEPARATELY USING THE AXIS ANGLES
             //OpenTK.Quaternion qx = OpenTK.Quaternion.FromAxisAngle(new Vector3(1.0f, 0.0f, 0.0f), rotation.X);
             //OpenTK.Quaternion qy = OpenTK.Quaternion.FromAxisAngle(new Vector3(0.0f, 1.0f, 0.0f), rotation.Y);
@@ -216,11 +223,13 @@ namespace MVCore.GMDL
             Matrix4 roty = Matrix4.CreateRotationY(rotation.Y);
             Matrix4 rotz = Matrix4.CreateRotationZ(rotation.Z);
             _localRotation = rotz * rotx * roty;
+            _origlocalRotation = _localRotation;
 
             //Get Local Scale
             _localScale.X = trans[6];
             _localScale.Y = trans[7];
             _localScale.Z = trans[8];
+            _origlocalScale = _localScale;
 
             //Set paths
             if (parent!=null)
@@ -332,8 +341,23 @@ namespace MVCore.GMDL
 
         public Dictionary<string, Joint> jointDict;
         public TkAnimMetadata animMeta = null;
+        public TkAnimMetadata poseMeta = null;
         public int frameCounter = 0;
+        public int poseIndex = 0;
+        
 
+        public int PPoseIndex
+        {
+            get
+            {
+                return poseIndex;
+            }
+            set
+            {
+                poseIndex = value;
+                loadPose(poseIndex); //Reload Pose Information
+            }
+        }
 
         public scene() : base(0.1f) {
             type = TYPES.MODEL;
@@ -349,13 +373,10 @@ namespace MVCore.GMDL
             JMArray = (float[]) input.JMArray.Clone();
 
             //Copy textures
-            
-
-
             animMeta = input.animMeta;
+            poseMeta = input.poseMeta;
             gobject = input.gobject;
-
-        }
+        }      
 
         public void copyFrom(scene input)
         {
@@ -366,6 +387,7 @@ namespace MVCore.GMDL
             this.JMArray = (float[]) input.JMArray.Clone();
 
             this.animMeta = input.animMeta;
+            this.poseMeta = input.poseMeta;
             this.gobject = input.gobject;
         }
 
@@ -389,6 +411,86 @@ namespace MVCore.GMDL
             return new scene(this, refScene);
         }
 
+        public void loadPose(int poseID)
+        {
+            Random rand_gen = new Random();
+            //For each joint choose a frame at random
+            int actualPoseID = rand_gen.Next(0, 199);
+
+
+
+            foreach (TkAnimNodeData node in poseMeta.NodeData)
+            {
+                   
+                //Console.WriteLine("Setting Frame Index {0}", frameIndex);
+                TkAnimNodeFrameData frame = poseMeta.AnimFrameData[actualPoseID];
+                TkAnimNodeFrameData stillframe = poseMeta.StillFrameData;
+                
+                if (jointDict.ContainsKey(node.Node))
+                {
+                    //Console.WriteLine("Frame {0} Node {1} RotationIndex {2}", frameCounter, node.Node, node.RotIndex);
+
+                    OpenTK.Quaternion q;
+                    //Check if there is a rotation for that node
+                    if (node.RotIndex < frame.Rotations.Count)
+                    {
+                        Console.WriteLine("Node " + node.Node + " has still animframedata\n");
+                        int rotindex = node.RotIndex;
+                        q = new OpenTK.Quaternion(frame.Rotations[rotindex].x,
+                                        frame.Rotations[rotindex].y,
+                                        frame.Rotations[rotindex].z,
+                                        frame.Rotations[rotindex].w);
+                    }
+                    else //Load stillframedata
+                    {
+                        Console.WriteLine("Node" + node.Node + " has still framedata\n");
+                        int rotindex = node.RotIndex - frame.Rotations.Count;
+                        q = new OpenTK.Quaternion(stillframe.Rotations[rotindex].x,
+                                        stillframe.Rotations[rotindex].y,
+                                        stillframe.Rotations[rotindex].z,
+                                        stillframe.Rotations[rotindex].w);
+                    }
+
+                    Matrix4 nMat = Matrix4.CreateFromQuaternion(q);
+                    jointDict[node.Node].localPoseRotation = nMat;
+
+                    //Load Translations
+                    if (node.TransIndex < frame.Translations.Count)
+                    {
+                        Console.WriteLine("Node " + node.Node + " has still animframedata\n");
+                        jointDict[node.Node].localPosePosition = new Vector3(frame.Translations[node.TransIndex].x,
+                                                            frame.Translations[node.TransIndex].y,
+                                                            frame.Translations[node.TransIndex].z);
+                    }
+                    else //Load stillframedata
+                    {
+                        Console.WriteLine("Node " + node.Node + " has still framedata\n");
+                        int transindex = node.TransIndex - frame.Translations.Count;
+                        jointDict[node.Node].localPosePosition = new Vector3(stillframe.Translations[transindex].x,
+                                                            stillframe.Translations[transindex].y,
+                                                            stillframe.Translations[transindex].z);
+                    }
+
+                    //Load Scaling - TODO
+                    //Load Translations
+                    if (node.ScaleIndex < frame.Scales.Count)
+                    {
+                        Console.WriteLine("Node " + node.Node + " has still animframedata\n");
+                        jointDict[node.Node].localPoseScale = new Vector3(frame.Scales[node.ScaleIndex].x,
+                            frame.Scales[node.ScaleIndex].y, frame.Scales[node.ScaleIndex].z);
+                    }
+                    else //Load stillframedata
+                    {
+                        Console.WriteLine("Node " + node.Node + " has still framedata\n");
+                        int scaleindex = node.ScaleIndex - frame.Scales.Count;
+                        jointDict[node.Node].localPoseScale = new Vector3(stillframe.Scales[scaleindex].x,
+                            stillframe.Scales[scaleindex].y, stillframe.Scales[scaleindex].z);
+                    }
+                }
+                //Console.WriteLine("Node " + node.name+ " {0} {1} {2}",node.rotIndex,node.transIndex,node.scaleIndex);
+            }
+        }
+
         public void animate()
         {
             //Console.WriteLine("Setting Frame Index {0}", frameIndex);
@@ -402,6 +504,7 @@ namespace MVCore.GMDL
                     //Console.WriteLine("Frame {0} Node {1} RotationIndex {2}", frameCounter, node.Node, node.RotIndex);
 
                     OpenTK.Quaternion q;
+                    Vector3 rotAngles;
                     //Check if there is a rotation for that node
                     if (node.RotIndex < frame.Rotations.Count)
                     {
@@ -941,22 +1044,7 @@ namespace MVCore.GMDL
                     GL.BindTexture(s.tex.target, s.tex.bufferID);
                     sampler_counter++;
                 }
-
-                
             }
-
-
-
-            //GL.Enable(EnableCap.Blend);
-            //GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
-
-            //NEW WAY OF TEXTURE BINDING
-            //If there are samples defined, there are diffuse textures for sure
-
-            //Upload Default Color
-            //Color is already uploaded on the main loop
-            //loc = GL.GetUniformLocation(pass, "color");
-            //GL.Uniform3(loc, this.color);
 
             //Step 2 Bind & Render Vao
             //Render Elements
@@ -968,7 +1056,7 @@ namespace MVCore.GMDL
 
         private void renderBHull(int pass) {
             GL.UseProgram(pass);
-
+            
             //Step 1: Upload Uniforms
             int loc;
             //Upload Material Flags here
@@ -2496,7 +2584,7 @@ namespace MVCore.GMDL
         private static void revertFrameBuffer(int fbo, int fbo_tex)
         {
             //Bring Back screen
-            GL.Viewport(0, 0, old_vp_size[0], old_vp_size[1]);
+            GL.Viewport(0, 0, old_vp_size[2], old_vp_size[3]);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
             GL.DeleteFramebuffer(fbo);
 
@@ -3345,6 +3433,95 @@ namespace MVCore.GMDL
         public int jointIndex;
         public Vector3 color;
 
+        //Add a bunch of shit for posing
+        public Vector3 _localPosePosition = new Vector3(0.0f);
+        public Matrix4 _localPoseRotation = Matrix4.Identity;
+        public Vector3 _localPoseScale = new Vector3(1.0f);
+        
+        //Props
+        public Matrix4 localPoseRotation
+        {
+            get { return _localPoseRotation; }
+            set { _localPoseRotation = value; changed = true; }
+        }
+
+        public Vector3 localPosePosition
+        {
+            get { return _localPosePosition; }
+            set { _localPosePosition = value; changed = true; }
+        }
+
+        public Vector3 localPoseScale
+        {
+            get { return _localPoseScale; }
+            set { _localPoseScale = value; changed = true; }
+        }
+
+        private void update_joint()
+        {
+            //Update Local Transformation Matrix
+            
+            if (changed)
+            {
+                //Calculate local transformation
+                //Create scale matrix
+                Matrix4 localScaleMat = Matrix4.Identity;
+                localScaleMat.M11 = localScale.X;
+                localScaleMat.M22 = localScale.Y;
+                localScaleMat.M33 = localScale.Z;
+
+                //Create translation Matrix
+                Matrix4 localPositionMat = Matrix4.CreateTranslation(localPosition);
+
+                localMat = Matrix4.Mult(localScaleMat * localRotation * localPositionMat, 2.0f);
+
+                //Calculate Pose transformation
+
+                //Create scaling matrix
+                Matrix4 localPoseScaleMat = Matrix4.Identity;
+                localPoseScaleMat.M11 = localPoseScale.X;
+                localPoseScaleMat.M22 = localPoseScale.Y;
+                localPoseScaleMat.M33 = localPoseScale.Z;
+
+                //Create Pose translation Matrix
+                Matrix4 localPosePositionMat = Matrix4.CreateTranslation(localPosePosition);
+
+                //Calculate local matrices
+                localMat = localMat - (localPoseScaleMat * localPoseRotation * localPosePositionMat);
+
+                //Finally Update world Transformation Matrix
+                if (parent != null)
+                {
+                    //Original working
+                    worldMat = localMat * parent.worldMat;
+                    //return this.localMat;
+                } else
+                    worldMat = localMat;
+                
+                //Update worldPosition
+                if (parent != null)
+                {
+                    //Original working
+                    //return parent.worldPosition + Vector3.Transform(this.localPosition, parent.worldMat);
+
+                    //Add Translation as well
+                    worldPosition = (Vector4.Transform(new Vector4(0.0f, 0.0f, 0.0f, 1.0f), worldMat)).Xyz;
+                }
+                else
+                    worldPosition = (Vector4.Transform(new Vector4(0.0f, 0.0f, 0.0f, 1.0f), localMat)).Xyz;
+
+                changed = false;
+            }
+            
+
+            //Trigger the position update of all children nodes
+            foreach (GMDL.model child in children)
+            {
+                child.update();
+            }
+        }
+
+
         public Joint() :base(0.1f)
         {
             
@@ -3363,7 +3540,8 @@ namespace MVCore.GMDL
 
         public override void update()
         {
-            base.update(); //Call the base function to update the transforms
+            update_joint(); //Call the custom function for updating transforms
+            //base.update(); 
 
             //Update Vertex Buffer based on the new positions
             float[] verts = new float[2 * children.Count * 3];

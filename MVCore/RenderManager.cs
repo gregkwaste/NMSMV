@@ -134,10 +134,10 @@ namespace MVCore
                         GL.UniformMatrix4(9, false, ref RenderState.rotMat);
 
                         //Send DiffuseFlag
-                        GL.Uniform1(206, RenderOptions.UseTextures);
+                        GL.Uniform1(206, RenderOptions._useTextures);
 
                         //Upload Selected Flag
-                        GL.Uniform1(207, RenderOptions.UseLighting);
+                        GL.Uniform1(207, RenderOptions._useLighting);
 
                         //Object program
                         //Local Transformation is the same for all objects 
@@ -223,10 +223,10 @@ namespace MVCore
                         GL.UniformMatrix4(9, false, ref RenderState.rotMat);
 
                         //Send DiffuseFlag
-                        GL.Uniform1(206, RenderOptions.UseTextures);
+                        GL.Uniform1(206, RenderOptions._useTextures);
 
                         //Upload Selected Flag
-                        GL.Uniform1(207, RenderOptions.UseLighting);
+                        GL.Uniform1(207, RenderOptions._useLighting);
 
                         //Object program
                         //Local Transformation is the same for all objects 
@@ -270,7 +270,7 @@ namespace MVCore
 
             //render_cameras();
 
-            if (RenderOptions.RenderLights)
+            if (RenderOptions._renderLights)
                 render_lights();
 
             //Dump Gbuffer

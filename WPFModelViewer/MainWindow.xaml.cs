@@ -295,6 +295,7 @@ namespace WPFModelViewer
             //SETUP THE CALLBACKS OF MVCORE
             MVCore.Common.CallBacks.updateStatus = Util.setStatus;
             MVCore.Common.CallBacks.openAnim = Util.loadAnimationFile;
+            MVCore.Common.CallBacks.openPose = Util.loadPoseFile;
             MVCore.Common.CallBacks.Log = Util.Log;
             MVCore.Common.CallBacks.issueRequestToGLControl = Util.sendRequest;
 
@@ -327,9 +328,42 @@ namespace WPFModelViewer
             MessageBox.Show("HOOOOOOOOLA");
         }
 
+        private void PlayStop_Click(object sender, RoutedEventArgs e)
+        {
+            glControl.toggleAnimation();
+        }
+
+        private void loadAnim(object sender, RoutedEventArgs e)
+        {
+            AnimationSelectForm aform = new AnimationSelectForm(glControl.animScenes);
+            aform.Show();
+        }
+
+        private void RegenPose_Click(object sender, RoutedEventArgs e)
+        {
+            //Get Scenetreeview Selected item
+            model m = (model)SceneTreeView.SelectedItem;
+
+            if (m == null)
+            {
+                MessageBox.Show("Please select an object!", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (m.type == TYPES.MODEL)
+            {
+                scene sm = (scene) m;
+
+                if (sm.poseMeta != null)
+                    sm.loadPose(0); //Reload Pose
+                else
+                    MessageBox.Show("Missing Pose Data!", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
 
         //Event Handlers
-        
+
         private void Sliders_OnValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             //Update slider values
@@ -352,35 +386,6 @@ namespace WPFModelViewer
         {
             glControl.updateActiveCam(new OpenTK.Vector3(0.0f, 0.0f, 0.0f));
             glControl.updateControlRotation(0.0f, 0.0f);
-        }
-
-        private void updateRenderOptions(object sender, RoutedEventArgs e)
-        {
-            //Toggle Wireframe
-            if (toggleWireframe.IsChecked.Value)
-                RenderOptions.RENDERMODE = PolygonMode.Line;
-            else
-                RenderOptions.RENDERMODE = PolygonMode.Fill;
-
-            //Toggle Texture Render
-            if (useTextures.IsChecked.Value)
-                RenderOptions.UseTextures = 1.0f;
-            else
-                RenderOptions.UseTextures = 0.0f;
-
-            //Toggle Use Lighting
-            if (useLighting.IsChecked.Value)
-                RenderOptions.UseLighting = 1.0f;
-            else
-                RenderOptions.UseLighting = 0.0f;
-
-            //Boolean Flags
-            RenderOptions.RenderInfo = toggleInfo.IsChecked.Value; //Toggle Info Render
-            RenderOptions.RenderLights = toggleLights.IsChecked.Value; //Toggle Light Render
-            RenderOptions.RenderJoints = toggleJoints.IsChecked.Value; //Toggle Joints Render
-            RenderOptions.RenderCollisions = toggleCollisions.IsChecked.Value; //Toggle Collisions Render
-            RenderOptions.RenderBoundHulls = toggleBoundHulls.IsChecked.Value; //Toggle Bound Hull Renering
-
         }
 
         private void SceneTreeView_OnSelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -518,7 +523,6 @@ namespace WPFModelViewer
             }
         
         }
-
 
 
 

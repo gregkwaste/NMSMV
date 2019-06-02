@@ -591,6 +591,26 @@ namespace MVCore
             //Parse root scene
             scene root = (scene) parseNode(scene, gobject, null, null);
 
+
+            /*
+            //Try to load Pose information
+            //At first assemble ANIM.MBIN filepath
+            string animFilePath = filepath.Replace(".SCENE.MBIN", ".ANIM.MBIN");
+
+            if (File.Exists(animFilePath))
+            {
+                MVCore.Common.CallBacks.Log(string.Format("Trying to load Pose Information {0}", animFilePath));
+
+                libMBIN.MBINFile mbinf = new libMBIN.MBINFile(animFilePath);
+                mbinf.Load();
+
+                TkAnimMetadata testAnim = (TkAnimMetadata) mbinf.GetData();
+                root.poseMeta = testAnim;
+                root.loadPose(10);
+            }
+
+            */
+            
             return root;
         }
 
@@ -817,6 +837,10 @@ namespace MVCore
             {
                 Console.WriteLine("Locator Detected");
                 locator so = new locator(0.1f);
+                //Fetch attributes
+                string attachment = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "ATTACHMENT");
+
+
                 //Set Properties
                 //Testingso.Name = name + "_LOC";
                 so.name = name;
@@ -831,9 +855,7 @@ namespace MVCore
                 so.init(transforms);
 
                 //Locator Objects don't have options
-
                 TkSceneNodeAttributeData attrib = new TkSceneNodeAttributeData();
-
 
                 //Handle Children
                 if (children.Count > 0)
@@ -861,6 +883,11 @@ namespace MVCore
                 //Get Transformation
                 joint.parent = parent;
                 joint.init(transforms);
+                //FORCE pose shit to match the init transform
+                joint.localPosePosition = joint.localPosition;
+                joint.localPoseRotation = joint.localRotation;
+                joint.localPoseScale = joint.localScale;
+
                 //Get JointIndex
                 joint.jointIndex = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "JOINTINDEX").Value);
                 //Set Random Color

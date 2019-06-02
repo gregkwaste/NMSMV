@@ -6,6 +6,7 @@
         xmlns:local="clr-namespace:WPFModelViewer"
         xmlns:gmdl="clr-namespace:MVCore.GMDL"
         xmlns:mvcore="clr-namespace:MVCore"
+        xmlns:mvcore_common="clr-namespace:MVCore.Common"
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
         mc:Ignorable="d"
         Title="No Man's Sky Model Viewer" Height="720" Width="1280"
@@ -110,7 +111,14 @@
             </DataTemplate>
             
             <DataTemplate DataType="{x:Type gmdl:scene}">
-                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}"/>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}" Grid.Row="0"/>
+                    <TextBox Text="{Binding PPoseIndex}" Grid.Row="1"/>
+                </Grid>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:locator}">
@@ -127,7 +135,14 @@
                     <ContentControl Content="{Binding Material}" Grid.Row="1"></ContentControl>
                 </Grid>
             </DataTemplate>
-            
+
+            <DataTemplate DataType="{x:Type mvcore_common:RenderOptions}">
+                <GroupBox Header="RenderOptions">
+                    
+
+                </GroupBox>
+            </DataTemplate>
+
             <Style x:Key="TreeViewItemStyle" TargetType="TreeViewItem">
                 <Setter Property="IsExpanded" Value="False" />
                 <Setter Property="IsSelected" Value="False" />
@@ -155,7 +170,11 @@
                     <x:Type TypeName="mvcore:TYPES"/>
                 </ObjectDataProvider.MethodParameters>
             </ObjectDataProvider>
+            <ObjectDataProvider x:Key="renderOptions"
+                            ObjectType="{x:Type mvcore_common:RenderOptions}">
+            </ObjectDataProvider>
         </ResourceDictionary>
+        
     </Window.Resources>
 
     <Grid Margin="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
@@ -186,6 +205,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition MinHeight="220"/>
                     <RowDefinition Height="7*"/>
+                    <RowDefinition Height="3*"/>
                     <RowDefinition Height="3*"/>
                 </Grid.RowDefinitions>
                 <!--Settings Tab Control-->
@@ -235,63 +255,55 @@
                             </Grid>
                         </GroupBox>
                     </TabItem>
-                    <TabItem Header="Render">
-                        <GroupBox Header="RenderOptions">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="93*"/>
-                                    <ColumnDefinition Width="148*"/>
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="20"/>
-                                    <RowDefinition Height="20"/>
-                                    <RowDefinition Height="20"/>
-                                    <RowDefinition Height="20"/>
-                                    <RowDefinition Height="20"/>
-                                    <RowDefinition Height="20"/>
-                                    <RowDefinition Height="20"/>
-                                    <RowDefinition Height="20"/>
-                                </Grid.RowDefinitions>
-                                <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                                    <TextBlock HorizontalAlignment="Left">Wireframe</TextBlock>
-                                    <CheckBox x:Name="toggleWireframe" Width="20" HorizontalAlignment="Right" Click="updateRenderOptions"></CheckBox>
-                                </DockPanel>
-                                <DockPanel Grid.Row="1" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                                    <TextBlock HorizontalAlignment="Left">Use Textures</TextBlock>
-                                    <CheckBox x:Name="useTextures" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
-                                </DockPanel>
-                                <DockPanel Grid.Row="2" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                                    <TextBlock HorizontalAlignment="Left">Use Lighting</TextBlock>
-                                    <CheckBox x:Name="useLighting" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
-                                </DockPanel>
-                                <DockPanel Grid.Row="3" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                                    <TextBlock HorizontalAlignment="Left">Render Info</TextBlock>
-                                    <CheckBox x:Name="toggleInfo" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
-                                </DockPanel>
-                                <DockPanel Grid.Row="4" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                                    <TextBlock HorizontalAlignment="Left">Render Lights</TextBlock>
-                                    <CheckBox x:Name="toggleLights" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
-                                </DockPanel>
-                                <DockPanel Grid.Row="5" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                                    <TextBlock HorizontalAlignment="Left">Render Joints</TextBlock>
-                                    <CheckBox x:Name="toggleJoints" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
-                                </DockPanel>
-                                <DockPanel Grid.Row="6" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                                    <TextBlock HorizontalAlignment="Left">Render Collisions</TextBlock>
-                                    <CheckBox x:Name="toggleCollisions" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
-                                </DockPanel>
-                                <DockPanel Grid.Row="7" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                                    <TextBlock HorizontalAlignment="Left">Render BoundHulls</TextBlock>
-                                    <CheckBox x:Name="toggleBoundHulls" Width="20" HorizontalAlignment="Right" IsChecked="True" Click="updateRenderOptions"></CheckBox>
-                                </DockPanel>
-                            </Grid>
-
-                        </GroupBox>
+                    <TabItem Header="Render" x:Name="RenderInfoOptions">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="93*"/>
+                                <ColumnDefinition Width="148*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="20"/>
+                                <RowDefinition Height="20"/>
+                                <RowDefinition Height="20"/>
+                                <RowDefinition Height="20"/>
+                                <RowDefinition Height="20"/>
+                                <RowDefinition Height="20"/>
+                                <RowDefinition Height="20"/>
+                                <RowDefinition Height="20"/>
+                            </Grid.RowDefinitions>
+                            <ContentControl  x:Name="RenderOptionsPanel"></ContentControl>
+                            <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                <TextBlock HorizontalAlignment="Left">Toggle Wireframe</TextBlock>
+                                <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=ToggleWireframe}"></CheckBox>
+                            </DockPanel>
+                            <DockPanel Grid.Row="1" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                <TextBlock HorizontalAlignment="Left">Use Textures</TextBlock>
+                                <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=UseTextures}"></CheckBox>
+                            </DockPanel>
+                            <DockPanel Grid.Row="2" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                <TextBlock HorizontalAlignment="Left">Use Lighting</TextBlock>
+                                <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=UseLighting}"></CheckBox>
+                            </DockPanel>
+                            <DockPanel Grid.Row="3" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                <TextBlock HorizontalAlignment="Left">Render Info</TextBlock>
+                                <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderInfo}"></CheckBox>
+                            </DockPanel>
+                            <DockPanel Grid.Row="4" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                <TextBlock HorizontalAlignment="Left">Render Lights</TextBlock>
+                                <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderLights}"></CheckBox>
+                            </DockPanel>
+                            <DockPanel Grid.Row="5" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                <TextBlock HorizontalAlignment="Left">Render Joints</TextBlock>
+                                <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderJoints}"></CheckBox>
+                            </DockPanel>
+                            <DockPanel Grid.Row="6" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                <TextBlock HorizontalAlignment="Left">Render Collisions</TextBlock>
+                                <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderCollisions}"></CheckBox>
+                            </DockPanel>
+                        </Grid>
                     </TabItem>
                 </TabControl>
-                <!--Camera Settings -->
-
-
+                
                 <GroupBox Grid.Row="1" Header="SceneGraph" BorderThickness="2">
                     <TreeView x:Name="SceneTreeView"
                                 ItemContainerStyle="{StaticResource TreeViewItemStyle}"
@@ -303,9 +315,39 @@
                                 ScrollViewer.CanContentScroll="True" AllowDrop="True" GiveFeedback="SceneTreeView_GiveFeedback"/>
                 </GroupBox>
 
-                <GroupBox Grid.Row="3" Header="ProcGenTools" BorderThickness="2">
-                    <Button FontSize="18" Click="ButtonBase_OnClick">ProcGen</Button>
+                <GroupBox Grid.Row="2" Header="ProcGen Tools" BorderThickness="2">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="50*"/>
+                            <ColumnDefinition Width="50*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" FontSize="18" Click="ButtonBase_OnClick">ProcGen</Button>
+                        <Button Grid.Column="1" FontSize="18" Click="RegenPose_Click">Regen Pose</Button>
+                    </Grid>
                 </GroupBox>
+                
+                <GroupBox Grid.Row="3" Header="Animation Tools" BorderThickness="2">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                        </Grid.RowDefinitions>
+                        <ToggleButton Grid.Row="0" Name="PlayStopAnim_Button" Click="PlayStop_Click">
+                            <ToggleButton.Style>
+                                <Style TargetType="{x:Type ToggleButton}">
+                                    <Setter Property="Content" Value="Play" />
+                                    <Style.Triggers>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter Property="Content" Value="Stop" />
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ToggleButton.Style>
+                        </ToggleButton>
+                        <Button Grid.Row="1" Click="loadAnim">Load Animation</Button>
+                    </Grid>
+                </GroupBox>
+                
 
             </Grid>
             <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"/>

@@ -28,22 +28,127 @@ namespace MVCore.Common
         //ResourceManager
         public static MVCore.ResourceManager activeResMgr;
 
+        public static RenderOptions renderOpts = new RenderOptions();
+
+
     }
 
-    public static class RenderOptions
+    public class RenderOptions
     {
         //Set Full rendermode by default
         public static PolygonMode RENDERMODE = PolygonMode.Fill;
-        public static float UseTextures = 1.0f;
-        public static float UseLighting = 1.0f;
         public static System.Drawing.Color clearColor = System.Drawing.Color.FromArgb(255, 33, 33, 33);
-        public static bool RenderInfo = true;
-        public static bool RenderLights = true;
-        public static bool RenderJoints = true;
-        public static bool RenderCollisions = true;
-        public static bool RenderBoundHulls = true;
-        public static bool RenderDebug = false;
+        public static float _useTextures = 1.0f;
+        public static float _useLighting = 1.0f;
+        public static bool _renderLights = true;
+        public static bool _renderInfo = true;
+        public static bool _renderJoints = true;
+        public static bool _renderCollisions = true;
+        public static bool _renderBoundHulls = true;
+        public static bool _renderDebug = false;
         public static int animFPS = 50;
+
+        //Add properties
+        public static bool UseTextures
+        {
+            get
+            {
+                return (_useTextures > 0.0f);
+            }
+
+            set
+            {
+                if (value)
+                    _useTextures = 1.0f;
+                else
+                    _useTextures = 0.0f;
+            }
+        }
+
+        public static bool UseLighting
+        {
+            get
+            {
+                return (_useLighting > 0.0f);
+            }
+
+            set
+            {
+                if (value)
+                    _useLighting = 1.0f;
+                else
+                    _useLighting = 0.0f;
+            }
+        }
+
+        public static bool ToggleWireframe
+        {
+            get
+            {
+                return (RENDERMODE == PolygonMode.Line);
+            }
+
+            set
+            {
+                if (value)
+                    RENDERMODE = PolygonMode.Line;
+                else
+                    RENDERMODE = PolygonMode.Fill;
+            }
+        }
+
+        public static bool RenderInfo
+        {
+            get
+            {
+                return _renderInfo;
+            }
+
+            set
+            {
+                _renderInfo = value;
+            }
+        }
+
+        public static bool RenderLights
+        {
+            get
+            {
+                return _renderLights;
+            }
+
+            set
+            {
+                _renderLights = value;
+            }
+        }
+
+
+        public static bool RenderJoints
+        {
+            get
+            {
+                return _renderJoints;
+            }
+
+            set
+            {
+                _renderJoints = value;
+            }
+        }
+
+        public static bool RenderCollisions {
+            get
+            {
+                return _renderCollisions;
+            }
+
+            set
+            {
+                _renderCollisions = value;
+            }
+        }
+
     }
 
     public static class RenderStats
@@ -65,6 +170,7 @@ namespace MVCore.Common
     //Delegates - Function Types for Callbacks
     public delegate void UpdateStatusCallBack(string msg);
     public delegate void OpenAnimCallBack(string filepath, MVCore.GMDL.scene animScene);
+    public delegate void OpenPoseCallBack(string filepath, MVCore.GMDL.scene animScene);
     public delegate void LogCallBack(string msg);
     public delegate void SendRequestCallBack(ThreadRequest req);
 
@@ -72,6 +178,7 @@ namespace MVCore.Common
     {
         public static UpdateStatusCallBack updateStatus = null;
         public static OpenAnimCallBack openAnim = null;
+        public static OpenPoseCallBack openPose = null;
         public static LogCallBack Log = null;
         public static SendRequestCallBack issueRequestToGLControl = null;
     }
