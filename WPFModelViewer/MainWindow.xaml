@@ -42,7 +42,14 @@
                     <TextBlock Text="{Binding PMap}" HorizontalAlignment="Right"/>
                 </DockPanel>
             </DataTemplate>
-            
+
+            <DataTemplate DataType="{x:Type gmdl:AnimPoseData}">
+                <DockPanel>
+                    <TextBlock Text="{Binding PAnim}"/>
+                    <Slider Minimum="{Binding PFrameStart}" Maximum="{Binding PFrameEnd}" Value="{Binding PActivePoseFrame}" ></Slider>
+                </DockPanel>
+            </DataTemplate>
+
             <DataTemplate DataType="{x:Type gmdl:Uniform}">
                 <DockPanel>
                     <TextBlock Text="{Binding Name}"/>
@@ -122,7 +129,23 @@
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:locator}">
-                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}"/>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <ContentPresenter Grid.Row="0" Content="{Binding}" ContentTemplate="{StaticResource basemodel}"/>
+                    <StackPanel Grid.Row="1">
+                        <TextBlock Text="AnimPoseData"></TextBlock>
+                        <ListBox ItemsSource="{Binding poseData}" HorizontalContentAlignment="Stretch">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <ContentControl Content="{Binding}"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </StackPanel>
+                </Grid>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:meshModel}">

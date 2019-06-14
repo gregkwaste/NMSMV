@@ -12,7 +12,7 @@ using System.Windows.Forms;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
-using libMBIN.Models.Structs;
+using libMBIN.NMS.Toolkit;
 using MVCore;
 using MVCore.Common;
 using Newtonsoft.Json;

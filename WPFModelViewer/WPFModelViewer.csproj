@@ -85,7 +85,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="libMBIN">
-      <HintPath>..\Model Viewer\lib\libMBIN.dll</HintPath>
+      <HintPath>..\..\..\..\Downloads\libMBIN.dll</HintPath>
     </Reference>
     <Reference Include="MathNet.Numerics, Version=4.7.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\MathNet.Numerics.4.7.0\lib\net40\MathNet.Numerics.dll</HintPath>

@@ -8,7 +8,9 @@ using OpenTK.Graphics.OpenGL4;
 using System.Reflection;
 using System.Drawing;
 using System.Drawing.Imaging;
-using libMBIN.Models.Structs;
+using libMBIN.NMS.Toolkit;
+using libMBIN.NMS.GameComponents;
+using libMBIN.NMS;
 
 namespace Model_Viewer
 {
@@ -1270,17 +1272,15 @@ namespace Model_Viewer
             }
 
 
-            GcPaletteList template = (GcPaletteList)mbinf.GetData();
+            GcPaletteList template = (GcPaletteList) mbinf.GetData();
             TkPaletteTexture tkpt = new TkPaletteTexture();
 
             GcPaletteData gcpd = new GcPaletteData();
-            string[] numColorValues = gcpd.NumColoursValues();
-
-
+            
             for (int i = 0; i < template.Palettes.Length; i++)
             {
                 string pal_name = ((TkPaletteTexture.PaletteEnum) i).ToString();
-                Console.WriteLine("Palette {0} NumColors {1}", pal_name, numColorValues[template.Palettes[i].NumColours]);
+                Console.WriteLine("Palette {0} NumColors {1}", pal_name, template.Palettes[i].NumColours);
                 newPal[pal_name] = new Dictionary<string, Vector4>();
 
                 //Generate Bitmap for palette
@@ -1309,10 +1309,10 @@ namespace Model_Viewer
                 none = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
 
                 switch (template.Palettes[i].NumColours) {
-                    case 0: //Inactive
+                    case GcPaletteData.NumColoursEnum.Inactive: //Inactive
                         //Test by not saving anything
                         break;
-                    case 1: //1 Color - All colors should be the same
+                    case GcPaletteData.NumColoursEnum._1: //1 Color - All colors should be the same
                         index = 0; 
                         index1 = index;
                         index2 = index;
@@ -1320,15 +1320,15 @@ namespace Model_Viewer
                         index4 = index;
                         unique_index = 0;
                         break;
-                    case 2: //4 Color
-                    case 3: //8 Color NOTE: Not enough samples for that
+                    case GcPaletteData.NumColoursEnum._4: //4 Color
+                    case GcPaletteData.NumColoursEnum._8: //8 Color NOTE: Not enough samples for that
                         index = get_active_palette_index(4);
                         index1 = index + 1;
                         index2 = index + 2;
                         index3 = index + 3;
                         unique_index = get_active_palette_index(1);
                         break;
-                    case 4: //16 Color
+                    case GcPaletteData.NumColoursEnum._16: //16 Color
                         //Align to groups of 2
                         index = get_active_palette_index(2);
                         index1 = index + 1;
@@ -1337,7 +1337,7 @@ namespace Model_Viewer
                         index4 = get_active_palette_index(2);
                         unique_index = get_active_palette_index(1);
                         break;
-                    case 5: //All
+                    case GcPaletteData.NumColoursEnum.All: //All
                         index = get_active_palette_index(1);
                         index1 = get_active_palette_index(1);
                         index2 = get_active_palette_index(1);

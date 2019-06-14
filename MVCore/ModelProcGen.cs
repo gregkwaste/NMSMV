@@ -9,7 +9,7 @@ using OpenTK;
 using OpenTK.Graphics.OpenGL4;
 using System.Reflection;
 using System.IO;
-using libMBIN.Models.Structs;
+using libMBIN.NMS.Toolkit;
 using System.Collections.ObjectModel;
 
 namespace MVCore

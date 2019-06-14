@@ -7,8 +7,7 @@ using System.Globalization;
 using OpenTK;
 using Model_Viewer;
 using libMBIN;
-using libMBIN.Models;
-using libMBIN.Models.Structs;
+using libMBIN.NMS.Toolkit;
 using System.Linq;
 using System.Windows.Forms;
 using MVCore;
@@ -622,6 +621,54 @@ namespace MVCore
         }
 
 
+        private static int HasComponent(locator node, Type ComponentType)
+        {
+            for (int i = 0; i < node.attachment.Components.Count; i++)
+            {
+                NMSTemplate temp = node.attachment.Components[i];
+                if (temp.GetType() == ComponentType)
+                    return i;
+            }
+
+            return -1;
+        }
+
+
+        private static void ProcessAnimPoseComponent(locator node)
+        {
+            //Check if node has AnimPoseComponent
+            int component_index = HasComponent(node, typeof(TkAnimPoseComponentData));
+
+            if (component_index < 0)
+                return;
+
+            //Load PoseAnims
+
+            TkAnimPoseComponentData pcd = (TkAnimPoseComponentData) node.attachment.Components[component_index];
+
+            for (int i = 0; i < pcd.PoseAnims.Count; i++)
+            {
+                AnimPoseData my_apd = new AnimPoseData(pcd.PoseAnims[i]);
+                node.poseData.Add(my_apd);
+            }
+        }
+
+        private static void ProcessAnimationComponent(locator node)
+        {
+
+        }
+
+        private static void ProcessComponents(locator node)
+        {
+            if (node.attachment == null)
+                return;
+
+            //Call individual Component Processors
+            ProcessAnimationComponent(node);
+            ProcessAnimPoseComponent(node);
+        }
+
+
         private static model parseNode(TkSceneNodeData node, 
             GeomObject gobject, model parent, scene scene)
         {
@@ -779,8 +826,8 @@ namespace MVCore
                 }
 
                 //Check if it is a decal object
-                if (so.Material.has_flag(TkMaterialFlags.MaterialFlagEnum._F51_DECAL_DIFFUSE) ||
-                    so.Material.has_flag(TkMaterialFlags.MaterialFlagEnum._F52_DECAL_NORMAL))
+                if (so.Material.has_flag((TkMaterialFlags.MaterialFlagEnum) TkMaterialFlags.UberFlagEnum._F51_DECAL_DIFFUSE) ||
+                    so.Material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F52_DECAL_NORMAL))
                 {
                     Decal newso = new Decal(so, scene);
                     so.Dispose(); //Through away the old object
@@ -838,9 +885,16 @@ namespace MVCore
                 Console.WriteLine("Locator Detected");
                 locator so = new locator(0.1f);
                 //Fetch attributes
-                string attachment = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "ATTACHMENT");
-
-
+                if (node.Attributes.Count > 0)
+                {
+                    string attachment = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "ATTACHMENT");
+                    if (attachment != "")
+                    {
+                        string attachment_path = Path.GetFullPath(Path.Combine(FileUtils.dirpath, attachment));
+                        so.attachment = (TkAttachmentData)LoadNMSFile(attachment_path);
+                    }
+                }
+                
                 //Set Properties
                 //Testingso.Name = name + "_LOC";
                 so.name = name;
@@ -854,9 +908,6 @@ namespace MVCore
                 so.parent = parent;
                 so.init(transforms);
 
-                //Locator Objects don't have options
-                TkSceneNodeAttributeData attrib = new TkSceneNodeAttributeData();
-
                 //Handle Children
                 if (children.Count > 0)
                 {
@@ -866,6 +917,9 @@ namespace MVCore
                         so.children.Add(part);
                     }
                 }
+
+                //Process Locator Attachments
+                ProcessComponents(so);
 
                 return so;
             }

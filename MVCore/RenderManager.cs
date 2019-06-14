@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using OpenTK;
 using OpenTK.Graphics.OpenGL4;
-using libMBIN.Models.Structs;
+using libMBIN.NMS.Toolkit;
 using MVCore.GMDL;
 using MVCore.Common;
 
@@ -62,7 +62,7 @@ namespace MVCore
                 meshModel m = (meshModel)root;
 
                 //Check if the model has a transparent material
-                if (m.Material.has_flag(libMBIN.Models.Structs.TkMaterialFlags.MaterialFlagEnum._F22_TRANSPARENT_SCALAR))
+                if (m.Material.has_flag((TkMaterialFlags.MaterialFlagEnum) TkMaterialFlags.UberFlagEnum._F22_TRANSPARENT_SCALAR))
                 {
                     transparentMeshQeueue.Add(m);
                 }

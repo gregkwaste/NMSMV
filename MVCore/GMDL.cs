@@ -15,7 +15,7 @@ using Model_Viewer;
 using System.Linq;
 using System.Net.Mime;
 using System.Xml;
-using libMBIN.Models.Structs;
+using libMBIN.NMS.Toolkit;
 using System.Reflection;
 using System.ComponentModel;
 using MVCore;
@@ -593,6 +593,16 @@ namespace MVCore.GMDL
     {
         int vao_id;
         public float scale;
+        public TkAttachmentData attachment = null;
+
+        //AnimationPoseData
+        public List<AnimPoseData> _poseData = new List<AnimPoseData>();
+        public List<AnimPoseData> poseData
+        {
+            get {
+                return _poseData;
+            }
+        }
         
         //Default Constructor
         public locator(float s)
@@ -1028,7 +1038,7 @@ namespace MVCore.GMDL
             int tex0Id = (int)TextureUnit.Texture0;
             //Diffuse Texture
             
-            if (Material.material_flags[(int) TkMaterialFlags.MaterialFlagEnum._F55_MULTITEXTURE] > 0.0f)
+            if (Material.material_flags[(int) TkMaterialFlags.MaterialFlagEnum._F55_] > 0.0f)
             {
                 //Upload depth : gUserVecData
                 GL.Uniform4(216, new Vector4(0.0f));
@@ -3778,6 +3788,59 @@ namespace MVCore.GMDL
 
     }
     
+
+    public class AnimPoseData: TkAnimPoseData
+    {
+
+        public AnimPoseData(TkAnimPoseData apd)
+        {
+            Anim = apd.Anim;
+            FrameStart = apd.FrameStart;
+            FrameEnd = apd.FrameEnd;
+            PActivePoseFrame = (int) ((apd.FrameEnd - apd.FrameStart) / 2 + apd.FrameStart);
+        }
+
+        public string PAnim
+        {
+            get
+            {
+                return Anim;
+            }
+        }
+
+        public int PFrameStart
+        {
+            get
+            {
+                return FrameStart;
+            }
+            set
+            {
+                FrameStart = value;
+            }
+        }
+
+        public int PFrameEnd
+        {
+            get
+            {
+                return FrameEnd;
+            }
+            set
+            {
+                FrameEnd = value;
+            }
+        }
+
+        public int PActivePoseFrame
+        {
+            get; set;
+        }
+
+
+
+    }
+
     public class AnimFrameData
     {
         public List<AnimNodeFrameData> frames = new List<AnimNodeFrameData>();

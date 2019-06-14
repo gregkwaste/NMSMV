@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using libMBIN.Models.Structs;
+using libMBIN.NMS.Toolkit;
 using OpenTK;
 using OpenTK.Graphics.OpenGL;
 
