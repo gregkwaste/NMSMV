@@ -217,7 +217,7 @@ namespace Model_Viewer
                 }
 
                 //Calculate skinning matrices for each joint for each geometry object
-                MathUtils.mulMatArrays(ref animScene.gobject.skinMats, animScene.gobject.invBMats,
+                MathUtils.mulMatArrays(ref animScene.skinMats, animScene.gobject.invBMats,
                     animScene.JMArray, animScene.jointDict.Keys.Count);
             }
             

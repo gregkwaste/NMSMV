@@ -476,8 +476,11 @@ namespace MVCore
             return mesh_desc;
         }
 
-        private static textureManager localTexMgr;
 
+
+        private static textureManager localTexMgr;
+        private static Dictionary<string, Joint> localJointDict;
+        
         private static NMSTemplate LoadNMSFile(string filepath)
         {
             int load_mode = 0;
@@ -588,7 +591,7 @@ namespace MVCore
             Random randgen = new Random();
 
             //Parse root scene
-            scene root = (scene) parseNode(scene, gobject, null, null);
+            scene root = (scene) parseNode(scene, gobject, null, null, null);
 
 
             /*
@@ -642,10 +645,12 @@ namespace MVCore
             if (component_index < 0)
                 return;
 
+            TkAnimPoseComponentData pcd = (TkAnimPoseComponentData)node.attachment.Components[component_index];
+            //Load PoseFile
+            node._poseFrameData = (TkAnimMetadata) LoadNMSFile(Path.GetFullPath(Path.Combine(FileUtils.dirpath, pcd.Filename)));
+
+
             //Load PoseAnims
-
-            TkAnimPoseComponentData pcd = (TkAnimPoseComponentData) node.attachment.Components[component_index];
-
             for (int i = 0; i < pcd.PoseAnims.Count; i++)
             {
                 AnimPoseData my_apd = new AnimPoseData(pcd.PoseAnims[i]);
@@ -670,7 +675,7 @@ namespace MVCore
 
 
         private static model parseNode(TkSceneNodeData node, 
-            GeomObject gobject, model parent, scene scene)
+            GeomObject gobject, model parent, scene scene, locator animscene)
         {
             TkTransformData transform = node.Transform;
             List<TkSceneNodeAttributeData> attribs = node.Attributes;
@@ -699,7 +704,7 @@ namespace MVCore
                 name = "_" + name.TrimStart('_');
 
             //Notify
-            Common.CallBacks.Log(string.Format("Importing Scene {0} Node {1}",scene?.name, name));
+            Common.CallBacks.Log(string.Format("Importing Scene {0} Node {1}", scene?.name, name));
             Common.CallBacks.Log(string.Format("Transform {0} {1} {2} {3} {4} {5} {6} {7} {8}",
                 transform.TransX,transform.TransY,transform.TransZ,
                 transform.RotX,transform.RotY,transform.RotZ,
@@ -820,7 +825,7 @@ namespace MVCore
                     //Console.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                     foreach (TkSceneNodeData child in children)
                     {
-                        model part = parseNode(child, gobject, so, scene);
+                        model part = parseNode(child, gobject, so, scene, animscene);
                         so.children.Add(part);
                     }
                 }
@@ -829,7 +834,7 @@ namespace MVCore
                 if (so.Material.has_flag((TkMaterialFlags.MaterialFlagEnum) TkMaterialFlags.UberFlagEnum._F51_DECAL_DIFFUSE) ||
                     so.Material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F52_DECAL_NORMAL))
                 {
-                    Decal newso = new Decal(so, scene);
+                    Decal newso = new Decal(so);
                     so.Dispose(); //Through away the old object
                     //Change object type
                     newso.type = TYPES.DECAL;
@@ -847,17 +852,13 @@ namespace MVCore
 
                 scene so = new scene();
                 so.name = name;
-                so.type = typeEnum;
-                //Set Shader Program
-                so.shader_programs = new int[]{Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
-                                               Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
-                                               Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
+                
                 //Get Transformation
                 so.parent = parent;
                 so.nms_template = node;
                 so.init(transforms);
                 so.gobject = gobject;
-
+                
                 //Setup model texture manager
                 so.texMgr = new textureManager();
                 localTexMgr = so.texMgr; //setup local texMgr
@@ -867,7 +868,7 @@ namespace MVCore
                 {
                     foreach (TkSceneNodeData child in children)
                     {
-                        model part = parseNode(child, gobject, so, so);
+                        model part = parseNode(child, gobject, so, so, null);
                         so.children.Add(part);
                     }
                 }
@@ -891,7 +892,7 @@ namespace MVCore
                     if (attachment != "")
                     {
                         string attachment_path = Path.GetFullPath(Path.Combine(FileUtils.dirpath, attachment));
-                        so.attachment = (TkAttachmentData)LoadNMSFile(attachment_path);
+                        so.attachment = (TkAttachmentData) LoadNMSFile(attachment_path);
                     }
                 }
                 
@@ -900,6 +901,7 @@ namespace MVCore
                 so.name = name;
                 so.type = typeEnum;
                 so.nms_template = node;
+                
                 //Set Shader Program
                 so.shader_programs = new int[]{Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
                                                Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
@@ -913,7 +915,7 @@ namespace MVCore
                 {
                     foreach (TkSceneNodeData child in children)
                     {
-                        model part = parseNode(child, gobject, so, scene);
+                        model part = parseNode(child, gobject, so, scene, so);
                         so.children.Add(part);
                     }
                 }
@@ -953,9 +955,9 @@ namespace MVCore
 
                 //Try to insert joint to scene dict
                 
-                if (scene != null)
+                if (animscene != null)
                 {
-                    scene.jointDict[joint.name] = joint;
+                    animscene.jointDict[joint.name] = joint;
                 }
                 
                 //Handle Children
@@ -963,7 +965,7 @@ namespace MVCore
                 {
                     foreach (TkSceneNodeData child in children)
                     {
-                        model part = parseNode(child, gobject, joint, scene);
+                        model part = parseNode(child, gobject, joint, scene, animscene);
                         joint.children.Add(part);
                     }
                 }
@@ -1003,7 +1005,7 @@ namespace MVCore
                     {
                         foreach (TkSceneNodeData child in children)
                         {
-                            model part = parseNode(child, gobject, so, so);
+                            model part = parseNode(child, gobject, so, so, animscene);
                             so.children.Add(part);
                         }
                     }
@@ -1198,7 +1200,7 @@ namespace MVCore
                 //Collision probably has no children biut I'm leaving that code here
                 if (children.Count > 0)
                     foreach (TkSceneNodeData child in children)
-                        so.children.Add(parseNode(child, gobject, so, scene));
+                        so.children.Add(parseNode(child, gobject, so, scene, animscene));
 
                 return so;
 

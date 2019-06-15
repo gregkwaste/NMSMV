@@ -1,4 +1,4 @@
-﻿#define DUMP_TEXTURES
+﻿//#define DUMP_TEXTURES
 
 using System;
 using System.Collections.Generic;
@@ -8,8 +8,8 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK;
-using MathNet.Numerics.LinearAlgebra;
-using MIConvexHull;
+//using MathNet.Numerics.LinearAlgebra;
+//using MIConvexHull;
 using KUtility;
 using Model_Viewer;
 using System.Linq;
@@ -22,11 +22,25 @@ using MVCore;
 using ExtTextureFilterAnisotropic = OpenTK.Graphics.ES30.ExtTextureFilterAnisotropic;
 using PixelFormat = OpenTK.Graphics.OpenGL4.PixelFormat;
 using System.Collections.ObjectModel;
+using System.Windows;
+using System.Windows.Input;
 //using Matrix4 = MathNet.Numerics.LinearAlgebra.Matrix<float>;
 
 
 namespace MVCore.GMDL
 {
+
+    public class SimpleSampler
+    {
+        public string PName { get; set; }
+        SimpleSampler()
+        {
+
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+    }
+
     public abstract class model : IDisposable, INotifyPropertyChanged
     {
         public abstract bool render(int pass);
@@ -126,7 +140,7 @@ namespace MVCore.GMDL
         }
 
 
-        public abstract model Clone(model refScene);
+        public abstract model Clone();
 
         public virtual void update()
         {
@@ -278,12 +292,12 @@ namespace MVCore.GMDL
         }
 
         //Copy Constructor
-        public model(model input, model refScene)
+        public model(model input)
         {
             this.copyFrom(input);
             foreach (GMDL.model child in input.children)
             {
-                GMDL.model nChild = child.Clone(refScene);
+                GMDL.model nChild = child.Clone();
                 nChild.parent = this;
                 this.children.Add(nChild);
             }
@@ -336,161 +350,34 @@ namespace MVCore.GMDL
     {
         public GeomObject gobject; //Keep GeomObject reference
         public textureManager texMgr;
-        //Animation Stuff
-        public float[] JMArray;
-
-        public Dictionary<string, Joint> jointDict;
-        public TkAnimMetadata animMeta = null;
-        public TkAnimMetadata poseMeta = null;
-        public int frameCounter = 0;
-        public int poseIndex = 0;
         
-
-        public int PPoseIndex
-        {
-            get
-            {
-                return poseIndex;
-            }
-            set
-            {
-                poseIndex = value;
-                loadPose(poseIndex); //Reload Pose Information
-            }
-        }
-
         public scene() : base(0.1f) {
             type = TYPES.MODEL;
             texMgr = new textureManager();
-            JMArray = new float[256 * 16];
-            jointDict = new Dictionary<string, Joint>();
+            //Set Shader Program
+            shader_programs = new int[]{Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
+                                        Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
+                                        Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
         }
 
-        public scene(scene input, model refScene) :base(input, refScene)
+        public scene(scene input) :base(input)
         {
-            //ANIMATION DATA
-            jointDict = new Dictionary<string, Joint>();
-            JMArray = (float[]) input.JMArray.Clone();
-
-            //Copy textures
-            animMeta = input.animMeta;
-            poseMeta = input.poseMeta;
             gobject = input.gobject;
         }      
 
         public void copyFrom(scene input)
         {
             base.copyFrom(input); //Copy base stuff
-
-            //ANIMATION DATA
-            this.jointDict = new Dictionary<string, Joint>();
-            this.JMArray = (float[]) input.JMArray.Clone();
-
-            this.animMeta = input.animMeta;
-            this.poseMeta = input.poseMeta;
             this.gobject = input.gobject;
+            
         }
 
-        public model Clone()
+        public override model Clone()
         {
-            scene scn = new scene();
-            scn.copyFrom(this); //COpy basic info
-
-            //Handle Children
-            foreach (model child in this.children)
-            {
-                model new_child = (model) child.Clone(scn);
-                scn.children.Add(new_child);
-            }
-
-            return scn;
+            return new scene(this);
         }
 
-        public override model Clone(model refScene)
-        {
-            return new scene(this, refScene);
-        }
-
-        public void loadPose(int poseID)
-        {
-            Random rand_gen = new Random();
-            //For each joint choose a frame at random
-            int actualPoseID = rand_gen.Next(0, 199);
-
-
-
-            foreach (TkAnimNodeData node in poseMeta.NodeData)
-            {
-                   
-                //Console.WriteLine("Setting Frame Index {0}", frameIndex);
-                TkAnimNodeFrameData frame = poseMeta.AnimFrameData[actualPoseID];
-                TkAnimNodeFrameData stillframe = poseMeta.StillFrameData;
-                
-                if (jointDict.ContainsKey(node.Node))
-                {
-                    //Console.WriteLine("Frame {0} Node {1} RotationIndex {2}", frameCounter, node.Node, node.RotIndex);
-
-                    OpenTK.Quaternion q;
-                    //Check if there is a rotation for that node
-                    if (node.RotIndex < frame.Rotations.Count)
-                    {
-                        Console.WriteLine("Node " + node.Node + " has still animframedata\n");
-                        int rotindex = node.RotIndex;
-                        q = new OpenTK.Quaternion(frame.Rotations[rotindex].x,
-                                        frame.Rotations[rotindex].y,
-                                        frame.Rotations[rotindex].z,
-                                        frame.Rotations[rotindex].w);
-                    }
-                    else //Load stillframedata
-                    {
-                        Console.WriteLine("Node" + node.Node + " has still framedata\n");
-                        int rotindex = node.RotIndex - frame.Rotations.Count;
-                        q = new OpenTK.Quaternion(stillframe.Rotations[rotindex].x,
-                                        stillframe.Rotations[rotindex].y,
-                                        stillframe.Rotations[rotindex].z,
-                                        stillframe.Rotations[rotindex].w);
-                    }
-
-                    Matrix4 nMat = Matrix4.CreateFromQuaternion(q);
-                    jointDict[node.Node].localPoseRotation = nMat;
-
-                    //Load Translations
-                    if (node.TransIndex < frame.Translations.Count)
-                    {
-                        Console.WriteLine("Node " + node.Node + " has still animframedata\n");
-                        jointDict[node.Node].localPosePosition = new Vector3(frame.Translations[node.TransIndex].x,
-                                                            frame.Translations[node.TransIndex].y,
-                                                            frame.Translations[node.TransIndex].z);
-                    }
-                    else //Load stillframedata
-                    {
-                        Console.WriteLine("Node " + node.Node + " has still framedata\n");
-                        int transindex = node.TransIndex - frame.Translations.Count;
-                        jointDict[node.Node].localPosePosition = new Vector3(stillframe.Translations[transindex].x,
-                                                            stillframe.Translations[transindex].y,
-                                                            stillframe.Translations[transindex].z);
-                    }
-
-                    //Load Scaling - TODO
-                    //Load Translations
-                    if (node.ScaleIndex < frame.Scales.Count)
-                    {
-                        Console.WriteLine("Node " + node.Node + " has still animframedata\n");
-                        jointDict[node.Node].localPoseScale = new Vector3(frame.Scales[node.ScaleIndex].x,
-                            frame.Scales[node.ScaleIndex].y, frame.Scales[node.ScaleIndex].z);
-                    }
-                    else //Load stillframedata
-                    {
-                        Console.WriteLine("Node " + node.Node + " has still framedata\n");
-                        int scaleindex = node.ScaleIndex - frame.Scales.Count;
-                        jointDict[node.Node].localPoseScale = new Vector3(stillframe.Scales[scaleindex].x,
-                            stillframe.Scales[scaleindex].y, stillframe.Scales[scaleindex].z);
-                    }
-                }
-                //Console.WriteLine("Node " + node.name+ " {0} {1} {2}",node.rotIndex,node.transIndex,node.scaleIndex);
-            }
-        }
-
+        
         public void animate()
         {
             //Console.WriteLine("Setting Frame Index {0}", frameIndex);
@@ -576,9 +463,6 @@ namespace MVCore.GMDL
             {
                 handle.Dispose();
 
-                JMArray = null;
-                jointDict = null;
-                animMeta = null;
                 //Free other resources here
                 base.Dispose(disposing);
             }
@@ -595,8 +479,24 @@ namespace MVCore.GMDL
         public float scale;
         public TkAttachmentData attachment = null;
 
+        //Animation Stuff
+        //Joint Data
+        public float[] JMArray;
+        public float[] skinMats; //Final Matrices
+        public Dictionary<string, Joint> jointDict;
+        public ICommand ApplyPose
+        {
+            get { return new ApplyPoseCommand();}
+        }
+
+        //TODO: Move to animation class
+        public TkAnimMetadata animMeta = null;
+        public int frameCounter = 0;
+        public int poseIndex = 0;
+
         //AnimationPoseData
         public List<AnimPoseData> _poseData = new List<AnimPoseData>();
+        public TkAnimMetadata _poseFrameData = null; //Stores the actual poseFrameData
         public List<AnimPoseData> poseData
         {
             get {
@@ -608,7 +508,7 @@ namespace MVCore.GMDL
         public locator(float s)
         {
             //Set type
-            //this.type = "LOCATOR";
+            type = TYPES.LOCATOR;
             //Assemble geometry in the constructor
             //X
             scale = s;
@@ -617,6 +517,11 @@ namespace MVCore.GMDL
             shader_programs = new int[] { MVCore.Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
                 MVCore.Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
                 MVCore.Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
+
+            //Init Animation Stuff
+            JMArray = new float[256 * 16];
+            skinMats = new float[256 * 16];
+            jointDict = new Dictionary<string, Joint>();
         }
 
         public void copyFrom(locator input)
@@ -625,16 +530,23 @@ namespace MVCore.GMDL
 
             this.scale = input.scale;
             this.vao_id = input.vao_id;
+
+            //ANIMATION DATA
+            this.jointDict = new Dictionary<string, Joint>();
+            this.JMArray = (float[])input.JMArray.Clone();
+
+            this.animMeta = input.animMeta;
+            this._poseData = input._poseData;
         }
 
-        protected locator(locator input, model refScene) : base(input, refScene)
+        protected locator(locator input) : base(input)
         {
             this.copyFrom(input);
         }
 
-        public override GMDL.model Clone(model refScene)
+        public override GMDL.model Clone()
         {
-            return new locator(this, refScene);
+            return new locator(this);
         }
 
 
@@ -648,6 +560,11 @@ namespace MVCore.GMDL
                     // TODO: dispose managed state (managed objects).
                     vao_id = -1; //VAO will be deleted from the resource manager since it is a common mesh
                     shader_programs = null;
+                    skinMats = null;
+                    
+                    JMArray = null;
+                    jointDict.Clear();
+                    animMeta = null;
 
                     base.Dispose(disposing);
                 }
@@ -697,7 +614,186 @@ namespace MVCore.GMDL
             return true;
         }
 
-        
+
+
+        //Locator Animation Stuff
+
+
+        private class ApplyPoseCommand : ICommand
+        {
+            event EventHandler ICommand.CanExecuteChanged
+            {
+                add
+                {
+                    //I have absolutely no idea what the fuck should I do here
+                }
+
+                remove
+                {
+                    //I have absolutely no idea what the fuck should I do here
+                }
+            }
+
+            bool ICommand.CanExecute(object parameter)
+            {
+                return true;
+            }
+
+            void ICommand.Execute(object parameter)
+            {
+                Console.WriteLine("FIX THIS SHIT");
+                locator node = parameter as locator;
+                node.loadPose();
+                
+            }
+        }
+
+        //Private animation data collection methods
+        private Quaternion fetchRotQuaternion(TkAnimNodeData node, TkAnimMetadata metadata, int frameIndex)
+        {
+            //Load Frames
+            //Console.WriteLine("Setting Frame Index {0}", frameIndex);
+            TkAnimNodeFrameData frame = metadata.AnimFrameData[frameIndex];
+            TkAnimNodeFrameData stillframe = metadata.StillFrameData;
+
+            OpenTK.Quaternion q;
+            //Check if there is a rotation for that node
+            if (node.RotIndex < frame.Rotations.Count)
+            {
+                Console.WriteLine("Node " + node.Node + " has still animframedata\n");
+                int rotindex = node.RotIndex;
+                q = new OpenTK.Quaternion(frame.Rotations[rotindex].x,
+                                frame.Rotations[rotindex].y,
+                                frame.Rotations[rotindex].z,
+                                frame.Rotations[rotindex].w);
+            }
+            else //Load stillframedata
+            {
+                Console.WriteLine("Node" + node.Node + " has still framedata\n");
+                int rotindex = node.RotIndex - frame.Rotations.Count;
+                q = new OpenTK.Quaternion(stillframe.Rotations[rotindex].x,
+                                stillframe.Rotations[rotindex].y,
+                                stillframe.Rotations[rotindex].z,
+                                stillframe.Rotations[rotindex].w);
+            }
+
+            return q;
+        }
+
+        private Vector3 fetchTransVector(TkAnimNodeData node, TkAnimMetadata metadata, int frameIndex)
+        {
+            //Load Frames
+            //Console.WriteLine("Setting Frame Index {0}", frameIndex);
+            TkAnimNodeFrameData frame = metadata.AnimFrameData[frameIndex];
+            TkAnimNodeFrameData stillframe = metadata.StillFrameData;
+
+            Vector3 v;
+            //Load Translations
+            if (node.TransIndex < frame.Translations.Count)
+            {
+                Console.WriteLine("Node " + node.Node + " has still animframedata\n");
+                v = new Vector3(frame.Translations[node.TransIndex].x,
+                                                    frame.Translations[node.TransIndex].y,
+                                                    frame.Translations[node.TransIndex].z);
+            }
+            else //Load stillframedata
+            {
+                Console.WriteLine("Node " + node.Node + " has still framedata\n");
+                int transindex = node.TransIndex - frame.Translations.Count;
+                v = new Vector3(stillframe.Translations[transindex].x,
+                                                    stillframe.Translations[transindex].y,
+                                                    stillframe.Translations[transindex].z);
+            }
+
+            return v;
+        }
+
+
+        private Vector3 fetchScaleVector(TkAnimNodeData node, TkAnimMetadata metadata, int frameIndex)
+        {
+            //Load Frames
+            //Console.WriteLine("Setting Frame Index {0}", frameIndex);
+            TkAnimNodeFrameData frame = metadata.AnimFrameData[frameIndex];
+            TkAnimNodeFrameData stillframe = metadata.StillFrameData;
+
+            Vector3 v;
+            
+            //Load Scaling - TODO
+            if (node.ScaleIndex < frame.Scales.Count)
+            {
+                Console.WriteLine("Node " + node.Node + " has still animframedata\n");
+                v = new Vector3(frame.Scales[node.ScaleIndex].x,
+                    frame.Scales[node.ScaleIndex].y, frame.Scales[node.ScaleIndex].z);
+            }
+            else //Load stillframedata
+            {
+                Console.WriteLine("Node " + node.Node + " has still framedata\n");
+                int scaleindex = node.ScaleIndex - frame.Scales.Count;
+                v = new Vector3(stillframe.Scales[scaleindex].x,
+                    stillframe.Scales[scaleindex].y, stillframe.Scales[scaleindex].z);
+            }
+
+            return v;
+        }
+
+        public void loadPose()
+        {
+            foreach (TkAnimNodeData node in _poseFrameData.NodeData)
+            {
+                if (!jointDict.ContainsKey(node.Node))
+                    continue;
+                
+                //We should interpolate frame shit over all the selected Pose Data
+                List<Quaternion> rotation_quats = new List<Quaternion>();
+                List<Vector3> translation_vectors = new List<Vector3>();
+                List<Vector3> scale_vectors = new List<Vector3>();
+
+                for (int i = 0; i < _poseData.Count; i++)
+                {
+                    //Get Pose Frame
+                    int poseFrameIndex = _poseData[i].PActivePoseFrame;
+
+                    //Fetch Rotation Quaternion
+                    rotation_quats.Add(fetchRotQuaternion(node, _poseFrameData, poseFrameIndex));
+                    //Fetch Translation Vector
+                    translation_vectors.Add(fetchTransVector(node, _poseFrameData, poseFrameIndex));
+                    //Fetch Scale Vector
+                    scale_vectors.Add(fetchScaleVector(node, _poseFrameData, poseFrameIndex));
+                }
+
+                //Interpolate transforms
+                float w = 1.0f / _poseData.Count;
+
+                //Step A: Weight transforms
+                for (int i = 0; i < _poseData.Count; i++)
+                {
+                    rotation_quats[i] = w * rotation_quats[i];
+                    translation_vectors[i] = w * translation_vectors[i];
+                    scale_vectors[i] = w * scale_vectors[i];
+                }
+
+                //Step B: Accumulate Transforms
+                Quaternion q = new Quaternion();
+                Vector3 t = new Vector3();
+                Vector3 s = new Vector3();
+
+                for (int i = 0; i < _poseData.Count; i++)
+                {
+                    q += rotation_quats[i];
+                    t += translation_vectors[i];
+                    s += scale_vectors[i];
+                }
+
+                //Save transforms to joint pose data
+                jointDict[node.Node].localPosePosition = t;
+                jointDict[node.Node].localPoseScale = s;
+
+                Matrix4 nMat = Matrix4.CreateFromQuaternion(q);
+                jointDict[node.Node].localPoseRotation = nMat;
+
+            }
+        }
+
     }
 
     //Place holder struct for all rendered meshes
@@ -778,6 +874,7 @@ namespace MVCore.GMDL
         public mainVAO bsh_Vao;
         public mainVAO bhull_Vao;
         public GeomObject gobject; //Ref to the geometry shit
+        public locator animScene; //Ref to connected animScene
 
         //TODO: I'm not sure if this should be here
         //Keep a static dictionary for the common mesh uniforms
@@ -798,7 +895,7 @@ namespace MVCore.GMDL
 
         }
 
-        public meshModel(meshModel input, model refScene) :base(input, refScene)
+        public meshModel(meshModel input) :base(input)
         {
             //Copy attributes
             this.vertrstart_graphics = input.vertrstart_graphics;
@@ -840,9 +937,9 @@ namespace MVCore.GMDL
             this.gobject = input.gobject; //Leave geometry file intact, no need to copy anything here
         }
 
-        public override model Clone(model refScene)
+        public override model Clone()
         {
-            return new meshModel(this, refScene);
+            return new meshModel(this);
         }
 
 
@@ -1166,7 +1263,7 @@ namespace MVCore.GMDL
             //Update the mesh remap matrices and continue with the transform updates
             for (int i = 0; i < BoneRemapIndicesCount; i++)
             {
-                Array.Copy(gobject.skinMats, BoneRemapIndices[i] * 16, BoneRemapMatrices, i * 16, 16);
+                Array.Copy(animScene.skinMats, BoneRemapIndices[i] * 16, BoneRemapMatrices, i * 16, 16);
             }
 
             base.update();
@@ -1399,12 +1496,12 @@ namespace MVCore.GMDL
             this.color = new Vector3(1.0f, 1.0f, 0.0f); //Set Yellow Color for collision objects
         }
 
-        public override model Clone(model refScene)
+        public override model Clone()
         {
-            return new Collision(this, refScene);
+            return new Collision(this);
         }
 
-        protected Collision(Collision input, model refScene) : base(input, refScene)
+        protected Collision(Collision input) : base(input)
         {
             collisionType = input.collisionType;
         }
@@ -1503,8 +1600,8 @@ namespace MVCore.GMDL
         //Custom constructor
         public Decal() { }
 
-        public Decal(meshModel input, scene refScene):base(input, refScene) { }
-        public Decal(Decal input, scene refScene) : base(input, refScene) { }
+        public Decal(meshModel input):base(input) { }
+        public Decal(Decal input) : base(input) { }
 
         
         public override bool render(int pass)
@@ -1650,8 +1747,7 @@ namespace MVCore.GMDL
         //Joint info
         public List<JointBindingData> jointData = new List<JointBindingData>();
         public float[] invBMats = new float[256 * 16];
-        public float[] skinMats = new float[256 * 16]; //Final Matrices
-
+        
         public Vector3 get_vec3_half(BinaryReader br)
         {
             Vector3 temp;
@@ -1894,7 +1990,6 @@ namespace MVCore.GMDL
                     offsets = null;
                     small_offsets = null;
                     boneRemap = null;
-                    skinMats = null;
                     invBMats = null;
                     
                     
@@ -1948,6 +2043,228 @@ namespace MVCore.GMDL
     }
 
 
+    public class Sampler: TkMaterialSampler, IDisposable
+    {
+        public MyTextureUnit texUnit;
+        public Texture tex;
+        public textureManager texMgr; //For now it should be inherited from the scene. In the future I can use a delegate
+
+        //Override Properties
+        public string PName
+        {
+            get
+            {
+                return Name;
+            }
+            set
+            {
+                Name = value;
+            }
+        }
+
+        public string PMap
+        {
+            get
+            {
+                return Map;
+            }
+            set
+            {
+                Map = value;
+            }
+        }
+
+        public Sampler()
+        {
+
+        }
+
+        public Sampler(TkMaterialSampler ms)
+        {
+            //Pass everything here because there is no base copy constructor in the NMS template
+            this.Name = ms.Name;
+            this.Map = ms.Map;
+            this.IsCube = ms.IsCube;
+            this.IsSRGB = ms.IsSRGB;
+            this.UseCompression = ms.UseCompression;
+            this.UseMipMaps = ms.UseMipMaps;
+        }
+
+        public Sampler Clone()
+        {
+            Sampler newsampler = new Sampler();
+
+            newsampler.PName = PName;
+            newsampler.PMap = PMap;
+            newsampler.texMgr = texMgr;
+            newsampler.tex = tex;
+            newsampler.texUnit = texUnit;
+            newsampler.TextureAddressMode = TextureAddressMode;
+            newsampler.TextureFilterMode = TextureFilterMode;
+
+            return newsampler;
+        }
+
+
+        public void init(textureManager input_texMgr)
+        {
+            texMgr = input_texMgr;
+            texUnit = new MyTextureUnit(Name);
+
+            //Save texture to material
+            switch (Name)
+            {
+                case "gDiffuseMap":
+                case "gMasksMap":
+                case "gNormalMap":
+                    prepTextures();
+                    break;
+                default:
+                    MVCore.Common.CallBacks.Log("Not sure how to handle Sampler " + Name);
+                    break;
+            }
+        }
+
+
+        public void prepTextures()
+        {
+            string[] split = Map.Split('.');
+            //Construct main filename
+            string temp = "";
+            for (int i = 0; i < split.Length - 1; i++)
+                temp += split[i] + ".";
+            string texMbin = temp + "TEXTURE.MBIN";
+            texMbin = Path.GetFullPath(Path.Combine(FileUtils.dirpath, texMbin));
+
+
+            //Detect Procedural Texture
+            if (File.Exists(texMbin))
+            {
+                TextureMixer.combineTextures(Map, Palettes.paletteSel, ref texMgr);
+            }
+
+            //Load the texture to the sampler
+            loadTexture();
+        }
+
+
+        private void loadTexture()
+        {
+            Console.WriteLine("Trying to load Texture");
+
+            if (Map == "")
+                return;
+
+            //Try to load the texture
+            if (texMgr.hasTexture(Map))
+            {
+                tex = texMgr.getTexture(Map);
+            }
+            else
+            {
+                tex = new Texture(Map);
+                tex.palOpt = new PaletteOpt(false);
+                tex.procColor = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
+                //Store to resource
+                texMgr.addTexture(tex);
+            }
+
+        }
+
+
+        public static void dump_texture(string name, int width, int height)
+        {
+            var pixels = new byte[4 * width * height];
+            GL.ReadPixels(0, 0, width, height, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
+            var bmp = new Bitmap(width, height);
+            for (int i = 0; i < height; i++)
+                for (int j = 0; j < width; j++)
+                    bmp.SetPixel(j, i, Color.FromArgb(pixels[4 * (width * i + j) + 3],
+                        (int)pixels[4 * (width * i + j) + 0],
+                        (int)pixels[4 * (width * i + j) + 1],
+                        (int)pixels[4 * (width * i + j) + 2]));
+            bmp.Save("Temp//framebuffer_raw_" + name + ".png", ImageFormat.Png);
+        }
+
+
+        public static int generate2DTexture(PixelInternalFormat fmt, int w, int h, PixelFormat pix_fmt, PixelType pix_type, int mipmap_count)
+        {
+            int tex_id = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, tex_id);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, fmt, w, h, 0, pix_fmt, pix_type, IntPtr.Zero);
+            return tex_id;
+        }
+
+        public static int generateTexture2DArray(PixelInternalFormat fmt, int w, int h, int d, PixelFormat pix_fmt, PixelType pix_type, int mipmap_count)
+        {
+            int tex_id = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2DArray, tex_id);
+            GL.TexImage3D(TextureTarget.Texture2DArray, 0, fmt, w, h, d, 0, pix_fmt, pix_type, IntPtr.Zero);
+            return tex_id;
+        }
+
+        public static void generateTexture2DMipmaps(int texture)
+        {
+            GL.BindTexture(TextureTarget.Texture2D, texture);
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+        }
+
+        public static void generateTexture2DArrayMipmaps(int texture)
+        {
+            GL.BindTexture(TextureTarget.Texture2DArray, texture);
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2DArray);
+        }
+
+        public static void setupTextureParameters(int texture, int wrapMode, int magFilter, int minFilter, float af_amount)
+        {
+            GL.BindTexture(TextureTarget.Texture2D, texture);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, wrapMode);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, wrapMode);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, magFilter);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, minFilter);
+            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 4.0f);
+
+            //Use anisotropic filtering
+            af_amount = Math.Max(af_amount, GL.GetFloat((GetPName)All.MaxTextureMaxAnisotropy));
+            GL.TexParameter(TextureTarget.Texture2D, (TextureParameterName)0x84FE, af_amount);
+        }
+
+
+
+        #region IDisposable Support
+        private bool disposedValue = false; // To detect redundant calls
+
+
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    //Texture lists should have been disposed from the dictionary
+                    //Free other resources here
+                }
+
+                // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
+                // TODO: set large fields to null.
+
+                disposedValue = true;
+            }
+        }
+
+        // This code added to correctly implement the disposable pattern.
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+            Dispose(true);
+            // TODO: uncomment the following line if the finalizer is overridden above.
+            // GC.SuppressFinalize(this);
+        }
+        #endregion
+
+
+    }
 
     public class Material : TkMaterialData, IDisposable
     {
@@ -2965,223 +3282,6 @@ namespace MVCore.GMDL
 
 
 
-
-    public class Sampler: TkMaterialSampler, IDisposable
-    {
-        public MyTextureUnit texUnit;
-        public Texture tex;
-        public textureManager texMgr; //For now it should be inherited from the scene. In the future I can use a delegate
-
-        //Override Properties
-        public string PName
-        {
-            get {
-                return Name;
-            }
-            set
-            {
-                Name = value;
-            }
-        }
-
-        public string PMap
-        {
-            get
-            {
-                return Map;
-            }
-            set
-            {
-                Map = value;
-            }
-        }
-                
-        public Sampler() {
-            
-        }
-
-        public Sampler(TkMaterialSampler ms) {
-            //Pass everything here because there is no base copy constructor in the NMS template
-            this.Name = ms.Name;
-            this.Map = ms.Map;
-            this.IsCube = ms.IsCube;
-            this.IsSRGB = ms.IsSRGB;
-            this.UseCompression = ms.UseCompression;
-            this.UseMipMaps = ms.UseMipMaps;
-        }
-
-        public Sampler Clone()
-        {
-            Sampler newsampler = new Sampler();
-            
-            newsampler.PName = PName;
-            newsampler.PMap = PMap;
-            newsampler.texMgr = texMgr;
-            newsampler.tex = tex;
-            newsampler.texUnit = texUnit;
-            newsampler.TextureAddressMode = TextureAddressMode;
-            newsampler.TextureFilterMode = TextureFilterMode;
-
-            return newsampler;
-        }
-
-
-        public void init(textureManager input_texMgr)
-        {
-            texMgr = input_texMgr;
-            texUnit = new MyTextureUnit(Name);
-
-            //Save texture to material
-            switch (Name)
-            {
-                case "gDiffuseMap":
-                case "gMasksMap":
-                case "gNormalMap":
-                    prepTextures();
-                    break;
-                default:
-                    MVCore.Common.CallBacks.Log("Not sure how to handle Sampler " + Name);
-                    break;
-            }
-        }
-        
-
-        public void prepTextures()
-        {
-            string[] split = Map.Split('.');
-            //Construct main filename
-            string temp = "";
-            for (int i = 0; i < split.Length - 1; i++)
-                temp += split[i] + ".";
-            string texMbin = temp + "TEXTURE.MBIN";
-            texMbin = Path.GetFullPath(Path.Combine(FileUtils.dirpath, texMbin));
-
-
-            //Detect Procedural Texture
-            if (File.Exists(texMbin))
-            {
-                TextureMixer.combineTextures(Map, Palettes.paletteSel, ref texMgr);
-            }
-
-            //Load the texture to the sampler
-            loadTexture();
-        }
-
-
-        private void loadTexture()
-        {
-            Console.WriteLine("Trying to load Texture");
-
-            if (Map == "")
-                return;
-
-            //Try to load the texture
-            if (texMgr.hasTexture(Map))
-            {
-                tex = texMgr.getTexture(Map);
-            }
-            else
-            {
-                tex = new Texture(Map);
-                tex.palOpt = new PaletteOpt(false);
-                tex.procColor = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
-                //Store to resource
-                texMgr.addTexture(tex);
-            }
-
-        }
-
-
-        public static void dump_texture(string name, int width, int height)
-        {
-            var pixels = new byte[4 * width * height];
-            GL.ReadPixels(0, 0, width, height, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
-            var bmp = new Bitmap(width, height);
-            for (int i = 0; i < height; i++)
-                for (int j = 0; j < width; j++)
-                    bmp.SetPixel(j, i, Color.FromArgb(pixels[4 * (width * i + j) + 3],
-                        (int)pixels[4 * (width * i + j) + 0],
-                        (int)pixels[4 * (width * i + j) + 1],
-                        (int)pixels[4 * (width * i + j) + 2]));
-            bmp.Save("Temp//framebuffer_raw_" + name + ".png", ImageFormat.Png);
-        }
-
-
-        public static int generate2DTexture(PixelInternalFormat fmt, int w, int h, PixelFormat pix_fmt, PixelType pix_type, int mipmap_count)
-        {
-            int tex_id = GL.GenTexture();
-            GL.BindTexture(TextureTarget.Texture2D, tex_id);
-            GL.TexImage2D(TextureTarget.Texture2D, 0, fmt, w, h, 0, pix_fmt, pix_type, IntPtr.Zero);
-            return tex_id;
-        }
-
-        public static int generateTexture2DArray(PixelInternalFormat fmt, int w, int h, int d, PixelFormat pix_fmt, PixelType pix_type, int mipmap_count)
-        {
-            int tex_id = GL.GenTexture();
-            GL.BindTexture(TextureTarget.Texture2DArray, tex_id);
-            GL.TexImage3D(TextureTarget.Texture2DArray, 0, fmt, w, h, d, 0, pix_fmt, pix_type, IntPtr.Zero);
-            return tex_id;
-        }
-
-        public static void generateTexture2DMipmaps(int texture)
-        {
-            GL.BindTexture(TextureTarget.Texture2D, texture);
-            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
-        }
-
-        public static void generateTexture2DArrayMipmaps(int texture)
-        {
-            GL.BindTexture(TextureTarget.Texture2DArray, texture);
-            GL.GenerateMipmap(GenerateMipmapTarget.Texture2DArray);
-        }
-
-        public static void setupTextureParameters(int texture, int wrapMode, int magFilter, int minFilter, float af_amount)
-        {
-            GL.BindTexture(TextureTarget.Texture2D, texture);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, wrapMode);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, wrapMode);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, magFilter);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, minFilter);
-            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 4.0f);
-
-            //Use anisotropic filtering
-            af_amount = Math.Max(af_amount, GL.GetFloat((GetPName)All.MaxTextureMaxAnisotropy));
-            GL.TexParameter(TextureTarget.Texture2D, (TextureParameterName)0x84FE, af_amount);
-        }
-
-        #region IDisposable Support
-        private bool disposedValue = false; // To detect redundant calls
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!disposedValue)
-            {
-                if (disposing)
-                {
-                    //Texture lists should have been disposed from the dictionary
-                    //Free other resources here
-                }
-
-                // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
-                // TODO: set large fields to null.
-
-                disposedValue = true;
-            }
-        }
-
-        // This code added to correctly implement the disposable pattern.
-        public void Dispose()
-        {
-            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
-            Dispose(true);
-            // TODO: uncomment the following line if the finalizer is overridden above.
-            // GC.SuppressFinalize(this);
-        }
-        #endregion
-
-
-    }
-
     public class PaletteOpt
     {
         public string PaletteName;
@@ -3537,15 +3637,11 @@ namespace MVCore.GMDL
             
         }
 
-        protected Joint(Joint input, model refScene) : base(input, refScene)
+        protected Joint(Joint input) : base(input)
         {
             this.main_Vao = input.main_Vao;
             this.jointIndex = input.jointIndex;
             this.color = input.color;
-
-            //Save self to jointDictionary
-            ((scene) refScene).jointDict[name] = this;
-
         }
 
         public override void update()
@@ -3573,9 +3669,9 @@ namespace MVCore.GMDL
             GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
         }
 
-        public override model Clone(model refScene)
+        public override model Clone()
         {
-            return new Joint(this, refScene);
+            return new Joint(this);
         }
 
         
@@ -3644,7 +3740,7 @@ namespace MVCore.GMDL
                 Console.WriteLine(GL.GetError());
         }
 
-        protected Light(Light input, model refScene) : base(input, refScene)
+        protected Light(Light input) : base(input)
         {
             this.intensity = input.intensity;
             this.distance = input.distance;
@@ -3653,9 +3749,9 @@ namespace MVCore.GMDL
         }
 
 
-        public override model Clone(model refScene)
+        public override model Clone()
         {
-            return new Light(this, refScene);
+            return new Light(this);
         }
 
         private void renderMain(int pass)
@@ -4072,9 +4168,4 @@ namespace MVCore.GMDL
         }
 
     }
-
 }
-
-
-
-

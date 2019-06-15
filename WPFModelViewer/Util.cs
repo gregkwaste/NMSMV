@@ -47,14 +47,6 @@ namespace WPFModelViewer
             scn.animMeta = (libMBIN.NMS.Toolkit.TkAnimMetadata)mbinf.GetData();
         }
 
-        public static void loadPoseFile(string path, MVCore.GMDL.scene scn)
-        {
-            libMBIN.MBINFile mbinf = new libMBIN.MBINFile(path);
-            mbinf.Load();
-            scn.poseMeta = (libMBIN.NMS.Toolkit.TkAnimMetadata)mbinf.GetData();
-            scn.loadPose(0); //Also Load the default Pose
-        }
-
         public static void Log(string msg)
         {
 #if DEBUG

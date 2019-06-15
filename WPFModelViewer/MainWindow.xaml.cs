@@ -295,7 +295,6 @@ namespace WPFModelViewer
             //SETUP THE CALLBACKS OF MVCORE
             MVCore.Common.CallBacks.updateStatus = Util.setStatus;
             MVCore.Common.CallBacks.openAnim = Util.loadAnimationFile;
-            MVCore.Common.CallBacks.openPose = Util.loadPoseFile;
             MVCore.Common.CallBacks.Log = Util.Log;
             MVCore.Common.CallBacks.issueRequestToGLControl = Util.sendRequest;
 
@@ -341,24 +340,7 @@ namespace WPFModelViewer
 
         private void RegenPose_Click(object sender, RoutedEventArgs e)
         {
-            //Get Scenetreeview Selected item
-            model m = (model)SceneTreeView.SelectedItem;
-
-            if (m == null)
-            {
-                MessageBox.Show("Please select an object!", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            if (m.type == TYPES.MODEL)
-            {
-                scene sm = (scene) m;
-
-                if (sm.poseMeta != null)
-                    sm.loadPose(0); //Reload Pose
-                else
-                    MessageBox.Show("Missing Pose Data!", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
+            MessageBox.Show("This button should set random values to the pose slider of the active locator object");
         }
 
 

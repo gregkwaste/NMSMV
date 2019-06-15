@@ -4,8 +4,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:WPFModelViewer"
+        xmlns:mvcore="clr-namespace:MVCore;assembly="
         xmlns:gmdl="clr-namespace:MVCore.GMDL"
-        xmlns:mvcore="clr-namespace:MVCore"
         xmlns:mvcore_common="clr-namespace:MVCore.Common"
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
         mc:Ignorable="d"
@@ -36,17 +36,11 @@
                     </Grid>
                 </GroupBox>
             </DataTemplate>
+
             <DataTemplate DataType="{x:Type gmdl:Sampler}">
                 <DockPanel>
                     <TextBlock Text="{Binding PName}"/>
                     <TextBlock Text="{Binding PMap}" HorizontalAlignment="Right"/>
-                </DockPanel>
-            </DataTemplate>
-
-            <DataTemplate DataType="{x:Type gmdl:AnimPoseData}">
-                <DockPanel>
-                    <TextBlock Text="{Binding PAnim}"/>
-                    <Slider Minimum="{Binding PFrameStart}" Maximum="{Binding PFrameEnd}" Value="{Binding PActivePoseFrame}" ></Slider>
                 </DockPanel>
             </DataTemplate>
 
@@ -70,7 +64,14 @@
                     <TextBox Text="{Binding W}" Grid.Column="3" />
                 </Grid>
             </DataTemplate>
-            
+
+            <DataTemplate DataType="{x:Type gmdl:AnimPoseData}">
+                <DockPanel>
+                    <TextBlock Text="{Binding PAnim}"/>
+                    <Slider Minimum="{Binding PFrameStart}" Maximum="{Binding PFrameEnd}" Value="{Binding PActivePoseFrame}" ></Slider>
+                </DockPanel>
+            </DataTemplate>
+
             <DataTemplate DataType="{x:Type gmdl:Material}">
                 <GroupBox Header="Material Properties">
                     <Grid>
@@ -116,7 +117,8 @@
                     </Grid>
                 </GroupBox>
             </DataTemplate>
-            
+
+
             <DataTemplate DataType="{x:Type gmdl:scene}">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -144,6 +146,7 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
+                        <Button Command="{Binding Path=ApplyPose}" CommandParameter="{Binding}">Apply Pose</Button>
                     </StackPanel>
                 </Grid>
             </DataTemplate>

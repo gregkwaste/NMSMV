@@ -242,9 +242,6 @@ namespace MVCore.GMDL
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, element_buffer_object);
             GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr) i_size, indices_b, BufferUsageHint.StaticDraw);
 
-            //Step 1: Upload Uniforms
-            int loc;
-
             //Render Elements
             //Bind vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, vertex_buffer_object);

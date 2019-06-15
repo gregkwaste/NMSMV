@@ -19,7 +19,7 @@ namespace WPFModelViewer.Properties {
     // class via a tool like ResGen or Visual Studio.
     // To add or remove a member, edit your .ResX file then rerun ResGen
     // with the /str option, or rebuild your VS project.
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "15.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "16.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     internal class Resources {
@@ -91,9 +91,13 @@ namespace WPFModelViewer.Properties {
         /////Outputs
         ///void main()
         ///{
-        ///    gl_Position = mvp * inverse(self_mvp) * vPosition;
-        ///	gl_Position = gl_Position * 1.0f/gl_Position.w;
-        ///}.
+        ///	vec4 inv_pos = inverse(self_mvp) * vPosition;
+        ///
+        ///	inv_pos.z = min(inv_pos.z, 1000);
+        ///
+        ///    gl_Position = mvp * inv_pos;
+        ///
+        ///	//gl_Po [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string camera_vert {
             get {
@@ -413,8 +417,8 @@ namespace WPFModelViewer.Properties {
         ///    dx = 2.0/w;
         ///    dy = 2.0/h;
         ///    //Render to UV coordinate
-        ///    mat4 projmat = mat4(400.0/w, 0.0,    0.0, 0.0,
-        ///     [rest of string was truncated]&quot;;.
+        ///    mat4 projmat = mat4(2.0/w, 0.0,    0.0, 0.0,
+        ///       [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string text_vert {
             get {
