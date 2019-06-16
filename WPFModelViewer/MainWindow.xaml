@@ -72,6 +72,29 @@
                 </DockPanel>
             </DataTemplate>
 
+            <DataTemplate DataType="{x:Type gmdl:AnimData}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="6*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Binding PName}"/>
+                    <ToggleButton Grid.Column="1" IsChecked="{Binding AnimationToggle}">
+                        <ToggleButton.Style>
+                            <Style TargetType="{x:Type ToggleButton}">
+                                <Setter Property="Content" Value="Play" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter Property="Content" Value="Stop" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ToggleButton.Style>
+                    </ToggleButton>
+
+                </Grid>
+            </DataTemplate>
+
             <DataTemplate DataType="{x:Type gmdl:Material}">
                 <GroupBox Header="Material Properties">
                     <Grid>
@@ -135,6 +158,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <ContentPresenter Grid.Row="0" Content="{Binding}" ContentTemplate="{StaticResource basemodel}"/>
                     <StackPanel Grid.Row="1">
@@ -146,7 +170,24 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                        <Button Command="{Binding Path=ApplyPose}" CommandParameter="{Binding}">Apply Pose</Button>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="5*"/>
+                                <ColumnDefinition Width="5*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Command="{Binding Path=ApplyPose}" CommandParameter="{Binding}">Apply Pose</Button>
+                            <Button Grid.Column="1" Command="{Binding Path=ResetPose}" CommandParameter="{Binding}">Reset Pose</Button>
+                        </Grid>
+                    </StackPanel>
+                    <StackPanel Grid.Row="2">
+                        <TextBlock Text="Animations"></TextBlock>
+                        <ListBox ItemsSource="{Binding Animations}" HorizontalContentAlignment="Stretch">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <ContentControl Content="{Binding}"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
                     </StackPanel>
                 </Grid>
             </DataTemplate>

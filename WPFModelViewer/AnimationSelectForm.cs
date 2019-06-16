@@ -142,7 +142,7 @@ namespace Model_Viewer
         private void AnimationSelectForm_Load(object sender, EventArgs e)
         {
             //Set up droplist
-            foreach (scene s in _animScenes)
+            foreach (locator s in _animScenes)
                 listBox1.Items.Add(s.name);
         }
 

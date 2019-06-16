@@ -480,54 +480,10 @@ namespace MVCore
         private static textureManager localTexMgr;
         private static Dictionary<string, Joint> localJointDict;
         
-        private static NMSTemplate LoadNMSFile(string filepath)
-        {
-            int load_mode = 0;
-            string load_path;
-            NMSTemplate template;
-
-            if (filepath.ToUpper().EndsWith(".EXML"))
-            {
-                load_mode = 0;
-                load_path = filepath;
-            }
-            else
-            {
-                //Try to find if there is an exml file first
-                string exmlpath = Path.ChangeExtension(filepath, "exml");
-                if (File.Exists(exmlpath))
-                {
-                    load_mode = 0;
-                    load_path = exmlpath;
-                }
-                else
-                {
-                    load_mode = 1;
-                    load_path = filepath;
-                }
-            }
-
-
-            if (load_mode == 0)
-            {
-                //Load Exml
-                string xml = File.ReadAllText(load_path);
-                template = EXmlFile.ReadTemplateFromString(xml);
-            }
-            else
-            {
-                libMBIN.MBINFile mbinf = new libMBIN.MBINFile(load_path);
-                mbinf.Load();
-                template = mbinf.GetData();
-                mbinf.Dispose();
-            }
-
-            return template;
-        }
-
+        
         public static scene LoadObjects(string filepath)
         {
-            TkSceneNodeData scene = (TkSceneNodeData) LoadNMSFile(filepath);
+            TkSceneNodeData scene = (TkSceneNodeData) NMSUtils.LoadNMSFile(filepath);
             
             Console.WriteLine("Loading Objects from MBINFile");
 
@@ -645,7 +601,7 @@ namespace MVCore
 
             TkAnimPoseComponentData pcd = (TkAnimPoseComponentData)node.attachment.Components[component_index];
             //Load PoseFile
-            node._poseFrameData = (TkAnimMetadata) LoadNMSFile(Path.GetFullPath(Path.Combine(FileUtils.dirpath, pcd.Filename)));
+            node._poseFrameData = (TkAnimMetadata) NMSUtils.LoadNMSFile(Path.GetFullPath(Path.Combine(FileUtils.dirpath, pcd.Filename)));
 
 
             //Load PoseAnims
@@ -658,7 +614,21 @@ namespace MVCore
 
         private static void ProcessAnimationComponent(locator node)
         {
+            //Check if node has AnimPoseComponent
+            int component_index = HasComponent(node, typeof(TkAnimationComponentData));
 
+            if (component_index < 0)
+                return;
+
+            TkAnimationComponentData acd = node.attachment.Components[component_index] as TkAnimationComponentData;
+
+            //Load Animations
+            node._animations.Add(new AnimData(acd.Idle)); //Add Idle Animation
+            for (int i = 0; i < acd.Anims.Count; i++)
+            {
+                AnimData my_ad = new AnimData(acd.Anims[i]);
+                node._animations.Add(my_ad);
+            }
         }
 
         private static void ProcessComponents(locator node)
@@ -908,7 +878,7 @@ namespace MVCore
                     if (attachment != "")
                     {
                         string attachment_path = Path.GetFullPath(Path.Combine(FileUtils.dirpath, attachment));
-                        so.attachment = (TkAttachmentData) LoadNMSFile(attachment_path);
+                        so.attachment = (TkAttachmentData) NMSUtils.LoadNMSFile(attachment_path);
                     }
                 }
 
@@ -974,14 +944,13 @@ namespace MVCore
                 joint.parent = parent;
                 joint.init(transforms);
                 //FORCE pose shit to match the init transform
-                joint.localPosePosition = joint.localPosition;
-                joint.localPoseRotation = joint.localRotation;
-                joint.localPoseScale = joint.localScale;
-
+                joint.localPoseMatrix = Matrix4.CreateScale(joint.localScale) * joint.localRotation * Matrix4.CreateTranslation(joint.localPosition);
+                
                 //Get JointIndex
                 joint.jointIndex = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "JOINTINDEX").Value);
                 //Get InvBMatrix from gobject
                 joint.invBMat = gobject.jointData[joint.jointIndex].BindMatrix.Inverted();
+                joint.BindMat = gobject.jointData[joint.jointIndex].BindMatrix;
                 
                 //Set Random Color
                 joint.color[0] = Common.RenderState.randgen.Next(255) / 255.0f;

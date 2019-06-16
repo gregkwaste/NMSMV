@@ -1057,12 +1057,68 @@ namespace Model_Viewer
         //Animation Worker
         private void backgroundWorker1_ProgressChanged(object sender, System.ComponentModel.ProgressChangedEventArgs e)
         {
-            foreach (scene s in animScenes)
-                if (s.animMeta != null)
+            //Iterate in scenes
+            foreach (locator s in animScenes)
+            {
+                //Try to update the transformations of each locator joint by blending active animations
+                List<Vector3> translations = new List<Vector3>();
+                List<Vector3> scales = new List<Vector3>();
+                List<Quaternion> rotations = new List<Quaternion>();
+                
+                //Find active animations
+                List<AnimData> active_anims = new List<AnimData>();
+                foreach (AnimData ad in s.Animations)
                 {
-                    s.animate();
+                    if (ad.AnimationToggle)
+                    {
+                        active_anims.Add(ad);
+                        ad.animate(); //Progress the animations
+                    }
+                        
                 }
 
+
+                if (active_anims.Count == 0)
+                    continue;
+
+                float w_anim = 1.0f / active_anims.Count;
+
+
+                /*
+                //Reset joint local Transforms
+                foreach(Joint j in s.jointDict.Values)
+                {
+                    j.localPosition = new Vector3();
+                    j.localRotation = Matrix4.Identity;
+                    j.localScale = new Vector3(1.0f);
+                }
+                */
+                
+                //Iterate in Locator animations
+                foreach (AnimData ad in active_anims)
+                {
+                    //Load joint transforms
+                    foreach (libMBIN.NMS.Toolkit.TkAnimNodeData node in ad.animMeta.NodeData)
+                    {
+                        if (!s.jointDict.ContainsKey(node.Node))
+                            continue;
+
+                        Vector3 tvec = ad.fetchTransVector(node);
+                        OpenTK.Quaternion q = ad.fetchRotQuaternion(node);
+                        Matrix4 qmat = Matrix4.CreateFromQuaternion(q);
+                        Vector3 svec = ad.fetchScaleVector(node);
+
+                        //Add transforms to joint
+                        s.jointDict[node.Node].localPosition = tvec;
+                        s.jointDict[node.Node].localRotation = qmat;
+                        s.jointDict[node.Node].localScale = svec;
+                    }
+
+                    //TODO: For now I'm just using the first active animation. Blending should be kinda more sophisticated
+                    break;
+                }
+
+            }
         }
 
         #endregion ANIMATION_PLAYBACK

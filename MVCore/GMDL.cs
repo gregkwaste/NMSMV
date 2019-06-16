@@ -44,7 +44,6 @@ namespace MVCore.GMDL
     public abstract class model : IDisposable, INotifyPropertyChanged
     {
         public abstract bool render(int pass);
-        public GLControl pcontrol;
         public bool renderable;
         public bool debuggable;
         public int selected;
@@ -66,13 +65,6 @@ namespace MVCore.GMDL
         public Vector3 _localScale;
         public Vector3 _localRotationAngles;
         public Matrix4 _localRotation;
-
-        //keep original transforms just in case
-        public Vector3 _origlocalPosition;
-        public Vector3 _origlocalScale;
-        public Vector3 _origlocalRotationAngles;
-        public Matrix4 _origlocalRotation;
-
 
         public model parent;
         public int cIndex = 0;
@@ -215,14 +207,13 @@ namespace MVCore.GMDL
             //Get Local Position
             Vector3 rotation;
             _localPosition = new Vector3(trans[0], trans[1], trans[2]);
-            _origlocalPosition = _localPosition;
+            
             //Save raw rotations
             rotation.X = MathUtils.radians(trans[3]);
             rotation.Y = MathUtils.radians(trans[4]);
             rotation.Z = MathUtils.radians(trans[5]);
 
             _localRotationAngles = new Vector3(trans[3], trans[4], trans[5]);
-            _origlocalRotationAngles = _localRotationAngles;
             //IF PARSED SEPARATELY USING THE AXIS ANGLES
             //OpenTK.Quaternion qx = OpenTK.Quaternion.FromAxisAngle(new Vector3(1.0f, 0.0f, 0.0f), rotation.X);
             //OpenTK.Quaternion qy = OpenTK.Quaternion.FromAxisAngle(new Vector3(0.0f, 1.0f, 0.0f), rotation.Y);
@@ -237,14 +228,10 @@ namespace MVCore.GMDL
             Matrix4 roty = Matrix4.CreateRotationY(rotation.Y);
             Matrix4 rotz = Matrix4.CreateRotationZ(rotation.Z);
             _localRotation = rotz * rotx * roty;
-            _origlocalRotation = _localRotation;
-
+            
             //Get Local Scale
-            _localScale.X = trans[6];
-            _localScale.Y = trans[7];
-            _localScale.Z = trans[8];
-            _origlocalScale = _localScale;
-
+            _localScale = new Vector3(trans[6], trans[7], trans[8]);
+            
             //Set paths
             if (parent!=null)
                 this.cIndex = this.parent.children.Count;
@@ -378,81 +365,6 @@ namespace MVCore.GMDL
         }
 
         
-        public void animate()
-        {
-            //Console.WriteLine("Setting Frame Index {0}", frameIndex);
-            TkAnimNodeFrameData frame = animMeta.AnimFrameData[frameCounter];
-            TkAnimNodeFrameData stillframe = animMeta.StillFrameData;
-
-            foreach (TkAnimNodeData node in animMeta.NodeData)
-            {
-                if (jointDict.ContainsKey(node.Node))
-                {
-                    //Console.WriteLine("Frame {0} Node {1} RotationIndex {2}", frameCounter, node.Node, node.RotIndex);
-
-                    OpenTK.Quaternion q;
-                    Vector3 rotAngles;
-                    //Check if there is a rotation for that node
-                    if (node.RotIndex < frame.Rotations.Count)
-                    {
-                        int rotindex = node.RotIndex;
-                        q = new OpenTK.Quaternion(frame.Rotations[rotindex].x,
-                                        frame.Rotations[rotindex].y,
-                                        frame.Rotations[rotindex].z,
-                                        frame.Rotations[rotindex].w);
-
-                    } else //Load stillframedata
-                    {
-                        int rotindex = node.RotIndex - frame.Rotations.Count;
-                        q = new OpenTK.Quaternion(stillframe.Rotations[rotindex].x,
-                                        stillframe.Rotations[rotindex].y,
-                                        stillframe.Rotations[rotindex].z,
-                                        stillframe.Rotations[rotindex].w);
-                    }
-                    
-                    Matrix4 nMat = Matrix4.CreateFromQuaternion(q);
-                    jointDict[node.Node].localRotation = nMat;
-                    
-                    //Load Translations
-                    if (node.TransIndex < frame.Translations.Count)
-                    {
-                        jointDict[node.Node].localPosition = new Vector3(frame.Translations[node.TransIndex].x,
-                                                            frame.Translations[node.TransIndex].y,
-                                                            frame.Translations[node.TransIndex].z);
-                    }
-                    else //Load stillframedata
-                    {
-                        int transindex = node.TransIndex - frame.Translations.Count;
-                        jointDict[node.Node].localPosition = new Vector3(stillframe.Translations[transindex].x,
-                                                            stillframe.Translations[transindex].y,
-                                                            stillframe.Translations[transindex].z);
-                    }
-
-                    //Load Scaling - TODO
-                    //Load Translations
-                    if (node.ScaleIndex < frame.Scales.Count)
-                    {
-                        jointDict[node.Node].localScale = new Vector3(frame.Scales[node.ScaleIndex].x,
-                            frame.Scales[node.ScaleIndex].y, frame.Scales[node.ScaleIndex].z);
-                    }
-                    else //Load stillframedata
-                    {
-                        int scaleindex = node.ScaleIndex - frame.Scales.Count;
-                        jointDict[node.Node].localScale = new Vector3(stillframe.Scales[scaleindex].x, 
-                            stillframe.Scales[scaleindex].y, stillframe.Scales[scaleindex].z);
-                    }
-
-                }
-                //Console.WriteLine("Node " + node.name+ " {0} {1} {2}",node.rotIndex,node.transIndex,node.scaleIndex);
-            }
-
-            //Scene update should happen from the rendering thread since joint geometry has to be updated
-            //update(); 
-            frameCounter += 1;
-            if (frameCounter >= animMeta.FrameCount - 1)
-                frameCounter = 0;
-        }
-
         //Deconstructor
         protected override void Dispose(bool disposing)
         {
@@ -490,7 +402,22 @@ namespace MVCore.GMDL
             get { return new ApplyPoseCommand();}
         }
 
+        public ICommand ResetPose
+        {
+            get { return new ResetPoseCommand(); }
+        }
+
         //TODO: Move to animation class
+        //animations list Contains all the animations bound to the locator through Tkanimationcomponent
+        public List<AnimData> _animations = new List<AnimData>();
+        public List<AnimData> Animations
+        {
+            get
+            {
+                return _animations;
+            }
+        }
+
         public TkAnimMetadata animMeta = null;
         public int frameCounter = 0;
         public int poseIndex = 0;
@@ -627,15 +554,8 @@ namespace MVCore.GMDL
         {
             event EventHandler ICommand.CanExecuteChanged
             {
-                add
-                {
-                    //I have absolutely no idea what the fuck should I do here
-                }
-
-                remove
-                {
-                    //I have absolutely no idea what the fuck should I do here
-                }
+                add { }
+                remove { }
             }
 
             bool ICommand.CanExecute(object parameter)
@@ -645,102 +565,40 @@ namespace MVCore.GMDL
 
             void ICommand.Execute(object parameter)
             {
-                Console.WriteLine("FIX THIS SHIT");
                 locator node = parameter as locator;
                 node.loadPose();
-                
             }
         }
 
-        //Private animation data collection methods
-        private Quaternion fetchPoseRotQuaternion(TkAnimNodeData node, TkAnimMetadata metadata, int frameIndex)
+        private class ResetPoseCommand : ICommand
         {
-            //Load Frames
-            //Console.WriteLine("Setting Frame Index {0}", frameIndex);
-            TkAnimNodeFrameData frame = metadata.AnimFrameData[frameIndex];
-            TkAnimNodeFrameData stillframe = metadata.StillFrameData;
-
-            OpenTK.Quaternion q;
-            //Check if there is a rotation for that node
-            if (node.RotIndex < frame.Rotations.Count)
+            event EventHandler ICommand.CanExecuteChanged
             {
-                Console.WriteLine("Node " + node.Node + " has still animframedata\n");
-                int rotindex = node.RotIndex;
-                q = new OpenTK.Quaternion(frame.Rotations[rotindex].x,
-                                frame.Rotations[rotindex].y,
-                                frame.Rotations[rotindex].z,
-                                frame.Rotations[rotindex].w);
-            }
-            else //Load stillframedata
-            {
-                Console.WriteLine("Node" + node.Node + " has still framedata\n");
-                int rotindex = node.RotIndex - frame.Rotations.Count;
-                q = new OpenTK.Quaternion(stillframe.Rotations[rotindex].x,
-                                stillframe.Rotations[rotindex].y,
-                                stillframe.Rotations[rotindex].z,
-                                stillframe.Rotations[rotindex].w);
+                add { }
+                remove { }
             }
 
-            return q;
-        }
-
-        private Vector3 fetchTransVector(TkAnimNodeData node, TkAnimMetadata metadata, int frameIndex)
-        {
-            //Load Frames
-            //Console.WriteLine("Setting Frame Index {0}", frameIndex);
-            TkAnimNodeFrameData frame = metadata.AnimFrameData[frameIndex];
-            TkAnimNodeFrameData stillframe = metadata.StillFrameData;
-
-            Vector3 v;
-            //Load Translations
-            if (node.TransIndex < frame.Translations.Count)
+            bool ICommand.CanExecute(object parameter)
             {
-                Console.WriteLine("Node " + node.Node + " has still animframedata\n");
-                v = new Vector3(frame.Translations[node.TransIndex].x,
-                                                    frame.Translations[node.TransIndex].y,
-                                                    frame.Translations[node.TransIndex].z);
-            }
-            else //Load stillframedata
-            {
-                Console.WriteLine("Node " + node.Node + " has still framedata\n");
-                int transindex = node.TransIndex - frame.Translations.Count;
-                v = new Vector3(stillframe.Translations[transindex].x,
-                                                    stillframe.Translations[transindex].y,
-                                                    stillframe.Translations[transindex].z);
+                return true;
             }
 
-            return v;
+            void ICommand.Execute(object parameter)
+            {
+                locator node = parameter as locator;
+                node.resetPose();
+            }
         }
 
 
-        private Vector3 fetchScaleVector(TkAnimNodeData node, TkAnimMetadata metadata, int frameIndex)
+        private void resetPose()
         {
-            //Load Frames
-            //Console.WriteLine("Setting Frame Index {0}", frameIndex);
-            TkAnimNodeFrameData frame = metadata.AnimFrameData[frameIndex];
-            TkAnimNodeFrameData stillframe = metadata.StillFrameData;
-
-            Vector3 v;
+            foreach (Joint j in jointDict.Values)
+                j.localPoseMatrix = j.BindMat;
             
-            //Load Scaling - TODO
-            if (node.ScaleIndex < frame.Scales.Count)
-            {
-                Console.WriteLine("Node " + node.Node + " has still animframedata\n");
-                v = new Vector3(frame.Scales[node.ScaleIndex].x,
-                    frame.Scales[node.ScaleIndex].y, frame.Scales[node.ScaleIndex].z);
-            }
-            else //Load stillframedata
-            {
-                Console.WriteLine("Node " + node.Node + " has still framedata\n");
-                int scaleindex = node.ScaleIndex - frame.Scales.Count;
-                v = new Vector3(stillframe.Scales[scaleindex].x,
-                    stillframe.Scales[scaleindex].y, stillframe.Scales[scaleindex].z);
-            }
-
-            return v;
         }
 
-        public void loadPose()
+        private void loadPose()
         {
             foreach (TkAnimNodeData node in _poseFrameData.NodeData)
             {
@@ -748,56 +606,37 @@ namespace MVCore.GMDL
                     continue;
                 
                 //We should interpolate frame shit over all the selected Pose Data
-                List<Quaternion> rotation_quats = new List<Quaternion>();
-                List<Vector3> translation_vectors = new List<Vector3>();
-                List<Vector3> scale_vectors = new List<Vector3>();
+                List<Matrix4> framePoseMatrices = new List<Matrix4>();
 
                 for (int i = 0; i < _poseData.Count; i++)
                 {
                     //Get Pose Frame
                     int poseFrameIndex = _poseData[i].PActivePoseFrame;
 
+                    Vector3 v_t, v_s;
+                    Quaternion lq;
                     //Fetch Rotation Quaternion
-                    rotation_quats.Add(fetchRotQuaternion(node, _poseFrameData, poseFrameIndex));
-                    //Fetch Translation Vector
-                    translation_vectors.Add(fetchTransVector(node, _poseFrameData, poseFrameIndex));
-                    //Fetch Scale Vector
-                    scale_vectors.Add(fetchScaleVector(node, _poseFrameData, poseFrameIndex));
+                    lq = NMSUtils.fetchRotQuaternion(node, _poseFrameData, poseFrameIndex);
+                    v_t = NMSUtils.fetchTransVector(node, _poseFrameData, poseFrameIndex);
+                    v_s = NMSUtils.fetchScaleVector(node, _poseFrameData, poseFrameIndex);
+
+                    //Generate Transformation Matrix
+                    Matrix4 poseMat = Matrix4.CreateScale(v_s) * Matrix4.CreateFromQuaternion(lq) * Matrix4.CreateTranslation(v_t);
+                    framePoseMatrices.Add(poseMat * jointDict[node.Node].invBMat);
                 }
 
-                //Interpolate transforms
-                float w = 1.0f / _poseData.Count;
-
-                //Step A: Weight transforms
+                //Accumulate transforms
+                Matrix4 finalPoseMat = Matrix4.Identity;
                 for (int i = 0; i < _poseData.Count; i++)
-                {
-                    rotation_quats[i] = w * rotation_quats[i];
-                    translation_vectors[i] = w * translation_vectors[i];
-                    scale_vectors[i] = w * scale_vectors[i];
-                }
+                    finalPoseMat = finalPoseMat * framePoseMatrices[i];
 
-                //Step B: Accumulate Transforms
-                Quaternion q = new Quaternion();
-                Vector3 t = new Vector3();
-                Vector3 s = new Vector3();
+                finalPoseMat = finalPoseMat * jointDict[node.Node].BindMat;
 
-                for (int i = 0; i < _poseData.Count; i++)
-                {
-                    q += rotation_quats[i];
-                    t += translation_vectors[i];
-                    s += scale_vectors[i];
-                }
-
-                //Save transforms to joint pose data
-                jointDict[node.Node].localPosePosition = t;
-                jointDict[node.Node].localPoseScale = s;
-
-                Matrix4 nMat = Matrix4.CreateFromQuaternion(q);
-                jointDict[node.Node].localPoseRotation = nMat;
-
+                jointDict[node.Node].localPoseMatrix = finalPoseMat;
             }
         }
 
+        
     }
 
     //Place holder struct for all rendered meshes
@@ -3548,30 +3387,19 @@ namespace MVCore.GMDL
         public Vector3 color;
 
         //Add a bunch of shit for posing
-        public Vector3 _localPosePosition = new Vector3(0.0f);
-        public Matrix4 _localPoseRotation = Matrix4.Identity;
-        public Vector3 _localPoseScale = new Vector3(1.0f);
+        public Matrix4 _localPoseMatrix = Matrix4.Identity;
+        //public Vector3 _localPosePosition = new Vector3(0.0f);
+        //public Matrix4 _localPoseRotation = Matrix4.Identity;
+        //public Vector3 _localPoseScale = new Vector3(1.0f);
         public Matrix4 BindMat = Matrix4.Identity; //This is the local Bind Matrix related to the parent joint
         public Matrix4 invBMat = Matrix4.Identity; //This is the inverse of the local Bind Matrix related to the parent
         //DO NOT MIX WITH THE gobject.invBMat which is reverts the transformation to the global space
         
         //Props
-        public Matrix4 localPoseRotation
+        public Matrix4 localPoseMatrix
         {
-            get { return _localPoseRotation; }
-            set { _localPoseRotation = value; changed = true; }
-        }
-
-        public Vector3 localPosePosition
-        {
-            get { return _localPosePosition; }
-            set { _localPosePosition = value; changed = true; }
-        }
-
-        public Vector3 localPoseScale
-        {
-            get { return _localPoseScale; }
-            set { _localPoseScale = value; changed = true; }
+            get { return _localPoseMatrix; }
+            set { _localPoseMatrix = value; changed = true; }
         }
 
         private void update_joint()
@@ -3591,23 +3419,9 @@ namespace MVCore.GMDL
                 Matrix4 localPositionMat = Matrix4.CreateTranslation(localPosition);
 
                 //Calculate Pose transformation
-
-                //Create scaling matrix
-                Matrix4 localPoseScaleMat = Matrix4.Identity;
-                localPoseScaleMat.M11 = localPoseScale.X;
-                localPoseScaleMat.M22 = localPoseScale.Y;
-                localPoseScaleMat.M33 = localPoseScale.Z;
-
-                //Create Pose translation Matrix
-                Matrix4 localPosePositionMat = Matrix4.CreateTranslation(localPosePosition);
-
-                //Calculate local transformation Matrix
-                //localMat = localScaleMat * localRotation * localPositionMat; //Raw transform without Pose
-
-                Matrix4 localPoseMat = (localPoseScaleMat * localPoseRotation * localPosePositionMat);
                 Matrix4 localJointMat = (localScaleMat * localRotation * localPositionMat);
 
-                localMat = localPoseMat * invBMat * localJointMat;
+                localMat = localPoseMatrix * invBMat * localJointMat;
 
                 //localMat = localMat - (localPoseScaleMat * localPoseRotation * localPosePositionMat);
 
@@ -3949,137 +3763,84 @@ namespace MVCore.GMDL
 
     }
 
-    public class AnimFrameData
+
+    public class AnimMetadata: TkAnimMetadata
     {
-        public List<AnimNodeFrameData> frames = new List<AnimNodeFrameData>();
-        public int frameCount;
 
-        public void Load(FileStream fs, int count)
-        {
-            BinaryReader br = new BinaryReader(fs);
-            this.frameCount = count;
-            for (int i = 0; i < count; i++)
-            {
-                uint rotOff = (uint)fs.Position + br.ReadUInt32();
-                fs.Seek(0x4, SeekOrigin.Current);
-                int rotCount = br.ReadInt32();
-                fs.Seek(0x4, SeekOrigin.Current);
 
-                uint transOff = (uint)fs.Position + br.ReadUInt32();
-                fs.Seek(0x4, SeekOrigin.Current);
-                int transCount = br.ReadInt32();
-                fs.Seek(0x4, SeekOrigin.Current);
-
-                uint scaleOff = (uint)fs.Position + br.ReadUInt32();
-                fs.Seek(0x4, SeekOrigin.Current);
-                int scaleCount = br.ReadInt32();
-                fs.Seek(0x4, SeekOrigin.Current);
-
-                long back = fs.Position;
-
-                AnimNodeFrameData frame = new AnimNodeFrameData();
-                fs.Seek(rotOff, SeekOrigin.Begin);
-                frame.LoadRotations(fs, rotCount);
-                fs.Seek(transOff, SeekOrigin.Begin);
-                frame.LoadTranslations(fs, transCount);
-                fs.Seek(scaleOff, SeekOrigin.Begin);
-                frame.LoadScales(fs, scaleCount);
-
-                fs.Seek(back, SeekOrigin.Begin);
-
-                this.frames.Add(frame);
-
-            }
-        }
     }
-    public class AnimeNode
+
+    public class AnimData : TkAnimationData
     {
-        public int index;
-        public string name = "";
-        public bool canCompress = false;
-        public int rotIndex = 0;
-        public int transIndex = 0;
-        public int scaleIndex = 0;
+        public TkAnimMetadata animMeta;
+        public int frameCounter = 0;
+        public bool _animationToggle = false;
+        
+        //Constructors
+        public AnimData(TkAnimationData ad){
+            Anim = ad.Anim;
+            Filename = ad.Filename;
+            FrameStart = ad.FrameStart;
+            FrameEnd = ad.FrameEnd;
+            StartNode = ad.StartNode;
+            AnimType = ad.AnimType;
 
-
-        public AnimeNode(int fIndex)
-        {
-            this.index = fIndex;
+            //Load Animation File
+            loadAnimation();
         }
-        public void Load(FileStream fs)
-        {
-            //Binary reader
-            BinaryReader br = new BinaryReader(fs);
-            char[] charbuffer = new char[0x100];
+        
+        //Properties
 
-            charbuffer = br.ReadChars(0x40);
-            name = (new string(charbuffer)).Trim('\0');
-            canCompress = (br.ReadInt32()==0) ? false : true;
-            rotIndex = br.ReadInt32();
-            transIndex = br.ReadInt32();
-            scaleIndex = br.ReadInt32();
+        public string PName
+        {
+            get { return Anim; }
+            set { Anim = value; }
         }
-    }
-    public class NodeData
-    {
-        public List<AnimeNode> nodeList = new List<AnimeNode>();
-        public int nodeCount = 0;
 
-        public void parseNodes(FileStream fs, int count)
+        public bool AnimationToggle
         {
-            nodeCount = count;
+            get { return _animationToggle; }
+            set { _animationToggle = value; animate(); }
+        }
 
-            for (int i = 0; i < count; i++)
-            {
-                AnimeNode node = new AnimeNode(i);
-                node.Load(fs);
-                nodeList.Add(node);
-            }
+        private void loadAnimation()
+        {
+            animMeta = NMSUtils.LoadNMSFile(Path.GetFullPath(Path.Combine(FileUtils.dirpath, Filename))) as TkAnimMetadata;
+        }
+
+
+        //Methods
+        //Animation frame data collection methods
+        public Quaternion fetchRotQuaternion(TkAnimNodeData node)
+        {
+            return NMSUtils.fetchRotQuaternion(node, animMeta, frameCounter);
+        }
+
+        public Vector3 fetchTransVector(TkAnimNodeData node)
+        {
+            return NMSUtils.fetchTransVector(node, animMeta, frameCounter);
+        }
+
+
+        public Vector3 fetchScaleVector(TkAnimNodeData node)
+        {
+            return NMSUtils.fetchScaleVector(node, animMeta, frameCounter);
+        }
+
+
+        public void animate()
+        {
+            frameCounter += 1;
+            if (frameCounter >= animMeta.FrameCount - 1)
+                frameCounter = 0;
         }
 
     }
 
-    public class AnimeMetaData
-    {
-        public int nodeCount = 0;
-        public int frameCount = 0;
-        public NodeData nodeData = new NodeData();
-        public AnimFrameData frameData = new AnimFrameData();
 
-        public void Load(FileStream fs)
-        {
-            //Binary Reader
-            BinaryReader br = new BinaryReader(fs);
-            fs.Seek(0x60, SeekOrigin.Begin);
-            frameCount = br.ReadInt32();
-            nodeCount = br.ReadInt32();
 
-            //Get Offsets
-            uint nodeOffset = (uint)fs.Position + br.ReadUInt32();
-            fs.Seek(0xC, SeekOrigin.Current);
-            uint animeFrameDataOff = (uint)fs.Position + br.ReadUInt32();
-            fs.Seek(0xC, SeekOrigin.Current);
-            uint staticFrameOff = (uint)fs.Position;
 
-            Console.WriteLine("Animation File");
-            Console.WriteLine("Frames {0} Nodes {1}", frameCount, nodeCount);
-            Console.WriteLine("Parsing Nodes NodeOffset {0}", nodeOffset);
-
-            fs.Seek(nodeOffset, SeekOrigin.Begin);
-            NodeData nodedata = new NodeData();
-            nodedata.parseNodes(fs, nodeCount);
-            nodeData = nodedata;
-
-            Console.WriteLine("Parsing Animation Frame Data Offset {0}", animeFrameDataOff);
-            fs.Seek(animeFrameDataOff, SeekOrigin.Begin);
-            AnimFrameData framedata = new AnimFrameData();
-            framedata.Load(fs, frameCount);
-            this.frameData = framedata;
-
-        }
-
-    }
-
+        
     public class JointBindingData
     {
         public Matrix4 invBindMatrix = Matrix4.Identity;
