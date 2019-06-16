@@ -273,7 +273,7 @@ namespace WPFModelViewer
 
             //Populate GLControl
             scene scene = new scene();
-            scene.type = TYPES.SCENE;
+            scene.type = TYPES.MODEL;
             scene.name = "DEFAULT SCENE";
 
             //Force rootobject

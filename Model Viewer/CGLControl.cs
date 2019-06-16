@@ -72,7 +72,7 @@ namespace Model_Viewer
             }
         }
 
-        public List<scene> animScenes = new List<scene>();
+        public List<locator> animScenes = new List<locator>();
         
         //Control private Managers
         public ResourceManager resMgr = new ResourceManager();
@@ -195,13 +195,20 @@ namespace Model_Viewer
 
         }
 
-        public void findAnimScenes()
+        public void findAnimScenes(model node)
         {
-            foreach (scene scn in resMgr.GLScenes.Values)
+            if (node.type == TYPES.LOCATOR || node.type == TYPES.MODEL)
             {
-                if (scn.jointDict.Values.Count > 0)
-                    this.animScenes.Add(scn);
+                locator l_node = node as locator;
+                if (l_node.jointDict.Values.Count > 0)
+                    animScenes.Add(l_node);
             }
+            
+            foreach (model child in node.children)
+            {
+                findAnimScenes(child);
+            }
+
         }
 
         //Per Frame Updates
@@ -210,18 +217,18 @@ namespace Model_Viewer
             //Fetch Updates on Joints on all animscenes
             for (int i = 0; i < animScenes.Count; i++)
             {
-                scene animScene = animScenes[i];
+                locator animScene = animScenes[i];
                 foreach (Joint j in animScene.jointDict.Values)
                 {
                     MathUtils.insertMatToArray16(animScene.JMArray, j.jointIndex * 16, j.worldMat);
                 }
 
                 //Calculate skinning matrices for each joint for each geometry object
-                MathUtils.mulMatArrays(ref animScene.skinMats, animScene.gobject.invBMats,
+                MathUtils.mulMatArrays(ref animScene.skinMats, animScene.invBMats,
                     animScene.JMArray, animScene.jointDict.Keys.Count);
             }
-            
-            
+
+
             rootObject?.update();
 
             //Camera & Light Positions
@@ -912,8 +919,8 @@ namespace Model_Viewer
             //Populate RenderManager
             renderMgr.populate(rootObject);
             
-            //find Animation Capable Scenes
-            this.findAnimScenes();
+            //find Animation Capable nodes
+            findAnimScenes(rootObject);
 
             //Refresh all transforms
             rootObject.update();

@@ -26,7 +26,6 @@ namespace MVCore
         LIGHT,
         EMITTER,
         COLLISION,
-        SCENE,
         MODEL,
         REFERENCE,
         DECAL,
@@ -545,7 +544,6 @@ namespace MVCore
             var xmlstring = EXmlFile.WriteTemplate(scene);
             File.WriteAllText("Temp\\" + scnName + ".exml", xmlstring);
 #endif
-
             //Get Geometry File
             //Parse geometry once
             string geomfile;
@@ -561,7 +559,7 @@ namespace MVCore
                 scene dummy = new scene();
                 dummy.name = "DUMMY_SCENE";
                 dummy.nms_template = null;
-                dummy.type = TYPES.SCENE;
+                dummy.type = TYPES.MODEL;
                 dummy.shader_programs = new int[] {Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
                                               Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
                                               Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
@@ -721,8 +719,9 @@ namespace MVCore
                 meshModel so = new meshModel();
 
                 so.name = name;
-                so.type = typeEnum;
                 so.debuggable = true;
+                so.animScene = animscene; //Set Animation Scene
+                
                 //Set Random Color
                 so.color[0] = Common.RenderState.randgen.Next(255) / 255.0f;
                 so.color[1] = Common.RenderState.randgen.Next(255) / 255.0f;
@@ -862,16 +861,32 @@ namespace MVCore
                 //Setup model texture manager
                 so.texMgr = new textureManager();
                 localTexMgr = so.texMgr; //setup local texMgr
-                
+
+                //Setup localJointDictionary
+                if (localJointDict != null)
+                    localJointDict.Clear();
+                else
+                    localJointDict = new Dictionary<string, Joint>();
+
                 //Handle Children
                 if (children.Count > 0)
                 {
                     foreach (TkSceneNodeData child in children)
                     {
-                        model part = parseNode(child, gobject, so, so, null);
+                        model part = parseNode(child, gobject, so, so, so);
                         so.children.Add(part);
                     }
                 }
+
+                //In the case of models use exactly the same joint references
+                so.jointDict = new Dictionary<string, Joint>();
+                foreach (KeyValuePair<string, Joint> kv in localJointDict)
+                {
+                    so.jointDict[kv.Key] = kv.Value;
+                }
+
+                //Make a copy of the joing InvBMats
+                Array.Copy(gobject.invBMats, so.invBMats, gobject.invBMats.Length);
 
                 //Check if root node is in the resMgr
                 if (!Common.RenderState.activeResMgr.GLScenes.ContainsKey(name))
@@ -888,6 +903,7 @@ namespace MVCore
                 //Fetch attributes
                 if (node.Attributes.Count > 0)
                 {
+                    //For now fetch only one attachment
                     string attachment = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "ATTACHMENT");
                     if (attachment != "")
                     {
@@ -895,11 +911,13 @@ namespace MVCore
                         so.attachment = (TkAttachmentData) LoadNMSFile(attachment_path);
                     }
                 }
+
+                if (node.Attributes.Count > 1)
+                    MessageBox.Show("PM THE IDIOT TO ADD SUPPORT FOR FUCKING MULTIPLE ATTACHMENTS...");
                 
                 //Set Properties
                 //Testingso.Name = name + "_LOC";
                 so.name = name;
-                so.type = typeEnum;
                 so.nms_template = node;
                 
                 //Set Shader Program
@@ -923,6 +941,23 @@ namespace MVCore
                 //Process Locator Attachments
                 ProcessComponents(so);
 
+
+                //Check if locator has TkAnimationComponent 
+                if ((so.attachment != null) && (HasComponent(so, typeof(TkAnimationComponentData)) >=0))
+                {
+                    //In the case of locators also use exactly the same joint references
+                    //TODO: I think this is a safe option for the viewer. I'll make sure to duplicate shit
+                    //when procedurally generating models
+                    so.jointDict = new Dictionary<string, Joint>();
+                    foreach (KeyValuePair<string, Joint> kv in localJointDict)
+                    {
+                        so.jointDict[kv.Key] = kv.Value;
+                    }
+
+                    //Make a copy of the joint InvBMats
+                    Array.Copy(gobject.invBMats, so.invBMats, gobject.invBMats.Length);
+                }
+
                 return so;
             }
             else if (typeEnum == TYPES.JOINT)
@@ -931,7 +966,6 @@ namespace MVCore
                 Joint joint = new Joint();
                 //Set properties
                 joint.name = name;
-                joint.type = typeEnum;
                 joint.nms_template = node;
                 joint.shader_programs = new int[]{ Common.RenderState.activeResMgr.GLShaders["JOINT_SHADER"],
                                                    Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
@@ -946,6 +980,9 @@ namespace MVCore
 
                 //Get JointIndex
                 joint.jointIndex = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "JOINTINDEX").Value);
+                //Get InvBMatrix from gobject
+                joint.invBMat = gobject.jointData[joint.jointIndex].BindMatrix.Inverted();
+                
                 //Set Random Color
                 joint.color[0] = Common.RenderState.randgen.Next(255) / 255.0f;
                 joint.color[1] = Common.RenderState.randgen.Next(255) / 255.0f;
@@ -953,12 +990,8 @@ namespace MVCore
 
                 joint.main_Vao = new MVCore.Primitives.LineSegment(children.Count, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
 
-                //Try to insert joint to scene dict
-                
-                if (animscene != null)
-                {
-                    animscene.jointDict[joint.name] = joint;
-                }
+                //Insert joint to localDictionary
+                localJointDict[joint.Name] = joint;
                 
                 //Handle Children
                 if (children.Count > 0)
@@ -1003,11 +1036,8 @@ namespace MVCore
                     //Handle Children
                     if (children.Count > 0)
                     {
-                        foreach (TkSceneNodeData child in children)
-                        {
-                            model part = parseNode(child, gobject, so, so, animscene);
-                            so.children.Add(part);
-                        }
+                        Console.WriteLine("Reference Object is not supposed to have children. I need to properly handle them...");
+                        Debug.Assert(false);
                     }
 
                     //Load Objects from new xml

@@ -40,11 +40,11 @@ namespace WPFModelViewer
         }
 
         //Generic Procedures - File Loading
-        public static void loadAnimationFile(string path, MVCore.GMDL.scene scn)
+        public static void loadAnimationFile(string path, MVCore.GMDL.locator scn)
         {
             libMBIN.MBINFile mbinf = new libMBIN.MBINFile(path);
             mbinf.Load();
-            scn.animMeta = (libMBIN.NMS.Toolkit.TkAnimMetadata)mbinf.GetData();
+            scn.animMeta = (libMBIN.NMS.Toolkit.TkAnimMetadata) mbinf.GetData();
         }
 
         public static void Log(string msg)

@@ -178,7 +178,7 @@ namespace MVCore
                         }
 
                     }
-                    else if (m.type == TYPES.LOCATOR || m.type == TYPES.SCENE || m.type == TYPES.LIGHT)
+                    else if (m.type == TYPES.LOCATOR || m.type == TYPES.MODEL || m.type == TYPES.LIGHT)
                     {
                         m.render(pass);
                     }

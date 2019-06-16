@@ -483,6 +483,7 @@ namespace MVCore.GMDL
         //Joint Data
         public float[] JMArray;
         public float[] skinMats; //Final Matrices
+        public float[] invBMats; //Joint Inverse Bound Matrices
         public Dictionary<string, Joint> jointDict;
         public ICommand ApplyPose
         {
@@ -521,6 +522,7 @@ namespace MVCore.GMDL
             //Init Animation Stuff
             JMArray = new float[256 * 16];
             skinMats = new float[256 * 16];
+            invBMats = new float[256 * 16];
             jointDict = new Dictionary<string, Joint>();
         }
 
@@ -561,11 +563,13 @@ namespace MVCore.GMDL
                     vao_id = -1; //VAO will be deleted from the resource manager since it is a common mesh
                     shader_programs = null;
                     skinMats = null;
-                    
+                    invBMats = null;
                     JMArray = null;
+
                     jointDict.Clear();
                     animMeta = null;
 
+                    
                     base.Dispose(disposing);
                 }
 
@@ -649,7 +653,7 @@ namespace MVCore.GMDL
         }
 
         //Private animation data collection methods
-        private Quaternion fetchRotQuaternion(TkAnimNodeData node, TkAnimMetadata metadata, int frameIndex)
+        private Quaternion fetchPoseRotQuaternion(TkAnimNodeData node, TkAnimMetadata metadata, int frameIndex)
         {
             //Load Frames
             //Console.WriteLine("Setting Frame Index {0}", frameIndex);
@@ -892,7 +896,7 @@ namespace MVCore.GMDL
         //Constructor
         public meshModel()
         {
-
+            type = TYPES.MESH;
         }
 
         public meshModel(meshModel input) :base(input)
@@ -3547,6 +3551,9 @@ namespace MVCore.GMDL
         public Vector3 _localPosePosition = new Vector3(0.0f);
         public Matrix4 _localPoseRotation = Matrix4.Identity;
         public Vector3 _localPoseScale = new Vector3(1.0f);
+        public Matrix4 BindMat = Matrix4.Identity; //This is the local Bind Matrix related to the parent joint
+        public Matrix4 invBMat = Matrix4.Identity; //This is the inverse of the local Bind Matrix related to the parent
+        //DO NOT MIX WITH THE gobject.invBMat which is reverts the transformation to the global space
         
         //Props
         public Matrix4 localPoseRotation
@@ -3583,8 +3590,6 @@ namespace MVCore.GMDL
                 //Create translation Matrix
                 Matrix4 localPositionMat = Matrix4.CreateTranslation(localPosition);
 
-                localMat = Matrix4.Mult(localScaleMat * localRotation * localPositionMat, 2.0f);
-
                 //Calculate Pose transformation
 
                 //Create scaling matrix
@@ -3596,8 +3601,15 @@ namespace MVCore.GMDL
                 //Create Pose translation Matrix
                 Matrix4 localPosePositionMat = Matrix4.CreateTranslation(localPosePosition);
 
-                //Calculate local matrices
-                localMat = localMat - (localPoseScaleMat * localPoseRotation * localPosePositionMat);
+                //Calculate local transformation Matrix
+                //localMat = localScaleMat * localRotation * localPositionMat; //Raw transform without Pose
+
+                Matrix4 localPoseMat = (localPoseScaleMat * localPoseRotation * localPosePositionMat);
+                Matrix4 localJointMat = (localScaleMat * localRotation * localPositionMat);
+
+                localMat = localPoseMat * invBMat * localJointMat;
+
+                //localMat = localMat - (localPoseScaleMat * localPoseRotation * localPosePositionMat);
 
                 //Finally Update world Transformation Matrix
                 if (parent != null)
@@ -3634,7 +3646,7 @@ namespace MVCore.GMDL
 
         public Joint() :base(0.1f)
         {
-            
+            type = TYPES.JOINT;   
         }
 
         protected Joint(Joint input) : base(input)
@@ -4071,14 +4083,8 @@ namespace MVCore.GMDL
     public class JointBindingData
     {
         public Matrix4 invBindMatrix = Matrix4.Identity;
-        public Vector4 iBM_Row1;
-        public Vector4 iBM_Row2;
-        public Vector4 iBM_Row3;
-        public Vector3 BindTranslate;
-        public OpenTK.Quaternion BindRotation;
-        public Vector3 Bindscale;
+        public Matrix4 BindMatrix = Matrix4.Identity;
 
-        
         public void Load(FileStream fs)
         {
             //Binary Reader
@@ -4101,10 +4107,9 @@ namespace MVCore.GMDL
             invBindMatrix.M43 = br.ReadSingle();
             invBindMatrix.M44 = br.ReadSingle();
 
-            //Load the Rows transposed in order to get rid ot (0, 0, 0, 1)
-            iBM_Row1 = new Vector4(invBindMatrix.M11, invBindMatrix.M21, invBindMatrix.M31, invBindMatrix.M41);
-            iBM_Row2 = new Vector4(invBindMatrix.M12, invBindMatrix.M22, invBindMatrix.M32, invBindMatrix.M42);
-            iBM_Row3 = new Vector4(invBindMatrix.M13, invBindMatrix.M23, invBindMatrix.M33, invBindMatrix.M43);
+            //Calculate Binding Matrix
+            Vector3 BindTranslate, BindScale;
+            Quaternion BindRotation = new Quaternion();
 
             //Get Translate
             BindTranslate.X = br.ReadSingle();
@@ -4116,10 +4121,16 @@ namespace MVCore.GMDL
             BindRotation.Z = br.ReadSingle();
             BindRotation.W = br.ReadSingle();
             //Get Scale
-            Bindscale.X = br.ReadSingle();
-            Bindscale.Y = br.ReadSingle();
-            Bindscale.Z = br.ReadSingle();
+            BindScale.X = br.ReadSingle();
+            BindScale.Y = br.ReadSingle();
+            BindScale.Z = br.ReadSingle();
 
+            //Generate Matrix
+            BindMatrix = Matrix4.CreateScale(BindScale) * Matrix4.CreateFromQuaternion(BindRotation) * Matrix4.CreateTranslation(BindTranslate);
+
+            //Check Results [Except from joint 0, the determinant of the multiplication is always 1,
+            // transforms should be good]
+            //Console.WriteLine((BindMatrix * invBindMatrix).Determinant);
         }
 
         
