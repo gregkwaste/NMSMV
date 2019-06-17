@@ -3152,12 +3152,9 @@ namespace MVCore.GMDL
         public int width;
         public int height;
         public InternalFormat pif;
-        public bool containsAlphaMap;
         public PaletteOpt palOpt;
         public Vector4 procColor;
         public Vector3 avgColor;
-        public PixelFormat pf;
-        //public DDSImage ddsImage;
         
         //Empty Initializer
         public Texture() {}
@@ -3188,17 +3185,14 @@ namespace MVCore.GMDL
             {
                 //DXT1
                 case (0x31545844):
-                    pif = InternalFormat.CompressedRgbaS3tcDxt1Ext;
+                    pif = InternalFormat.CompressedSrgbAlphaS3tcDxt1Ext;
                     blocksize = 8;
-                    containsAlphaMap = false;
                     break;
                 case (0x35545844):
-                    pif = InternalFormat.CompressedRgbaS3tcDxt5Ext;
-                    containsAlphaMap = true;
+                    pif = InternalFormat.CompressedSrgbAlphaS3tcDxt5Ext;
                     break;
                 case (0x32495441): //ATI2A2XY
-                    pif = InternalFormat.CompressedRgRgtc2;
-                    containsAlphaMap = true;
+                    pif = InternalFormat.CompressedRgRgtc2; //Normal maps are probably never srgb
                     break;
                 //DXT10 HEADER
                 case (0x30315844):
@@ -3206,8 +3200,7 @@ namespace MVCore.GMDL
                         switch (ddsImage.header10.dxgiFormat)
                         {
                             case (DXGI_FORMAT.DXGI_FORMAT_BC7_UNORM):
-                                pif = InternalFormat.CompressedRgbaBptcUnorm;
-                                containsAlphaMap = true;
+                                pif = InternalFormat.CompressedSrgbAlphaBptcUnorm;
                                 break;
                             default:
                                 throw new ApplicationException("Unimplemented DX10 Texture Pixel format");
@@ -3218,9 +3211,6 @@ namespace MVCore.GMDL
                 default:
                     throw new ApplicationException("Unimplemented Pixel format");
             }
-            //Force RGBA for now
-            pf = PixelFormat.Rgba;
-            
             
             //Temp Variables
             int w = width;
@@ -3244,7 +3234,7 @@ namespace MVCore.GMDL
             {
                 byte[] tex_data = new byte[temp_size * depth_count];
                 Array.Copy(ddsImage.bdata, offset, tex_data, 0, temp_size * depth_count);
-                GL.CompressedTexImage3D(target, i, this.pif, w, h, depth_count, 0, temp_size * depth_count, tex_data);
+                GL.CompressedTexImage3D(target, i, pif, w, h, depth_count, 0, temp_size * depth_count, tex_data);
                 
                 //GL.TexImage3D(target, i, PixelInternalFormat.Rgba8, w, h, depth_count, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
                 //Console.WriteLine(GL.GetError());
@@ -3550,13 +3540,14 @@ namespace MVCore.GMDL
     public class Light : model
     {
         //I should expand the light properties here
+        public Vector3 color = new Vector3(1.0f);
+        public Vector3 ambient = new Vector3(0.2f);
         public float intensity = 1.0f;
-        public float distance = 1.0f;
-        
+        public float specular = 0.5f;
+
         private int vertex_buffer_object;
         private int element_buffer_object;
 
-        
         public Light()
         {
             type = TYPES.LIGHT;
@@ -3568,10 +3559,12 @@ namespace MVCore.GMDL
 
         protected Light(Light input) : base(input)
         {
-            this.intensity = input.intensity;
-            this.distance = input.distance;
-            this.vertex_buffer_object = input.vertex_buffer_object;
-            this.element_buffer_object = input.element_buffer_object;
+            color = input.color;
+            ambient = input.ambient;
+            intensity = input.intensity;
+            specular = input.specular;
+            vertex_buffer_object = input.vertex_buffer_object;
+            element_buffer_object = input.element_buffer_object;
         }
 
 

@@ -55,7 +55,6 @@ namespace MVCore
         }
 
 
-        //Methods
         //Animation frame data collection methods
         public static Quaternion fetchRotQuaternion(TkAnimNodeData node, TkAnimMetadata animMeta, int frameCounter)
         {

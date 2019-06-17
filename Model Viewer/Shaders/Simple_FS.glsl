@@ -161,4 +161,9 @@ void main()
     outcolors[1] = finalPos;
     //outcolors[1] = vec4(N, 1.0);
     outcolors[2] = vec4(0.0, 1.0, 0.0, 1.0);
+
+
+    //Apply gamma correction
+    float gamma = 2.2;
+    outcolors[0].rgb = pow(outcolors[0].rgb, vec3(1.0/gamma));
 }
