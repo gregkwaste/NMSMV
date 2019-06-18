@@ -609,8 +609,7 @@ namespace Model_Viewer
             shader_conf.modifyShader = issuemodifyShaderRequest;
 
             compileShader(shader_conf);
-            resMgr.GLShaderConfigs[shader_conf.name] = shader_conf;
-            resMgr.GLShaders[shader_conf.name] = shader_conf.program_id;
+            resMgr.GLShaders[shader_conf.name] = shader_conf;
             log += shader_conf.log; //Append log
         }
 
@@ -822,7 +821,7 @@ namespace Model_Viewer
         private void addCamera(bool cull = true)
         {
             //Set Camera position
-            Camera cam = new Camera(60, this.resMgr.GLShaders["BBOX_SHADER"], 0, cull);
+            Camera cam = new Camera(60, resMgr.GLShaders["BBOX_SHADER"].program_id, 0, cull);
             for (int i = 0; i < 20; i++)
                 cam.Move(0.0f, -0.1f, 0.0f);
             cam.isActive = false;
@@ -932,14 +931,15 @@ namespace Model_Viewer
         {
             //Add one and only light for now
             Light light = new Light();
-            light.shader_programs = new int[] { this.resMgr.GLShaders["LIGHT_SHADER"] };
+            light.shader_programs = new GLSLHelper.GLSLShaderConfig[] { this.resMgr.GLShaders["LIGHT_SHADER"] };
             light.localPosition = new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                             Math.Sin(this.light_angle_y * Math.PI / 180.0)),
                                                 (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
                                                 (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                             Math.Cos(this.light_angle_y * Math.PI / 180.0)));
 
-            this.resMgr.GLlights.Add(light);
+            resMgr.GLlights.Add(light);
+            resMgr.GLLight_structs.Add(light.getStruct());
         }
 
         public void updateLightPosition(int light_id)
@@ -950,6 +950,11 @@ namespace Model_Viewer
                                                 (float)(light_distance * Math.Sin(MathUtils.radians(light_angle_x))),
                                                 (float)(light_distance * Math.Cos(MathUtils.radians(light_angle_x)) *
                                                             Math.Cos(MathUtils.radians(light_angle_y)))));
+
+            //TODO: THIS IS UGLY LIKE FUCK. FIND A WAY TO MAKE IT BETTER
+            //Update position on the struct
+            GLLight l = resMgr.GLLight_structs[light_id];
+            l.position.Xyz = light.worldPosition;
         }
 
         private void fps()
@@ -1082,7 +1087,6 @@ namespace Model_Viewer
                     continue;
 
                 float w_anim = 1.0f / active_anims.Count;
-
 
                 /*
                 //Reset joint local Transforms

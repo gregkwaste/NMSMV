@@ -232,14 +232,6 @@ namespace TextureMixer
 
                 int tex0Id = (int)TextureUnit.Texture0;
 
-                //Upload hasAlpha
-                sem = "hasAlphaChannel";
-                loc = GL.GetUniformLocation(shader_program, sem);
-                if (tex.containsAlphaMap)
-                    GL.Uniform1(loc, 1.0f);
-                else
-                    GL.Uniform1(loc, 0.0f);
-
                 //Upload average Color
                 loc = GL.GetUniformLocation(shader_program, "lAverageColors[" + i.ToString() + "]");
                 GL.Uniform4(loc, tex.avgColor.X, tex.avgColor.Y, tex.avgColor.Z, 1.0f); 

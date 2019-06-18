@@ -516,7 +516,7 @@ namespace MVCore
                 dummy.name = "DUMMY_SCENE";
                 dummy.nms_template = null;
                 dummy.type = TYPES.MODEL;
-                dummy.shader_programs = new int[] {Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
+                dummy.shader_programs = new GLSLHelper.GLSLShaderConfig[] {Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
                                               Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
                                               Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
 
@@ -727,7 +727,7 @@ namespace MVCore
                         break;
                     }
 
-                so.shader_programs = new int[] { Common.RenderState.activeResMgr.GLShaders["MESH_SHADER"],
+                so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders["MESH_SHADER"],
                                                  Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
                                                  Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
 
@@ -891,7 +891,7 @@ namespace MVCore
                 so.nms_template = node;
                 
                 //Set Shader Program
-                so.shader_programs = new int[]{Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
+                so.shader_programs = new GLSLHelper.GLSLShaderConfig[]{Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
                                                Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
                                                Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
                 //Get Transformation
@@ -937,7 +937,7 @@ namespace MVCore
                 //Set properties
                 joint.name = name;
                 joint.nms_template = node;
-                joint.shader_programs = new int[]{ Common.RenderState.activeResMgr.GLShaders["JOINT_SHADER"],
+                joint.shader_programs = new GLSLHelper.GLSLShaderConfig[]{ Common.RenderState.activeResMgr.GLShaders["JOINT_SHADER"],
                                                    Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
                                                    Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
                 //Get Transformation
@@ -1020,7 +1020,7 @@ namespace MVCore
                     so.name = name + "_UNKNOWN";
                     so.type = TYPES.UNKNOWN;
                     //Set Shader Program
-                    so.shader_programs = new int[] { Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
+                    so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
                                                      Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
                                                      Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
 
@@ -1037,7 +1037,7 @@ namespace MVCore
                 Collision so = new Collision();
 
                 //Remove that after implemented all the different collision types
-                so.shader_programs = new int[] { Common.RenderState.activeResMgr.GLShaders["MESH_SHADER"],
+                so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders["MESH_SHADER"],
                                                   Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
                                                   Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]}; //Use Mesh program for collisions
                 so.debuggable = true;
@@ -1213,10 +1213,9 @@ namespace MVCore
                 so.type = TYPES.UNKNOWN;
                 so.nms_template = node;
                 //Set Shader Program
-                so.shader_programs = new int[] { Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
-                                                 Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
-                                                 Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
-
+                so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
+                                                                         Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
+                                                                         Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
                 //Locator Objects don't have options
 
                 //take care of children

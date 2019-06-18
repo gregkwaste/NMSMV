@@ -136,8 +136,7 @@ namespace WPFModelViewer
                                 case THREAD_REQUEST_TYPE.COMPILE_SHADER_REQUEST:
                                     //Add Shader to resource manager
                                     GLSLHelper.GLSLShaderConfig shader_conf = (GLSLShaderConfig)req.arguments[0];
-                                    RenderState.activeResMgr.GLShaderConfigs[shader_conf.name] = shader_conf;
-                                    RenderState.activeResMgr.GLShaders[shader_conf.name] = shader_conf.program_id;
+                                    RenderState.activeResMgr.GLShaders[shader_conf.name] = shader_conf;
                                     File.WriteAllText("shader_compilation_" + shader_conf.name + ".log", shader_conf.log);
                                     Util.setStatus("Shader Compiled Successfully!");
                                     break;

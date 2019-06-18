@@ -32,6 +32,9 @@ namespace GLSLHelper {
         //Shader Compilation log
         public string log = "";
 
+        //Keep active uniforms
+        public Dictionary<string, int> uniformLocations = new Dictionary<string, int>();
+
         public GLSLShaderModRequest modifyShader;
         public GLSLShaderCompileRequest compileShader;
         
@@ -265,12 +268,41 @@ namespace GLSLHelper {
             
             //Check Linking
             GL.GetProgramInfoLog(program, out info);
+            config.log += info + "\n";
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out status_code);
             if (status_code != 1)
                 throwCompilationError(config.log);
 
+            loadActiveUniforms(config);
         }
 
+
+        static private void loadActiveUniforms(GLSLShaderConfig shader_conf)
+        {
+            int active_uniforms_count;
+            GL.GetProgram(shader_conf.program_id, GetProgramParameterName.ActiveUniforms, out active_uniforms_count);
+
+            shader_conf.uniformLocations.Clear(); //Reset locataions
+            shader_conf.log += "Active Uniforms: " + active_uniforms_count.ToString() + "\n";
+            for (int i = 0; i < active_uniforms_count; i++)
+            {
+                int size;
+                int bufSize = 64;
+                int length;
+                string name;
+                ActiveUniformType type;
+                int loc;
+
+                GL.GetActiveUniform(shader_conf.program_id, i, bufSize, out size, out length, out type, out name);
+                loc = GL.GetUniformLocation(shader_conf.program_id, name);
+                string info_string = String.Format("Uniform # {0} Location: {1} Type: {2} Name: {3} Length: {4} Size: {5}",
+                    i, loc, type.ToString(), name, length, size);
+
+                shader_conf.uniformLocations[name] = loc; //Store location
+                shader_conf.log += info_string + "\n";
+            }
+        }
+        
         static public void modifyShader(GLSLShaderConfig shader_conf, string shaderText, OpenTK.Graphics.OpenGL4.ShaderType shadertype)
         {
             Console.WriteLine("Actually Modifying Shader");
@@ -319,6 +351,7 @@ namespace GLSLHelper {
             StreamWriter sr = new StreamWriter("shader_compilation_log_" +DateTime.Now.ToFileTime() + "_log.out");
             sr.Write(log);
             sr.Close();
+            Console.WriteLine(log);
             throw new ApplicationException("Shader Compilation Failed. Check Log");
         }
     }

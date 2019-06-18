@@ -35,7 +35,7 @@ namespace MVCore
         public GBuffer(ResourceManager mgr, int x, int y)
         {
             //Create Quad Geometry
-            program = mgr.GLShaders["GBUFFER_SHADER"];
+            program = mgr.GLShaders["GBUFFER_SHADER"].program_id;
             quad_vao = mgr.GLPrimitiveVaos["default_renderquad"].vao_id;
 
             //Setup all stuff

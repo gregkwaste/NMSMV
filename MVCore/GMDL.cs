@@ -24,6 +24,7 @@ using PixelFormat = OpenTK.Graphics.OpenGL4.PixelFormat;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Input;
+using System.Runtime.InteropServices;
 //using Matrix4 = MathNet.Numerics.LinearAlgebra.Matrix<float>;
 
 
@@ -47,7 +48,7 @@ namespace MVCore.GMDL
         public bool renderable;
         public bool debuggable;
         public int selected;
-        public int[] shader_programs;
+        public GLSLHelper.GLSLShaderConfig[] shader_programs;
         public int ID;
         public TYPES type;
         public string name;
@@ -342,7 +343,7 @@ namespace MVCore.GMDL
             type = TYPES.MODEL;
             texMgr = new textureManager();
             //Set Shader Program
-            shader_programs = new int[]{Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
+            shader_programs = new GLSLHelper.GLSLShaderConfig[]{Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
                                         Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
                                         Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
         }
@@ -442,7 +443,7 @@ namespace MVCore.GMDL
             scale = s;
             vao_id = MVCore.Common.RenderState.activeResMgr.GLPrimitiveVaos["default_cross"].vao_id;
             //Add shaders
-            shader_programs = new int[] { MVCore.Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
+            shader_programs = new GLSLHelper.GLSLShaderConfig[] { MVCore.Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
                 MVCore.Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
                 MVCore.Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
 
@@ -530,7 +531,7 @@ namespace MVCore.GMDL
         public override bool render(int pass)
         {
 
-            int program = this.shader_programs[pass];
+            int program = this.shader_programs[pass].program_id;
 
             switch (pass)
             {
@@ -894,10 +895,6 @@ namespace MVCore.GMDL
             Matrix4 wMat = Matrix4.Identity;
             GL.UniformMatrix4(loc, false, ref wMat);
 
-            //Send mvp to all shaders
-            loc = GL.GetUniformLocation(pass, "mvp");
-            GL.UniformMatrix4(loc, false, ref MVCore.Common.RenderState.mvp);
-
             //Render Elements
             GL.PointSize(5.0f);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, eb_bbox);
@@ -930,11 +927,6 @@ namespace MVCore.GMDL
             Matrix4 wMat = worldMat;
             GL.UniformMatrix4(loc, false, ref wMat);
 
-            //Send mvp to all shaders
-            loc = GL.GetUniformLocation(pass, "mvp");
-            Matrix4 mvpMat = MVCore.Common.RenderState.mvp;
-            GL.UniformMatrix4(loc, false, ref mvpMat);
-
             //Step 2 Bind & Render Vao
             //Render Bounding Sphere
             GL.BindVertexArray(bsh_Vao.vao_id);
@@ -944,57 +936,46 @@ namespace MVCore.GMDL
             GL.BindVertexArray(0);
         }
 
-        public virtual void renderMain(int pass)
+        public virtual void renderMain(GLSLHelper.GLSLShaderConfig shader)
         {
-            GL.UseProgram(pass);
+            GL.UseProgram(shader.program_id);
 
+            //Upload Material Information
+            
             //Step 1 Upload uniform variables
-            int loc;
-
-            GL.Uniform1(11, 64, Material.material_flags); //Upload Material Flags
-            //Upload Color Flag
-            GL.Uniform3(209, color);
-
+            GL.Uniform1(shader.uniformLocations["mpCustomPerMaterial.matflags[0]"], 64, Material.material_flags); //Upload Material Flags
+            
             //Upload Custom Per Material Uniforms
             foreach (Uniform un in Material.CustomPerMaterialUniforms.Values)
             {
-                if (!Material.CustomPerMaterialUniformLocationDict.Keys.Contains(un.Name))
-                {
-                    MVCore.Common.CallBacks.Log("Uniform Missing! Adding " + un.Name + " to the uniform dictionary");
-                    Material.CustomPerMaterialUniformLocationDict[un.Name] = -1;
-                }
-                else
-                    GL.Uniform4(Material.CustomPerMaterialUniformLocationDict[un.Name], un.vec.Vec);
+                if (shader.uniformLocations.Keys.Contains(un.Name))
+                    GL.Uniform4(shader.uniformLocations[un.Name], un.vec.Vec);
             }
             
-            //Upload joint transform data
-            GL.UniformMatrix4(75, BoneRemapIndicesCount, false, BoneRemapMatrices);
-            
-            //Upload Light Flag
-            //loc = GL.GetUniformLocation(pass, "useLighting");
-            //GL.Uniform1(loc, 1.0f);
-
             //BIND TEXTURES
-            int tex0Id = (int)TextureUnit.Texture0;
             //Diffuse Texture
-            
+
+            /*
             if (Material.material_flags[(int) TkMaterialFlags.MaterialFlagEnum._F55_] > 0.0f)
             {
                 //Upload depth : gUserVecData
                 GL.Uniform4(216, new Vector4(0.0f));
             }
-
+            */
+            
             int sampler_counter = 0;
             foreach (Sampler s in Material.PSamplers.Values)
             {
-                if (s.texUnit.location > 0 && s.Map != "")
+                if (shader.uniformLocations.ContainsKey(s.Name) && s.Map != "")
                 {
-                    GL.Uniform1(s.texUnit.location, sampler_counter);
+                    GL.Uniform1(shader.uniformLocations[s.Name], sampler_counter);
                     GL.ActiveTexture(s.texUnit.texUnit);
                     GL.BindTexture(s.tex.target, s.tex.bufferID);
                     sampler_counter++;
                 }
             }
+            
+            //Upload material struct to shader
 
             //Step 2 Bind & Render Vao
             //Render Elements
@@ -1073,14 +1054,14 @@ namespace MVCore.GMDL
 
         public override bool render(int pass)
         {
-            int program = this.shader_programs[pass];
+            int program = shader_programs[pass].program_id;
 
             //Render Object
             switch (pass)
             {
                 //Render Main
                 case 0:
-                    renderMain(program);
+                    renderMain(shader_programs[pass]);
                     //renderBSphere(MVCore.Common.RenderState.activeResMgr.GLShaders["BBOX_SHADER"]);
                     //renderBbox(MVCore.Common.RenderState.activeResMgr.GLShaders["BBOX_SHADER"]);
                     //renderBHull(program);
@@ -1328,6 +1309,33 @@ namespace MVCore.GMDL
 
     }
 
+    [StructLayout(LayoutKind.Explicit)]
+    struct CustomPerMaterialUniforms
+    {
+        [FieldOffset(0)] //256 Bytes
+        public unsafe fixed int matflags[64];
+        [FieldOffset(256)] //64 Bytes
+        public int diffuseTex;
+        [FieldOffset(260)] //4 bytes
+        public int maskTex;
+        [FieldOffset(264)] //4 bytes
+        public int normalTex;
+        [FieldOffset(276)] //16 bytes
+        public Vector4 gMaterialColourVec4;
+        [FieldOffset(292)] //16 bytes
+        public Vector4 gMaterialParamsVec4;
+        [FieldOffset(308)] //16 bytes
+        public Vector4 gMaterialSFXVec4;
+        [FieldOffset(324)] //16 bytes
+        public Vector4 gMaterialSFXColVec4;
+        [FieldOffset(340)] //16 bytes
+        public Vector4 gDissolveDataVec4;
+        //[FieldOffset(356)] //16 bytes
+        //public Vector4 gUserDataVec4; MOVE TO COMMON PER MESH
+
+        public static readonly int SizeInBytes = 356;
+    };
+
     public class Collision : meshModel
     {
         public COLLISIONTYPES collisionType;
@@ -1364,12 +1372,11 @@ namespace MVCore.GMDL
             {
                 //Render Main
                 case 0:
-                    program = this.shader_programs[pass];
-                    renderMain(program);
+                    renderMain(shader_programs[pass]);
                     break;
                 //Render Debug
                 case 1:
-                    program = this.shader_programs[pass];
+                    program = shader_programs[pass].program_id;
                     renderDebug(program);
                     break;
                 default:
@@ -1380,10 +1387,10 @@ namespace MVCore.GMDL
             return true;
         }
 
-        public override void renderMain(int pass)
+        public override void renderMain(GLSLHelper.GLSLShaderConfig shader)
         {
             //Console.WriteLine(this.name + this);
-            GL.UseProgram(pass);
+            GL.UseProgram(shader.program_id);
 
             //Step 1: Upload Uniforms
             int loc;
@@ -1457,14 +1464,12 @@ namespace MVCore.GMDL
 
             return false;//Skip decal rendering for now
 
-            int program;
             //Render Object
             switch (pass)
             {
                 //Render Main
                 case 0:
-                    program = this.shader_programs[pass];
-                    renderMain(program);
+                    renderMain(shader_programs[pass]);
                     break;
                 default:
                     //Do nothing otherwise
@@ -1474,16 +1479,16 @@ namespace MVCore.GMDL
             return true;
         }
 
-        public override void renderMain(int pass)
+        public override void renderMain(GLSLHelper.GLSLShaderConfig shader)
         {
             //Console.WriteLine(this.name + this);
-            GL.UseProgram(pass);
+            GL.UseProgram(shader.program_id);
 
             //Step 1: Upload Uniforms
             int loc;
             //Upload Material Flags here
             //Reset
-            loc = GL.GetUniformLocation(pass, "matflags");
+            loc = GL.GetUniformLocation(shader.program_id, "matflags");
 
             if (loc > 0) 
             {
@@ -1500,7 +1505,7 @@ namespace MVCore.GMDL
             int tex0Id = (int)TextureUnit.Texture0;
             //Diffuse Texture
             string test = "decalTex";
-            loc = GL.GetUniformLocation(pass, test);
+            loc = GL.GetUniformLocation(shader.program_id, test);
             GL.Uniform1(loc, 0); // I need to upload the texture unit number
 
             GL.ActiveTexture(TextureUnit.Texture0);
@@ -1925,7 +1930,7 @@ namespace MVCore.GMDL
         public Sampler(TkMaterialSampler ms)
         {
             //Pass everything here because there is no base copy constructor in the NMS template
-            this.Name = ms.Name;
+            this.Name = "mpCustomPerMaterial." + ms.Name;
             this.Map = ms.Map;
             this.IsCube = ms.IsCube;
             this.IsSRGB = ms.IsSRGB;
@@ -1957,9 +1962,9 @@ namespace MVCore.GMDL
             //Save texture to material
             switch (Name)
             {
-                case "gDiffuseMap":
-                case "gMasksMap":
-                case "gNormalMap":
+                case "mpCustomPerMaterial.gDiffuseMap":
+                case "mpCustomPerMaterial.gMasksMap":
+                case "mpCustomPerMaterial.gNormalMap":
                     prepTextures();
                     break;
                 default:
@@ -2165,16 +2170,15 @@ namespace MVCore.GMDL
         }
 
         public static Dictionary<string, int> CustomPerMaterialUniformLocationDict = new Dictionary<string, int> {
-            { "gMaterialColourVec4" , 211 },
-            { "gMaterialParamsVec4" , 212 },
-            { "gMaterialSFXVec4" , 213 },
-            { "gMaterialSFXColVec4" , 214 },
-            { "gDissolveDataVec4" , 215 },
+            { "gMaterialColourVec4" , 276 },
+            { "gMaterialParamsVec4" , 292 },
+            { "gMaterialSFXVec4" , 308 },
+            { "gMaterialSFXColVec4" , 324 },
+            { "gDissolveDataVec4" , 340 },
             { "gCustomParams01Vec4" , -1 },
             { "gUVScrollStepVec4" , -1 },
             { "gRingParamsVec4" , -1 },
         };
-
 
         public Material()
         {
@@ -2329,7 +2333,7 @@ namespace MVCore.GMDL
 
         public Uniform(TkMaterialUniform un)
         {
-            name = un.Name;
+            name = "mpCustomPerMaterial." + un.Name;
             vec = new MVector4(un.Values.x, un.Values.y, un.Values.z, un.Values.t);
         }
 
@@ -2414,40 +2418,20 @@ namespace MVCore.GMDL
 
     public class MyTextureUnit
     {
-        public int location;
         public OpenTK.Graphics.OpenGL4.TextureUnit texUnit;
 
-        public static Dictionary<string, int> MapLocation = new Dictionary<string, int> {
-            { "gDiffuseMap" , 203 },
-            { "gDiffuse2Map" , -1 },
-            { "gMasksMap" ,   204 },
-            { "gNormalMap" ,  205 },
-            { "gDetailDiffuseMap", -1},
-            { "gDetailNormalMap", -1}
-        };
-
         public static Dictionary<string, TextureUnit> MapTextureUnit = new Dictionary<string, TextureUnit> {
-            { "gDiffuseMap" , TextureUnit.Texture0 },
-            { "gMasksMap" ,   TextureUnit.Texture1 },
-            { "gNormalMap" ,  TextureUnit.Texture2 },
-            { "gDiffuse2Map" , TextureUnit.Texture3 },
-            { "gDetailDiffuseMap", TextureUnit.Texture4},
-            { "gDetailNormalMap", TextureUnit.Texture4}
+            { "mpCustomPerMaterial.gDiffuseMap" , TextureUnit.Texture0 },
+            { "mpCustomPerMaterial.gMasksMap" ,   TextureUnit.Texture1 },
+            { "mpCustomPerMaterial.gNormalMap" ,  TextureUnit.Texture2 },
+            { "mpCustomPerMaterial.gDiffuse2Map" , TextureUnit.Texture3 },
+            { "mpCustomPerMaterial.gDetailDiffuseMap", TextureUnit.Texture4},
+            { "mpCustomPerMaterial.gDetailNormalMap", TextureUnit.Texture4}
         };
 
         public MyTextureUnit(string sampler_name)
         {
-            if (!MapLocation.ContainsKey(sampler_name))
-            {
-                location = -1;
-            }
-            else
-            {
-                location = MapLocation[sampler_name];
-                texUnit = MapTextureUnit[sampler_name];
-            }
-            
-            
+            texUnit = MapTextureUnit[sampler_name];
         }
     }
 
@@ -2774,7 +2758,7 @@ namespace MVCore.GMDL
             Texture dDiff = Common.RenderState.activeResMgr.texMgr.getTexture("default.dds");
 
             //USE PROGRAM
-            int pass_program = Common.RenderState.activeResMgr.GLShaders["TEXTURE_MIXING_SHADER"];
+            int pass_program = Common.RenderState.activeResMgr.GLShaders["TEXTURE_MIXING_SHADER"].program_id;
             GL.UseProgram(pass_program);
 
             //Upload base Layers Used
@@ -2893,7 +2877,7 @@ namespace MVCore.GMDL
             Texture dDiff = Common.RenderState.activeResMgr.texMgr.getTexture("default.dds");
 
             //USE PROGRAM
-            int pass_program = Common.RenderState.activeResMgr.GLShaders["TEXTURE_MIXING_SHADER"];
+            int pass_program = Common.RenderState.activeResMgr.GLShaders["TEXTURE_MIXING_SHADER"].program_id;
             GL.UseProgram(pass_program);
 
             //Upload base Layers Used
@@ -3013,7 +2997,7 @@ namespace MVCore.GMDL
             Texture dDiff = Common.RenderState.activeResMgr.texMgr.getTexture("default.dds");
 
             //USE PROGRAM
-            int pass_program = Common.RenderState.activeResMgr.GLShaders["TEXTURE_MIXING_SHADER"];
+            int pass_program = Common.RenderState.activeResMgr.GLShaders["TEXTURE_MIXING_SHADER"].program_id;
             GL.UseProgram(pass_program);
 
             //Upload base Layers Used
@@ -3517,7 +3501,7 @@ namespace MVCore.GMDL
             {
                 //Render Main
                 case 0:
-                    program = this.shader_programs[pass];
+                    program = shader_programs[pass].program_id;
                     renderMain(program);
                     break;
                 default:
@@ -3537,6 +3521,16 @@ namespace MVCore.GMDL
         }
     }
 
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    public struct GLLight
+    {
+        public Vector4 position;
+        public Vector3 color;
+        public Vector3 ambient;
+        public float intensity;
+        public float specular;
+    }
+    
     public class Light : model
     {
         //I should expand the light properties here
@@ -3567,6 +3561,16 @@ namespace MVCore.GMDL
             element_buffer_object = input.element_buffer_object;
         }
 
+        public GLLight getStruct()
+        {
+            GLLight s = new GLLight();
+            s.position = new Vector4(worldPosition, 1.0f); //For now we're switching to directional lights
+            s.ambient = ambient;
+            s.color = color;
+            s.intensity = intensity;
+            s.specular = specular;
+            return s;
+        }
 
         public override model Clone()
         {
@@ -3617,7 +3621,7 @@ namespace MVCore.GMDL
 
         public override bool render(int pass)
         {
-            int program = this.shader_programs[pass];
+            int program = shader_programs[pass].program_id;
 
             switch (pass)
             {

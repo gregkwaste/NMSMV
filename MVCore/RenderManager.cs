@@ -6,6 +6,7 @@ using OpenTK.Graphics.OpenGL4;
 using libMBIN.NMS.Toolkit;
 using MVCore.GMDL;
 using MVCore.Common;
+using System.Runtime.InteropServices;
 
 namespace MVCore
 {
@@ -19,17 +20,68 @@ namespace MVCore
         private Text.TextRenderer txtRenderer;
 
         private GBuffer gbuf;
+        private Dictionary<string, int> UBOs = new Dictionary<string, int>();
 
         //Local Counters
         private int occludedNum;
+
+        private static Dictionary<string, int> UBOVarOffsets = new Dictionary<string, int>
+            {   {"diffuseFlag" , 0 },
+                {"use_lighting" , 4 },
+                {"mvp" , 8 },
+                {"rotMat" , 72 },
+                {"worldMat",  136},
+                {"nMat",  200},
+                {"selected",  264},
+                {"skinned",  268},
+                {"color",  272},
+                {"skinMats",  284}
+            };
+
         
-        
+        [StructLayout(LayoutKind.Explicit)]
+        struct CommonPerFrameUniforms
+        {
+            [FieldOffset(0)]
+            public float diffuseFlag; //Enable Textures
+            [FieldOffset(4)]
+            public float use_lighting; //Enable lighting
+            [FieldOffset(16)]
+            public Matrix4 rotMat;
+            [FieldOffset(80)]
+            public Matrix4 mvp;
+
+            public static readonly int SizeInBytes = 144;
+        };
+
+        [StructLayout(LayoutKind.Explicit)]
+        struct CommonPerMeshUniforms
+        {
+            [FieldOffset(0)] //64 Bytes
+            public Matrix4 worldMat;
+            [FieldOffset(64)] //64 Bytes
+            public Matrix4 nMat;
+            [FieldOffset(128)] //4 bytes
+            public unsafe fixed float skinMats[80 * 16]; //This is mapped to mat4 //5120 bytes
+            [FieldOffset(5248)]
+            public Vector3 color; //12 bytes
+            [FieldOffset(5260)] 
+            public float skinned; //4 bytes (aligns to 4 bytes)
+            [FieldOffset(5264)] 
+            public float selected; //4 Bytes
+            public static readonly int SizeInBytes = 5268;
+        };
+
+
         public void init(ResourceManager input_resMgr)
         {
-            //Setup text renderer
-            setupTextRenderer();
             //Setup Resource Manager
             resMgr = input_resMgr;
+
+            //Setup text renderer
+            setupTextRenderer();
+            //Setup UBOs
+            setupUBOs();
         }
 
         public void setupGBuffer(int width, int height)
@@ -93,6 +145,100 @@ namespace MVCore
             txtRenderer = new MVCore.Text.TextRenderer(font, 10);
         }
 
+        private void setupUBOs()
+        {
+            //Generate a UBO for CommonPerFrameUniforms & CommonPerMeshUniform
+            //CommonPerFrame Uniforms Size: 4 + 4 + 16 * 4 + 16 * 4 = 136
+            //CommonPerMesh Uniforms Size: 16 * 4 + 16 * 4 + 80 * 16 * 4 + 4 + 4 + 3 * 4 = 5268
+            //Total Size: 136 + 5268 = 5404 Bytes
+
+            int ubo_id = GL.GenBuffer();
+            GL.BindBuffer(BufferTarget.UniformBuffer, ubo_id);
+            GL.BufferData(BufferTarget.UniformBuffer, CommonPerFrameUniforms.SizeInBytes + CommonPerMeshUniforms.SizeInBytes, IntPtr.Zero, BufferUsageHint.StaticDraw);
+            GL.BindBuffer(BufferTarget.UniformBuffer, 0);
+            //Store buffer to dictionary
+            UBOs["Uniforms"] = ubo_id;
+            
+            //Attach programs to UBO and binding point
+            attachUBOToShaderBindingPoint("MESH_SHADER", "Uniforms", 0);
+            attachUBOToShaderBindingPoint("LOCATOR_SHADER", "Uniforms", 0);
+
+            //Attach the generated buffers to the binding points
+            bindUBOs();
+        }
+        
+        //This method attaches UBOs to shader binding points
+        private void attachUBOToShaderBindingPoint(string shader, string var_name, int binding_point)
+        {
+            //Binding Position 0 - Matrices UBO
+            int ubo_index = GL.GetUniformBlockIndex(resMgr.GLShaders[shader].program_id, var_name);
+            GL.UniformBlockBinding(resMgr.GLShaders[shader].program_id, ubo_index, binding_point);
+        }
+        
+        //This method updates UBO data for rendering
+        private void prepareCommonPerFrameUBO()
+        {
+            //Prepare Struct
+            CommonPerFrameUniforms cpfu;
+            cpfu.diffuseFlag = RenderOptions._useTextures;
+            cpfu.use_lighting = RenderOptions._useLighting;
+            cpfu.mvp = RenderState.mvp;
+            cpfu.rotMat = RenderState.rotMat;
+
+
+            GL.BindBuffer(BufferTarget.UniformBuffer, UBOs["Uniforms"]);
+            GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, CommonPerFrameUniforms.SizeInBytes, ref cpfu);
+            GL.BindBuffer(BufferTarget.UniformBuffer, 0);
+        }
+
+        private void prepareCommonPermeshUBO(model m)
+        {
+            //Prepare Struct
+            CommonPerMeshUniforms cpmu;
+            cpmu.worldMat = m.worldMat;
+            Matrix4 nMat = (m.worldMat * RenderState.rotMat).Inverted();
+            nMat.Transpose();
+            cpmu.nMat = nMat;
+
+            cpmu.selected = m.selected;
+            
+
+            if (m.type == TYPES.MESH)
+            {
+                //Copy SkinMatrices
+                meshModel mm = m as meshModel;
+
+                unsafe
+                {
+                    //This is the worst way possible....
+                    for (int i = 0; i < mm.BoneRemapIndicesCount * 16; i++)
+                    {
+                        cpmu.skinMats[i] = mm.BoneRemapMatrices[i];
+                    }
+                }
+
+                cpmu.skinned = (float) mm.skinned;
+                cpmu.color = mm.color;
+            }
+            else
+            {
+                cpmu.skinned = 0.0f;
+                cpmu.color = new Vector3(1.0f, 0.0f, 0.0f);
+            }
+
+            //Updates matrices UBO
+            GL.BindBuffer(BufferTarget.UniformBuffer, UBOs["Uniforms"]);
+            GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero + CommonPerFrameUniforms.SizeInBytes, CommonPerMeshUniforms.SizeInBytes, ref cpmu);
+            GL.BindBuffer(BufferTarget.UniformBuffer, 0);
+        }
+
+        //This Method binds UBos to binding points
+        private void bindUBOs()
+        {
+            //Bind Matrices
+            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 0, UBOs["Uniforms"]);
+        }
+
         public void resize(int w, int h)
         {
             gbuf?.resize(w, h);
@@ -104,82 +250,52 @@ namespace MVCore
 
         private void renderStatic(int pass)
         {
-            int loc; //Used for fetching uniform locations
             //At first render the static meshes
             GL.Enable(EnableCap.Texture2D);
             GL.Enable(EnableCap.DepthTest);
-            
+
             foreach (model m in staticMeshQeueue)
             {
-                int active_program = m.shader_programs[pass];
-                if (active_program == -1)
-                    throw new ApplicationException("Shit program");
-
-                GL.UseProgram(active_program);
-                
                 if (m.renderable)
                 {
-                    Matrix4 wMat = m.worldMat;
-                    GL.UniformMatrix4(10, false, ref wMat);
-
-                    //Send mvp to all shaders
-                    GL.UniformMatrix4(7, false, ref RenderState.mvp);
-
-                    //Upload Selected Flag
-                    GL.Uniform1(208, m.selected);
-
                     if (m.type == TYPES.MESH)
                     {
-                        //Sent rotation matrix individually for light calculations
-                        GL.UniformMatrix4(9, false, ref RenderState.rotMat);
-
-                        //Send DiffuseFlag
-                        GL.Uniform1(206, RenderOptions._useTextures);
-
-                        //Upload Selected Flag
-                        GL.Uniform1(207, RenderOptions._useLighting);
-
                         //Object program
                         //Local Transformation is the same for all objects 
                         //Pending - Personalize local matrix on each object
-                        loc = GL.GetUniformLocation(active_program, "light");
-                        GL.Uniform3(loc, resMgr.GLlights[0].localPosition);
+                        //loc = GL.GetUniformLocation(active_program, "light");
+                        //GL.Uniform3(loc, resMgr.GLlights[0].localPosition);
 
                         //Upload Light Intensity
-                        loc = GL.GetUniformLocation(active_program, "intensity");
-                        GL.Uniform1(210, resMgr.GLlights[0].intensity);
-
+                        //loc = GL.GetUniformLocation(active_program, "intensity");
+                        //GL.Uniform1(210, resMgr.GLlights[0].intensity);
 
                         //Upload camera position as the light
                         //GL.Uniform3(loc, cam.Position);
 
                         //Apply frustum culling only for mesh objects
                         if (RenderState.activeCam.frustum_occlude((meshModel)m, RenderState.rotMat))
+                        {
+                            prepareCommonPermeshUBO(m); //Update UBO based on current model
                             m.render(pass);
+                        }   
                         else
                             occludedNum++;
 
                     }
-                    else if (m.type == TYPES.JOINT)
+                    else if (m.type == TYPES.JOINT && RenderOptions.RenderJoints)
                     {
-                        if (RenderOptions.RenderJoints)
-                            m.render(pass);
+                        prepareCommonPermeshUBO(m); //Update UBO based on current model
+                        m.render(pass);
                     }
-                    else if (m.type == TYPES.COLLISION)
+                    else if (m.type == TYPES.COLLISION && RenderOptions.RenderCollisions)
                     {
-                        if (RenderOptions.RenderCollisions)
-                        {
-                            //Send DiffuseFlag
-                            GL.Uniform1(206, 0.0f);
-
-                            //Upload Selected Flag
-                            GL.Uniform1(207, 0.0f);
-                            m.render(pass);
-                        }
-
+                        prepareCommonPermeshUBO(m); //Update UBO based on current model
+                        m.render(pass);
                     }
                     else if (m.type == TYPES.LOCATOR || m.type == TYPES.MODEL || m.type == TYPES.LIGHT)
                     {
+                        prepareCommonPermeshUBO(m); //Update UBO based on current model
                         m.render(pass);
                     }
                 }
@@ -198,52 +314,29 @@ namespace MVCore
             //I don't expect any other object type here
             foreach (model m in transparentMeshQeueue)
             {
-                int active_program = m.shader_programs[pass];
-                if (active_program == -1)
-                    throw new ApplicationException("Shit program");
-
-                GL.UseProgram(active_program);
-                
                 if (m.renderable)
                 {
-                    Matrix4 wMat = m.worldMat;
-                    GL.UniformMatrix4(10, false, ref wMat);
-
-                    //Send mvp to all shaders
-                    GL.UniformMatrix4(7, false, ref RenderState.mvp);
-
-                    //Upload Selected Flag
-                    GL.Uniform1(208, m.selected);
-
-                    //TODO: Remove that check, all objects should be meshes
                     if (m.type == TYPES.MESH)
                     {
-
-                        //Sent rotation matrix individually for light calculations
-                        GL.UniformMatrix4(9, false, ref RenderState.rotMat);
-
-                        //Send DiffuseFlag
-                        GL.Uniform1(206, RenderOptions._useTextures);
-
-                        //Upload Selected Flag
-                        GL.Uniform1(207, RenderOptions._useLighting);
-
                         //Object program
                         //Local Transformation is the same for all objects 
                         //Pending - Personalize local matrix on each object
-                        loc = GL.GetUniformLocation(active_program, "light");
-                        GL.Uniform3(loc, resMgr.GLlights[0].localPosition);
+                        //loc = GL.GetUniformLocation(active_program, "light");
+                        //GL.Uniform3(loc, resMgr.GLlights[0].localPosition);
 
                         //Upload Light Intensity
-                        loc = GL.GetUniformLocation(active_program, "intensity");
-                        GL.Uniform1(210, resMgr.GLlights[0].intensity);
+                        //loc = GL.GetUniformLocation(active_program, "intensity");
+                        //GL.Uniform1(210, resMgr.GLlights[0].intensity);
 
                         //Upload camera position as the light
                         //GL.Uniform3(loc, cam.Position);
 
                         //Apply frustum culling only for mesh objects
                         if (RenderState.activeCam.frustum_occlude((meshModel)m, RenderState.rotMat))
+                        {
+                            prepareCommonPermeshUBO(m); //Update UBO based on current model
                             m.render(pass);
+                        }
                         else occludedNum++;
                     }
                 }
@@ -259,6 +352,9 @@ namespace MVCore
             occludedNum = 0; //Reset  Counter
 
             gbuf.start(); //Start Gbuffer
+
+            //Prepare UBOs
+            prepareCommonPerFrameUBO();
 
             renderStatic(pass);
             renderTransparent(pass);
@@ -291,25 +387,16 @@ namespace MVCore
 
         private void render_lights()
         {
-            int active_program = MVCore.Common.RenderState.activeResMgr.GLShaders["LIGHT_SHADER"];
-            GL.UseProgram(active_program);
-
-            //Send mvp to all shaders
-            int loc = GL.GetUniformLocation(active_program, "mvp");
-            GL.UniformMatrix4(loc, false, ref RenderState.mvp);
             for (int i = 0; i < resMgr.GLlights.Count; i++)
                 resMgr.GLlights[i].render(0);
         }
 
         private void render_cameras()
         {
-            int active_program = resMgr.GLShaders["BBOX_SHADER"];
+            int active_program = resMgr.GLShaders["BBOX_SHADER"].program_id;
 
             GL.UseProgram(active_program);
             int loc;
-            //Send mvp matrix to all shaders
-            loc = GL.GetUniformLocation(active_program, "mvp");
-            GL.UniformMatrix4(loc, false, ref RenderState.activeCam.viewMat);
             //Send object world Matrix to all shaders
 
             foreach (Camera cam in resMgr.GLCameras)
