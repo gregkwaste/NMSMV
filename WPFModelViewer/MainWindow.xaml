@@ -367,6 +367,10 @@
                                 <TextBlock HorizontalAlignment="Left">Render Collisions</TextBlock>
                                 <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderCollisions}"></CheckBox>
                             </DockPanel>
+                            <DockPanel Grid.Row="7" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                <TextBlock HorizontalAlignment="Left">Render BHulls</TextBlock>
+                                <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderBoundHulls}"></CheckBox>
+                            </DockPanel>
                         </Grid>
                     </TabItem>
                 </TabControl>

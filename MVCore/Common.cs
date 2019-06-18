@@ -43,8 +43,8 @@ namespace MVCore.Common
         public static bool _renderLights = true;
         public static bool _renderInfo = true;
         public static bool _renderJoints = true;
-        public static bool _renderCollisions = true;
-        public static bool _renderBoundHulls = true;
+        public static bool _renderCollisions = false;
+        public static bool _renderBoundHulls = false;
         public static bool _renderDebug = false;
         public static int animFPS = 50;
 
@@ -146,6 +146,19 @@ namespace MVCore.Common
             set
             {
                 _renderCollisions = value;
+            }
+        }
+
+        public static bool RenderBoundHulls
+        {
+            get
+            {
+                return _renderBoundHulls;
+            }
+
+            set
+            {
+                _renderBoundHulls = value;
             }
         }
 

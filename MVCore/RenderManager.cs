@@ -165,6 +165,8 @@ namespace MVCore
 
             //Attach the generated buffers to the binding points
             bindUBOs();
+
+            reportUBOs();
         }
         
         //This method attaches UBOs to shader binding points
@@ -237,6 +239,70 @@ namespace MVCore
         {
             //Bind Matrices
             GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 0, UBOs["Uniforms"]);
+        }
+
+        private void reportUBOs()
+        {
+            //Print Debug Information for the UBO
+            // Get named blocks info
+            int count, dataSize, info, length;
+            int test_program = resMgr.GLShaders["MESH_SHADER"].program_id;
+            GL.GetProgram(test_program, GetProgramParameterName.ActiveUniformBlocks, out count);
+            
+            for (int i = 0; i < count; ++i)
+            {
+                // Get blocks name
+                string block_name;
+                int block_size, block_bind_index;
+                GL.GetActiveUniformBlockName(test_program, i, 256, out length, out block_name);
+                GL.GetActiveUniformBlock(test_program, i, ActiveUniformBlockParameter.UniformBlockDataSize, out block_size);
+                Console.WriteLine("Block {0} Data Size {1}", block_name, block_size);
+
+                GL.GetActiveUniformBlock(test_program, i, ActiveUniformBlockParameter.UniformBlockBinding, out block_bind_index);
+                Console.WriteLine("    Block Binding Point {0}", block_bind_index);
+                
+                GL.GetInteger(GetIndexedPName.UniformBufferBinding, block_bind_index, out info);
+                Console.WriteLine("    Block Bound to Binding Point: {0} {{", info);
+
+                int block_active_uniforms;
+                GL.GetActiveUniformBlock(test_program, i, ActiveUniformBlockParameter.UniformBlockActiveUniforms, out block_active_uniforms);
+                int[] uniform_indices = new int[block_active_uniforms];
+                GL.GetActiveUniformBlock(test_program, i, ActiveUniformBlockParameter.UniformBlockActiveUniformIndices, uniform_indices);
+
+
+                int[] uniform_types = new int[block_active_uniforms];
+                int[] uniform_offsets = new int[block_active_uniforms];
+                int[] uniform_sizes = new int[block_active_uniforms];
+
+                //Fetch Parameters for all active Uniforms
+                GL.GetActiveUniforms(test_program, block_active_uniforms, uniform_indices, ActiveUniformParameter.UniformType, uniform_types);
+                GL.GetActiveUniforms(test_program, block_active_uniforms, uniform_indices, ActiveUniformParameter.UniformOffset, uniform_offsets);
+                GL.GetActiveUniforms(test_program, block_active_uniforms, uniform_indices, ActiveUniformParameter.UniformSize, uniform_sizes);
+                
+                for (int k = 0; k < block_active_uniforms; ++k)
+                {
+                    int actual_name_length, uniType, uniOffset, uniSize, uniArrayStride, uniMatStride;
+                    string name;
+                    int uni_params;
+
+                    GL.GetActiveUniformName(test_program, uniform_indices[k], 256, out actual_name_length, out name);
+                    Console.WriteLine("\t{0}", name);
+
+                    Console.WriteLine("\t\t    type: {0}", uniform_types[k]);
+                    Console.WriteLine("\t\t    offset: {0}", uniform_offsets[k]);
+                    Console.WriteLine("\t\t    size: {0}", uniform_sizes[k]);
+                    
+                    /*
+                    GL.GetActiveUniforms(test_program, i, ref uniform_indices[k], ActiveUniformParameter.UniformArrayStride, out uniArrayStride);
+                    Console.WriteLine("\t\t    array stride: {0}", uniArrayStride);
+
+                    GL.GetActiveUniforms(test_program, i, ref uniform_indices[k], ActiveUniformParameter.UniformMatrixStride, out uniMatStride);
+                    Console.WriteLine("\t\t    matrix stride: {0}", uniMatStride);
+                    */
+                }
+                Console.WriteLine("}}");
+            }
+
         }
 
         public void resize(int w, int h)

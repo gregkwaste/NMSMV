@@ -779,7 +779,7 @@ namespace MVCore
 
                 //Generate Vao's
                 so.main_Vao = gobject.getMainVao(so);
-                //so.bhull_Vao = gobject.getCollisionMeshVao(so); //Missing data
+                so.bhull_Vao = gobject.getCollisionMeshVao(so); //Missing data
 
                 //Configure boneRemap properly
                 so.BoneRemapIndicesCount = so.lastskinmat - so.firstskinmat;

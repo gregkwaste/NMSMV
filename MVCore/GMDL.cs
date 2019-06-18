@@ -720,19 +720,6 @@ namespace MVCore.GMDL
         public GeomObject gobject; //Ref to the geometry shit
         public locator animScene; //Ref to connected animScene
 
-        //TODO: I'm not sure if this should be here
-        //Keep a static dictionary for the common mesh uniforms
-        private Dictionary<string, Uniform> CommonPerMeshUniforms = new Dictionary<string, Uniform>();
-        private Dictionary<string, int> CommonPerMeshUniformLocationDict = new Dictionary<string, int> ();
-
-        private Dictionary<string, Uniform> CustomPerMeshUniforms = new Dictionary<string, Uniform>();
-        private Dictionary<string, int> CustomPerMeshUniformDict = new Dictionary<string, int>();
-
-        //Keep a static dictionary for the custom mesh uniforms
-        private Dictionary<string, int> CustomPerMeshUniformLocationDict = new Dictionary<string, int> ();
-
-        
-
         //Constructor
         public meshModel()
         {
@@ -985,27 +972,9 @@ namespace MVCore.GMDL
             GL.BindVertexArray(0);
         }
 
-        private void renderBHull(int pass) {
-            GL.UseProgram(pass);
+        private void renderBHull(GLSLHelper.GLSLShaderConfig shaders) {
             
-            //Step 1: Upload Uniforms
-            int loc;
-            //Upload Material Flags here
-            //Reset
-            loc = GL.GetUniformLocation(pass, "matflags");
-            for (int i = 0; i < 64; i++)
-                GL.Uniform1(loc + i, 0.0f);
-
-            //Upload Default Color
-            loc = GL.GetUniformLocation(pass, "color");
-            //GL.Uniform3(loc, this.color);
-            GL.Uniform3(loc, this.color);
-
-            //Upload Light Flag
-            loc = GL.GetUniformLocation(pass, "useLighting");
-            GL.Uniform1(loc, 0.0f);
-
-            //Step 2: Render Elements
+            //I ASSUME THAT EVERYTHING I NEED IS ALREADY UPLODED FROM A PREVIOUS PASS
             GL.PointSize(10.0f);
             GL.BindVertexArray(bhull_Vao.vao_id);
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
@@ -1064,7 +1033,8 @@ namespace MVCore.GMDL
                     renderMain(shader_programs[pass]);
                     //renderBSphere(MVCore.Common.RenderState.activeResMgr.GLShaders["BBOX_SHADER"]);
                     //renderBbox(MVCore.Common.RenderState.activeResMgr.GLShaders["BBOX_SHADER"]);
-                    //renderBHull(program);
+                    if (Common.RenderOptions.RenderBoundHulls)
+                        renderBHull(shader_programs[pass]);
                     break;
                 //Render Debug
                 case 1:
@@ -1092,8 +1062,6 @@ namespace MVCore.GMDL
 
             base.update();
         }
-
-
 
         public void writeGeomToStream(StreamWriter s, ref uint index)
         {
