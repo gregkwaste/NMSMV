@@ -25,28 +25,16 @@ layout (std140) uniform Uniforms
 };
 
 //Outputs
-out vec3 E;
+out vec4 fragPos;
 out vec3 N;
 out vec2 uv0;
-out float l_distance;
 out mat3 TBN;
-out vec3 default_color;
-out vec4 finalPos;
-out vec4 finalNormal;
 
 void main()
 {
-    //vec4 light4 = lights[0].position;
-    vec4 light4 = vec4(0.0, 0.0, 0.0, 0.0);
-	//Pass uv
+    //Pass uv to fragment shader
     uv0 = uvPosition0;
-    //Pas normal mapping related vectors
-    //nvectors[0] = tPosition.xyz;
-    //nvectors[1] = cross(tPosition.xyz, nPosition.xyz);
-    //nvectors[2] = nPosition.xyz;
-	// Remeber: thse matrices are column-major
     
-    vec4 wPos = vec4(0.0, 0.0, 0.0, 0.0);
     mat4 lWorldMat;
     //Check F02_SKINNED
     if (mpCommonPerMesh.skinned > 0.0) { //Needs fixing again
@@ -61,26 +49,14 @@ void main()
         lWorldMat += blendWeights.y * mpCommonPerMesh.skinMats[index.y];
         lWorldMat += blendWeights.z * mpCommonPerMesh.skinMats[index.z];
         lWorldMat += blendWeights.w * mpCommonPerMesh.skinMats[index.w];
-        
-        wPos = lWorldMat * vPosition;
-		default_color = mpCommonPerMesh.color;
-	    
-	    //gl_PointSize = 10.0;
     } else {
         lWorldMat = mpCommonPerMesh.worldMat;
-        wPos = mpCommonPerMesh.worldMat * vPosition;
     }
 
+    vec4 wPos = lWorldMat * vPosition; //Calculate world Position
+    fragPos = wPos; //Export world position to the fragment shader
     gl_Position = mpCommonPerFrame.mvp * wPos;
     
-    //TODO: Move that shit to the CPU within the CommonPerMeshUniforms
-    //nMat = transpose(inverse(mpCommonPerFrame.rotMat * lWorldMat));
-
-    N = normalize(mpCommonPerMesh.nMat * nPosition).xyz;
-    
-    //mat4 nMat = rotMat;
-    
-    //TBN = transpose(TBN);
     //Construct TBN matrix
     //Nullify w components
     vec4 lLocalTangentVec4 = tPosition;
@@ -95,14 +71,8 @@ void main()
                 normalize(lWorldBitangentVec4.xyz),
                 normalize(lWorldNormalVec4.xyz) );
 
-    //Calculate Lighting stuff
-    //gl_FrontColor = gl_Color;
-    E = (mpCommonPerFrame.rotMat * (light4 - wPos)).xyz; //Light vector
-    l_distance = distance(wPos.xyz, light4.xyz);
-    //E = - ((vPosition-light4)).xyz; //Light vector
-    E = normalize(E);
-    //E = - rotMat(vPosition-light4).xyz; //Light vector
-
+    //Send world normal to fragment shader
+    N = normalize(lWorldNormalVec4).xyz;
 }
 
 

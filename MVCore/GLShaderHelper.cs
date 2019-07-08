@@ -338,6 +338,24 @@ namespace GLSLHelper {
                     GL.DetachShader(shader_conf.program_id, attached_shaders[i]);
                     GL.AttachShader(shader_conf.program_id, new_shader_ob);
                     GL.LinkProgram(shader_conf.program_id);
+
+                    GL.GetProgram(shader_conf.program_id, GetProgramParameterName.LinkStatus, out status_code);
+                    if (status_code != 1)
+                    {
+                        Console.WriteLine("Unable to link the new shader. Reverting to the old shader");
+                        Console.WriteLine(info);
+
+                        //Relink the old shader
+                        GL.DetachShader(shader_conf.program_id, new_shader_ob);
+                        GL.AttachShader(shader_conf.program_id, attached_shaders[i]);
+                        GL.LinkProgram(shader_conf.program_id);
+                        return;
+                    }
+
+                    //Delete old shader and reload uniforms
+                    GL.DeleteShader(attached_shaders[i]);
+                    loadActiveUniforms(shader_conf); //Re-load active uniforms
+
                     Console.WriteLine("Shader was modified successfully");
                     break;
                 }

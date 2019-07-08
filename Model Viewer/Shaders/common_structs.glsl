@@ -3,8 +3,8 @@ struct Light //locations:5
 {
     vec4 position;
     vec3 color;
-    vec3 ambient;
     float intensity;
+    vec3 ambient;
     float specular;
 };
 
@@ -28,13 +28,15 @@ struct CommonPerFrameUniforms
     //Rendering Options
     mat4 rotMat;
     mat4 mvp;
+    vec3 cameraPosition;
+    vec3 cameraDirection;
     //Light lights[4];
 };
 
 //Custom Per Frame Struct
 struct CustomPerMaterialUniforms  //locations:73
 {
-    bool matflags[64];
+    float matflags[64];
     
     sampler2DArray gDiffuseMap;
     sampler2DArray gMasksMap;

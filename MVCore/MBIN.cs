@@ -786,7 +786,11 @@ namespace MVCore
                 so.BoneRemapIndices = new int[so.BoneRemapIndicesCount];
                 for (int i = 0; i < so.lastskinmat - so.firstskinmat; i++)
                     so.BoneRemapIndices[i] = gobject.boneRemap[so.firstskinmat + i];
-               
+
+                //Set skinned flag
+                if (so.BoneRemapIndicesCount > 0)
+                    so.skinned = 1;
+
                 Console.WriteLine("Object {0}, Number of skinmatrices required: {1}", so.name, so.lastskinmat - so.firstskinmat);
 
                 if (children.Count > 0)

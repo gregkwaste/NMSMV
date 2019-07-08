@@ -240,7 +240,7 @@ namespace Model_Viewer
             Matrix4 Roty = Matrix4.CreateRotationY(MathUtils.radians(rot[1]));
             Matrix4 Rotz = Matrix4.CreateRotationZ(MathUtils.radians(rot[2]));
             RenderState.rotMat = Rotz * Rotx * Roty;
-            RenderState.mvp = RenderState.rotMat * RenderState.activeCam.viewMat; //Full mvp matrix
+            RenderState.mvp = RenderState.activeCam.viewMat; //Full mvp matrix
             
             resMgr.GLCameras[0].updateViewMatrix();
             resMgr.GLCameras[1].updateViewMatrix();

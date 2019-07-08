@@ -10,7 +10,7 @@
 #define _F08_ 7
 #define _F09_TRANSPARENT 8
 #define _F11_ALPHACUTOUT 10
-#define _F16_DIFFUSE2MAP 11
+#define _F16_DIFFUSE2MAP 15
 #define _F17_MULTIPLYDIFFUSE2MAP 16
 #define _F21_VERTEXCOLOUR 20
 #define _F22_TRANSPARENT_SCALAR 21
@@ -27,16 +27,18 @@
 #define _F53_COLOURISABLE 52
 #define _F55_MULTITEXTURE 54
 
-vec3 GammaCorrectInput(
+vec3 
+GammaCorrectInput(
     in vec3 lColourVec3 )
 {
-    vec3 kGammaOutVec3 = vec3( 1.0 / 2.2 );
-    vec3 kGammaInVec3  = vec3( 2.2 );
     vec3 lCorrectColourVec3;
-
-    lCorrectColourVec3 = pow( lColourVec3, kGammaInVec3 );
-
+    lCorrectColourVec3 = lColourVec3 * ( lColourVec3 * ( lColourVec3 * vec3( 0.305306011 ) + vec3( 0.682171111 ) ) + vec3( 0.012522878 ) );
     return lCorrectColourVec3;
+}
+
+vec3 fixColorGamma(vec3 color){
+    float gamma = 2.2;
+    return pow(color.rgb, vec3(1.0 / gamma));
 }
 
 //Saturate Function

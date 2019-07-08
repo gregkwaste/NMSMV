@@ -25,20 +25,6 @@ namespace MVCore
         //Local Counters
         private int occludedNum;
 
-        private static Dictionary<string, int> UBOVarOffsets = new Dictionary<string, int>
-            {   {"diffuseFlag" , 0 },
-                {"use_lighting" , 4 },
-                {"mvp" , 8 },
-                {"rotMat" , 72 },
-                {"worldMat",  136},
-                {"nMat",  200},
-                {"selected",  264},
-                {"skinned",  268},
-                {"color",  272},
-                {"skinMats",  284}
-            };
-
-        
         [StructLayout(LayoutKind.Explicit)]
         struct CommonPerFrameUniforms
         {
@@ -50,8 +36,12 @@ namespace MVCore
             public Matrix4 rotMat;
             [FieldOffset(80)]
             public Matrix4 mvp;
+            [FieldOffset(144)]
+            public Vector3 cameraPosition;
+            [FieldOffset(160)]
+            public Vector3 cameraDirection;
 
-            public static readonly int SizeInBytes = 144;
+            public static readonly int SizeInBytes = 176;
         };
 
         [StructLayout(LayoutKind.Explicit)]
@@ -69,7 +59,7 @@ namespace MVCore
             public float skinned; //4 bytes (aligns to 4 bytes)
             [FieldOffset(5264)] 
             public float selected; //4 Bytes
-            public static readonly int SizeInBytes = 5268;
+            public static readonly int SizeInBytes = 5280;
         };
 
 
@@ -154,7 +144,7 @@ namespace MVCore
 
             int ubo_id = GL.GenBuffer();
             GL.BindBuffer(BufferTarget.UniformBuffer, ubo_id);
-            GL.BufferData(BufferTarget.UniformBuffer, CommonPerFrameUniforms.SizeInBytes + CommonPerMeshUniforms.SizeInBytes, IntPtr.Zero, BufferUsageHint.StaticDraw);
+            GL.BufferData(BufferTarget.UniformBuffer, CommonPerFrameUniforms.SizeInBytes + CommonPerMeshUniforms.SizeInBytes, IntPtr.Zero, BufferUsageHint.StaticRead);
             GL.BindBuffer(BufferTarget.UniformBuffer, 0);
             //Store buffer to dictionary
             UBOs["Uniforms"] = ubo_id;
@@ -162,7 +152,8 @@ namespace MVCore
             //Attach programs to UBO and binding point
             attachUBOToShaderBindingPoint("MESH_SHADER", "Uniforms", 0);
             attachUBOToShaderBindingPoint("LOCATOR_SHADER", "Uniforms", 0);
-
+            attachUBOToShaderBindingPoint("JOINT_SHADER", "Uniforms", 0);
+            
             //Attach the generated buffers to the binding points
             bindUBOs();
 
@@ -186,7 +177,8 @@ namespace MVCore
             cpfu.use_lighting = RenderOptions._useLighting;
             cpfu.mvp = RenderState.mvp;
             cpfu.rotMat = RenderState.rotMat;
-
+            cpfu.cameraPosition = RenderState.activeCam.Position;
+            cpfu.cameraDirection = RenderState.activeCam.Orientation;
 
             GL.BindBuffer(BufferTarget.UniformBuffer, UBOs["Uniforms"]);
             GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, CommonPerFrameUniforms.SizeInBytes, ref cpfu);
@@ -198,10 +190,9 @@ namespace MVCore
             //Prepare Struct
             CommonPerMeshUniforms cpmu;
             cpmu.worldMat = m.worldMat;
-            Matrix4 nMat = (m.worldMat * RenderState.rotMat).Inverted();
+            Matrix4 nMat = m.worldMat.Inverted();
             nMat.Transpose();
             cpmu.nMat = nMat;
-
             cpmu.selected = m.selected;
             
 
@@ -281,10 +272,9 @@ namespace MVCore
                 
                 for (int k = 0; k < block_active_uniforms; ++k)
                 {
-                    int actual_name_length, uniType, uniOffset, uniSize, uniArrayStride, uniMatStride;
+                    int actual_name_length;
                     string name;
-                    int uni_params;
-
+                    
                     GL.GetActiveUniformName(test_program, uniform_indices[k], 256, out actual_name_length, out name);
                     Console.WriteLine("\t{0}", name);
 
@@ -340,7 +330,7 @@ namespace MVCore
                         //GL.Uniform3(loc, cam.Position);
 
                         //Apply frustum culling only for mesh objects
-                        if (RenderState.activeCam.frustum_occlude((meshModel)m, RenderState.rotMat))
+                        if (RenderState.activeCam.frustum_occlude((meshModel)m, Matrix4.Identity))
                         {
                             prepareCommonPermeshUBO(m); //Update UBO based on current model
                             m.render(pass);
@@ -373,7 +363,8 @@ namespace MVCore
             int loc; //Used for fetching uniform locations
             //At first render the static meshes
             GL.Enable(EnableCap.Texture2D);
-            GL.Enable(EnableCap.Blend);            GL.DepthMask(false); //Disable writing to the depth mask
+            GL.Enable(EnableCap.Blend);
+            GL.DepthMask(false); //Disable writing to the depth mask
 
 
             //Since transparentMeshQueue has been populated from meshModels

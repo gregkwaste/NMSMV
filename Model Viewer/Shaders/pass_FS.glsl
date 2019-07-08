@@ -27,21 +27,20 @@ Recolour(
     vec3  lRecolourVec3,
     float lfMix )
 {
-    vec3 lOriginalHSVVec3 = RGBToHSV( lOriginalColourVec3 );
+    vec3 lOriginalHSVVec3 = RGBToHSV( fixColorGamma(lOriginalColourVec3 ) );
     vec3 lAverageHSVVec3  = RGBToHSV( lAverageColourVec3 );
     vec3 lRecolourHSVVec3 = RGBToHSV( lRecolourVec3 );
 
     lOriginalHSVVec3.r = fract( lOriginalHSVVec3.r - lAverageHSVVec3.r + lRecolourHSVVec3.r );
     //lOriginalHSVVec3.r = lRecolourHSVVec3.r;
     lOriginalHSVVec3.g = min( lOriginalHSVVec3.g, lRecolourHSVVec3.g );
-    //lOriginalHSVVec3.b = saturate( lOriginalHSVVec3.b + sin( 3.14 * lOriginalHSVVec3.b ) * ( lRecolourHSVVec3.b - lAverageHSVVec3.b ) );
-    lOriginalHSVVec3.b = pow(10.0, (-10.0 * (lOriginalHSVVec3.b-0.5)*(lOriginalHSVVec3.b-0.5) ) ) * (0.5 * ( lRecolourHSVVec3.b - lAverageHSVVec3.b )) + lOriginalHSVVec3.b;
+	
+	//lOriginalHSVVec3.b = saturate( lOriginalHSVVec3.b + sin( 3.14 * lOriginalHSVVec3.b ) * ( lRecolourHSVVec3.b - lAverageHSVVec3.b ) );
+	lOriginalHSVVec3.b = pow(10.0, (-10.0 * (lOriginalHSVVec3.b - 0.5)*(lOriginalHSVVec3.b - 0.5) ) ) * (0.5 * ( lRecolourHSVVec3.b - lAverageHSVVec3.b )) + lOriginalHSVVec3.b;
 
     lOriginalHSVVec3 = GammaCorrectInput( saturate( HSVToRGB( lOriginalHSVVec3 ) ) );
-
-
     lOriginalHSVVec3 = mix( GammaCorrectInput( lOriginalColourVec3 ), lOriginalHSVVec3, lfMix );
-     
+    
     return lOriginalHSVVec3;
 }
 

@@ -1,4 +1,4 @@
-﻿//#define DUMP_TEXTURES
+﻿#define DUMP_TEXTURES
 
 using System;
 using System.Collections.Generic;
@@ -706,7 +706,7 @@ namespace MVCore.GMDL
         public Material Material {get; set;}
         public Vector3 color = new Vector3();
 
-        public int skinned = 1;
+        public int skinned = 0;
         public ulong hash = 0xFFFFFFFF;
         //Accurate boneRemap
         public int BoneRemapIndicesCount;
@@ -950,25 +950,21 @@ namespace MVCore.GMDL
             }
             */
             
-            int sampler_counter = 0;
             foreach (Sampler s in Material.PSamplers.Values)
             {
                 if (shader.uniformLocations.ContainsKey(s.Name) && s.Map != "")
                 {
-                    GL.Uniform1(shader.uniformLocations[s.Name], sampler_counter);
+                    GL.Uniform1(shader.uniformLocations[s.Name], MyTextureUnit.MapTexUnitToSampler[s.Name]);
                     GL.ActiveTexture(s.texUnit.texUnit);
                     GL.BindTexture(s.tex.target, s.tex.bufferID);
-                    sampler_counter++;
                 }
             }
             
-            //Upload material struct to shader
-
             //Step 2 Bind & Render Vao
             //Render Elements
             GL.BindVertexArray(main_Vao.vao_id);
             GL.PolygonMode(MaterialFace.FrontAndBack, Common.RenderOptions.RENDERMODE);
-            GL.DrawElements(PrimitiveType.Triangles, batchcount, indicesLength, (IntPtr) 0);
+            GL.DrawElements(PrimitiveType.Triangles, batchcount, indicesLength, IntPtr.Zero);
             GL.BindVertexArray(0);
         }
 
@@ -1991,6 +1987,20 @@ namespace MVCore.GMDL
         public static void dump_texture(string name, int width, int height)
         {
             var pixels = new byte[4 * width * height];
+            GL.GetTexImage(TextureTarget.Texture2DArray, 0, PixelFormat.Rgba, PixelType.Byte, pixels);
+            var bmp = new Bitmap(width, height);
+            for (int i = 0; i < height; i++)
+                for (int j = 0; j < width; j++)
+                    bmp.SetPixel(j, i, Color.FromArgb(pixels[4 * (width * i + j) + 3],
+                        (int)pixels[4 * (width * i + j) + 0],
+                        (int)pixels[4 * (width * i + j) + 1],
+                        (int)pixels[4 * (width * i + j) + 2]));
+            bmp.Save("Temp//framebuffer_raw_" + name + ".png", ImageFormat.Png);
+        }
+
+        public static void dump_texture_fb(string name, int width, int height)
+        {
+            var pixels = new byte[4 * width * height];
             GL.ReadPixels(0, 0, width, height, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             var bmp = new Bitmap(width, height);
             for (int i = 0; i < height; i++)
@@ -2394,7 +2404,16 @@ namespace MVCore.GMDL
             { "mpCustomPerMaterial.gNormalMap" ,  TextureUnit.Texture2 },
             { "mpCustomPerMaterial.gDiffuse2Map" , TextureUnit.Texture3 },
             { "mpCustomPerMaterial.gDetailDiffuseMap", TextureUnit.Texture4},
-            { "mpCustomPerMaterial.gDetailNormalMap", TextureUnit.Texture4}
+            { "mpCustomPerMaterial.gDetailNormalMap", TextureUnit.Texture5}
+        };
+
+        public static Dictionary<string, int> MapTexUnitToSampler = new Dictionary<string, int> {
+            { "mpCustomPerMaterial.gDiffuseMap" , 0 },
+            { "mpCustomPerMaterial.gMasksMap" ,   1 },
+            { "mpCustomPerMaterial.gNormalMap" ,  2 },
+            { "mpCustomPerMaterial.gDiffuse2Map" , 3 },
+            { "mpCustomPerMaterial.gDetailDiffuseMap", 4},
+            { "mpCustomPerMaterial.gDetailNormalMap", 5}
         };
 
         public MyTextureUnit(string sampler_name)
@@ -2415,6 +2434,7 @@ namespace MVCore.GMDL
         public static float[] baseLayersUsed = new float[8];
         public static float[] alphaLayersUsed = new float[8];
         public static List<float[]> reColourings = new List<float[]>(8);
+        public static List<float[]> avgColourings = new List<float[]>(8);
         private static int[] old_vp_size = new int[4];
 
         public static void combineTextures(string path, Dictionary<string, Dictionary<string, Vector4>> pal_input, ref textureManager texMgr)
@@ -2424,12 +2444,14 @@ namespace MVCore.GMDL
             masktextures.Clear();
             normaltextures.Clear();
             reColourings.Clear();
+            avgColourings.Clear();
             for (int i = 0; i < 8; i++)
             {
                 difftextures.Add(null);
                 masktextures.Add(null);
                 normaltextures.Add(null);
                 reColourings.Add(new float[] { 1.0f, 1.0f, 1.0f, 0.0f });
+                avgColourings.Add(new float[] { 0.5f, 0.5f, 0.5f, 0.5f });
                 palOpts.Add(null);
             }
             palette = pal_input;
@@ -2536,6 +2558,9 @@ namespace MVCore.GMDL
 
                 //Store pallete color to Recolouring List
                 reColourings[i] = new float[] { palColor[0], palColor[1], palColor[2], palColor[3] };
+                if (ptex.OverrideAverageColour)
+                    avgColourings[i] = new float[] { ptex.AverageColour.R, ptex.AverageColour.G, ptex.AverageColour.B, ptex.AverageColour.A };
+                    
                 //Create Palette Option
                 PaletteOpt palOpt = new PaletteOpt();
                 palOpt.PaletteName = paletteName;
@@ -3069,7 +3094,7 @@ namespace MVCore.GMDL
 
 #if (DUMP_TEXTURESNONO)
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-            Sampler.dump_texture("mask", texWidth, texHeight);
+            Sampler.dump_texture("normal", texWidth, texHeight);
 #endif
             return new_tex;
         }
@@ -3218,7 +3243,6 @@ namespace MVCore.GMDL
             int p = (int) Math.Floor(Math.Log(maxsize, 2)) + base_level;
             int q = Math.Min(p, max_level);
 
-
 #if (DEBUGNONO)
             //Get all mipmaps
             temp_size = ddsImage.header.dwPitchOrLinearSize;
@@ -3232,6 +3256,10 @@ namespace MVCore.GMDL
                 File.WriteAllBytes("Temp\\level" + i.ToString(), pixels);
                 temp_size = Math.Max(temp_size / 4, 16);
             }
+#endif
+
+#if (DUMP_TEXTURESNONO)
+            Sampler.dump_texture(name.Split('\\').Last().Split('/').Last(), width, height);
 #endif
             //avgColor = getAvgColor(pixels);
             ddsImage = null;
