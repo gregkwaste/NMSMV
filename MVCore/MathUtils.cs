@@ -121,6 +121,19 @@ namespace MVCore
             array[offset + 11] = mat.M43;
         }
 
+        public static float Matrix4Norm(Matrix4 a, Matrix4 b)
+        {
+            float n = 0.0f;
+            Matrix4 temp = a - b;
+            for (int i=0; i<4; i++)
+                for (int j = 0; j < 4; j++)
+                {
+                    n += temp[i, j] * temp[i, j];
+                }
+
+            return (float) Math.Sqrt(n);
+        }
+
 
         public static float radians(float angle)
         {

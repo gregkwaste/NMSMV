@@ -104,7 +104,8 @@ namespace MVCore
                 meshModel m = (meshModel)root;
 
                 //Check if the model has a transparent material
-                if (m.Material.has_flag((TkMaterialFlags.MaterialFlagEnum) TkMaterialFlags.UberFlagEnum._F22_TRANSPARENT_SCALAR))
+                if (m.Material.has_flag((TkMaterialFlags.MaterialFlagEnum) TkMaterialFlags.UberFlagEnum._F22_TRANSPARENT_SCALAR) ||
+                    m.Material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F09_TRANSPARENT))
                 {
                     transparentMeshQeueue.Add(m);
                 }
@@ -309,6 +310,7 @@ namespace MVCore
             //At first render the static meshes
             GL.Enable(EnableCap.Texture2D);
             GL.Enable(EnableCap.DepthTest);
+            GL.Enable(EnableCap.CullFace);
 
             foreach (model m in staticMeshQeueue)
             {
@@ -330,14 +332,17 @@ namespace MVCore
                         //GL.Uniform3(loc, cam.Position);
 
                         //Apply frustum culling only for mesh objects
-                        if (RenderState.activeCam.frustum_occlude((meshModel)m, Matrix4.Identity))
+                        if (!RenderOptions.UseFrustumCulling)
                         {
                             prepareCommonPermeshUBO(m); //Update UBO based on current model
                             m.render(pass);
-                        }   
+                        } else if (RenderState.activeCam.frustum_occlude((meshModel)m, Matrix4.Identity))
+                        {
+                            prepareCommonPermeshUBO(m); //Update UBO based on current model
+                            m.render(pass);
+                        }
                         else
                             occludedNum++;
-
                     }
                     else if (m.type == TYPES.JOINT && RenderOptions.RenderJoints)
                     {

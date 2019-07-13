@@ -479,6 +479,7 @@ namespace MVCore
 
         private static textureManager localTexMgr;
         private static Dictionary<string, Joint> localJointDict;
+        private static locator localAnimScene;
         
         
         public static scene LoadObjects(string filepath)
@@ -580,6 +581,9 @@ namespace MVCore
 
         private static int HasComponent(locator node, Type ComponentType)
         {
+            if (node.attachment == null)
+                return -1;
+
             for (int i = 0; i < node.attachment.Components.Count; i++)
             {
                 NMSTemplate temp = node.attachment.Components[i];
@@ -872,7 +876,6 @@ namespace MVCore
             }
             else if (typeEnum == TYPES.LOCATOR)
             {
-                Console.WriteLine("Locator Detected");
                 locator so = new locator(0.1f);
                 //Fetch attributes
                 if (node.Attributes.Count > 0)
@@ -902,22 +905,14 @@ namespace MVCore
                 so.parent = parent;
                 so.init(transforms);
 
-                //Handle Children
-                if (children.Count > 0)
-                {
-                    foreach (TkSceneNodeData child in children)
-                    {
-                        model part = parseNode(child, gobject, so, scene, so);
-                        so.children.Add(part);
-                    }
-                }
-
                 //Process Locator Attachments
                 ProcessComponents(so);
 
+                int has_anim_component = HasComponent(so, typeof(TkAnimationComponentData));
 
                 //Check if locator has TkAnimationComponent 
-                if ((so.attachment != null) && (HasComponent(so, typeof(TkAnimationComponentData)) >=0))
+                
+                if (has_anim_component > 0)
                 {
                     //In the case of locators also use exactly the same joint references
                     //TODO: I think this is a safe option for the viewer. I'll make sure to duplicate shit
@@ -930,7 +925,24 @@ namespace MVCore
 
                     //Make a copy of the joint InvBMats
                     Array.Copy(gobject.invBMats, so.invBMats, gobject.invBMats.Length);
+                    localAnimScene = so;
                 }
+                else
+                {
+                    localAnimScene = animscene; //Use input animScene if the current one doesn't have anything
+                }
+
+                //Handle Children
+                if (children.Count > 0)
+                {
+                    foreach (TkSceneNodeData child in children)
+                    {
+                        model part = parseNode(child, gobject, so, scene, localAnimScene);
+                        so.children.Add(part);
+                    }
+                }
+
+
 
                 return so;
             }
@@ -947,8 +959,6 @@ namespace MVCore
                 //Get Transformation
                 joint.parent = parent;
                 joint.init(transforms);
-                //FORCE pose shit to match the init transform
-                joint.localPoseMatrix = Matrix4.CreateScale(joint.localScale) * joint.localRotation * Matrix4.CreateTranslation(joint.localPosition);
                 
                 //Get JointIndex
                 joint.jointIndex = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "JOINTINDEX").Value);

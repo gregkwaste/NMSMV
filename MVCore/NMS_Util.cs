@@ -121,17 +121,20 @@ namespace MVCore
 
             Vector3 v;
 
-            //Load Scaling - TODO
             if (node.ScaleIndex < frame.Scales.Count)
             {
-                v = new Vector3(frame.Scales[node.ScaleIndex].x,
-                    frame.Scales[node.ScaleIndex].y, frame.Scales[node.ScaleIndex].z);
+                v = new Vector3(
+                    frame.Scales[node.ScaleIndex].x / frame.Scales[node.ScaleIndex].t,
+                    frame.Scales[node.ScaleIndex].y / frame.Scales[node.ScaleIndex].t, 
+                    frame.Scales[node.ScaleIndex].z / frame.Scales[node.ScaleIndex].t );
             }
             else //Load stillframedata
             {
                 int scaleindex = node.ScaleIndex - frame.Scales.Count;
-                v = new Vector3(stillframe.Scales[scaleindex].x,
-                    stillframe.Scales[scaleindex].y, stillframe.Scales[scaleindex].z);
+                v = new Vector3(
+                    stillframe.Scales[scaleindex].x / stillframe.Scales[scaleindex].t,
+                    stillframe.Scales[scaleindex].y / stillframe.Scales[scaleindex].t,
+                    stillframe.Scales[scaleindex].z / stillframe.Scales[scaleindex].t );
             }
 
             return v;

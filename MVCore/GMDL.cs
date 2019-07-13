@@ -1,4 +1,4 @@
-﻿#define DUMP_TEXTURES
+﻿//#define DUMP_TEXTURES
 
 using System;
 using System.Collections.Generic;
@@ -66,6 +66,7 @@ namespace MVCore.GMDL
         public Vector3 _localScale;
         public Vector3 _localRotationAngles;
         public Matrix4 _localRotation;
+        public Matrix4 _localPoseMatrix;
 
         public model parent;
         public int cIndex = 0;
@@ -151,7 +152,8 @@ namespace MVCore.GMDL
                 scale[1, 1] = _localScale.Y;
                 scale[2, 2] = _localScale.Z;
 
-                localMat = scale * _localRotation * Matrix4.CreateTranslation(_localPosition);
+                localMat = _localPoseMatrix * scale * _localRotation * Matrix4.CreateTranslation(_localPosition);
+
                 changed = false;
             }
 
@@ -232,7 +234,7 @@ namespace MVCore.GMDL
             
             //Get Local Scale
             _localScale = new Vector3(trans[6], trans[7], trans[8]);
-            
+
             //Set paths
             if (parent!=null)
                 this.cIndex = this.parent.children.Count;
@@ -257,6 +259,7 @@ namespace MVCore.GMDL
             _localScale = new Vector3(1.0f, 1.0f, 1.0f);
             _localRotationAngles = new Vector3(0.0f, 0.0f, 0.0f);
             _localRotation = Matrix4.Identity;
+            _localPoseMatrix = Matrix4.Identity;
             
             cIndex = 0;
     }
@@ -398,6 +401,8 @@ namespace MVCore.GMDL
         public float[] skinMats; //Final Matrices
         public float[] invBMats; //Joint Inverse Bound Matrices
         public Dictionary<string, Joint> jointDict;
+        public Dictionary<string, model> modelDict; //This will probably replace the jointDict since it seems like animations contain data for all nodes
+        
         public ICommand ApplyPose
         {
             get { return new ApplyPoseCommand();}
@@ -408,7 +413,6 @@ namespace MVCore.GMDL
             get { return new ResetPoseCommand(); }
         }
 
-        //TODO: Move to animation class
         //animations list Contains all the animations bound to the locator through Tkanimationcomponent
         public List<AnimData> _animations = new List<AnimData>();
         public List<AnimData> Animations
@@ -451,6 +455,7 @@ namespace MVCore.GMDL
             JMArray = new float[256 * 16];
             skinMats = new float[256 * 16];
             invBMats = new float[256 * 16];
+            modelDict = new Dictionary<string, model>();
             jointDict = new Dictionary<string, Joint>();
         }
 
@@ -462,6 +467,7 @@ namespace MVCore.GMDL
             this.vao_id = input.vao_id;
 
             //ANIMATION DATA
+            this.modelDict = new Dictionary<string, model>();
             this.jointDict = new Dictionary<string, Joint>();
             this.JMArray = (float[])input.JMArray.Clone();
 
@@ -494,10 +500,11 @@ namespace MVCore.GMDL
                     invBMats = null;
                     JMArray = null;
 
+                    modelDict.Clear();
                     jointDict.Clear();
+
                     animMeta = null;
 
-                    
                     base.Dispose(disposing);
                 }
 
@@ -595,8 +602,19 @@ namespace MVCore.GMDL
         private void resetPose()
         {
             foreach (Joint j in jointDict.Values)
-                j.localPoseMatrix = j.BindMat;
-            
+                j.localPoseMatrix = Matrix4.Identity;
+        }
+
+        //TODO Add button in the UI to toggle that shit
+        private void resetAnimation()
+        {
+            foreach (Joint j in jointDict.Values)
+            {
+                j._localScale = j.BindMat.ExtractScale();
+                j._localRotation = Matrix4.CreateFromQuaternion(j.BindMat.ExtractRotation());
+                j._localPosition = j.BindMat.ExtractTranslation();
+                j._localPoseMatrix = Matrix4.Identity;
+            }
         }
 
         private void loadPose()
@@ -608,7 +626,6 @@ namespace MVCore.GMDL
                 
                 //We should interpolate frame shit over all the selected Pose Data
                 List<Matrix4> framePoseMatrices = new List<Matrix4>();
-
                 for (int i = 0; i < _poseData.Count; i++)
                 {
                     //Get Pose Frame
@@ -623,17 +640,28 @@ namespace MVCore.GMDL
 
                     //Generate Transformation Matrix
                     Matrix4 poseMat = Matrix4.CreateScale(v_s) * Matrix4.CreateFromQuaternion(lq) * Matrix4.CreateTranslation(v_t);
-                    framePoseMatrices.Add(poseMat * jointDict[node.Node].invBMat);
+                    
+                    if (MathUtils.Matrix4Norm(poseMat, jointDict[node.Node].BindMat) > 1e-4f)
+                        framePoseMatrices.Add(poseMat);
                 }
 
-                //Accumulate transforms
-                Matrix4 finalPoseMat = Matrix4.Identity;
-                for (int i = 0; i < _poseData.Count; i++)
-                    finalPoseMat = finalPoseMat * framePoseMatrices[i];
+                if (framePoseMatrices.Count == 0)
+                {
+                    jointDict[node.Node].localPoseMatrix = Matrix4.Identity;
+                }
+                else
+                {
+                    //Calculate frame weight
+                    float w_m = 1.0f / framePoseMatrices.Count;
 
-                finalPoseMat = finalPoseMat * jointDict[node.Node].BindMat;
+                    //Accumulate transforms
+                    Matrix4 finalPoseMat = Matrix4.Zero;
+                    for (int i = 0; i < framePoseMatrices.Count; i++)
+                        finalPoseMat += framePoseMatrices[i] * w_m;
 
-                jointDict[node.Node].localPoseMatrix = finalPoseMat;
+                    jointDict[node.Node].localPoseMatrix = finalPoseMat * jointDict[node.Node].invBMat;
+                }
+
             }
         }
 
@@ -2121,7 +2149,7 @@ namespace MVCore.GMDL
 
                 foreach (TkMaterialFlags f in Flags)
                 {
-                    l.Add(f.MaterialFlag.ToString());
+                    l.Add(((TkMaterialFlags.UberFlagEnum) f.MaterialFlag).ToString());
                 }
 
                 return l;
@@ -2146,17 +2174,6 @@ namespace MVCore.GMDL
                 return _CustomPerMaterialUniforms;
             }
         }
-
-        public static Dictionary<string, int> CustomPerMaterialUniformLocationDict = new Dictionary<string, int> {
-            { "gMaterialColourVec4" , 276 },
-            { "gMaterialParamsVec4" , 292 },
-            { "gMaterialSFXVec4" , 308 },
-            { "gMaterialSFXColVec4" , 324 },
-            { "gDissolveDataVec4" , 340 },
-            { "gCustomParams01Vec4" , -1 },
-            { "gUVScrollStepVec4" , -1 },
-            { "gRingParamsVec4" , -1 },
-        };
 
         public Material()
         {
@@ -2668,7 +2685,6 @@ namespace MVCore.GMDL
                         Console.WriteLine("Normal Texture " + pathNormal + " Not Found");
                         MVCore.Common.CallBacks.Log(string.Format("Normal Texture {0} Not Found", pathNormal));
                     }
-
                 }
                 else
                 //Load texture from dict
@@ -2677,8 +2693,6 @@ namespace MVCore.GMDL
                     //Store Texture to material
                     normaltextures[i] = tex;
                 }
-
-
             }
         }
 
@@ -2851,7 +2865,7 @@ namespace MVCore.GMDL
             new_tex.bufferID = out_tex_2darray_diffuse;
             new_tex.target = TextureTarget.Texture2DArray;
             
-#if (DUMP_TEXTURESNONO)
+#if (DUMP_TEXTURES)
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             Sampler.dump_texture("diffuse", texWidth, texHeight);
 #endif
@@ -3092,7 +3106,7 @@ namespace MVCore.GMDL
             new_tex.bufferID = out_tex_2darray_mask;
             new_tex.target = TextureTarget.Texture2DArray;
 
-#if (DUMP_TEXTURESNONO)
+#if (DUMP_TEXTURES)
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             Sampler.dump_texture("normal", texWidth, texHeight);
 #endif
@@ -3357,7 +3371,6 @@ namespace MVCore.GMDL
         public Vector3 color;
 
         //Add a bunch of shit for posing
-        public Matrix4 _localPoseMatrix = Matrix4.Identity;
         //public Vector3 _localPosePosition = new Vector3(0.0f);
         //public Matrix4 _localPoseRotation = Matrix4.Identity;
         //public Vector3 _localPoseScale = new Vector3(1.0f);
@@ -3371,62 +3384,6 @@ namespace MVCore.GMDL
             get { return _localPoseMatrix; }
             set { _localPoseMatrix = value; changed = true; }
         }
-
-        private void update_joint()
-        {
-            //Update Local Transformation Matrix
-            
-            if (changed)
-            {
-                //Calculate local transformation
-                //Create scale matrix
-                Matrix4 localScaleMat = Matrix4.Identity;
-                localScaleMat.M11 = localScale.X;
-                localScaleMat.M22 = localScale.Y;
-                localScaleMat.M33 = localScale.Z;
-
-                //Create translation Matrix
-                Matrix4 localPositionMat = Matrix4.CreateTranslation(localPosition);
-
-                //Calculate Pose transformation
-                Matrix4 localJointMat = (localScaleMat * localRotation * localPositionMat);
-
-                localMat = localPoseMatrix * invBMat * localJointMat;
-
-                //localMat = localMat - (localPoseScaleMat * localPoseRotation * localPosePositionMat);
-
-                //Finally Update world Transformation Matrix
-                if (parent != null)
-                {
-                    //Original working
-                    worldMat = localMat * parent.worldMat;
-                    //return this.localMat;
-                } else
-                    worldMat = localMat;
-                
-                //Update worldPosition
-                if (parent != null)
-                {
-                    //Original working
-                    //return parent.worldPosition + Vector3.Transform(this.localPosition, parent.worldMat);
-
-                    //Add Translation as well
-                    worldPosition = (Vector4.Transform(new Vector4(0.0f, 0.0f, 0.0f, 1.0f), worldMat)).Xyz;
-                }
-                else
-                    worldPosition = (Vector4.Transform(new Vector4(0.0f, 0.0f, 0.0f, 1.0f), localMat)).Xyz;
-
-                changed = false;
-            }
-            
-
-            //Trigger the position update of all children nodes
-            foreach (GMDL.model child in children)
-            {
-                child.update();
-            }
-        }
-
 
         public Joint() :base(0.1f)
         {
@@ -3442,8 +3399,7 @@ namespace MVCore.GMDL
 
         public override void update()
         {
-            update_joint(); //Call the custom function for updating transforms
-            //base.update(); 
+            base.update(); 
 
             //Update Vertex Buffer based on the new positions
             float[] verts = new float[2 * children.Count * 3];

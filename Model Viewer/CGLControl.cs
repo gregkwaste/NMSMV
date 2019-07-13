@@ -415,6 +415,10 @@ namespace Model_Viewer
 
             //Start Timers
             inputPollTimer.Start();
+
+            //Start Animation worker if animations are on
+            if (RenderOptions.ToggleAnimations)
+                backgroundWorker1.RunWorkerAsync();
         }
 
         private void genericMouseMove(object sender, MouseEventArgs e)
@@ -903,6 +907,10 @@ namespace Model_Viewer
 
             //Clear RenderStats
             RenderStats.clearStats();
+
+            //Stop animation if on
+            if (RenderOptions.ToggleAnimations)
+                toggleAnimation();
             
             //Add defaults
             addDefaultLights();
@@ -924,6 +932,9 @@ namespace Model_Viewer
             //Refresh all transforms
             rootObject.update();
 
+            //Restart anim worker if it was active
+            if (!RenderOptions.ToggleAnimations)
+                toggleAnimation();
         }
 
         //Light Functions
@@ -1036,8 +1047,9 @@ namespace Model_Viewer
 
         public void toggleAnimation()
         {
-            animationStatus = !animationStatus;
-            if (animationStatus)
+            RenderOptions.ToggleAnimations = !RenderOptions.ToggleAnimations;
+
+            if (RenderOptions.ToggleAnimations)
                 backgroundWorker1.RunWorkerAsync();
             else
                 backgroundWorker1.CancelAsync();
@@ -1079,31 +1091,18 @@ namespace Model_Viewer
                         active_anims.Add(ad);
                         ad.animate(); //Progress the animations
                     }
-                        
                 }
-
-
+                
                 if (active_anims.Count == 0)
                     continue;
 
-                float w_anim = 1.0f / active_anims.Count;
-
-                /*
-                //Reset joint local Transforms
-                foreach(Joint j in s.jointDict.Values)
-                {
-                    j.localPosition = new Vector3();
-                    j.localRotation = Matrix4.Identity;
-                    j.localScale = new Vector3(1.0f);
-                }
-                */
-                
                 //Iterate in Locator animations
                 foreach (AnimData ad in active_anims)
                 {
                     //Load joint transforms
                     foreach (libMBIN.NMS.Toolkit.TkAnimNodeData node in ad.animMeta.NodeData)
                     {
+
                         if (!s.jointDict.ContainsKey(node.Node))
                             continue;
 
@@ -1112,10 +1111,11 @@ namespace Model_Viewer
                         Matrix4 qmat = Matrix4.CreateFromQuaternion(q);
                         Vector3 svec = ad.fetchScaleVector(node);
 
+                        
                         //Add transforms to joint
                         s.jointDict[node.Node].localPosition = tvec;
                         s.jointDict[node.Node].localRotation = qmat;
-                        s.jointDict[node.Node].localScale = svec;
+                        s.jointDict[node.Node].localScale = new Vector3(1.0f);
                     }
 
                     //TODO: For now I'm just using the first active animation. Blending should be kinda more sophisticated

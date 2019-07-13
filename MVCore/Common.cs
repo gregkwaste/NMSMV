@@ -40,6 +40,8 @@ namespace MVCore.Common
         public static System.Drawing.Color clearColor = System.Drawing.Color.FromArgb(255, 33, 33, 33);
         public static float _useTextures = 1.0f;
         public static float _useLighting = 1.0f;
+        public static bool _useFrustumCulling = true;
+        public static bool _toggleAnimations = true;
         public static bool _renderLights = true;
         public static bool _renderInfo = true;
         public static bool _renderJoints = true;
@@ -81,6 +83,19 @@ namespace MVCore.Common
             }
         }
 
+        public static bool UseFrustumCulling
+        {
+            get
+            {
+                return _useFrustumCulling;
+            }
+
+            set
+            {
+                _useFrustumCulling = value;
+            }
+        }
+
         public static bool ToggleWireframe
         {
             get
@@ -94,6 +109,19 @@ namespace MVCore.Common
                     RENDERMODE = PolygonMode.Line;
                 else
                     RENDERMODE = PolygonMode.Fill;
+            }
+        }
+
+        public static bool ToggleAnimations
+        {
+            get
+            {
+                return _toggleAnimations;
+            }
+
+            set
+            {
+                _toggleAnimations = value;
             }
         }
 

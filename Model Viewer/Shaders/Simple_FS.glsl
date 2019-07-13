@@ -65,10 +65,6 @@ vec4 calcDiffuseColor(float mipmaplevel){
 			diffTexColor = textureLod(mpCustomPerMaterial.gDiffuseMap, vec3(uv0, 0.0), mipmaplevel);
 			//diffTexColor = vec4(1.0, 0.0, 0.0, 1.0);
 		}
-
-		if (!mesh_has_matflag(_F09_TRANSPARENT) || !mesh_has_matflag(_F22_TRANSPARENT_SCALAR)){
-			diffTexColor.a = 1.0f;
-		}
 	} else {
 		diffTexColor = mpCustomPerMaterial.gMaterialColourVec4;
 		//diffTexColor = vec4(mpCustomPerMaterial.matflags[_F01_DIFFUSEMAP], 0.0, 0.0, 1.0);
@@ -89,7 +85,7 @@ vec3 calcNormal(float mipmaplevel){
 		normal = DecodeNormalMap(textureLod(mpCustomPerMaterial.gNormalMap, vec3(uv0,0.0), mipmaplevel));
   		normal = normalize(TBN * normal);
 	}
-  	return normal; //This is normalized in any case
+  	return (mpCommonPerMesh.nMat * vec4(normal, 0.0)).xyz; //This is normalized in any case
 }
 
 float calcRoughness(float mipmaplevel){
@@ -156,18 +152,13 @@ void main()
 	
 	//Mask Checks
 	
-	//Check _F11_ALPHACUTOUT
-	if (mesh_has_matflag(_F11_ALPHACUTOUT)) {
-		if (alpha <= 0.05) discard;
-	}
-
 	if (mesh_has_matflag(_F22_TRANSPARENT_SCALAR)) {
 		// Transparency scalar comes from float in Material
         alpha *= mpCustomPerMaterial.gMaterialColourVec4.a;	
 	}
 
 	//Check _F9_TRANSPARENT
-	if (mesh_has_matflag(_F09_TRANSPARENT) || mesh_has_matflag(_F22_TRANSPARENT_SCALAR)) {
+	if (mesh_has_matflag(_F11_ALPHACUTOUT) || mesh_has_matflag(_F09_TRANSPARENT) || mesh_has_matflag(_F22_TRANSPARENT_SCALAR)) {
 		if (alpha <= 0.05) discard;
 	}
 	
@@ -187,7 +178,7 @@ void main()
 	//Diffuse Component
 	//vec3 lightPos = vec3(50, 50, 50); //Fix light position for now
 	vec3 lightPos = mpCommonPerFrame.cameraPosition; //Use camera position as the light position
-	vec3 lightDir = normalize(lightPos - fragPos.xyz);
+	vec3 lightDir = -normalize(lightPos - fragPos.xyz);
 	//vec3 lightDir = normalize(mpCommonPerFrame.cameraDirection);
 	float l_distance = distance(lightPos, fragPos.xyz); //Calculate distance of 
 
