@@ -46,10 +46,10 @@ namespace TextureMixer
 
         //TEXTURE INFO
 
-        private List<Texture> diffTextures = new List<Texture>(8);
-        private List<Texture> maskTextures = new List<Texture>(8);
-        private float[] baseLayersUsed = new float[8];
-        private float[] alphaLayersUsed = new float[8];
+        //private List<Texture> diffTextures = new List<Texture>(8);
+        //private List<Texture> maskTextures = new List<Texture>(8);
+        //private float[] baseLayersUsed = new float[8];
+        //private float[] alphaLayersUsed = new float[8];
         private List<float[]> reColours = new List<float[]>(8);
 
         //Default Textures
@@ -75,15 +75,8 @@ namespace TextureMixer
             this.glControl1.Paint += new System.Windows.Forms.PaintEventHandler(this.glControl1_Paint);
             this.glControl1.Resize += new System.EventHandler(this.glControl1_Resize);
 
-            //Init the Texture lists
-            for (int i = 0; i < 8; i++)
-            {
-                diffTextures.Add(null);
-                maskTextures.Add(null);
-                baseLayersUsed[i] = 0.0f;
-                alphaLayersUsed[i] = 0.0f;
-                reColours.Add(new float[] { 1.0f, 1.0f, 1.0f, 0.0f });
-            }
+            //Init the texture mixer
+            MVCore.GMDL.TextureMixer.clear();
 
             //Init Utils
             MVCore.FileUtils.dirpath = ""; // Init to empty string
@@ -95,12 +88,10 @@ namespace TextureMixer
             if (!this.glloaded)
                 return;
             glControl1.MakeCurrent();
-            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            //GL.ClearColor(System.Drawing.Color.Black);
             glControl1_Render();
-            
-            //context.Draw();
             glControl1.SwapBuffers();
+            
+            
             //translate_View();
             ////Draw scene
             //GL.MatrixMode(MatrixMode.Modelview);
@@ -112,9 +103,6 @@ namespace TextureMixer
 
         private void glControl_Load(object sender, EventArgs e)
         {
-            GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
-            GL.ClearColor(System.Drawing.Color.Black);
-            GL.Enable(EnableCap.DepthTest);
             //glControl1.SwapBuffers();
             //glControl1.Invalidate();
             Debug.WriteLine("GL Cleared");
@@ -122,6 +110,20 @@ namespace TextureMixer
 
             this.glloaded = true;
 
+            //Initialize REsource Manager
+            MVCore.Common.RenderState.activeResMgr = new MVCore.ResourceManager();
+
+            //Init Default Textures
+            dDiff = new Texture("default.dds");
+            dDiff.name = "default.dds";
+            dMask = new Texture("default_mask.dds");
+            dMask.name = "default_mask.dds";
+
+            MVCore.Common.RenderState.activeResMgr.texMgr.addTexture(dDiff);
+            MVCore.Common.RenderState.activeResMgr.texMgr.addTexture(dMask);
+
+            //Add default primitives
+            addDefaultPrimitives();
 
             //Generate Geometry VBOs
             GL.GenBuffers(1, out quad_vbo);
@@ -144,22 +146,12 @@ namespace TextureMixer
 
 
             //Compile Shaders
-            string vvs, ffs;
-            int vertex_shader_ob, fragment_shader_ob;
-            vvs = GLSL_Preprocessor.Parser("Shaders/pass_VS.glsl");
-            ffs = GLSL_Preprocessor.Parser("Shaders/pass_FS.glsl");
-            //Compile Texture Shaders
-            CreateShaders(vvs, ffs, out vertex_shader_ob,
-                    out fragment_shader_ob, out shader_program);
-
-
+            compileShaders();
+            
             //Setup default program
             GL.UseProgram(shader_program);
 
-            //Init Default Textures
-            dDiff = new Texture("default.dds");
-            dMask = new Texture("default_mask.dds");
-
+            
             context = new Context(Tw.GraphicsAPI.OpenGL);
             ////Add stuff to context
             //var configsBar = new Bar(context);
@@ -172,6 +164,62 @@ namespace TextureMixer
             glControl1.Invalidate();
             
         }
+
+        private void addDefaultPrimitives()
+        {
+            //Default quad
+            MVCore.Primitives.Quad q = new MVCore.Primitives.Quad(1.0f, 1.0f);
+            MVCore.Common.RenderState.activeResMgr.GLPrimitiveVaos["default_quad"] = q.getVAO();
+
+            //Default render quad
+            q = new MVCore.Primitives.Quad();
+            MVCore.Common.RenderState.activeResMgr.GLPrimitiveVaos["default_renderquad"] = q.getVAO();
+
+            //Default cross
+            MVCore.Primitives.Cross c = new MVCore.Primitives.Cross();
+            MVCore.Common.RenderState.activeResMgr.GLPrimitiveVaos["default_cross"] = c.getVAO();
+
+            //Default cube
+            MVCore.Primitives.Box bx = new MVCore.Primitives.Box(1.0f, 1.0f, 1.0f);
+            MVCore.Common.RenderState.activeResMgr.GLPrimitiveVaos["default_box"] = bx.getVAO();
+
+            //Default sphere
+            MVCore.Primitives.Sphere sph = new MVCore.Primitives.Sphere(new Vector3(0.0f, 0.0f, 0.0f), 100.0f);
+            MVCore.Common.RenderState.activeResMgr.GLPrimitiveVaos["default_sphere"] = sph.getVAO();
+        }
+
+        private void compileShaders()
+        {
+            //Populate shader list
+            string log = "";
+
+            //Texture Mixing Shader
+            compileShader("Shaders/pass_VS.glsl",
+                            "Shaders/pass_FS.glsl",
+                            "", "", "", "TEXTURE_MIXING_SHADER", ref log);
+
+        }
+
+        private void compileShader(string vs, string fs, string gs, string tes, string tcs, string name, ref string log)
+        {
+            GLSLShaderConfig shader_conf = new GLSLShaderConfig(vs, fs, gs, tcs, tes, name);
+
+            compileShader(shader_conf);
+            MVCore.Common.RenderState.activeResMgr.GLShaders[shader_conf.name] = shader_conf;
+            log += shader_conf.log; //Append log
+        }
+
+        public void compileShader(GLSLShaderConfig config)
+        {
+            int vertexObject;
+            int fragmentObject;
+
+            if (config.program_id != -1)
+                GL.DeleteProgram(config.program_id);
+
+            GLShaderHelper.CreateShaders(config, out vertexObject, out fragmentObject, out config.program_id);
+        }
+
 
         private void glControl1_Resize(object sender, EventArgs e)
         {
@@ -188,120 +236,16 @@ namespace TextureMixer
         private void glControl1_Render()
         {
             Debug.WriteLine("Rendering");
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            GL.ClearColor(System.Drawing.Color.Black);
 
-            MVCore.GMDL.mainVAO vao = new MVCore.Primitives.Quad().getVAO();
-
+            GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
             //BIND TEXTURES
             Texture tex;
             int loc;
 
-            //If there are samples defined, there are diffuse textures for sure
-
-            //GL.Enable(EnableCap.Blend);
-            //GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
-
-            //NEW WAY OF TEXTURE BINDING
-
-            //DIFFUSE TEXTURES
-            //GL.Enable(EnableCap.Blend);
-            //GL.BlendFunc(BlendingFactorSrc.ConstantAlpha, BlendingFactorDest.OneMinusConstantAlpha);
-
-            //Upload base Layers Used
-            int baseLayerIndex = 0;
-            for (int i = 0; i < 8; i++)
-            {
-                loc = GL.GetUniformLocation(shader_program, "d_lbaseLayersUsed[" + i.ToString() + "]");
-                GL.Uniform1(loc, baseLayersUsed[i]);
-                if (baseLayersUsed[i] > 0.0f)
-                    baseLayerIndex = i;
-            }
-
-            for (int i = 0; i < 8; i++)
-            {
-
-                if (diffTextures[i] != null)
-                    tex = diffTextures[i];
-                else
-                    tex = dMask;
-                
-                //Upload diffuse Texture
-                string sem = "diffuseTex[" + i.ToString() + "]";
-                //Get Texture location
-                loc = GL.GetUniformLocation(shader_program, sem);
-                GL.Uniform1(loc, i); // I need to upload the texture unit number
-
-                int tex0Id = (int)TextureUnit.Texture0;
-
-                //Upload average Color
-                loc = GL.GetUniformLocation(shader_program, "lAverageColors[" + i.ToString() + "]");
-                GL.Uniform4(loc, tex.avgColor.X, tex.avgColor.Y, tex.avgColor.Z, 1.0f); 
-
-                GL.ActiveTexture((OpenTK.Graphics.OpenGL4.TextureUnit)(tex0Id + i));
-                GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
-            
-            }
-
-            //TESTING MASKS
-            //SETTING HASALPHACHANNEL FLAG TO FALSE
-            loc = GL.GetUniformLocation(shader_program, "hasAlphaChannel");
-            GL.Uniform1(loc, hasAlphaChannel);
-
-            loc = GL.GetUniformLocation(shader_program, "baseLayerIndex");
-            GL.Uniform1(loc, baseLayerIndex);
-
-            //Toggle mask-diffuse
-            loc = GL.GetUniformLocation(shader_program, "mode");
-            GL.Uniform1(loc, renderMode);
-
-
-            //MASKS
-            //Upload alpha Layers Used
-            for (int i = 0; i < 8; i++)
-            {
-                loc = GL.GetUniformLocation(shader_program, "lalphaLayersUsed[" + i.ToString() + "]");
-                GL.Uniform1(loc, alphaLayersUsed[i]);
-            }
-
-            //Upload Mask Textures -- Alpha Masks???
-            for (int i = 0; i < 8; i++)
-            {
-                if (maskTextures[i] != null)
-                    tex = maskTextures[i];
-                else
-                    tex = dDiff;
-                
-
-                //Upload diffuse Texture
-                string sem = "maskTex[" + i.ToString() + "]";
-                //Get Texture location
-                loc = GL.GetUniformLocation(shader_program, sem);
-                GL.Uniform1(loc, 8 + i); // I need to upload the texture unit number
-
-                int tex0Id = (int)TextureUnit.Texture0;
-
-                //Upload PaletteColor
-                //loc = GL.GetUniformLocation(pass_program, "palColors[" + i.ToString() + "]");
-                //Use Texture paletteOpt and object palette to load the palette color
-                //GL.Uniform3(loc, palette[tex.palOpt.PaletteName][tex.palOpt.ColorName]);
-
-                GL.ActiveTexture((OpenTK.Graphics.OpenGL4.TextureUnit)(tex0Id + 8 + i));
-                GL.BindTexture(TextureTarget.Texture2D, tex.bufferID);
-
-            }
-
-            //Upload Recolouring Information
-            for (int i = 0; i < 8; i++)
-            {
-                loc = GL.GetUniformLocation(shader_program, "lRecolours[" + i.ToString() + "]");
-                GL.Uniform4(loc, reColours[i][0], reColours[i][1], reColours[i][2], reColours[i][3]);
-            }
-
-
-            //RENDERING PHASE
-            //GL.Enable(EnableCap.Blend);
-            //GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
-            GL.BindVertexArray(vao.vao_id);
-            GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
+            //TODO use mode selection and choose between mask, normal, diffuse mix methods
+            MVCore.GMDL.TextureMixer.mixDiffuseTextures(ClientSize.Width, ClientSize.Height);
         }
 
         //Context Menus on ListBox
@@ -373,23 +317,23 @@ namespace TextureMixer
             //Destroy texture if i'm about to replace
             if (lbox.Name.Contains("diffuse"))
             {
-                if (diffTextures[index] != null)
-                    GL.DeleteTexture(diffTextures[index].bufferID);
+                if (MVCore.GMDL.TextureMixer.difftextures[index] != null)
+                    GL.DeleteTexture(MVCore.GMDL.TextureMixer.difftextures[index].bufferID);
 
-                diffTextures[index] = tex;
+                MVCore.GMDL.TextureMixer.difftextures[index] = tex;
                 lbox.Items[index].Text = tex.name;
 
-                baseLayersUsed[index] = 1.0f;
+                MVCore.GMDL.TextureMixer.baseLayersUsed[index] = 1.0f;
             }
             else
             {
-                if (maskTextures[index] != null)
-                    GL.DeleteTexture(maskTextures[index].bufferID);
+                if (MVCore.GMDL.TextureMixer.masktextures[index] != null)
+                    GL.DeleteTexture(MVCore.GMDL.TextureMixer.masktextures[index].bufferID);
 
-                maskTextures[index] = tex;
+                MVCore.GMDL.TextureMixer.masktextures[index] = tex;
                 lbox.Items[index].Text = tex.name;
 
-                alphaLayersUsed[index] = 1.0f;
+                MVCore.GMDL.TextureMixer.alphaLayersUsed[index] = 1.0f;
             }
                 
             glControl1.Invalidate();
@@ -412,17 +356,23 @@ namespace TextureMixer
             {
                 
                 lbox.Items[index].BackColor = coldiag.Color;
-                reColours[index] = new float[] { (int)coldiag.Color.R / 256.0f, (int)coldiag.Color.G / 256.0f, (int)coldiag.Color.B / 256.0f, 1.0f };
-                
+                MVCore.GMDL.TextureMixer.reColourings[index] = new float[] { (int)coldiag.Color.R / 256.0f,
+                                                                             (int)coldiag.Color.G / 256.0f,
+                                                                             (int)coldiag.Color.B / 256.0f,
+                                                                             1.0f };
             }
             else
             {
                 lbox.Items[index].BackColor = System.Drawing.Color.White;
-                reColours[index] = new float[] { 1.0f, 1.0f, 1.0f, 0.0f };
+                MVCore.GMDL.TextureMixer.reColourings[index] = new float[] { 0.0f, 0.0f, 0.0f, 0.0f};
             }
 
-            Console.WriteLine("RGB: {0} {1} {2}", reColours[index][0], reColours[index][1], reColours[index][2]);
-            Vector3 hsv = RGBToHSV(new Vector3(reColours[index][0], reColours[index][1], reColours[index][2]));
+            Console.WriteLine("RGB: {0} {1} {2}", MVCore.GMDL.TextureMixer.reColourings[index][0],
+                                                  MVCore.GMDL.TextureMixer.reColourings[index][1], 
+                                                  MVCore.GMDL.TextureMixer.reColourings[index][2]);
+            Vector3 hsv = RGBToHSV(new Vector3(MVCore.GMDL.TextureMixer.reColourings[index][0],
+                                               MVCore.GMDL.TextureMixer.reColourings[index][1], 
+                                               MVCore.GMDL.TextureMixer.reColourings[index][2]));
             Console.WriteLine("HSV: {0} {1} {2}", hsv.X, hsv.Y, hsv.Z);
             glControl1.Invalidate();
 
@@ -477,42 +427,6 @@ namespace TextureMixer
             glControl1.Invalidate();
         }
 
-
-        //Shader Creation
-        private void CreateShaders(string vs, string fs, out int vertexObject,
-            out int fragmentObject, out int program)
-        {
-            int status_code;
-            string info;
-
-            vertexObject = GL.CreateShader(ShaderType.VertexShader);
-            fragmentObject = GL.CreateShader(ShaderType.FragmentShader);
-
-            //Compile vertex Shader
-            GL.ShaderSource(vertexObject, vs);
-            GL.CompileShader(vertexObject);
-            GL.GetShaderInfoLog(vertexObject, out info);
-            GL.GetShader(vertexObject, ShaderParameter.CompileStatus, out status_code);
-            if (status_code != 1)
-                throw new ApplicationException(info);
-
-            //Compile fragment Shader
-            GL.ShaderSource(fragmentObject, fs);
-
-            //HANDLE INCLUDES
-            GL.CompileShader(fragmentObject);
-            GL.GetShaderInfoLog(fragmentObject, out info);
-            GL.GetShader(fragmentObject, ShaderParameter.CompileStatus, out status_code);
-            if (status_code != 1)
-                throw new ApplicationException(info);
-
-            program = GL.CreateProgram();
-            GL.AttachShader(program, fragmentObject);
-            GL.AttachShader(program, vertexObject);
-            GL.LinkProgram(program);
-            //GL.UseProgram(program);
-
-        }
     }
 
 

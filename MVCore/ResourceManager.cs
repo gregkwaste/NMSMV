@@ -19,6 +19,7 @@ namespace MVCore
         public Dictionary<string, GMDL.Material> GLmaterials = new Dictionary<string, GMDL.Material>();
         public Dictionary<string, GMDL.GeomObject> GLgeoms = new Dictionary<string, GMDL.GeomObject>();
         public Dictionary<string, GMDL.scene> GLScenes = new Dictionary<string, GMDL.scene>();
+        public Dictionary<string, GMDL.Texture> GLTextures = new Dictionary<string, GMDL.Texture>();
 
         public Dictionary<ulong, mainVAO> GLVaos = new Dictionary<ulong, mainVAO>();
         public Dictionary<string, mainVAO> GLPrimitiveVaos = new Dictionary<string, mainVAO>();
@@ -31,6 +32,10 @@ namespace MVCore
         //public int[] shader_programs;
 
         public textureManager texMgr = new textureManager();
+
+        //Procedural Generation Options
+        //TODO: This is 99% NOT correct
+        //public Dictionary<string, int> procTextureLayerSelections = new Dictionary<string, int>();
         
         //public DebugForm DebugWin;
 
@@ -38,6 +43,7 @@ namespace MVCore
         {
             //Cleanup global texture manager
             texMgr.cleanup();
+            //procTextureLayerSelections.Clear();
 
             foreach (GMDL.scene p in GLScenes.Values)
                 p.Dispose();
@@ -75,10 +81,11 @@ namespace MVCore
     public class textureManager: baseResourceManager
     {
         public Dictionary<string, GMDL.Texture> GLtextures = new Dictionary<string, GMDL.Texture>();
-        
+        private textureManager masterTexManager;
+
         public textureManager()
         {
-            
+        
         }
 
         public void cleanup()
@@ -101,7 +108,11 @@ namespace MVCore
 
         public bool hasTexture(string name)
         {
-            return GLtextures.ContainsKey(name);
+            //Search on the masterTextureManager first
+            if (masterTexManager != null && masterTexManager.hasTexture(name))
+                return true;
+            else
+                return GLtextures.ContainsKey(name);
         }
 
         public void addTexture(GMDL.Texture t)
@@ -111,7 +122,11 @@ namespace MVCore
 
         public GMDL.Texture getTexture(string name)
         {
-            return GLtextures[name];
+            //Fetches the textures from the masterTexture Manager if it exists
+            if (masterTexManager != null && masterTexManager.hasTexture(name))
+                return masterTexManager.getTexture(name);
+            else
+                return GLtextures[name];
         }
 
         public void deleteTexture(string name)
@@ -126,6 +141,11 @@ namespace MVCore
             {
                 Console.WriteLine("Texture not found\n");
             }
+        }
+
+        public void setMasterTexManager(textureManager mtMgr)
+        {
+            masterTexManager = mtMgr;
         }
 
 

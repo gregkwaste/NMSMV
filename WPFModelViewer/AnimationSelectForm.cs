@@ -131,9 +131,9 @@ namespace Model_Viewer
 
         private string animpath;
         private Button button3;
-        private List<locator> _animScenes;
+        private List<model> _animScenes;
         
-        public AnimationSelectForm(List<locator> animScenes)
+        public AnimationSelectForm(List<model> animScenes)
         {
             InitializeComponent();
             _animScenes = animScenes;
@@ -164,7 +164,7 @@ namespace Model_Viewer
 
             //Proceed to import
             //Select Scene
-            locator activeScene = _animScenes[this.listBox1.SelectedIndex];
+            model activeScene = _animScenes[listBox1.SelectedIndex];
             MVCore.Common.CallBacks.openAnim(animpath, activeScene);
 
             this.Close();
@@ -206,7 +206,7 @@ namespace Model_Viewer
 
             //Proceed to import
             //Select Scene
-            locator activeScene = _animScenes[this.listBox1.SelectedIndex];
+            model activeScene = _animScenes[this.listBox1.SelectedIndex];
             MVCore.Common.CallBacks.openPose(animpath, activeScene);
 
             this.Close();

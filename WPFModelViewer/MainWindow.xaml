@@ -17,24 +17,34 @@
     <Window.Resources>
         <ResourceDictionary>
             <DataTemplate x:Key="basemodel" DataType="{x:Type gmdl:model}">
-                <GroupBox Header="Object Information">
-                    <Grid VerticalAlignment="Stretch">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-                        <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Height="20">
-                            <TextBlock Text="Name"></TextBlock >
-                            <TextBlock HorizontalAlignment="Right" Text="{Binding Name}"></TextBlock>
-                        </DockPanel>
-                        <DockPanel Grid.Row="1" HorizontalAlignment="Stretch" Height="20">
-                            <TextBlock Text="Type"></TextBlock>
-                            <TextBlock HorizontalAlignment="Right"  Text="{Binding Type}"></TextBlock>
-                        </DockPanel>
-                        <local:ModelTransform Grid.Row="2" Model="{Binding}"/>
-                    </Grid>
-                </GroupBox>
+                <Grid VerticalAlignment="Stretch">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <GroupBox Grid.Row="0" Header="Object Information">
+                        <Grid VerticalAlignment="Stretch">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Height="20">
+                                <TextBlock Text="Name"></TextBlock >
+                                <TextBlock HorizontalAlignment="Right" Text="{Binding Name}"></TextBlock>
+                            </DockPanel>
+                            <DockPanel Grid.Row="1" HorizontalAlignment="Stretch" Height="20">
+                                <TextBlock Text="Type"></TextBlock>
+                                <TextBlock HorizontalAlignment="Right"  Text="{Binding Type}"></TextBlock>
+                            </DockPanel>
+                            <local:ModelTransform Grid.Row="2" Model="{Binding}"/>
+                        </Grid>
+                    </GroupBox>
+                    <GroupBox Grid.Row="1" Header="Components">
+                        <ItemsControl ItemsSource="{Binding Components}" Margin="5,5,0,0"/>
+                    </GroupBox>
+                </Grid>
+                
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:Sampler}">
@@ -143,53 +153,45 @@
 
 
             <DataTemplate DataType="{x:Type gmdl:scene}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}" Grid.Row="0"/>
-                    <TextBox Text="{Binding PPoseIndex}" Grid.Row="1"/>
-                </Grid>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}" Grid.Row="0"/>
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type gmdl:AnimComponent}">
+                <StackPanel Grid.Row="2">
+                    <TextBlock Text="Animations"></TextBlock>
+                    <ListBox ItemsSource="{Binding Animations}" HorizontalContentAlignment="Stretch">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <ContentControl Content="{Binding}"/>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </StackPanel>
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type gmdl:AnimPoseComponent}">
+                <StackPanel>
+                    <TextBlock Text="Model Pose"></TextBlock>
+                    <ListBox ItemsSource="{Binding poseData}" Height="200" HorizontalContentAlignment="Stretch" VerticalAlignment="Stretch">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <ContentControl Content="{Binding}"/>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="5*"/>
+                            <ColumnDefinition Width="5*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Command="{Binding Path=ApplyPose}" CommandParameter="{Binding}">Apply Pose</Button>
+                        <Button Grid.Column="1" Command="{Binding Path=ResetPose}" CommandParameter="{Binding}">Reset Pose</Button>
+                    </Grid>
+                </StackPanel>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:locator}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <ContentPresenter Grid.Row="0" Content="{Binding}" ContentTemplate="{StaticResource basemodel}"/>
-                    <StackPanel Grid.Row="1">
-                        <TextBlock Text="AnimPoseData"></TextBlock>
-                        <ListBox ItemsSource="{Binding poseData}" HorizontalContentAlignment="Stretch">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <ContentControl Content="{Binding}"/>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="5*"/>
-                                <ColumnDefinition Width="5*"/>
-                            </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Command="{Binding Path=ApplyPose}" CommandParameter="{Binding}">Apply Pose</Button>
-                            <Button Grid.Column="1" Command="{Binding Path=ResetPose}" CommandParameter="{Binding}">Reset Pose</Button>
-                        </Grid>
-                    </StackPanel>
-                    <StackPanel Grid.Row="2">
-                        <TextBlock Text="Animations"></TextBlock>
-                        <ListBox ItemsSource="{Binding Animations}" HorizontalContentAlignment="Stretch">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <ContentControl Content="{Binding}"/>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </StackPanel>
-                </Grid>
+                <ContentPresenter Grid.Row="0" Content="{Binding}" ContentTemplate="{StaticResource basemodel}"/>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:meshModel}">
@@ -348,7 +350,7 @@
                                     <RowDefinition Height="20"/>
                                     <RowDefinition Height="20"/>
                                     <RowDefinition Height="20"/>
-                                    <RowDefinition Height="20"/>
+                                    <!--RowDefinition Height="20"/-->
                                 </Grid.RowDefinitions>
                                 <ContentControl  x:Name="RenderOptionsPanel"></ContentControl>
                                 <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
@@ -387,10 +389,10 @@
                                     <TextBlock HorizontalAlignment="Left">Render Collisions</TextBlock>
                                     <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderCollisions}"></CheckBox>
                                 </DockPanel>
-                                <DockPanel Grid.Row="9" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                <!--DockPanel Grid.Row="9" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                                     <TextBlock HorizontalAlignment="Left">Render BHulls</TextBlock>
                                     <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderBoundHulls}"></CheckBox>
-                                </DockPanel>
+                                </-->
                             </Grid>
                         </GroupBox>
                     </TabItem>

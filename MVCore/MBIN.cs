@@ -479,8 +479,8 @@ namespace MVCore
 
         private static textureManager localTexMgr;
         private static Dictionary<string, Joint> localJointDict;
-        private static locator localAnimScene;
-        
+        private static model localAnimScene;
+        private static List<model> localAnimScenes = new List<model>();
         
         public static scene LoadObjects(string filepath)
         {
@@ -494,8 +494,7 @@ namespace MVCore
             string scnName = split[split.Length - 1];
             Common.CallBacks.updateStatus("Importing Scene: " + scnName);
             Common.CallBacks.Log(string.Format("Importing Scene: {0}", scnName));
-            Console.WriteLine("Importing Scene: " + scnName);
-
+            
 #if DEBUG
             //Save NMSTemplate to exml
             var xmlstring = EXmlFile.WriteTemplate(scene);
@@ -548,26 +547,6 @@ namespace MVCore
             //Parse root scene
             scene root = (scene) parseNode(scene, gobject, null, null, null);
 
-
-            /*
-            //Try to load Pose information
-            //At first assemble ANIM.MBIN filepath
-            string animFilePath = filepath.Replace(".SCENE.MBIN", ".ANIM.MBIN");
-
-            if (File.Exists(animFilePath))
-            {
-                MVCore.Common.CallBacks.Log(string.Format("Trying to load Pose Information {0}", animFilePath));
-
-                libMBIN.MBINFile mbinf = new libMBIN.MBINFile(animFilePath);
-                mbinf.Load();
-
-                TkAnimMetadata testAnim = (TkAnimMetadata) mbinf.GetData();
-                root.poseMeta = testAnim;
-                root.loadPose(10);
-            }
-
-            */
-            
             return root;
         }
 
@@ -575,18 +554,18 @@ namespace MVCore
         private static string parseNMSTemplateAttrib<T>(List<T> temp, string attrib)
         {
             T elem = temp.FirstOrDefault(item => (string) item.GetType().GetField("Name").GetValue(item) == attrib);
-            return (string) elem.GetType().GetField("Value").GetValue(elem);
+            if (elem == null)
+                return "";
+            else
+                return (string) elem.GetType().GetField("Value").GetValue(elem);
         }
 
 
-        private static int HasComponent(locator node, Type ComponentType)
+        private static int hasComponent(TkAttachmentData node, Type ComponentType)
         {
-            if (node.attachment == null)
-                return -1;
-
-            for (int i = 0; i < node.attachment.Components.Count; i++)
+            for (int i = 0; i < node.Components.Count; i++)
             {
-                NMSTemplate temp = node.attachment.Components[i];
+                NMSTemplate temp = node.Components[i];
                 if (temp.GetType() == ComponentType)
                     return i;
             }
@@ -594,60 +573,55 @@ namespace MVCore
             return -1;
         }
 
-
-        private static void ProcessAnimPoseComponent(locator node)
+        private static void ProcessAnimPoseComponent(model node, TkAttachmentData attachment)
         {
             //Check if node has AnimPoseComponent
-            int component_index = HasComponent(node, typeof(TkAnimPoseComponentData));
+            int component_index = hasComponent(attachment, typeof(TkAnimPoseComponentData));
 
             if (component_index < 0)
+            {
+                node.animPoseComponentID = -1;
                 return;
-
-            TkAnimPoseComponentData pcd = (TkAnimPoseComponentData)node.attachment.Components[component_index];
+            }
+                
+            TkAnimPoseComponentData pcd = (TkAnimPoseComponentData)attachment.Components[component_index];
             //Load PoseFile
-            node._poseFrameData = (TkAnimMetadata) NMSUtils.LoadNMSFile(Path.GetFullPath(Path.Combine(FileUtils.dirpath, pcd.Filename)));
-
-
-            //Load PoseAnims
-            for (int i = 0; i < pcd.PoseAnims.Count; i++)
-            {
-                AnimPoseData my_apd = new AnimPoseData(pcd.PoseAnims[i]);
-                node.poseData.Add(my_apd);
-            }
+            AnimPoseComponent apc = new AnimPoseComponent(pcd);
+            apc.ref_object = node; //Set referenced animScene
+            node.animPoseComponentID = node.Components.Count;
+            node.Components.Add(apc);
         }
 
-        private static void ProcessAnimationComponent(locator node)
+        private static void ProcessAnimationComponent(model node, TkAttachmentData attachment)
         {
             //Check if node has AnimPoseComponent
-            int component_index = HasComponent(node, typeof(TkAnimationComponentData));
-
-            if (component_index < 0)
-                return;
-
-            TkAnimationComponentData acd = node.attachment.Components[component_index] as TkAnimationComponentData;
-
-            //Load Animations
-            node._animations.Add(new AnimData(acd.Idle)); //Add Idle Animation
-            for (int i = 0; i < acd.Anims.Count; i++)
+            int component_id = hasComponent(attachment, typeof(TkAnimationComponentData));
+            
+            if (component_id < 0)
             {
-                AnimData my_ad = new AnimData(acd.Anims[i]);
-                node._animations.Add(my_ad);
+                node.animComponentID = -1;
+                return;
             }
+                
+            TkAnimationComponentData acd = attachment.Components[component_id] as TkAnimationComponentData;
+            AnimComponent ac = new AnimComponent(acd);
+            node.animComponentID = node.Components.Count;
+            node.Components.Add(ac); //Create Animation Component and add attach it to the component
         }
 
-        private static void ProcessComponents(locator node)
+        private static void ProcessComponents(model node, TkAttachmentData attachment)
         {
-            if (node.attachment == null)
+            if (attachment == null)
                 return;
 
             //Call individual Component Processors
-            ProcessAnimationComponent(node);
-            ProcessAnimPoseComponent(node);
+            ProcessAnimationComponent(node, attachment);
+            ProcessAnimPoseComponent(node, attachment);
         }
 
 
         private static model parseNode(TkSceneNodeData node, 
-            GeomObject gobject, model parent, scene scene, locator animscene)
+            GeomObject gobject, model parent, scene scene, model animscene)
         {
             TkTransformData transform = node.Transform;
             List<TkSceneNodeAttributeData> attribs = node.Attributes;
@@ -694,7 +668,6 @@ namespace MVCore
 
                 so.name = name;
                 so.debuggable = true;
-                so.animScene = animscene; //Set Animation Scene
                 
                 //Set Random Color
                 so.color[0] = Common.RenderState.randgen.Next(255) / 255.0f;
@@ -721,7 +694,16 @@ namespace MVCore
                 MVCore.Common.CallBacks.Log(string.Format("Batch Physics Start {0} Count {1} Vertex Physics {2} - {3} Vertex Graphics {4} - {5} SkinMats {6}-{7}",
                     so.batchstart_physics, so.batchcount, so.vertrstart_physics, so.vertrend_physics, so.vertrstart_graphics, so.vertrend_graphics,
                     so.firstskinmat, so.lastskinmat));
-                
+
+                //For now fetch only one attachment
+                string attachment = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "ATTACHMENT");
+                TkAttachmentData attachment_data = null;
+                if (attachment != "")
+                {
+                    string attachment_path = Path.GetFullPath(Path.Combine(FileUtils.dirpath, attachment));
+                    attachment_data = NMSUtils.LoadNMSFile(attachment_path) as TkAttachmentData;
+                }
+
                 //Find id within the vbo
                 int iid = -1;
                 for (int i = 0; i < gobject.vstarts.Count; i++)
@@ -731,9 +713,11 @@ namespace MVCore
                         break;
                     }
 
-                so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders["MESH_SHADER"],
-                                                 Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
-                                                 Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
+                so.shader_programs = new GLSLHelper.GLSLShaderConfig[4];
+                so.shader_programs[(int)RENDERTYPE.MAIN] = Common.RenderState.activeResMgr.GLShaders["MESH_SHADER"];
+                so.shader_programs[(int)RENDERTYPE.DEBUG] = Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"];
+                so.shader_programs[(int)RENDERTYPE.BHULL] = Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"];
+                so.shader_programs[(int)RENDERTYPE.PICK] = Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"];
 
                 so.Bbox = gobject.bboxes[iid];
                 //so.setupBSphere();
@@ -741,6 +725,17 @@ namespace MVCore
                 so.nms_template = node;
                 so.gobject = gobject; //Store the gobject for easier access of uniforms
                 so.init(transforms); //Init object transforms
+
+
+                //Process Attachments
+                ProcessComponents(so, attachment_data);
+
+                if (so.animComponentID >= 0)
+                {
+                    //Set local AnimScene
+                    localAnimScene = so;
+                    so.animScene = so;
+                }
 
                 //Get Material
                 string matname = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "MATERIAL");
@@ -783,7 +778,7 @@ namespace MVCore
 
                 //Generate Vao's
                 so.main_Vao = gobject.getMainVao(so);
-                so.bhull_Vao = gobject.getCollisionMeshVao(so); //Missing data
+                //so.bhull_Vao = gobject.getCollisionMeshVao(so); //Missing data
 
                 //Configure boneRemap properly
                 so.BoneRemapIndicesCount = so.lastskinmat - so.firstskinmat;
@@ -794,6 +789,7 @@ namespace MVCore
                 //Set skinned flag
                 if (so.BoneRemapIndicesCount > 0)
                     so.skinned = 1;
+                so.animScene = localAnimScene;
 
                 Console.WriteLine("Object {0}, Number of skinmatrices required: {1}", so.name, so.lastskinmat - so.firstskinmat);
 
@@ -802,14 +798,14 @@ namespace MVCore
                     //Console.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                     foreach (TkSceneNodeData child in children)
                     {
-                        model part = parseNode(child, gobject, so, scene, animscene);
+                        model part = parseNode(child, gobject, so, scene, localAnimScene);
                         so.children.Add(part);
                     }
                 }
 
                 //Check if it is a decal object
                 if (so.Material.has_flag((TkMaterialFlags.MaterialFlagEnum) TkMaterialFlags.UberFlagEnum._F51_DECAL_DIFFUSE) ||
-                    so.Material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F52_DECAL_NORMAL))
+                    so.Material.has_flag((TkMaterialFlags.MaterialFlagEnum) TkMaterialFlags.UberFlagEnum._F52_DECAL_NORMAL))
                 {
                     Decal newso = new Decal(so);
                     so.Dispose(); //Through away the old object
@@ -838,33 +834,54 @@ namespace MVCore
                 
                 //Setup model texture manager
                 so.texMgr = new textureManager();
+                so.texMgr.setMasterTexManager(Common.RenderState.activeResMgr.texMgr);
                 localTexMgr = so.texMgr; //setup local texMgr
-
                 //Setup localJointDictionary
-                if (localJointDict != null)
-                    localJointDict.Clear();
-                else
-                    localJointDict = new Dictionary<string, Joint>();
+                Dictionary<string, Joint> old_localJointDict;
+                model old_localAnimScene;
+
+                old_localJointDict = localJointDict;
+                old_localAnimScene = localAnimScene;
+
+                localAnimScene = null;
+                localJointDict = new Dictionary<string, Joint>();
+                
 
                 //Handle Children
                 if (children.Count > 0)
                 {
                     foreach (TkSceneNodeData child in children)
                     {
-                        model part = parseNode(child, gobject, so, so, so);
+                        model part = parseNode(child, gobject, so, so, localAnimScene);
                         so.children.Add(part);
                     }
                 }
 
-                //In the case of models use exactly the same joint references
-                so.jointDict = new Dictionary<string, Joint>();
-                foreach (KeyValuePair<string, Joint> kv in localJointDict)
+
+                //Post Processing - Identify AnimScenes on immediate children
+                localAnimScenes.Clear();
+                foreach (model child in so.children)
                 {
-                    so.jointDict[kv.Key] = kv.Value;
+                    
+                    if (child.animComponentID >= 0)
+                    {
+                        AnimComponent ac = child.Components[child.animComponentID] as AnimComponent;
+                        foreach (KeyValuePair<string, Joint> kv in localJointDict)
+                        {
+                            ac.jointDict[kv.Key] = kv.Value;
+                        }
+
+                        //Make a copy of the joing InvBMats
+                        Array.Copy(gobject.invBMats, ac.invBMats, gobject.invBMats.Length);
+
+                    }
                 }
 
-                //Make a copy of the joing InvBMats
-                Array.Copy(gobject.invBMats, so.invBMats, gobject.invBMats.Length);
+
+                //Bring back the old localJointDict
+                localJointDict = old_localJointDict;
+                localAnimScene = old_localAnimScene;
+
 
                 //Check if root node is in the resMgr
                 if (!Common.RenderState.activeResMgr.GLScenes.ContainsKey(name))
@@ -878,17 +895,16 @@ namespace MVCore
             {
                 locator so = new locator(0.1f);
                 //Fetch attributes
-                if (node.Attributes.Count > 0)
+                
+                //For now fetch only one attachment
+                string attachment = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "ATTACHMENT");
+                TkAttachmentData attachment_data = null;
+                if (attachment != "")
                 {
-                    //For now fetch only one attachment
-                    string attachment = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "ATTACHMENT");
-                    if (attachment != "")
-                    {
-                        string attachment_path = Path.GetFullPath(Path.Combine(FileUtils.dirpath, attachment));
-                        so.attachment = (TkAttachmentData) NMSUtils.LoadNMSFile(attachment_path);
-                    }
+                    string attachment_path = Path.GetFullPath(Path.Combine(FileUtils.dirpath, attachment));
+                    attachment_data = NMSUtils.LoadNMSFile(attachment_path) as TkAttachmentData;
                 }
-
+                
                 if (node.Attributes.Count > 1)
                     MessageBox.Show("PM THE IDIOT TO ADD SUPPORT FOR FUCKING MULTIPLE ATTACHMENTS...");
                 
@@ -906,30 +922,13 @@ namespace MVCore
                 so.init(transforms);
 
                 //Process Locator Attachments
-                ProcessComponents(so);
-
-                int has_anim_component = HasComponent(so, typeof(TkAnimationComponentData));
+                ProcessComponents(so, attachment_data);
 
                 //Check if locator has TkAnimationComponent 
-                
-                if (has_anim_component > 0)
+                if (so.animComponentID >= 0)
                 {
-                    //In the case of locators also use exactly the same joint references
-                    //TODO: I think this is a safe option for the viewer. I'll make sure to duplicate shit
-                    //when procedurally generating models
-                    so.jointDict = new Dictionary<string, Joint>();
-                    foreach (KeyValuePair<string, Joint> kv in localJointDict)
-                    {
-                        so.jointDict[kv.Key] = kv.Value;
-                    }
-
-                    //Make a copy of the joint InvBMats
-                    Array.Copy(gobject.invBMats, so.invBMats, gobject.invBMats.Length);
+                    //Set local AnimScene
                     localAnimScene = so;
-                }
-                else
-                {
-                    localAnimScene = animscene; //Use input animScene if the current one doesn't have anything
                 }
 
                 //Handle Children
@@ -941,8 +940,6 @@ namespace MVCore
                         so.children.Add(part);
                     }
                 }
-
-
 
                 return so;
             }
@@ -973,7 +970,6 @@ namespace MVCore
 
                 joint.main_Vao = new MVCore.Primitives.LineSegment(children.Count, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
 
-                //Insert joint to localDictionary
                 localJointDict[joint.Name] = joint;
                 
                 //Handle Children
@@ -981,7 +977,7 @@ namespace MVCore
                 {
                     foreach (TkSceneNodeData child in children)
                     {
-                        model part = parseNode(child, gobject, joint, scene, animscene);
+                        model part = parseNode(child, gobject, joint, scene, localAnimScene);
                         joint.children.Add(part);
                     }
                 }

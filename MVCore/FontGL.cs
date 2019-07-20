@@ -496,26 +496,20 @@ namespace MVCore.Text
                 if (disposing)
                 {
                     // TODO: dispose managed state (managed objects).
+                    GL.DeleteBuffer(vbo);
+                    GL.DeleteBuffer(ebo);
+                    GL.DeleteBuffer(uvbo);
+                    pverts = null;
+                    puvs = null;
+                    pints = null;
                 }
 
                 // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
                 // TODO: set large fields to null.
-                GL.DeleteBuffer(vbo);
-                GL.DeleteBuffer(ebo);
-                GL.DeleteBuffer(uvbo);
-                pverts = null;
-                puvs = null;
-                pints = null;
                 
                 disposedValue = true;
             }
         }
-
-        // TODO: override a finalizer only if Dispose(bool disposing) above has code to free unmanaged resources.
-        // ~GLText() {
-        //   // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
-        //   Dispose(false);
-        // }
 
         // This code added to correctly implement the disposable pattern.
         public void Dispose()

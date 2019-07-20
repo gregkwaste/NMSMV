@@ -30,7 +30,14 @@ using System.Runtime.InteropServices;
 
 namespace MVCore.GMDL
 {
-
+    public enum RENDERTYPE
+    {
+        MAIN = 0x0,
+        BHULL,
+        DEBUG,
+        PICK,
+        UNKNOWN
+    }
     public class SimpleSampler
     {
         public string PName { get; set; }
@@ -44,7 +51,7 @@ namespace MVCore.GMDL
 
     public abstract class model : IDisposable, INotifyPropertyChanged
     {
-        public abstract bool render(int pass);
+        public abstract bool render(RENDERTYPE pass);
         public bool renderable;
         public bool debuggable;
         public int selected;
@@ -56,7 +63,7 @@ namespace MVCore.GMDL
         public Dictionary<string, Dictionary<string, Vector3>> palette;
         public bool procFlag; //This is used to define procgen usage
         public TkSceneNodeData nms_template;
-
+        
         //Transformation Parameters
         public Vector3 worldPosition;
         public Matrix4 worldMat;
@@ -71,6 +78,11 @@ namespace MVCore.GMDL
         public model parent;
         public int cIndex = 0;
         public bool changed = true; //Making it public just for the joints
+
+        //Components
+        public List<Component> _components;
+        public int animComponentID;
+        public int animPoseComponentID;
 
         //Disposable Stuff
         public bool disposed = false;
@@ -133,16 +145,21 @@ namespace MVCore.GMDL
             }
         }
 
+        public List<Component> Components
+        {
+            get {
+                return _components;
+            }
+        }
+
+
+        //Methods
+
 
         public abstract model Clone();
 
         public virtual void update()
         {
-            //Update Local Transformation Matrix
-
-            //Combine localRotation and Position to return the localMatrix
-            //Option 1 use the quaternion - AGAIN NOT FUCKING WORKING FUCK MY LIFE
-            //Matrix4 rot1 = Matrix4.CreateFromQuaternion(localRotationQuaternion);
 
             if (changed)
             {
@@ -160,9 +177,7 @@ namespace MVCore.GMDL
             //Finally Update world Transformation Matrix
             if (parent != null)
             {
-                //Original working
                 worldMat = localMat * parent.worldMat;
-                //return this.localMat;
             }
 
             else
@@ -171,19 +186,14 @@ namespace MVCore.GMDL
             //Update worldPosition
             if (parent != null)
             {
-                //Original working
-                //return parent.worldPosition + Vector3.Transform(this.localPosition, parent.worldMat);
-
                 //Add Translation as well
                 worldPosition = (Vector4.Transform(new Vector4(0.0f, 0.0f, 0.0f, 1.0f), this.worldMat)).Xyz;
             }
-
             else
                 worldPosition = localPosition;
 
 
             //Trigger the position update of all children nodes
-            
             foreach (GMDL.model child in children)
             {
                 child.update();
@@ -262,6 +272,12 @@ namespace MVCore.GMDL
             _localPoseMatrix = Matrix4.Identity;
             
             cIndex = 0;
+
+            //Component Init
+            _components = new List<Component>();
+            animComponentID = -1;
+            animPoseComponentID = -1;
+
     }
 
 
@@ -293,6 +309,134 @@ namespace MVCore.GMDL
                 this.children.Add(nChild);
             }
         }
+
+
+        #region ComponentQueries
+        public int hasComponent(Type ComponentType)
+        {
+            for (int i = 0; i < _components.Count; i++)
+            {
+                Component temp = _components[i];
+                if (temp.GetType() == ComponentType)
+                    return i;
+            }
+
+            return -1;
+        }
+
+        #endregion
+
+
+        #region AnimationComponent
+
+        public void resetPose()
+        {
+            if (animComponentID < 0)
+                return;
+
+            AnimComponent ac = _components[animComponentID] as AnimComponent;
+
+            foreach (Joint j in ac.jointDict.Values)
+                j.localPoseMatrix = Matrix4.Identity;
+        }
+
+        //TODO Add button in the UI to toggle that shit
+        private void resetAnimation()
+        {
+            if (animComponentID < 0)
+                return;
+
+            AnimComponent ac = _components[animComponentID] as AnimComponent;
+
+            foreach (Joint j in ac.jointDict.Values)
+            {
+                j._localScale = j.BindMat.ExtractScale();
+                j._localRotation = Matrix4.CreateFromQuaternion(j.BindMat.ExtractRotation());
+                j._localPosition = j.BindMat.ExtractTranslation();
+                j._localPoseMatrix = Matrix4.Identity;
+            }
+        }
+
+        #endregion
+
+        #region AnimPoseComponent
+        //TODO: It would be nice if I didn't have to do make the method public, but it needs a lot of work on the 
+        //AnimPoseComponent class to temporarily store the selected pose frames, while also in the model.update method
+
+        //Locator Animation Stuff
+        public void loadPose()
+        {
+            if (animPoseComponentID < 0)
+                return;
+            if (animComponentID < 0)
+                return;
+
+            AnimPoseComponent apc = _components[animPoseComponentID] as AnimPoseComponent;
+            AnimComponent ac = _components[animComponentID] as AnimComponent;
+
+            foreach (TkAnimNodeData node in apc._poseFrameData.NodeData)
+            {
+                if (!ac.jointDict.ContainsKey(node.Node))
+                    continue;
+
+                //We should interpolate frame shit over all the selected Pose Data
+                List<Matrix4> framePoseMatrices = new List<Matrix4>();
+                List<float> framePoseMatricesNorms = new List<float>();
+                List<int> IDs = new List<int>();
+                for (int i = 0; i < apc._poseData.Count; i++)
+                {
+                    //Get Pose Frame
+                    int poseFrameIndex = apc._poseData[i].PActivePoseFrame;
+
+                    Vector3 v_t, v_s;
+                    Quaternion lq;
+                    //Fetch Rotation Quaternion
+                    lq = NMSUtils.fetchRotQuaternion(node, apc._poseFrameData, poseFrameIndex);
+                    v_t = NMSUtils.fetchTransVector(node, apc._poseFrameData, poseFrameIndex);
+                    v_s = NMSUtils.fetchScaleVector(node, apc._poseFrameData, poseFrameIndex);
+
+                    //Generate Transformation Matrix
+                    Matrix4 poseMat = Matrix4.CreateScale(v_s) * Matrix4.CreateFromQuaternion(lq) * Matrix4.CreateTranslation(v_t);
+
+                    framePoseMatricesNorms.Add(MathUtils.Matrix4Norm(poseMat, ac.jointDict[node.Node].BindMat));
+                    framePoseMatrices.Add(poseMat);
+                    IDs.Add(i);
+                }
+
+                //Do some sorting
+                IDs = IDs.OrderBy(d => framePoseMatricesNorms[d]).ToList();
+
+                //Keep just the last matrix
+                Matrix4 framePoseMatrix = framePoseMatrices[IDs[IDs.Count - 1]];
+
+
+                if (framePoseMatrices.Count == 0)
+                {
+                    ac.jointDict[node.Node].localPoseMatrix = Matrix4.Identity;
+                }
+                else
+                {
+                    /* Weight multiple matrices
+                    //Calculate frame weight
+                    float w_m = 1.0f / framePoseMatrices.Count;
+
+                    //Accumulate transforms
+                    Matrix4 finalPoseMat = Matrix4.Zero;
+                    for (int i = 0; i < framePoseMatrices.Count; i++)
+                        finalPoseMat += framePoseMatrices[i] * w_m;
+
+                    */
+                    //Use just the selected matrix
+                    Matrix4 finalPoseMat = framePoseMatrix;
+
+                    ac.jointDict[node.Node].localPoseMatrix = finalPoseMat * ac.jointDict[node.Node].invBMat;
+                }
+            }
+        }
+
+        #endregion
+
+
 
         public void Dispose()
         {
@@ -393,49 +537,8 @@ namespace MVCore.GMDL
     {
         int vao_id;
         public float scale;
-        public TkAttachmentData attachment = null;
-
-        //Animation Stuff
-        //Joint Data
-        public float[] JMArray;
-        public float[] skinMats; //Final Matrices
-        public float[] invBMats; //Joint Inverse Bound Matrices
-        public Dictionary<string, Joint> jointDict;
-        public Dictionary<string, model> modelDict; //This will probably replace the jointDict since it seems like animations contain data for all nodes
         
-        public ICommand ApplyPose
-        {
-            get { return new ApplyPoseCommand();}
-        }
-
-        public ICommand ResetPose
-        {
-            get { return new ResetPoseCommand(); }
-        }
-
-        //animations list Contains all the animations bound to the locator through Tkanimationcomponent
-        public List<AnimData> _animations = new List<AnimData>();
-        public List<AnimData> Animations
-        {
-            get
-            {
-                return _animations;
-            }
-        }
-
-        public TkAnimMetadata animMeta = null;
-        public int frameCounter = 0;
-        public int poseIndex = 0;
-
-        //AnimationPoseData
-        public List<AnimPoseData> _poseData = new List<AnimPoseData>();
-        public TkAnimMetadata _poseFrameData = null; //Stores the actual poseFrameData
-        public List<AnimPoseData> poseData
-        {
-            get {
-                return _poseData;
-            }
-        }
+        //Animation Stuff
         
         //Default Constructor
         public locator(float s)
@@ -451,12 +554,6 @@ namespace MVCore.GMDL
                 MVCore.Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
                 MVCore.Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
 
-            //Init Animation Stuff
-            JMArray = new float[256 * 16];
-            skinMats = new float[256 * 16];
-            invBMats = new float[256 * 16];
-            modelDict = new Dictionary<string, model>();
-            jointDict = new Dictionary<string, Joint>();
         }
 
         public void copyFrom(locator input)
@@ -466,13 +563,6 @@ namespace MVCore.GMDL
             this.scale = input.scale;
             this.vao_id = input.vao_id;
 
-            //ANIMATION DATA
-            this.modelDict = new Dictionary<string, model>();
-            this.jointDict = new Dictionary<string, Joint>();
-            this.JMArray = (float[])input.JMArray.Clone();
-
-            this.animMeta = input.animMeta;
-            this._poseData = input._poseData;
         }
 
         protected locator(locator input) : base(input)
@@ -496,35 +586,25 @@ namespace MVCore.GMDL
                     // TODO: dispose managed state (managed objects).
                     vao_id = -1; //VAO will be deleted from the resource manager since it is a common mesh
                     shader_programs = null;
-                    skinMats = null;
-                    invBMats = null;
-                    JMArray = null;
-
-                    modelDict.Clear();
-                    jointDict.Clear();
-
-                    animMeta = null;
-
                     base.Dispose(disposing);
                 }
-
+                disposed = true;
             }
         }
 
         
         #endregion
 
-        private void renderMain(int pass)
+        private void renderMain(GLSLHelper.GLSLShaderConfig shader)
         {
             //Console.WriteLine("Rendering Locator {0}", this.name);
             //Console.WriteLine("Rendering VBO Object here");
             //VBO RENDERING
-            GL.UseProgram(pass);
+            GL.UseProgram(shader.program_id);
 
             //Upload scale
 
-            int loc = GL.GetUniformLocation(pass, "scale");
-            GL.Uniform1(loc, scale);
+            GL.Uniform1(shader.uniformLocations["scale"], scale);
 
             GL.BindVertexArray(vao_id);
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
@@ -535,15 +615,15 @@ namespace MVCore.GMDL
         }
 
 
-        public override bool render(int pass)
+        public override bool render(RENDERTYPE pass)
         {
 
-            int program = this.shader_programs[pass].program_id;
+            GLSLHelper.GLSLShaderConfig shader = shader_programs[(int)pass];
 
             switch (pass)
             {
                 case 0:
-                    renderMain(program);
+                    renderMain(shader);
                     break;
                 default:
                     break;
@@ -551,118 +631,6 @@ namespace MVCore.GMDL
             
 
             return true;
-        }
-
-
-
-        //Locator Animation Stuff
-
-
-        private class ApplyPoseCommand : ICommand
-        {
-            event EventHandler ICommand.CanExecuteChanged
-            {
-                add { }
-                remove { }
-            }
-
-            bool ICommand.CanExecute(object parameter)
-            {
-                return true;
-            }
-
-            void ICommand.Execute(object parameter)
-            {
-                locator node = parameter as locator;
-                node.loadPose();
-            }
-        }
-
-        private class ResetPoseCommand : ICommand
-        {
-            event EventHandler ICommand.CanExecuteChanged
-            {
-                add { }
-                remove { }
-            }
-
-            bool ICommand.CanExecute(object parameter)
-            {
-                return true;
-            }
-
-            void ICommand.Execute(object parameter)
-            {
-                locator node = parameter as locator;
-                node.resetPose();
-            }
-        }
-
-
-        private void resetPose()
-        {
-            foreach (Joint j in jointDict.Values)
-                j.localPoseMatrix = Matrix4.Identity;
-        }
-
-        //TODO Add button in the UI to toggle that shit
-        private void resetAnimation()
-        {
-            foreach (Joint j in jointDict.Values)
-            {
-                j._localScale = j.BindMat.ExtractScale();
-                j._localRotation = Matrix4.CreateFromQuaternion(j.BindMat.ExtractRotation());
-                j._localPosition = j.BindMat.ExtractTranslation();
-                j._localPoseMatrix = Matrix4.Identity;
-            }
-        }
-
-        private void loadPose()
-        {
-            foreach (TkAnimNodeData node in _poseFrameData.NodeData)
-            {
-                if (!jointDict.ContainsKey(node.Node))
-                    continue;
-                
-                //We should interpolate frame shit over all the selected Pose Data
-                List<Matrix4> framePoseMatrices = new List<Matrix4>();
-                for (int i = 0; i < _poseData.Count; i++)
-                {
-                    //Get Pose Frame
-                    int poseFrameIndex = _poseData[i].PActivePoseFrame;
-
-                    Vector3 v_t, v_s;
-                    Quaternion lq;
-                    //Fetch Rotation Quaternion
-                    lq = NMSUtils.fetchRotQuaternion(node, _poseFrameData, poseFrameIndex);
-                    v_t = NMSUtils.fetchTransVector(node, _poseFrameData, poseFrameIndex);
-                    v_s = NMSUtils.fetchScaleVector(node, _poseFrameData, poseFrameIndex);
-
-                    //Generate Transformation Matrix
-                    Matrix4 poseMat = Matrix4.CreateScale(v_s) * Matrix4.CreateFromQuaternion(lq) * Matrix4.CreateTranslation(v_t);
-                    
-                    if (MathUtils.Matrix4Norm(poseMat, jointDict[node.Node].BindMat) > 1e-4f)
-                        framePoseMatrices.Add(poseMat);
-                }
-
-                if (framePoseMatrices.Count == 0)
-                {
-                    jointDict[node.Node].localPoseMatrix = Matrix4.Identity;
-                }
-                else
-                {
-                    //Calculate frame weight
-                    float w_m = 1.0f / framePoseMatrices.Count;
-
-                    //Accumulate transforms
-                    Matrix4 finalPoseMat = Matrix4.Zero;
-                    for (int i = 0; i < framePoseMatrices.Count; i++)
-                        finalPoseMat += framePoseMatrices[i] * w_m;
-
-                    jointDict[node.Node].localPoseMatrix = finalPoseMat * jointDict[node.Node].invBMat;
-                }
-
-            }
         }
 
         
@@ -746,7 +714,7 @@ namespace MVCore.GMDL
         public mainVAO bsh_Vao;
         public mainVAO bhull_Vao;
         public GeomObject gobject; //Ref to the geometry shit
-        public locator animScene; //Ref to connected animScene
+        public model animScene; //Ref to connected animScene
 
         //Constructor
         public meshModel()
@@ -996,8 +964,12 @@ namespace MVCore.GMDL
             GL.BindVertexArray(0);
         }
 
-        private void renderBHull(GLSLHelper.GLSLShaderConfig shaders) {
-            
+        private void renderBHull(GLSLHelper.GLSLShaderConfig shader) {
+            GL.UseProgram(shader.program_id);
+
+
+            GL.Uniform1(shader.uniformLocations["scale"], 1.0f);
+
             //I ASSUME THAT EVERYTHING I NEED IS ALREADY UPLODED FROM A PREVIOUS PASS
             GL.PointSize(10.0f);
             GL.BindVertexArray(bhull_Vao.vao_id);
@@ -1045,28 +1017,30 @@ namespace MVCore.GMDL
             GL.BindVertexArray(0);
         }
 
-        public override bool render(int pass)
+        public override bool render(RENDERTYPE pass)
         {
-            int program = shader_programs[pass].program_id;
+            GLSLHelper.GLSLShaderConfig shader = shader_programs[(int) pass];
 
             //Render Object
             switch (pass)
             {
                 //Render Main
-                case 0:
-                    renderMain(shader_programs[pass]);
+                case RENDERTYPE.MAIN:
+                    renderMain(shader);
                     //renderBSphere(MVCore.Common.RenderState.activeResMgr.GLShaders["BBOX_SHADER"]);
                     //renderBbox(MVCore.Common.RenderState.activeResMgr.GLShaders["BBOX_SHADER"]);
-                    if (Common.RenderOptions.RenderBoundHulls)
-                        renderBHull(shader_programs[pass]);
+                    break;
+                //Render Bound Hull
+                case RENDERTYPE.BHULL:
+                    renderBHull(shader);
                     break;
                 //Render Debug
-                case 1:
-                    renderDebug(program);
+                case RENDERTYPE.DEBUG:
+                    renderDebug(shader.program_id);
                     break;
                 //Render for Picking
-                case 2:
-                    renderDebug(program);
+                case RENDERTYPE.PICK:
+                    renderDebug(shader.program_id);
                     break;
                 default:
                     //Do nothing in any other case
@@ -1078,12 +1052,16 @@ namespace MVCore.GMDL
 
         public override void update()
         {
-            //Update the mesh remap matrices and continue with the transform updates
-            for (int i = 0; i < BoneRemapIndicesCount; i++)
+            if (skinned > 0)
             {
-                Array.Copy(animScene.skinMats, BoneRemapIndices[i] * 16, BoneRemapMatrices, i * 16, 16);
+                AnimComponent ac = animScene.Components[animScene.animComponentID] as AnimComponent;
+                //Update the mesh remap matrices and continue with the transform updates
+                for (int i = 0; i < BoneRemapIndicesCount; i++)
+                {
+                    Array.Copy(ac.skinMats, BoneRemapIndices[i] * 16, BoneRemapMatrices, i * 16, 16);
+                }
             }
-
+            
             base.update();
         }
 
@@ -1349,8 +1327,9 @@ namespace MVCore.GMDL
             collisionType = input.collisionType;
         }
 
-        public override bool render(int pass)
+        public override bool render(RENDERTYPE pass)
         {
+            GLSLHelper.GLSLShaderConfig shader = shader_programs[(int) pass];
 
             if (this.main_Vao == null)
             {
@@ -1363,13 +1342,12 @@ namespace MVCore.GMDL
             switch (pass)
             {
                 //Render Main
-                case 0:
-                    renderMain(shader_programs[pass]);
+                case RENDERTYPE.MAIN:
+                    renderMain(shader);
                     break;
                 //Render Debug
-                case 1:
-                    program = shader_programs[pass].program_id;
-                    renderDebug(program);
+                case RENDERTYPE.DEBUG:
+                    renderDebug(shader.program_id);
                     break;
                 default:
                     //Do nothing otherwise
@@ -1446,8 +1424,9 @@ namespace MVCore.GMDL
         public Decal(Decal input) : base(input) { }
 
         
-        public override bool render(int pass)
+        public override bool render(RENDERTYPE pass)
         {
+            GLSLHelper.GLSLShaderConfig shader = shader_programs[(int)pass];
             if (this.main_Vao == null)
             {
                 //Console.WriteLine("Not Renderable");
@@ -1461,7 +1440,7 @@ namespace MVCore.GMDL
             {
                 //Render Main
                 case 0:
-                    renderMain(shader_programs[pass]);
+                    renderMain(shader);
                     break;
                 default:
                     //Do nothing otherwise
@@ -1888,6 +1867,7 @@ namespace MVCore.GMDL
         public MyTextureUnit texUnit;
         public Texture tex;
         public textureManager texMgr; //For now it should be inherited from the scene. In the future I can use a delegate
+        public bool isProcGen = false;
 
         //Override Properties
         public string PName
@@ -1969,20 +1949,27 @@ namespace MVCore.GMDL
         public void prepTextures()
         {
             string[] split = Map.Split('.');
-            //Construct main filename
+
             string temp = "";
-            for (int i = 0; i < split.Length - 1; i++)
-                temp += split[i] + ".";
-            string texMbin = temp + "TEXTURE.MBIN";
-            texMbin = Path.GetFullPath(Path.Combine(FileUtils.dirpath, texMbin));
-
-
-            //Detect Procedural Texture
-            if (File.Exists(texMbin))
+            if (Name == "mpCustomPerMaterial.gDiffuseMap")
             {
-                TextureMixer.combineTextures(Map, Palettes.paletteSel, ref texMgr);
-            }
+                //Check if the sampler describes a proc gen texture
+                temp = split[0] + ".";
+                //Construct main filename
 
+                string texMbin = temp + "TEXTURE.MBIN";
+                texMbin = Path.GetFullPath(Path.Combine(FileUtils.dirpath, texMbin));
+
+                //Detect Procedural Texture
+                if (File.Exists(texMbin))
+                {
+                    TextureMixer.combineTextures(Map, Palettes.paletteSel, ref texMgr);
+                    //Override Map
+                    Map = temp + "DDS";
+                    isProcGen = true;
+                }
+            }
+            
             //Load the texture to the sampler
             loadTexture();
         }
@@ -2005,8 +1992,8 @@ namespace MVCore.GMDL
                 tex = new Texture(Map);
                 tex.palOpt = new PaletteOpt(false);
                 tex.procColor = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
-                //Store to resource
-                texMgr.addTexture(tex);
+                //At this point this should be a common texture. Store it to the master texture manager
+                Common.RenderState.activeResMgr.texMgr.addTexture(tex);
             }
 
         }
@@ -2127,7 +2114,6 @@ namespace MVCore.GMDL
         public float[] material_flags = new float[64];
         public string name_key = "";
         public textureManager texMgr;
-
 
         public string PName
         {
@@ -2267,6 +2253,42 @@ namespace MVCore.GMDL
                 PSamplers[s.PName] = s;
             }
 
+
+            //Workaround for Procedurally Generated Samplers
+            //I need to check if the diffuse sampler is procgen and then force the maps
+            //on the other samplers with the appropriate names
+
+            foreach (Sampler s in PSamplers.Values)
+            {
+                //Check if the first sampler is procgen
+                if (s.isProcGen)
+                {
+                    string name = s.Map;
+
+                    //Properly assemble the mask and the normal map names
+
+                    string[] split = name.Split('.');
+                    string pre_ext_name = "";
+                    for (int i = 0; i < split.Length-1; i++)
+                        pre_ext_name += split[i] + '.';
+
+                    if (PSamplers.ContainsKey("mpCustomPerMaterial.gMasksMap"))
+                    {
+                        string new_name = pre_ext_name + "MASKS.DDS";
+                        PSamplers["mpCustomPerMaterial.gMasksMap"].PMap = new_name;
+                        PSamplers["mpCustomPerMaterial.gMasksMap"].tex = PSamplers["mpCustomPerMaterial.gMasksMap"].texMgr.getTexture(new_name);
+                    }
+
+                    if (PSamplers.ContainsKey("mpCustomPerMaterial.gNormalMap"))
+                    {
+                        string new_name = pre_ext_name + "NORMAL.DDS";
+                        PSamplers["mpCustomPerMaterial.gNormalMap"].PMap = new_name;
+                        PSamplers["mpCustomPerMaterial.gNormalMap"].tex = PSamplers["mpCustomPerMaterial.gNormalMap"].texMgr.getTexture(new_name);
+                    }
+                    break;
+                }
+            }
+                
             MVCore.Common.CallBacks.Log("\n");
         }
 
@@ -2454,7 +2476,8 @@ namespace MVCore.GMDL
         public static List<float[]> avgColourings = new List<float[]>(8);
         private static int[] old_vp_size = new int[4];
 
-        public static void combineTextures(string path, Dictionary<string, Dictionary<string, Vector4>> pal_input, ref textureManager texMgr)
+
+        public static void clear()
         {
             //Cleanup temp buffers
             difftextures.Clear();
@@ -2467,19 +2490,22 @@ namespace MVCore.GMDL
                 difftextures.Add(null);
                 masktextures.Add(null);
                 normaltextures.Add(null);
-                reColourings.Add(new float[] { 1.0f, 1.0f, 1.0f, 0.0f });
+                reColourings.Add(new float[] { 0.0f, 0.0f, 0.0f, 0.0f });
                 avgColourings.Add(new float[] { 0.5f, 0.5f, 0.5f, 0.5f });
                 palOpts.Add(null);
             }
+        }
+
+        public static void combineTextures(string path, Dictionary<string, Dictionary<string, Vector4>> pal_input, ref textureManager texMgr)
+        {
+            clear();
             palette = pal_input;
 
             //Contruct .mbin file from dds
             string[] split = path.Split('.');
             //Construct main filename
-            string temp = "";
-            for (int i = 0; i < split.Length - 1; i++)
-                temp += split[i] + ".";
-
+            string temp = split[0] + ".";
+            
             string mbinPath = temp + "TEXTURE.MBIN";
             mbinPath = Path.GetFullPath(Path.Combine(FileUtils.dirpath, mbinPath));
 
@@ -2510,7 +2536,7 @@ namespace MVCore.GMDL
 
             revertFrameBuffer(fbo, fbo_tex);
 
-            //Add the new textures to the textureManager
+            //Add the new procedural textures to the textureManager
             texMgr.addTexture(diffTex);
             texMgr.addTexture(maskTex);
             texMgr.addTexture(normalTex);
@@ -2534,21 +2560,20 @@ namespace MVCore.GMDL
 
             List<TkProceduralTexture> texList = new List<TkProceduralTexture>(8);
             for (int i = 0; i < 8; i++) texList.Add(null);
-            ModelProcGen.parse_procTexture(ref texList, template);
+            ModelProcGen.parse_procTexture(ref texList, template, ref Common.RenderState.activeResMgr);
 
-#if DEBUG
-            Console.WriteLine("Proc Texture Selection");
+
+            Common.CallBacks.Log("Proc Texture Selection");
             for (int i = 0; i < 8; i++)
             {
                 if (texList[i] != null)
                 {
                     string partNameDiff = texList[i].Diffuse;
-                    Console.WriteLine(partNameDiff);
+                    Common.CallBacks.Log(partNameDiff);
                 }
             }
 
-#endif
-            Console.WriteLine("Procedural Material. Trying to generate procTextures...");
+            Common.CallBacks.Log("Procedural Material. Trying to generate procTextures...");
 
             for (int i = 0; i < 8; i++)
             {
@@ -2600,9 +2625,9 @@ namespace MVCore.GMDL
                         Texture tex = new Texture(partNameDiff);
                         tex.palOpt = palOpt;
                         tex.procColor = palColor;
-                        //Store to texture manager
-                        texMgr.addTexture(tex);
-
+                        //Store to master texture manager
+                        Common.RenderState.activeResMgr.texMgr.addTexture(tex);
+                        
                         //Save Texture to material
                         difftextures[i] = tex;
                         baseLayersUsed[i] = 1.0f;
@@ -2638,7 +2663,8 @@ namespace MVCore.GMDL
                     try
                     {
                         Texture texmask = new Texture(partNameMask);
-                        texMgr.addTexture(texmask);
+                        //Store to master texture manager
+                        Common.RenderState.activeResMgr.texMgr.addTexture(texmask);
                         //Store Texture to material
                         masktextures[i] = texmask;
                         alphaLayersUsed[i] = 0.0f;
@@ -2674,8 +2700,8 @@ namespace MVCore.GMDL
                     try
                     {
                         Texture texnormal = new Texture(partNameNormal);
-                        //store to global dict
-                        texMgr.addTexture(texnormal);
+                        //Store to master texture manager
+                        Common.RenderState.activeResMgr.texMgr.addTexture(texnormal);
                         //Store Texture to material
                         normaltextures[i] = texnormal;
                     }
@@ -2753,7 +2779,7 @@ namespace MVCore.GMDL
             GL.DeleteTexture(fbo_tex);
         }
 
-        private static Texture mixDiffuseTextures(int texWidth, int texHeight)
+        public static Texture mixDiffuseTextures(int texWidth, int texHeight)
         {
             //Upload Textures
 
@@ -3441,7 +3467,7 @@ namespace MVCore.GMDL
 
         }
 
-        public override bool render(int pass)
+        public override bool render(RENDERTYPE pass)
         {
             
             if (this.children.Count == 0)
@@ -3453,7 +3479,7 @@ namespace MVCore.GMDL
             {
                 //Render Main
                 case 0:
-                    program = shader_programs[pass].program_id;
+                    program = shader_programs[(int) pass].program_id;
                     renderMain(program);
                     break;
                 default:
@@ -3571,9 +3597,9 @@ namespace MVCore.GMDL
             GL.DisableVertexAttribArray(0);
         }
 
-        public override bool render(int pass)
+        public override bool render(RENDERTYPE pass)
         {
-            int program = shader_programs[pass].program_id;
+            int program = shader_programs[(int) pass].program_id;
 
             switch (pass)
             {
@@ -3608,6 +3634,217 @@ namespace MVCore.GMDL
 
 
     //Animation Classes
+
+    //model Components
+    //TODO Move them somewhere else
+    public class Component : IDisposable
+    {
+
+        #region IDisposable Support
+        private bool disposedValue = false; // To detect redundant calls
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    
+                }
+
+                disposedValue = true;
+            }
+        }
+
+        // This code added to correctly implement the disposable pattern.
+        public void Dispose()
+        {
+            Dispose(true);
+        }
+        #endregion
+    };
+
+    
+    public class AnimComponent : Component
+    {
+        //Joint Data
+        public float[] JMArray;
+        public float[] skinMats; //Final Matrices
+        public float[] invBMats; //Joint Inverse Bound Matrices
+        public Dictionary<string, Joint> jointDict;
+        public Dictionary<string, model> modelDict; //This will probably replace the jointDict since it seems like animations contain data for all nodes
+
+        //animations list Contains all the animations bound to the locator through Tkanimationcomponent
+        public List<AnimData> _animations = new List<AnimData>();
+        public List<AnimData> Animations
+        {
+            get
+            {
+                return _animations;
+            }
+        }
+        
+        //Default Constructor
+        public AnimComponent()
+        {
+            //Init Animation Stuff
+            JMArray = new float[256 * 16];
+            skinMats = new float[256 * 16];
+            invBMats = new float[256 * 16];
+            modelDict = new Dictionary<string, model>();
+            jointDict = new Dictionary<string, Joint>();
+        }
+
+        public AnimComponent(TkAnimationComponentData data)
+        {
+            //Init Animation Stuff
+            JMArray = new float[256 * 16];
+            skinMats = new float[256 * 16];
+            invBMats = new float[256 * 16];
+            modelDict = new Dictionary<string, model>();
+            jointDict = new Dictionary<string, Joint>();
+
+            //Load Animations
+            _animations.Add(new AnimData(data.Idle)); //Add Idle Animation
+            for (int i = 0; i < data.Anims.Count; i++)
+            {
+                AnimData my_ad = new AnimData(data.Anims[i]);
+                _animations.Add(my_ad);
+            }
+        }
+
+        public void copyFrom(AnimComponent input)
+        {
+            //Base class is dummy
+            //base.copyFrom(input); //Copy stuff from base class
+
+            //ANIMATION DATA
+            modelDict = new Dictionary<string, model>();
+            jointDict = new Dictionary<string, Joint>();
+            JMArray = (float[])input.JMArray.Clone();
+
+            //TODO: Copy Animations
+            
+        }
+
+        protected AnimComponent(AnimComponent input)
+        {
+            this.copyFrom(input);
+        }
+
+        #region IDisposable Support
+        private bool disposed = false; // To detect redundant calls
+        protected override void Dispose(bool disposing)
+        {
+            if (!disposed)
+            {
+                if (disposing)
+                {
+                    skinMats = null;
+                    invBMats = null;
+                    JMArray = null;
+
+                    modelDict.Clear();
+                    jointDict.Clear();
+
+                    base.Dispose(disposing);
+                }
+                disposed = true;
+            }
+        }
+        
+        #endregion
+
+    }
+
+
+    public class AnimPoseComponent: Component
+    {
+        public model ref_object = null;
+        public TkAnimMetadata animMeta = null;
+        //AnimationPoseData
+        public List<AnimPoseData> _poseData = new List<AnimPoseData>();
+        public TkAnimMetadata _poseFrameData = null; //Stores the actual poseFrameData
+        public List<AnimPoseData> poseData
+        {
+            get
+            {
+                return _poseData;
+            }
+        }
+
+        public ICommand ApplyPose
+        {
+            get { return new ApplyPoseCommand(); }
+        }
+
+        public ICommand ResetPose
+        {
+            get { return new ResetPoseCommand(); }
+        }
+
+        //Default Constructor
+        public AnimPoseComponent(TkAnimPoseComponentData apcd)
+        {
+            _poseFrameData = (TkAnimMetadata) NMSUtils.LoadNMSFile(Path.GetFullPath(Path.Combine(FileUtils.dirpath, apcd.Filename)));
+
+            //Load PoseAnims
+            for (int i = 0; i < apcd.PoseAnims.Count; i++)
+            {
+                AnimPoseData my_apd = new AnimPoseData(apcd.PoseAnims[i]);
+                poseData.Add(my_apd);
+            }
+        }
+        
+        //ICommands
+
+        private class ApplyPoseCommand : ICommand
+        {
+            event EventHandler ICommand.CanExecuteChanged
+            {
+                add { }
+                remove { }
+            }
+
+            bool ICommand.CanExecute(object parameter)
+            {
+                return true;
+            }
+
+            void ICommand.Execute(object parameter)
+            {
+                AnimPoseComponent apc = parameter as AnimPoseComponent;
+                apc.ref_object.loadPose();
+            }
+        }
+
+        private class ResetPoseCommand : ICommand
+        {
+            event EventHandler ICommand.CanExecuteChanged
+            {
+                add { }
+                remove { }
+            }
+
+            bool ICommand.CanExecute(object parameter)
+            {
+                return true;
+            }
+
+            void ICommand.Execute(object parameter)
+            {
+                AnimPoseComponent apc = parameter as AnimPoseComponent;
+                apc.ref_object.resetPose();
+            }
+        }
+
+    }
+
+
+    
+
+
+
     public class AnimNodeFrameData
     {
         public List<OpenTK.Quaternion> rotations = new List<OpenTK.Quaternion>();
@@ -3713,6 +3950,7 @@ namespace MVCore.GMDL
     }
 
 
+
     public class AnimMetadata: TkAnimMetadata
     {
 
@@ -3727,7 +3965,7 @@ namespace MVCore.GMDL
         
         //Constructors
         public AnimData(TkAnimationData ad){
-            Anim = ad.Anim;
+            Anim = ad.Anim; 
             Filename = ad.Filename;
             FrameStart = ad.FrameStart;
             FrameEnd = ad.FrameEnd;
@@ -3735,7 +3973,8 @@ namespace MVCore.GMDL
             AnimType = ad.AnimType;
 
             //Load Animation File
-            loadAnimation();
+            if (Filename != "")
+                loadAnimation();
         }
         
         //Properties

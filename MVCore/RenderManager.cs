@@ -305,7 +305,7 @@ namespace MVCore
 
         #region Rendering Methods
 
-        private void renderStatic(int pass)
+        private void renderMain()
         {
             //At first render the static meshes
             GL.Enable(EnableCap.Texture2D);
@@ -318,28 +318,20 @@ namespace MVCore
                 {
                     if (m.type == TYPES.MESH)
                     {
-                        //Object program
-                        //Local Transformation is the same for all objects 
-                        //Pending - Personalize local matrix on each object
-                        //loc = GL.GetUniformLocation(active_program, "light");
-                        //GL.Uniform3(loc, resMgr.GLlights[0].localPosition);
-
-                        //Upload Light Intensity
-                        //loc = GL.GetUniformLocation(active_program, "intensity");
-                        //GL.Uniform1(210, resMgr.GLlights[0].intensity);
-
-                        //Upload camera position as the light
-                        //GL.Uniform3(loc, cam.Position);
-
                         //Apply frustum culling only for mesh objects
                         if (!RenderOptions.UseFrustumCulling)
                         {
                             prepareCommonPermeshUBO(m); //Update UBO based on current model
-                            m.render(pass);
-                        } else if (RenderState.activeCam.frustum_occlude((meshModel)m, Matrix4.Identity))
+                            m.render(RENDERTYPE.MAIN);
+                            if (RenderOptions.RenderBoundHulls)
+                                m.render(RENDERTYPE.BHULL);
+                        }
+                        else if (RenderState.activeCam.frustum_occlude((meshModel)m, Matrix4.Identity))
                         {
                             prepareCommonPermeshUBO(m); //Update UBO based on current model
-                            m.render(pass);
+                            m.render(RENDERTYPE.MAIN);
+                            if (RenderOptions.RenderBoundHulls)
+                                m.render(RENDERTYPE.BHULL);
                         }
                         else
                             occludedNum++;
@@ -347,20 +339,27 @@ namespace MVCore
                     else if (m.type == TYPES.JOINT && RenderOptions.RenderJoints)
                     {
                         prepareCommonPermeshUBO(m); //Update UBO based on current model
-                        m.render(pass);
+                        m.render(RENDERTYPE.MAIN);
                     }
                     else if (m.type == TYPES.COLLISION && RenderOptions.RenderCollisions)
                     {
                         prepareCommonPermeshUBO(m); //Update UBO based on current model
-                        m.render(pass);
+                        m.render(RENDERTYPE.MAIN);
                     }
                     else if (m.type == TYPES.LOCATOR || m.type == TYPES.MODEL || m.type == TYPES.LIGHT)
                     {
                         prepareCommonPermeshUBO(m); //Update UBO based on current model
-                        m.render(pass);
+                        m.render(RENDERTYPE.MAIN);
                     }
                 }
             }
+        }
+
+        
+
+        private void renderStatic()
+        {
+            renderMain();
         }
 
         private void renderTransparent(int pass)
@@ -397,7 +396,7 @@ namespace MVCore
                         if (RenderState.activeCam.frustum_occlude((meshModel)m, RenderState.rotMat))
                         {
                             prepareCommonPermeshUBO(m); //Update UBO based on current model
-                            m.render(pass);
+                            m.render(RENDERTYPE.MAIN);
                         }
                         else occludedNum++;
                     }
@@ -409,7 +408,7 @@ namespace MVCore
         }
 
         //Rendering Mechanism
-        public void render(int pass)
+        public void render()
         {
             occludedNum = 0; //Reset  Counter
 
@@ -418,8 +417,8 @@ namespace MVCore
             //Prepare UBOs
             prepareCommonPerFrameUBO();
 
-            renderStatic(pass);
-            renderTransparent(pass);
+            renderStatic();
+            renderTransparent(0);
 
             //Store the dumps
 

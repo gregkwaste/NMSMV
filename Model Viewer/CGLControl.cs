@@ -72,7 +72,7 @@ namespace Model_Viewer
             }
         }
 
-        public List<locator> animScenes = new List<locator>();
+        public List<model> animScenes = new List<model>();
         
         //Control private Managers
         public ResourceManager resMgr = new ResourceManager();
@@ -191,19 +191,15 @@ namespace Model_Viewer
             //Update per frame data
             frameUpdate();
 
-            renderMgr.render(0); //Render Everything
+            renderMgr.render(); //Render Everything
 
         }
 
         public void findAnimScenes(model node)
         {
-            if (node.type == TYPES.LOCATOR || node.type == TYPES.MODEL)
-            {
-                locator l_node = node as locator;
-                if (l_node.jointDict.Values.Count > 0)
-                    animScenes.Add(l_node);
-            }
-            
+            if (node.animComponentID >= 0)
+                animScenes.Add(node);
+
             foreach (model child in node.children)
             {
                 findAnimScenes(child);
@@ -217,18 +213,21 @@ namespace Model_Viewer
             //Fetch Updates on Joints on all animscenes
             for (int i = 0; i < animScenes.Count; i++)
             {
-                locator animScene = animScenes[i];
-                foreach (Joint j in animScene.jointDict.Values)
+                model animScene = animScenes[i];
+                AnimComponent ac = animScene._components[animScene.hasComponent(typeof(AnimComponent))] as AnimComponent;
+
+                //Update JM Array
+                foreach (Joint j in ac.jointDict.Values)
                 {
-                    MathUtils.insertMatToArray16(animScene.JMArray, j.jointIndex * 16, j.worldMat);
+                    MathUtils.insertMatToArray16(ac.JMArray, j.jointIndex * 16, j.worldMat);
                 }
 
                 //Calculate skinning matrices for each joint for each geometry object
-                MathUtils.mulMatArrays(ref animScene.skinMats, animScene.invBMats,
-                    animScene.JMArray, animScene.jointDict.Keys.Count);
+                MathUtils.mulMatArrays(ref ac.skinMats, ac.invBMats,
+                    ac.JMArray, ac.jointDict.Keys.Count);
+
             }
-
-
+            
             rootObject?.update();
 
             //Camera & Light Positions
@@ -1075,7 +1074,7 @@ namespace Model_Viewer
         private void backgroundWorker1_ProgressChanged(object sender, System.ComponentModel.ProgressChangedEventArgs e)
         {
             //Iterate in scenes
-            foreach (locator s in animScenes)
+            foreach (model s in animScenes)
             {
                 //Try to update the transformations of each locator joint by blending active animations
                 List<Vector3> translations = new List<Vector3>();
@@ -1084,7 +1083,8 @@ namespace Model_Viewer
                 
                 //Find active animations
                 List<AnimData> active_anims = new List<AnimData>();
-                foreach (AnimData ad in s.Animations)
+                AnimComponent ac = s.Components[s.animComponentID] as AnimComponent;
+                foreach (AnimData ad in ac.Animations)
                 {
                     if (ad.AnimationToggle)
                     {
@@ -1103,7 +1103,7 @@ namespace Model_Viewer
                     foreach (libMBIN.NMS.Toolkit.TkAnimNodeData node in ad.animMeta.NodeData)
                     {
 
-                        if (!s.jointDict.ContainsKey(node.Node))
+                        if (!ac.jointDict.ContainsKey(node.Node))
                             continue;
 
                         Vector3 tvec = ad.fetchTransVector(node);
@@ -1113,9 +1113,9 @@ namespace Model_Viewer
 
                         
                         //Add transforms to joint
-                        s.jointDict[node.Node].localPosition = tvec;
-                        s.jointDict[node.Node].localRotation = qmat;
-                        s.jointDict[node.Node].localScale = new Vector3(1.0f);
+                        ac.jointDict[node.Node].localPosition = tvec;
+                        ac.jointDict[node.Node].localRotation = qmat;
+                        ac.jointDict[node.Node].localScale = new Vector3(1.0f);
                     }
 
                     //TODO: For now I'm just using the first active animation. Blending should be kinda more sophisticated

@@ -85,7 +85,7 @@ vec3 calcNormal(float mipmaplevel){
 		normal = DecodeNormalMap(textureLod(mpCustomPerMaterial.gNormalMap, vec3(uv0,0.0), mipmaplevel));
   		normal = normalize(TBN * normal);
 	}
-  	return (mpCommonPerMesh.nMat * vec4(normal, 0.0)).xyz; //This is normalized in any case
+  	return (vec4(normal, 0.0)).xyz; //This is normalized in any case
 }
 
 float calcRoughness(float mipmaplevel){
@@ -136,7 +136,7 @@ void main()
 
 	 	//Try to load normal from NormalTexture as well
 	 	normal = calcNormal(mipmaplevel);
-	} else{
+	} else {
 		diffTexColor = vec4(mpCommonPerMesh.color, 1.0);
 		normal = N;
 	}
@@ -158,9 +158,14 @@ void main()
 	}
 
 	//Check _F9_TRANSPARENT
-	if (mesh_has_matflag(_F11_ALPHACUTOUT) || mesh_has_matflag(_F09_TRANSPARENT) || mesh_has_matflag(_F22_TRANSPARENT_SCALAR)) {
-		if (alpha <= 0.05) discard;
+	if (mesh_has_matflag(_F11_ALPHACUTOUT)) {
+		if (alpha < 0.45) discard;
 	}
+
+	if (mesh_has_matflag(_F09_TRANSPARENT) || mesh_has_matflag(_F22_TRANSPARENT_SCALAR)) {
+		if (alpha < 0.01) discard;
+	}
+
 	
 	float lfMetallic = calcMetallic(alpha);
 

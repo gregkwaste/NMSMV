@@ -189,7 +189,7 @@ namespace MVCore
             }
         }
 
-        public static void parse_procTexture(ref List<TkProceduralTexture> parts, TkProceduralTextureList template)
+        public static void parse_procTexture(ref List<TkProceduralTexture> parts, TkProceduralTextureList template, ref ResourceManager resMgr)
         {
             for (int i = 0; i < template.Layers.Length; i++)
             {
@@ -204,8 +204,9 @@ namespace MVCore
                 int sel;
                 if (textures.Count > 0)
                 {
-                    //Select one descriptor
+                    //Select one descriptor at random
                     sel = Common.RenderState.randgen.Next(0, textures.Count);
+
                     TkProceduralTexture texture = textures[sel];
                     string partName = texture.Diffuse;
                     parts[layerid] = texture;
