@@ -75,6 +75,36 @@
                 </Grid>
             </DataTemplate>
 
+            <DataTemplate DataType="{x:Type gmdl:Light}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}" Grid.Row="0"/>
+                    <GroupBox Header= "Light Information" Grid.Row="1">
+                        <StackPanel>
+                            <DockPanel Grid.Row="1">
+                                <TextBlock Text="Light Color"/>
+                                <ContentControl Content="{Binding Color}" Width="160" HorizontalAlignment="Right"/>
+                            </DockPanel>
+                            <DockPanel Grid.Row="2">
+                                <TextBlock Text="Light Intensity"/>
+                                <TextBox Text="{Binding Intensity}" Width="160" TextAlignment="Right" HorizontalAlignment="Right"/>
+                            </DockPanel>
+                            <DockPanel Grid.Row="3">
+                                <TextBlock Text="Light FOV"/>
+                                <TextBox Text="{Binding FOV}" Width="160" TextAlignment="Right" HorizontalAlignment="Right"/>
+                            </DockPanel>
+                            <DockPanel Grid.Row="4">
+                                <TextBlock Text="Light Attenuation"/>
+                                <TextBox Text="{Binding Attenuation}" Width="160" TextAlignment="Right" HorizontalAlignment="Right"/>
+                            </DockPanel>
+                        </StackPanel>
+                    </GroupBox>
+                </Grid>
+            </DataTemplate>
+            
             <DataTemplate DataType="{x:Type gmdl:AnimPoseData}">
                 <DockPanel>
                     <TextBlock Text="{Binding PAnim}"/>

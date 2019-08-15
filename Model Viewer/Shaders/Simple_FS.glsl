@@ -10,7 +10,8 @@
 
 //TODO: Do some queries internally and figure out the exact locations of the uniforms
 uniform CustomPerMaterialUniforms mpCustomPerMaterial;
-uniform Light light; //Support up to 4 lights for now
+uniform Light lights[16]; //Support up to 4 lights for now
+uniform int light_count;
 
 //Uniform Blocks
 layout (std140) uniform Uniforms
@@ -82,7 +83,7 @@ vec3 calcNormal(float mipmaplevel){
 	vec3 normal = normalize(N);
 	//Check _F03_NORMALMAP 63
 	if (mesh_has_matflag(_F03_NORMALMAP)) {
-		normal = DecodeNormalMap(textureLod(mpCustomPerMaterial.gNormalMap, vec3(uv0,0.0), mipmaplevel));
+		normal = DecodeNormalMap(textureLod(mpCustomPerMaterial.gNormalMap, vec3(uv0, 0.0), mipmaplevel));
   		normal = normalize(TBN * normal);
 	}
   	return (vec4(normal, 0.0)).xyz; //This is normalized in any case
@@ -111,6 +112,53 @@ vec4 ApplySelectedColor(vec4 color){
 		new_col *= vec4(0.005, 1.5, 0.005, 1.0);
 	return new_col;
 }
+
+
+vec3 calcColor(Light light, vec4 _fragPos, vec4 _fragColor, vec3 _fragNormal){
+	//General Configuration
+	float ambientStrength = 0.001;
+	float specularStrength = 0.01;
+
+	//Displace the fragment based on the normal
+	vec3 eff_fragpos = _fragPos.xyz + 0.05 * _fragNormal;
+	
+	//New light system
+	//Ambient Component
+	vec3 ambient = ambientStrength * light.color;
+
+	//Diffuse Component
+	//vec3 lightPos = vec3(1.5, 3, -1.5); //Fix light position for now
+	vec3 lightPos = light.position.xyz; //Use camera position as the light position
+	vec3 lightDir = -normalize(lightPos - eff_fragpos);
+	//vec3 lightDir = normalize(mpCommonPerFrame.cameraDirection);
+	float l_distance = distance(lightPos, _fragPos.xyz); //Calculate distance of 
+
+	float diff_coeff = max(dot(_fragNormal, -lightDir), 0.0);
+	vec3 diff = (diff_coeff * _fragColor.rgb) * light.color;
+	
+	//Calculate Light attenuation
+	float attenuation;
+	
+	//Quadratic
+	if (light.falloff == 0){
+		attenuation = (light.intensity * 0.0001 /(1 + l_distance * l_distance));
+	} else if (light.falloff == 1){
+		//Costant
+		attenuation = light.intensity;	
+	}
+
+	//Specular Component
+	vec3 viewDir = normalize(mpCommonPerFrame.cameraDirection);
+	vec3 reflectDir = reflect(-lightDir, _fragNormal);
+
+	float spec = pow(max(dot(-viewDir, reflectDir), 0.0), 16);
+	vec3 specular = (specularStrength * spec) * light.color;
+
+	return attenuation * (ambient + diff + specular);
+	//return vec3(attenuation);
+}
+
+
 
 void main()
 {	
@@ -141,12 +189,6 @@ void main()
 		normal = N;
 	}
 
-	//Light properties
-	vec3 lightColor = vec3(1.0, 1.0, 1.0);
-	//vec3 lightColor = light.color;
-	float ambientStrength = 0.001;
-	float specularStrength = 0.0;
-
 	float alpha;
 	alpha = diffTexColor.a;
 	
@@ -175,36 +217,25 @@ void main()
 	//diff += ambient * (0.5 + ((lfRoughness) * 0.5));
     //diff *= (1.0f * lightColor * bshininess + 1.0) * diffTexColor.rgb; //+ lSpecularColourVec3 * PhongApprox( lfRoughness, lfRoL );
     
-    //New light system test
+	//Apply strength to normal
+    normal.xy = 1.2 * normal.xy;
+    normal = normalize(normal);
 
-    //Ambient Component
-	vec3 ambient = ambientStrength * lightColor;
 
-	//Diffuse Component
-	//vec3 lightPos = vec3(50, 50, 50); //Fix light position for now
-	vec3 lightPos = mpCommonPerFrame.cameraPosition; //Use camera position as the light position
-	vec3 lightDir = -normalize(lightPos - fragPos.xyz);
-	//vec3 lightDir = normalize(mpCommonPerFrame.cameraDirection);
-	float l_distance = distance(lightPos, fragPos.xyz); //Calculate distance of 
-
-	float diff_coeff = max(dot(normal, -lightDir), 0.0);
-	vec3 diff = diff_coeff * diffTexColor.rgb * lightColor;
-	//diff = (1.0 /(l_distance*l_distance)) * diff; //Quadratic attenuation
-
-	//Specular Component
-	vec3 viewDir = normalize(mpCommonPerFrame.cameraDirection);
-	vec3 reflectDir = reflect(-lightDir, normal);
-
-	float spec = pow(max(dot(-viewDir, reflectDir), 0.0), 32);
-	vec3 specular = specularStrength * spec * lightColor;
-
-	if (mpCommonPerFrame.use_lighting > 0.0){
-		outcolors[0].rgb = (ambient + diff + specular);
+    if (mpCommonPerFrame.use_lighting > 0.0){
+		outcolors[0].rgb = vec3(0.0, 0.0, 0.0);
+		for (int i=1;i<light_count;i++){
+			//outcolors[0].rgb = (ambient + diff + specular);	
+			if (lights[i].renderable > 0.0f){
+				outcolors[0].rgb += calcColor(lights[i], fragPos, diffTexColor, normal);
+			}
+		}
 	} else {
-		outcolors[0].rgb = diffTexColor.rgb;	
-		//outcolors[0].rgb = vec3(1.0, 0.0, 0.0);	
+		outcolors[0].rgb = diffTexColor.rgb;
+		//outcolors[0].rgb = vec3(1.0, 0.0, 0.0);
 	}
 
+	//Fix Gamma
 	outcolors[0].rgb = fixColorGamma(outcolors[0].rgb);
 
 	//Final output

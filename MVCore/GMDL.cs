@@ -59,7 +59,7 @@ namespace MVCore.GMDL
         public int ID;
         public TYPES type;
         public string name;
-        public ObservableCollection<model> children = new ObservableCollection<model>();
+        public List<model> children = new List<model>();
         public Dictionary<string, Dictionary<string, Vector3>> palette;
         public bool procFlag; //This is used to define procgen usage
         public TkSceneNodeData nms_template;
@@ -204,7 +204,7 @@ namespace MVCore.GMDL
         public ObservableCollection<model> Children{
             get
             {
-                return children;
+                return new ObservableCollection<model>(children.OrderBy(i=>i.Name));
             }
         }
 
@@ -394,9 +394,9 @@ namespace MVCore.GMDL
                     lq = NMSUtils.fetchRotQuaternion(node, apc._poseFrameData, poseFrameIndex);
                     v_t = NMSUtils.fetchTransVector(node, apc._poseFrameData, poseFrameIndex);
                     v_s = NMSUtils.fetchScaleVector(node, apc._poseFrameData, poseFrameIndex);
-
+                    
                     //Generate Transformation Matrix
-                    Matrix4 poseMat = Matrix4.CreateScale(v_s) * Matrix4.CreateFromQuaternion(lq) * Matrix4.CreateTranslation(v_t);
+                    Matrix4 poseMat = Matrix4.CreateScale(1.0f) * Matrix4.CreateFromQuaternion(lq) * Matrix4.CreateTranslation(v_t);
 
                     framePoseMatricesNorms.Add(MathUtils.Matrix4Norm(poseMat, ac.jointDict[node.Node].BindMat));
                     framePoseMatrices.Add(poseMat);
@@ -409,8 +409,7 @@ namespace MVCore.GMDL
                 //Keep just the last matrix
                 Matrix4 framePoseMatrix = framePoseMatrices[IDs[IDs.Count - 1]];
 
-
-                if (framePoseMatrices.Count == 0)
+                if (framePoseMatricesNorms[IDs[IDs.Count - 1]] < 1e-4f)
                 {
                     ac.jointDict[node.Node].localPoseMatrix = Matrix4.Identity;
                 }
@@ -1052,7 +1051,7 @@ namespace MVCore.GMDL
 
         public override void update()
         {
-            if (skinned > 0)
+            if ((skinned > 0) && (animScene !=null))
             {
                 AnimComponent ac = animScene.Components[animScene.animComponentID] as AnimComponent;
                 //Update the mesh remap matrices and continue with the transform updates
@@ -3499,30 +3498,101 @@ namespace MVCore.GMDL
         }
     }
 
-    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    [StructLayout(LayoutKind.Explicit)]
     public struct GLLight
     {
+        [FieldOffset(0)]
         public Vector4 position;
+        [FieldOffset(16)]
         public Vector3 color;
-        public Vector3 ambient;
+        [FieldOffset(32)]
         public float intensity;
-        public float specular;
+        [FieldOffset(36)]
+        public float fov;
+        [FieldOffset(40)]
+        public int falloff;
+
+        public static readonly int SizeInBytes = 44;
+    }
+
+    public enum ATTENUATION_TYPE
+    {
+        QUADRATIC = 0x0,
+        CONSTANT,
+        COUNT
     }
     
     public class Light : model
     {
         //I should expand the light properties here
-        public Vector3 color = new Vector3(1.0f);
-        public Vector3 ambient = new Vector3(0.2f);
+        public MVector4 color = new MVector4(1.0f);
+        //public MVector4 ambient = new MVector4(0.2f);
+        public float fov = 360.0f;
+        public ATTENUATION_TYPE falloff;
+
         public float intensity = 1.0f;
-        public float specular = 0.5f;
 
         private int vertex_buffer_object;
         private int element_buffer_object;
 
+        //Properties
+        public MVector4 Color
+        {
+            get {
+                return color;
+            }
+
+            set
+            {
+                color = value;
+            }
+        }
+
+        public float FOV
+        {
+            get
+            {
+                return fov;
+            }
+
+            set
+            {
+                fov = value;
+            }
+        }
+
+        public float Intensity
+        {
+            get
+            {
+                return intensity;
+            }
+
+            set
+            {
+                intensity = value;
+            }
+        }
+
+        public string Attenuation
+        {
+            get
+            {
+                return falloff.ToString();
+            }
+
+            set
+            {
+                Enum.TryParse<ATTENUATION_TYPE>(value, out falloff);
+            }
+        }
+
         public Light()
         {
             type = TYPES.LIGHT;
+            fov = 360;
+            intensity = 1.0f;
+            falloff = ATTENUATION_TYPE.CONSTANT;
             GL.GenBuffers(1, out vertex_buffer_object);
             GL.GenBuffers(1, out element_buffer_object);
             if (GL.GetError() != ErrorCode.NoError)
@@ -3531,10 +3601,10 @@ namespace MVCore.GMDL
 
         protected Light(Light input) : base(input)
         {
-            color = input.color;
-            ambient = input.ambient;
+            Color = input.Color;
             intensity = input.intensity;
-            specular = input.specular;
+            falloff = input.falloff;
+            fov = input.fov;
             vertex_buffer_object = input.vertex_buffer_object;
             element_buffer_object = input.element_buffer_object;
         }
@@ -3543,10 +3613,10 @@ namespace MVCore.GMDL
         {
             GLLight s = new GLLight();
             s.position = new Vector4(worldPosition, 1.0f); //For now we're switching to directional lights
-            s.ambient = ambient;
-            s.color = color;
+            s.color = Color.Vec.Xyz;
             s.intensity = intensity;
-            s.specular = specular;
+            s.falloff = (int) falloff;
+            s.fov = fov;
             return s;
         }
 

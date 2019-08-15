@@ -244,13 +244,8 @@ namespace Model_Viewer
             resMgr.GLCameras[0].updateViewMatrix();
             resMgr.GLCameras[1].updateViewMatrix();
 
-            //Update Custom Light Position
-            updateLightPosition(0);
-            resMgr.GLlights[0].update(); //Update transforms
-
             //Update Frame Counter
             fps();
-
         }
 
         //Main Rendering Routines
@@ -922,6 +917,9 @@ namespace Model_Viewer
             //Setup new object
             rootObject = GEOMMBIN.LoadObjects(filename);
 
+            //Explicitly add default light to the rootObject
+            rootObject.children.Add(resMgr.GLlights[0]);
+
             //Populate RenderManager
             renderMgr.populate(rootObject);
             
@@ -941,16 +939,16 @@ namespace Model_Viewer
         {
             //Add one and only light for now
             Light light = new Light();
+            light.name = "Default Light";
             light.shader_programs = new GLSLHelper.GLSLShaderConfig[] { this.resMgr.GLShaders["LIGHT_SHADER"] };
             light.localPosition = new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                             Math.Sin(this.light_angle_y * Math.PI / 180.0)),
                                                 (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
                                                 (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                             Math.Cos(this.light_angle_y * Math.PI / 180.0)));
-
             resMgr.GLlights.Add(light);
-            resMgr.GLLight_structs.Add(light.getStruct());
         }
+
 
         public void updateLightPosition(int light_id)
         {
@@ -960,11 +958,6 @@ namespace Model_Viewer
                                                 (float)(light_distance * Math.Sin(MathUtils.radians(light_angle_x))),
                                                 (float)(light_distance * Math.Cos(MathUtils.radians(light_angle_x)) *
                                                             Math.Cos(MathUtils.radians(light_angle_y)))));
-
-            //TODO: THIS IS UGLY LIKE FUCK. FIND A WAY TO MAKE IT BETTER
-            //Update position on the struct
-            GLLight l = resMgr.GLLight_structs[light_id];
-            l.position.Xyz = light.worldPosition;
         }
 
         private void fps()
@@ -1115,7 +1108,7 @@ namespace Model_Viewer
                         //Add transforms to joint
                         ac.jointDict[node.Node].localPosition = tvec;
                         ac.jointDict[node.Node].localRotation = qmat;
-                        ac.jointDict[node.Node].localScale = new Vector3(1.0f);
+                        //ac.jointDict[node.Node].localScale = new Vector3(1.0f);
                     }
 
                     //TODO: For now I'm just using the first active animation. Blending should be kinda more sophisticated

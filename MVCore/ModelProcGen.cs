@@ -215,7 +215,7 @@ namespace MVCore
             }
         }
 
-        public static GMDL.model collectPart(ObservableCollection<GMDL.model> coll, string name)
+        public static GMDL.model collectPart(List<GMDL.model> coll, string name)
         {
             foreach (GMDL.model child in coll)
             {

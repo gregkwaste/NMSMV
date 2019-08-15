@@ -1,11 +1,12 @@
 //Light struct
 struct Light //locations:5
 {
-    vec4 position;
+    vec3 position;
     vec3 color;
     float intensity;
-    vec3 ambient;
-    float specular;
+    int fov;
+    int falloff;
+    float renderable; 
 };
 
 //Common Per Mesh Struct
@@ -30,7 +31,7 @@ struct CommonPerFrameUniforms
     mat4 mvp;
     vec3 cameraPosition;
     vec3 cameraDirection;
-    //Light lights[4];
+    int light_number;
 };
 
 //Custom Per Frame Struct

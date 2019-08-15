@@ -305,6 +305,32 @@ namespace MVCore
 
         #region Rendering Methods
 
+        private void uploadLights(GLSLHelper.GLSLShaderConfig config)
+        {
+            //Super Fucking UGLY approach but I need to start from somewhere
+
+            GL.UseProgram(config.program_id);
+
+            GL.Uniform1(config.uniformLocations["light_count"], resMgr.GLlights.Count);
+            
+            //Upload lights
+            for (int i = 0; i < resMgr.GLlights.Count; i++)
+            {
+                Light light = resMgr.GLlights[i];
+                int loc;
+                loc = GL.GetUniformLocation(config.program_id, "lights[" + i.ToString() + "].position");
+                GL.Uniform3(loc, light.worldPosition);
+                loc = GL.GetUniformLocation(config.program_id, "lights[" + i.ToString() + "].color");
+                GL.Uniform3(loc, light.color.Vec.Xyz);
+                loc = GL.GetUniformLocation(config.program_id, "lights[" + i.ToString() + "].intensity");
+                GL.Uniform1(loc, light.intensity);
+                loc = GL.GetUniformLocation(config.program_id, "lights[" + i.ToString() + "].falloff");
+                GL.Uniform1(loc, (int) light.falloff);
+                loc = GL.GetUniformLocation(config.program_id, "lights[" + i.ToString() + "].renderable");
+                GL.Uniform1(loc, light.renderable ? 1.0f: 0.0f);
+            }
+        }
+
         private void renderMain()
         {
             //At first render the static meshes
@@ -322,6 +348,7 @@ namespace MVCore
                         if (!RenderOptions.UseFrustumCulling)
                         {
                             prepareCommonPermeshUBO(m); //Update UBO based on current model
+                            uploadLights(m.shader_programs[(int) RENDERTYPE.MAIN]);
                             m.render(RENDERTYPE.MAIN);
                             if (RenderOptions.RenderBoundHulls)
                                 m.render(RENDERTYPE.BHULL);
@@ -329,6 +356,7 @@ namespace MVCore
                         else if (RenderState.activeCam.frustum_occlude((meshModel)m, Matrix4.Identity))
                         {
                             prepareCommonPermeshUBO(m); //Update UBO based on current model
+                            uploadLights(m.shader_programs[(int)RENDERTYPE.MAIN]);
                             m.render(RENDERTYPE.MAIN);
                             if (RenderOptions.RenderBoundHulls)
                                 m.render(RENDERTYPE.BHULL);
@@ -346,16 +374,20 @@ namespace MVCore
                         prepareCommonPermeshUBO(m); //Update UBO based on current model
                         m.render(RENDERTYPE.MAIN);
                     }
-                    else if (m.type == TYPES.LOCATOR || m.type == TYPES.MODEL || m.type == TYPES.LIGHT)
+                    else if (m.type == TYPES.LOCATOR || m.type == TYPES.MODEL)
                     {
                         prepareCommonPermeshUBO(m); //Update UBO based on current model
                         m.render(RENDERTYPE.MAIN);
+                    }
+                    else if (m.type == TYPES.LIGHT)
+                    {
+                        if (RenderOptions.RenderLights)
+                            m.render(RENDERTYPE.MAIN);
                     }
                 }
             }
         }
 
-        
 
         private void renderStatic()
         {
@@ -417,18 +449,15 @@ namespace MVCore
             //Prepare UBOs
             prepareCommonPerFrameUBO();
 
+
             renderStatic();
             renderTransparent(0);
 
             //Store the dumps
-
+            
             //gbuf.dump();
             //render_decals();
-
             //render_cameras();
-
-            if (RenderOptions._renderLights)
-                render_lights();
 
             //Dump Gbuffer
             //gbuf.dump();

@@ -20,13 +20,13 @@ namespace MVCore
     
     public enum TYPES
     {
-        MESH=0x0,
+        MODEL=0x0,
         LOCATOR,
         JOINT,
+        MESH,
         LIGHT,
         EMITTER,
         COLLISION,
-        MODEL,
         REFERENCE,
         DECAL,
         UNKNOWN
@@ -620,6 +620,15 @@ namespace MVCore
         }
 
 
+        private static void findAnimScenes(model node)
+        {
+            if (node.animComponentID >= 0)
+                localAnimScenes.Add(node);
+
+            foreach (model child in node.children)
+                findAnimScenes(child);
+        }
+
         private static model parseNode(TkSceneNodeData node, 
             GeomObject gobject, model parent, scene scene, model animscene)
         {
@@ -729,7 +738,7 @@ namespace MVCore
 
                 //Process Attachments
                 ProcessComponents(so, attachment_data);
-
+                model old_localAnimScene = localAnimScene; //Store the localAnimScene just in case
                 if (so.animComponentID >= 0)
                 {
                     //Set local AnimScene
@@ -817,6 +826,9 @@ namespace MVCore
                     return newso;
                 }
 
+                //Finally Order children by name
+                so.children.OrderBy(i => i.Name);
+                localAnimScene = old_localAnimScene; //Bring back the old localAnimScene
                 return so;
             }
             else if (typeEnum == TYPES.MODEL)
@@ -850,6 +862,17 @@ namespace MVCore
                 //Handle Children
                 if (children.Count > 0)
                 {
+                    children.Sort(delegate (TkSceneNodeData a, TkSceneNodeData b)
+                        {
+                            TYPES type_a, type_b;
+                            Enum.TryParse<TYPES>(a.Type, out type_a);
+                            Enum.TryParse<TYPES>(b.Type, out type_b);
+
+                            int comp = type_a.CompareTo(type_b);
+
+                            return comp;
+                        });
+                        
                     foreach (TkSceneNodeData child in children)
                     {
                         model part = parseNode(child, gobject, so, so, localAnimScene);
@@ -857,31 +880,25 @@ namespace MVCore
                     }
                 }
 
-
                 //Post Processing - Identify AnimScenes on immediate children
                 localAnimScenes.Clear();
-                foreach (model child in so.children)
+                findAnimScenes(so);
+                foreach (model child in localAnimScenes)
                 {
-                    
-                    if (child.animComponentID >= 0)
+                    AnimComponent ac = child.Components[child.animComponentID] as AnimComponent;
+                    foreach (KeyValuePair<string, Joint> kv in localJointDict)
                     {
-                        AnimComponent ac = child.Components[child.animComponentID] as AnimComponent;
-                        foreach (KeyValuePair<string, Joint> kv in localJointDict)
-                        {
-                            ac.jointDict[kv.Key] = kv.Value;
-                        }
-
-                        //Make a copy of the joing InvBMats
-                        Array.Copy(gobject.invBMats, ac.invBMats, gobject.invBMats.Length);
-
+                        ac.jointDict[kv.Key] = kv.Value;
                     }
-                }
 
+                    //Make a copy of the joing InvBMats
+                    Array.Copy(gobject.invBMats, ac.invBMats, gobject.invBMats.Length);
+
+                }
 
                 //Bring back the old localJointDict
                 localJointDict = old_localJointDict;
                 localAnimScene = old_localAnimScene;
-
 
                 //Check if root node is in the resMgr
                 if (!Common.RenderState.activeResMgr.GLScenes.ContainsKey(name))
@@ -889,6 +906,8 @@ namespace MVCore
                     Common.RenderState.activeResMgr.GLScenes[name] = so;
                 }
 
+                //Finally Order children by name
+                so.children.OrderBy(i => i.Name);
                 return so;
             }
             else if (typeEnum == TYPES.LOCATOR)
@@ -925,6 +944,7 @@ namespace MVCore
                 ProcessComponents(so, attachment_data);
 
                 //Check if locator has TkAnimationComponent 
+                model old_localAnimScene = localAnimScene;
                 if (so.animComponentID >= 0)
                 {
                     //Set local AnimScene
@@ -940,7 +960,9 @@ namespace MVCore
                         so.children.Add(part);
                     }
                 }
-
+                //Finally Order children by name
+                so.children.OrderBy(i => i.Name);
+                localAnimScene = old_localAnimScene; //Restore old_localAnimScene
                 return so;
             }
             else if (typeEnum == TYPES.JOINT)
@@ -981,7 +1003,8 @@ namespace MVCore
                         joint.children.Add(part);
                     }
                 }
-
+                //Finally Order children by name
+                joint.children.OrderBy(i => i.Name);
                 return joint;
             }
             else if (typeEnum == TYPES.REFERENCE)
@@ -1214,6 +1237,40 @@ namespace MVCore
                 return so;
 
             }
+            else if (typeEnum == TYPES.LIGHT)
+            {
+                Common.CallBacks.Log(string.Format("Parsing Light, {0}", name));
+                Light so = new Light();
+                //Set Properties
+                so.name = name;
+                so.type = TYPES.LIGHT;
+                so.nms_template = node;
+
+                so.parent = parent;
+                so.init(transforms);
+
+                //Parse Light Attributes
+                so.Color.X = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "COL_R"));
+                so.Color.Y = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "COL_G"));
+                so.Color.Z = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "COL_B"));
+                so.fov = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "FOV"));
+                so.intensity = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "INTENSITY"));
+
+                string attenuation = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "FALLOFF");
+                if (!Enum.TryParse<ATTENUATION_TYPE>(attenuation.ToUpper(), out so.falloff))
+                    throw new Exception("Light attenuation Type " + attenuation + " Not supported");
+
+                //Set Shader Program
+                so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders["LIGHT_SHADER"],
+                                                                         Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
+                                                                         Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
+
+                //Add Light to the resource Manager
+                Common.RenderState.activeResMgr.GLlights.Add(so);
+
+                return so;
+            }
+
             else
             {
                 Common.CallBacks.Log(string.Format("Unknown Type, {0}", type));

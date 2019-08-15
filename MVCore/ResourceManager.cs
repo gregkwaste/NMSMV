@@ -24,7 +24,6 @@ namespace MVCore
         public Dictionary<ulong, mainVAO> GLVaos = new Dictionary<ulong, mainVAO>();
         public Dictionary<string, mainVAO> GLPrimitiveVaos = new Dictionary<string, mainVAO>();
         public List<GMDL.Light> GLlights = new List<GMDL.Light>();
-        public List<GLLight> GLLight_structs = new List<GLLight>();
         public List<GMDL.Decal> GLDecals = new List<GMDL.Decal>();
         public List<Camera> GLCameras = new List<Camera>();
         //public Dictionary<string, int> GLShaders = new Dictionary<string, int>();
