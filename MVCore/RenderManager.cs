@@ -348,18 +348,18 @@ namespace MVCore
                         if (!RenderOptions.UseFrustumCulling)
                         {
                             prepareCommonPermeshUBO(m); //Update UBO based on current model
-                            uploadLights(m.shader_programs[(int) RENDERTYPE.MAIN]);
-                            m.render(RENDERTYPE.MAIN);
+                            uploadLights(m.shader_programs[(int)RENDERPASS.MAIN]);
+                            m.render(RENDERPASS.MAIN);
                             if (RenderOptions.RenderBoundHulls)
-                                m.render(RENDERTYPE.BHULL);
+                                m.render(RENDERPASS.BHULL);
                         }
                         else if (RenderState.activeCam.frustum_occlude((meshModel)m, Matrix4.Identity))
                         {
                             prepareCommonPermeshUBO(m); //Update UBO based on current model
-                            uploadLights(m.shader_programs[(int)RENDERTYPE.MAIN]);
-                            m.render(RENDERTYPE.MAIN);
+                            uploadLights(m.shader_programs[(int)RENDERPASS.MAIN]);
+                            m.render(RENDERPASS.MAIN);
                             if (RenderOptions.RenderBoundHulls)
-                                m.render(RENDERTYPE.BHULL);
+                                m.render(RENDERPASS.BHULL);
                         }
                         else
                             occludedNum++;
@@ -367,22 +367,22 @@ namespace MVCore
                     else if (m.type == TYPES.JOINT && RenderOptions.RenderJoints)
                     {
                         prepareCommonPermeshUBO(m); //Update UBO based on current model
-                        m.render(RENDERTYPE.MAIN);
+                        m.render(RENDERPASS.MAIN);
                     }
                     else if (m.type == TYPES.COLLISION && RenderOptions.RenderCollisions)
                     {
                         prepareCommonPermeshUBO(m); //Update UBO based on current model
-                        m.render(RENDERTYPE.MAIN);
+                        m.render(RENDERPASS.MAIN);
                     }
                     else if (m.type == TYPES.LOCATOR || m.type == TYPES.MODEL)
                     {
                         prepareCommonPermeshUBO(m); //Update UBO based on current model
-                        m.render(RENDERTYPE.MAIN);
+                        m.render(RENDERPASS.MAIN);
                     }
                     else if (m.type == TYPES.LIGHT)
                     {
                         if (RenderOptions.RenderLights)
-                            m.render(RENDERTYPE.MAIN);
+                            m.render(RENDERPASS.MAIN);
                     }
                 }
             }
@@ -428,7 +428,7 @@ namespace MVCore
                         if (RenderState.activeCam.frustum_occlude((meshModel)m, RenderState.rotMat))
                         {
                             prepareCommonPermeshUBO(m); //Update UBO based on current model
-                            m.render(RENDERTYPE.MAIN);
+                            m.render(RENDERPASS.MAIN);
                         }
                         else occludedNum++;
                     }

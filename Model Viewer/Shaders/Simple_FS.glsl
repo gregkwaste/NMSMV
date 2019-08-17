@@ -224,7 +224,7 @@ void main()
 
     if (mpCommonPerFrame.use_lighting > 0.0){
 		outcolors[0].rgb = vec3(0.0, 0.0, 0.0);
-		for (int i=1;i<light_count;i++){
+		for (int i=0;i<light_count;i++){
 			//outcolors[0].rgb = (ambient + diff + specular);	
 			if (lights[i].renderable > 0.0f){
 				outcolors[0].rgb += calcColor(lights[i], fragPos, diffTexColor, normal);

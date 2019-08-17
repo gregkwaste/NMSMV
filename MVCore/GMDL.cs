@@ -30,7 +30,15 @@ using System.Runtime.InteropServices;
 
 namespace MVCore.GMDL
 {
-    public enum RENDERTYPE
+    public enum SHADERTYPE
+    {
+        MESH = 0x0,
+        DEBUG,
+        BHULL,
+        NORMAL
+    }
+
+    public enum RENDERPASS
     {
         MAIN = 0x0,
         BHULL,
@@ -51,7 +59,7 @@ namespace MVCore.GMDL
 
     public abstract class model : IDisposable, INotifyPropertyChanged
     {
-        public abstract bool render(RENDERTYPE pass);
+        public abstract bool render(RENDERPASS pass);
         public bool renderable;
         public bool debuggable;
         public int selected;
@@ -277,7 +285,6 @@ namespace MVCore.GMDL
             _components = new List<Component>();
             animComponentID = -1;
             animPoseComponentID = -1;
-
     }
 
 
@@ -291,11 +298,25 @@ namespace MVCore.GMDL
             this.name = input.name;
             this.ID = input.ID;
             this.cIndex = input.cIndex;
+            
             //Clone transformation
             _localPosition = input._localPosition;
             _localRotationAngles = input._localRotationAngles;
             _localRotation = input._localRotation;
             _localScale = input._localScale;
+
+            //Component Stuff
+            this.animComponentID = input.animComponentID;
+            this.animPoseComponentID = input.animPoseComponentID;
+            
+            //TODO: Implement Components Clone function
+            /*
+            for (int i = 0; i < input.Components.Count; i++)
+            {
+                this.Components.Add(input.Components[i].Clone());
+            }
+            */
+
         }
 
         //Copy Constructor
@@ -614,7 +635,7 @@ namespace MVCore.GMDL
         }
 
 
-        public override bool render(RENDERTYPE pass)
+        public override bool render(RENDERPASS pass)
         {
 
             GLSLHelper.GLSLShaderConfig shader = shader_programs[(int)pass];
@@ -716,7 +737,7 @@ namespace MVCore.GMDL
         public model animScene; //Ref to connected animScene
 
         //Constructor
-        public meshModel()
+        public meshModel() : base()
         {
             type = TYPES.MESH;
         }
@@ -1016,7 +1037,7 @@ namespace MVCore.GMDL
             GL.BindVertexArray(0);
         }
 
-        public override bool render(RENDERTYPE pass)
+        public override bool render(RENDERPASS pass)
         {
             GLSLHelper.GLSLShaderConfig shader = shader_programs[(int) pass];
 
@@ -1024,21 +1045,21 @@ namespace MVCore.GMDL
             switch (pass)
             {
                 //Render Main
-                case RENDERTYPE.MAIN:
+                case RENDERPASS.MAIN:
                     renderMain(shader);
                     //renderBSphere(MVCore.Common.RenderState.activeResMgr.GLShaders["BBOX_SHADER"]);
                     //renderBbox(MVCore.Common.RenderState.activeResMgr.GLShaders["BBOX_SHADER"]);
                     break;
                 //Render Bound Hull
-                case RENDERTYPE.BHULL:
+                case RENDERPASS.BHULL:
                     renderBHull(shader);
                     break;
                 //Render Debug
-                case RENDERTYPE.DEBUG:
+                case RENDERPASS.DEBUG:
                     renderDebug(shader.program_id);
                     break;
                 //Render for Picking
-                case RENDERTYPE.PICK:
+                case RENDERPASS.PICK:
                     renderDebug(shader.program_id);
                     break;
                 default:
@@ -1326,7 +1347,7 @@ namespace MVCore.GMDL
             collisionType = input.collisionType;
         }
 
-        public override bool render(RENDERTYPE pass)
+        public override bool render(RENDERPASS pass)
         {
             GLSLHelper.GLSLShaderConfig shader = shader_programs[(int) pass];
 
@@ -1341,11 +1362,11 @@ namespace MVCore.GMDL
             switch (pass)
             {
                 //Render Main
-                case RENDERTYPE.MAIN:
+                case RENDERPASS.MAIN:
                     renderMain(shader);
                     break;
                 //Render Debug
-                case RENDERTYPE.DEBUG:
+                case RENDERPASS.DEBUG:
                     renderDebug(shader.program_id);
                     break;
                 default:
@@ -1423,7 +1444,7 @@ namespace MVCore.GMDL
         public Decal(Decal input) : base(input) { }
 
         
-        public override bool render(RENDERTYPE pass)
+        public override bool render(RENDERPASS pass)
         {
             GLSLHelper.GLSLShaderConfig shader = shader_programs[(int)pass];
             if (this.main_Vao == null)
@@ -3466,7 +3487,7 @@ namespace MVCore.GMDL
 
         }
 
-        public override bool render(RENDERTYPE pass)
+        public override bool render(RENDERPASS pass)
         {
             
             if (this.children.Count == 0)
@@ -3667,7 +3688,7 @@ namespace MVCore.GMDL
             GL.DisableVertexAttribArray(0);
         }
 
-        public override bool render(RENDERTYPE pass)
+        public override bool render(RENDERPASS pass)
         {
             int program = shader_programs[(int) pass].program_id;
 

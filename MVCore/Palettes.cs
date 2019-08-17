@@ -106,18 +106,22 @@ namespace Model_Viewer
 
             string filepath = System.IO.Path.Combine(MVCore.FileUtils.dirpath, "METADATA\\SIMULATION\\SOLARSYSTEM\\COLOURS\\BASECOLOURPALETTES.MBIN");
              
-            libMBIN.MBINFile mbinf;
+            libMBIN.MBINFile mbinf = null;
+
             try
             {
                 mbinf = new libMBIN.MBINFile(filepath);
                 mbinf.Load();
                 
-            } catch (System.IO.FileNotFoundException)
+            } catch (Exception ex)
             {
-                MVCore.Common.CallBacks.Log("Palette file " + filepath + "not found");
-                MVCore.Common.CallBacks.Log("Using default palettes");
-                newPal = createPalette();
-                return newPal;
+                if (ex is System.IO.DirectoryNotFoundException || ex is System.IO.FileNotFoundException)
+                {
+                    MVCore.Common.CallBacks.Log("Palette file " + filepath + "not found");
+                    MVCore.Common.CallBacks.Log("Using default palettes");
+                    newPal = createPalette();
+                    return newPal;
+                }
             }
 
 

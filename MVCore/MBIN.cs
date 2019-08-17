@@ -502,8 +502,9 @@ namespace MVCore
 #endif
             //Get Geometry File
             //Parse geometry once
-            string geomfile;
-            geomfile = scene.Attributes[0].Value;
+            string geomfile = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(scene.Attributes, "GEOMETRY");
+            int num_lods = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(scene.Attributes, "NUMLODS"));
+
             FileStream fs;
             if (!File.Exists(Path.Combine(FileUtils.dirpath, geomfile) + ".PC"))
             {
@@ -723,10 +724,10 @@ namespace MVCore
                     }
 
                 so.shader_programs = new GLSLHelper.GLSLShaderConfig[4];
-                so.shader_programs[(int)RENDERTYPE.MAIN] = Common.RenderState.activeResMgr.GLShaders["MESH_SHADER"];
-                so.shader_programs[(int)RENDERTYPE.DEBUG] = Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"];
-                so.shader_programs[(int)RENDERTYPE.BHULL] = Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"];
-                so.shader_programs[(int)RENDERTYPE.PICK] = Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"];
+                so.shader_programs[(int)RENDERPASS.MAIN] = Common.RenderState.activeResMgr.GLShaders["MESH_SHADER"];
+                so.shader_programs[(int)RENDERPASS.DEBUG] = Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"];
+                so.shader_programs[(int)RENDERPASS.BHULL] = Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"];
+                so.shader_programs[(int)RENDERPASS.PICK] = Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"];
 
                 so.Bbox = gobject.bboxes[iid];
                 //so.setupBSphere();
@@ -796,7 +797,7 @@ namespace MVCore
                     so.BoneRemapIndices[i] = gobject.boneRemap[so.firstskinmat + i];
 
                 //Set skinned flag
-                if (so.BoneRemapIndicesCount > 0)
+                if (so.BoneRemapIndicesCount > 0 && so.animComponentID >= 0)
                     so.skinned = 1;
                 so.animScene = localAnimScene;
 
@@ -982,8 +983,11 @@ namespace MVCore
                 //Get JointIndex
                 joint.jointIndex = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "JOINTINDEX").Value);
                 //Get InvBMatrix from gobject
-                joint.invBMat = gobject.jointData[joint.jointIndex].BindMatrix.Inverted();
-                joint.BindMat = gobject.jointData[joint.jointIndex].BindMatrix;
+                if (joint.jointIndex < gobject.jointData.Count)
+                {
+                    joint.invBMat = gobject.jointData[joint.jointIndex].BindMatrix.Inverted();
+                    joint.BindMat = gobject.jointData[joint.jointIndex].BindMatrix;
+                }
                 
                 //Set Random Color
                 joint.color[0] = Common.RenderState.randgen.Next(255) / 255.0f;

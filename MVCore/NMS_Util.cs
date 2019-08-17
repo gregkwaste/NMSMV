@@ -15,40 +15,46 @@ namespace MVCore
             string load_path;
             NMSTemplate template;
 
-            if (filepath.ToUpper().EndsWith(".EXML"))
-            {
+
+            string exmlpath = Path.ChangeExtension(filepath, "exml");
+            exmlpath = exmlpath.ToUpper(); //Make upper case
+
+            if (File.Exists(exmlpath))
                 load_mode = 0;
-                load_path = filepath;
-            }
             else
+                load_mode = 1;
+
+
+            //Load Exml
+
+            try
             {
-                //Try to find if there is an exml file first
-                string exmlpath = Path.ChangeExtension(filepath, "exml");
-                if (File.Exists(exmlpath))
+                if (load_mode == 0)
                 {
-                    load_mode = 0;
-                    load_path = exmlpath;
+                    string xml = File.ReadAllText(exmlpath);
+                    template = EXmlFile.ReadTemplateFromString(xml);
                 }
                 else
                 {
-                    load_mode = 1;
-                    load_path = filepath;
+                    libMBIN.MBINFile mbinf = new libMBIN.MBINFile(filepath);
+                    mbinf.Load();
+                    template = mbinf.GetData();
+                    mbinf.Dispose();
                 }
-            }
-
-
-            if (load_mode == 0)
+            } catch (Exception ex)
             {
-                //Load Exml
-                string xml = File.ReadAllText(load_path);
-                template = EXmlFile.ReadTemplateFromString(xml);
-            }
-            else
-            {
-                libMBIN.MBINFile mbinf = new libMBIN.MBINFile(load_path);
-                mbinf.Load();
-                template = mbinf.GetData();
-                mbinf.Dispose();
+                if (ex is System.IO.DirectoryNotFoundException || ex is System.IO.FileNotFoundException)
+                {
+                    System.Windows.Forms.MessageBox.Show("File " + filepath + " Not Found...", "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+
+                } else if (ex is System.Reflection.TargetInvocationException)
+                {
+                    System.Windows.Forms.MessageBox.Show("libMBIN failed to decompile file. If this is a vanilla file, contact the MbinCompiler developer",
+                    "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                    
+                }
+                return null;
+
             }
 
             return template;
