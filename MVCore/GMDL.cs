@@ -985,8 +985,12 @@ namespace MVCore.GMDL
         }
 
         private void renderBHull(GLSLHelper.GLSLShaderConfig shader) {
-            GL.UseProgram(shader.program_id);
 
+
+            if (!Common.RenderOptions.RenderBoundHulls)
+                return;
+
+            GL.UseProgram(shader.program_id);
 
             GL.Uniform1(shader.uniformLocations["scale"], 1.0f);
 
@@ -1351,7 +1355,7 @@ namespace MVCore.GMDL
         {
             GLSLHelper.GLSLShaderConfig shader = shader_programs[(int) pass];
 
-            if (this.main_Vao == null)
+            if (main_Vao == null || !Common.RenderOptions.RenderCollisions)
             {
                 //Console.WriteLine("Not Renderable");
                 return false;
@@ -3490,7 +3494,7 @@ namespace MVCore.GMDL
         public override bool render(RENDERPASS pass)
         {
             
-            if (this.children.Count == 0)
+            if (children.Count == 0 || !Common.RenderOptions.RenderJoints)
                 return false;
 
             int program;
@@ -3556,6 +3560,10 @@ namespace MVCore.GMDL
         private int vertex_buffer_object;
         private int element_buffer_object;
 
+        //Light Projection + View Matrices
+        public Matrix4[] lightSpaceMatrices;
+        public Matrix4 lightProjectionMatrix;
+
         //Properties
         public MVector4 Color
         {
@@ -3618,6 +3626,17 @@ namespace MVCore.GMDL
             GL.GenBuffers(1, out element_buffer_object);
             if (GL.GetError() != ErrorCode.NoError)
                 Console.WriteLine(GL.GetError());
+
+
+            //Init projection Matrix
+            lightProjectionMatrix = Matrix4.CreatePerspectiveFieldOfView(MathUtils.radians(90), 1.0f, 1.0f, 300f);
+            
+            //Init lightSpace Matrices
+            lightSpaceMatrices = new Matrix4[6];
+            for (int i=0; i < 6; i++)
+            {
+                lightSpaceMatrices[i] = Matrix4.Identity * lightProjectionMatrix;
+            }
         }
 
         protected Light(Light input) : base(input)
@@ -3628,18 +3647,55 @@ namespace MVCore.GMDL
             fov = input.fov;
             vertex_buffer_object = input.vertex_buffer_object;
             element_buffer_object = input.element_buffer_object;
+
+            //Copy Matrices
+            lightProjectionMatrix = input.lightProjectionMatrix;
+            for (int i = 0; i < 6; i++)
+                lightSpaceMatrices[i] = input.lightSpaceMatrices[i];
+
         }
 
-        public GLLight getStruct()
+        public override void update()
         {
-            GLLight s = new GLLight();
-            s.position = new Vector4(worldPosition, 1.0f); //For now we're switching to directional lights
-            s.color = Color.Vec.Xyz;
-            s.intensity = intensity;
-            s.falloff = (int) falloff;
-            s.fov = fov;
-            return s;
+            base.update();
+
+            //Assume that this is a point light for now
+            //Right
+            lightSpaceMatrices[0] = Matrix4.LookAt(worldPosition,
+                    worldPosition + new Vector3(1.0f, 0.0f, 0.0f),
+                    new Vector3(0.0f, -1.0f, 0.0f));
+            //Left
+            lightSpaceMatrices[1] = Matrix4.LookAt(worldPosition,
+                    worldPosition + new Vector3(-1.0f, 0.0f, 0.0f),
+                    new Vector3(0.0f, -1.0f, 0.0f));
+            //Up
+            lightSpaceMatrices[2] = Matrix4.LookAt(worldPosition,
+                    worldPosition + new Vector3(0.0f, -1.0f, 0.0f),
+                    new Vector3(0.0f, 0.0f, 1.0f));
+            //Down
+            lightSpaceMatrices[3] = Matrix4.LookAt(worldPosition,
+                    worldPosition + new Vector3(0.0f, 1.0f, 0.0f),
+                    new Vector3(0.0f, 0.0f, 1.0f));
+            //Near
+            lightSpaceMatrices[4] = Matrix4.LookAt(worldPosition,
+                    worldPosition + new Vector3(0.0f, 0.0f, 1.0f),
+                    new Vector3(0.0f, -1.0f, 0.0f));
+            //Far
+            lightSpaceMatrices[5] = Matrix4.LookAt(worldPosition,
+                    worldPosition + new Vector3(0.0f, 0.0f, -1.0f),
+                    new Vector3(0.0f, -1.0f, 0.0f));
         }
+
+        //public GLLight getStruct()
+        //{
+        //    GLLight s = new GLLight();
+        //    s.position = new Vector4(worldPosition, 1.0f); //For now we're switching to directional lights
+        //    s.color = Color.Vec.Xyz;
+        //    s.intensity = intensity;
+        //    s.falloff = (int) falloff;
+        //    s.fov = fov;
+        //    return s;
+        //}
 
         public override model Clone()
         {
@@ -3691,6 +3747,9 @@ namespace MVCore.GMDL
         public override bool render(RENDERPASS pass)
         {
             int program = shader_programs[(int) pass].program_id;
+
+            if (!Common.RenderOptions.RenderLights)
+                return false;
 
             switch (pass)
             {

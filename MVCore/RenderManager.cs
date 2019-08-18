@@ -10,12 +10,53 @@ using System.Runtime.InteropServices;
 
 namespace MVCore
 {
+    //Render Structs
+    [StructLayout(LayoutKind.Explicit)]
+    struct CommonPerFrameUniforms
+    {
+        [FieldOffset(0)]
+        public float diffuseFlag; //Enable Textures
+        [FieldOffset(4)]
+        public float use_lighting; //Enable lighting
+        [FieldOffset(16)]
+        public Matrix4 rotMat;
+        [FieldOffset(80)]
+        public Matrix4 mvp;
+        [FieldOffset(144)]
+        public Vector3 cameraPosition;
+        [FieldOffset(160)]
+        public Vector3 cameraDirection;
+
+        public static readonly int SizeInBytes = 176;
+    };
+
+    [StructLayout(LayoutKind.Explicit)]
+    struct CommonPerMeshUniforms
+    {
+        [FieldOffset(0)] //64 Bytes
+        public Matrix4 worldMat;
+        [FieldOffset(64)] //64 Bytes
+        public Matrix4 nMat;
+        [FieldOffset(128)] //4 bytes
+        public unsafe fixed float skinMats[80 * 16]; //This is mapped to mat4 //5120 bytes
+        [FieldOffset(5248)]
+        public Vector3 color; //12 bytes
+        [FieldOffset(5260)]
+        public float skinned; //4 bytes (aligns to 4 bytes)
+        [FieldOffset(5264)]
+        public float selected; //4 Bytes
+        public static readonly int SizeInBytes = 5280;
+    };
+
+
     public class renderManager : baseResourceManager, IDisposable
     {
         List<model> staticMeshQeueue = new List<model>();
         List<model> movingMeshQeueue = new List<model>();
         List<model> transparentMeshQeueue = new List<model>();
         public ResourceManager resMgr; //REf to the active resource Manager
+
+        public ShadowRenderer shdwRenderer; //Shadow Renderer instance
         //Control Font and Text Objects
         private Text.TextRenderer txtRenderer;
 
@@ -25,51 +66,18 @@ namespace MVCore
         //Local Counters
         private int occludedNum;
 
-        [StructLayout(LayoutKind.Explicit)]
-        struct CommonPerFrameUniforms
-        {
-            [FieldOffset(0)]
-            public float diffuseFlag; //Enable Textures
-            [FieldOffset(4)]
-            public float use_lighting; //Enable lighting
-            [FieldOffset(16)]
-            public Matrix4 rotMat;
-            [FieldOffset(80)]
-            public Matrix4 mvp;
-            [FieldOffset(144)]
-            public Vector3 cameraPosition;
-            [FieldOffset(160)]
-            public Vector3 cameraDirection;
-
-            public static readonly int SizeInBytes = 176;
-        };
-
-        [StructLayout(LayoutKind.Explicit)]
-        struct CommonPerMeshUniforms
-        {
-            [FieldOffset(0)] //64 Bytes
-            public Matrix4 worldMat;
-            [FieldOffset(64)] //64 Bytes
-            public Matrix4 nMat;
-            [FieldOffset(128)] //4 bytes
-            public unsafe fixed float skinMats[80 * 16]; //This is mapped to mat4 //5120 bytes
-            [FieldOffset(5248)]
-            public Vector3 color; //12 bytes
-            [FieldOffset(5260)] 
-            public float skinned; //4 bytes (aligns to 4 bytes)
-            [FieldOffset(5264)] 
-            public float selected; //4 Bytes
-            public static readonly int SizeInBytes = 5280;
-        };
-
-
+        
         public void init(ResourceManager input_resMgr)
         {
             //Setup Resource Manager
             resMgr = input_resMgr;
 
+            //Setup Shadow Renderer
+            shdwRenderer = new ShadowRenderer();
+
             //Setup text renderer
             setupTextRenderer();
+
             //Setup UBOs
             setupUBOs();
         }
@@ -333,64 +341,41 @@ namespace MVCore
 
         private void renderMain()
         {
+            foreach (model m in staticMeshQeueue)
+            {
+                if (!m.renderable) continue;
+
+                //Handle Light Upload and Frustum Culling
+
+                switch (m.type)
+                {
+                    case TYPES.MESH:
+                        if (RenderState.activeCam.frustum_occlude((meshModel)m, Matrix4.Identity)) {
+                            uploadLights(m.shader_programs[(int)RENDERPASS.MAIN]);
+                        }   
+                        else {
+                            occludedNum++;
+                            continue;
+                        }
+                        break;
+                    default:
+                        break;
+                }
+
+                prepareCommonPermeshUBO(m);
+                m.render(RENDERPASS.MAIN);
+                if (RenderOptions.RenderBoundHulls && (m.type == TYPES.MESH))
+                    m.render(RENDERPASS.BHULL);
+            }
+        }
+
+        private void renderStatic()
+        {
             //At first render the static meshes
             GL.Enable(EnableCap.Texture2D);
             GL.Enable(EnableCap.DepthTest);
             GL.Enable(EnableCap.CullFace);
 
-            foreach (model m in staticMeshQeueue)
-            {
-                if (m.renderable)
-                {
-                    if (m.type == TYPES.MESH)
-                    {
-                        //Apply frustum culling only for mesh objects
-                        if (!RenderOptions.UseFrustumCulling)
-                        {
-                            prepareCommonPermeshUBO(m); //Update UBO based on current model
-                            uploadLights(m.shader_programs[(int)RENDERPASS.MAIN]);
-                            m.render(RENDERPASS.MAIN);
-                            if (RenderOptions.RenderBoundHulls)
-                                m.render(RENDERPASS.BHULL);
-                        }
-                        else if (RenderState.activeCam.frustum_occlude((meshModel)m, Matrix4.Identity))
-                        {
-                            prepareCommonPermeshUBO(m); //Update UBO based on current model
-                            uploadLights(m.shader_programs[(int)RENDERPASS.MAIN]);
-                            m.render(RENDERPASS.MAIN);
-                            if (RenderOptions.RenderBoundHulls)
-                                m.render(RENDERPASS.BHULL);
-                        }
-                        else
-                            occludedNum++;
-                    }
-                    else if (m.type == TYPES.JOINT && RenderOptions.RenderJoints)
-                    {
-                        prepareCommonPermeshUBO(m); //Update UBO based on current model
-                        m.render(RENDERPASS.MAIN);
-                    }
-                    else if (m.type == TYPES.COLLISION && RenderOptions.RenderCollisions)
-                    {
-                        prepareCommonPermeshUBO(m); //Update UBO based on current model
-                        m.render(RENDERPASS.MAIN);
-                    }
-                    else if (m.type == TYPES.LOCATOR || m.type == TYPES.MODEL)
-                    {
-                        prepareCommonPermeshUBO(m); //Update UBO based on current model
-                        m.render(RENDERPASS.MAIN);
-                    }
-                    else if (m.type == TYPES.LIGHT)
-                    {
-                        if (RenderOptions.RenderLights)
-                            m.render(RENDERPASS.MAIN);
-                    }
-                }
-            }
-        }
-
-
-        private void renderStatic()
-        {
             renderMain();
         }
 
@@ -401,7 +386,6 @@ namespace MVCore
             GL.Enable(EnableCap.Texture2D);
             GL.Enable(EnableCap.Blend);
             GL.DepthMask(false); //Disable writing to the depth mask
-
 
             //Since transparentMeshQueue has been populated from meshModels
             //I don't expect any other object type here
@@ -439,6 +423,11 @@ namespace MVCore
             GL.Disable(EnableCap.Blend);
         }
 
+        private void renderShadows()
+        {
+            
+        }
+
         //Rendering Mechanism
         public void render()
         {
@@ -450,6 +439,11 @@ namespace MVCore
             prepareCommonPerFrameUBO();
 
 
+            //Render Shadows
+            renderShadows();
+
+
+            //Render Geometry
             renderStatic();
             renderTransparent(0);
 
@@ -581,6 +575,7 @@ namespace MVCore
                     cleanup(); //Clean local resources
                     gbuf.Dispose(); //Dispose gbuffer
                     txtRenderer.Dispose(); //Dispose textRenderer
+                    shdwRenderer.Dispose(); //Dispose shadowRenderer
                 }
 
                 disposedValue = true;

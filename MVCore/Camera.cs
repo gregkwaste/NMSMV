@@ -180,6 +180,7 @@ namespace MVCore.GMDL
         public bool frustum_occlude(GMDL.meshModel cand, Matrix4 transform)
         {
             if (!culling) return true;
+            if (!Common.RenderOptions.UseFrustumCulling) return true;
 
             Vector4 p1 = new Vector4(cand.Bbox[0], 1.0f);
             Vector4 p2 = new Vector4(cand.Bbox[1], 1.0f);

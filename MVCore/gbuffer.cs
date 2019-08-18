@@ -27,6 +27,7 @@ namespace MVCore
         public int normals = -1;
         public int depth = -1;
 
+        //Buffer Geometry
         public int quad_vao;
         public int program = -1;
         public int[] size;
@@ -34,8 +35,9 @@ namespace MVCore
 
         public GBuffer(ResourceManager mgr, int x, int y)
         {
-            //Create Quad Geometry
             program = mgr.GLShaders["GBUFFER_SHADER"].program_id;
+            
+            //Create Quad Geometry
             quad_vao = mgr.GLPrimitiveVaos["default_renderquad"].vao_id;
 
             //Setup all stuff
@@ -48,8 +50,10 @@ namespace MVCore
 
         public void setup()
         {
-            //Init the FBO
+            //Init the main FBO
             fbo = GL.Ext.GenFramebuffer();
+            
+            //Init the 
             //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
             
             //Check
