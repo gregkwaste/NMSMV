@@ -159,6 +159,26 @@ vec3 calcColor(Light light, vec4 _fragPos, vec4 _fragColor, vec3 _fragNormal){
 }
 
 
+float calcShadow(vec4 _fragPos){
+	// get vector between fragment position and light position
+	vec3 fragToLight = fragPos - lightPos;
+	
+	// use the light to fragment vector to sample from the depth map 
+	float closestDepth = texture(depthMap, fragToLight).r; 
+	
+	// it is currently in linear range between [0,1]. Re-transform back to original value 
+	closestDepth *= CommonPerFrameUniforms.cameraFarPlane; 
+	
+	// now get current linear depth as the length between the fragment and light position 
+	float currentDepth = length(fragToLight);
+
+	// now test for shadows
+	float bias = 0.05;
+	float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
+	
+	return shadow;
+}
+
 
 void main()
 {	
@@ -224,6 +244,11 @@ void main()
 
     if (mpCommonPerFrame.use_lighting > 0.0){
 		outcolors[0].rgb = vec3(0.0, 0.0, 0.0);
+		
+
+
+
+
 		for (int i=0;i<light_count;i++){
 			//outcolors[0].rgb = (ambient + diff + specular);	
 			if (lights[i].renderable > 0.0f){

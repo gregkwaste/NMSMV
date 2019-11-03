@@ -113,8 +113,7 @@ namespace WPFModelViewer
             float.TryParse(scaleY.Text, out lY);
             float.TryParse(scaleZ.Text, out lZ);
             _mdl.localScale = new Vector3(lX, lY, lZ);
-            _mdl.update(); //Trigger a scene update
-
+            _mdl.update(); //Trigger model update
             
             //Save values to underlying SceneNode
             if (_mdl.nms_template != null)

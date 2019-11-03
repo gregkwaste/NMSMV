@@ -18,6 +18,8 @@ namespace MVCore
         public float diffuseFlag; //Enable Textures
         [FieldOffset(4)]
         public float use_lighting; //Enable lighting
+        [FieldOffset(8)]
+        public int depthMap; //Depth Map Sampler ID
         [FieldOffset(16)]
         public Matrix4 rotMat;
         [FieldOffset(80)]
@@ -188,6 +190,7 @@ namespace MVCore
             cpfu.rotMat = RenderState.rotMat;
             cpfu.cameraPosition = RenderState.activeCam.Position;
             cpfu.cameraDirection = RenderState.activeCam.Orientation;
+            cpfu.depthMap = shdwRenderer.depth_tex_id; //Assign Depth Map
 
             GL.BindBuffer(BufferTarget.UniformBuffer, UBOs["Uniforms"]);
             GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, CommonPerFrameUniforms.SizeInBytes, ref cpfu);
