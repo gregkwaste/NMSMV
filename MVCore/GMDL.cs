@@ -3874,6 +3874,7 @@ namespace MVCore.GMDL
             
             for (int i = 0; i < data.Anims.Count; i++)
             {
+                //Check if the animation is already loaded
                 AnimData my_ad = new AnimData(data.Anims[i]);
                 _animations.Add(my_ad);
             }
@@ -4194,7 +4195,16 @@ namespace MVCore.GMDL
 
         private void loadAnimation()
         {
-            animMeta = NMSUtils.LoadNMSFile(Path.GetFullPath(Path.Combine(FileUtils.dirpath, Filename))) as TkAnimMetadata;
+            if (MVCore.Common.RenderState.activeResMgr.Animations.ContainsKey(Filename))
+            {
+                animMeta = MVCore.Common.RenderState.activeResMgr.Animations[Filename];
+            }
+            else
+            {
+                animMeta = NMSUtils.LoadNMSFile(Path.GetFullPath(Path.Combine(FileUtils.dirpath, Filename))) as TkAnimMetadata;
+                MVCore.Common.RenderState.activeResMgr.Animations[Filename] = animMeta;
+            }
+            
         }
 
 

@@ -1,17 +1,18 @@
+#version 330
 /* Simple Quad Rendering Shader
  */
 attribute vec4 vPosition;
 attribute vec4 uvPosition;
-//Outputs
-varying vec2 uv0;
-varying float dx, dy;
+
 uniform mat4 projMat;
 uniform float w, h;
 //Text Transforms
 uniform vec2 pos;
 uniform float scale;
 
-
+//Outputs
+out vec2 uv0;
+out float dx, dy;
 
 void main()
 {
@@ -21,9 +22,9 @@ void main()
     dx = 2.0/w;
     dy = 2.0/h;
     //Render to UV coordinate
-    mat4 projmat = mat4(400.0/w, 0.0,    0.0, 0.0,
-                        0.0,   400.0/h,  0.0, 0.0,
-                        0.0,   0.0,    -1.0, 0.0,
+    mat4 projmat = mat4(2.0/w, 0.0,    0.0, 0.0,
+                        0.0,   2.0/h,  0.0, 0.0,
+                        0.0,   0.0,    -2.0, 0.0,
                         0.0, 0.0,  0.0, 1.0);
 
     vec4 offset = vec4(-1.0, -1.0, 0.0, 0.0) + vec4(pos, 0.0, 0.0);

@@ -163,6 +163,11 @@
     <Compile Include="ModelTransform.xaml.cs">
       <DependentUpon>ModelTransform.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
     <Compile Include="SettingsForm.xaml.cs">
       <DependentUpon>SettingsForm.xaml</DependentUpon>
     </Compile>
@@ -200,11 +205,6 @@
     <Compile Include="Properties\AssemblyInfo.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="Properties\Resources.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
-      <DependentUpon>Resources.resx</DependentUpon>
-    </Compile>
     <Compile Include="Properties\Settings.Designer.cs">
       <AutoGen>True</AutoGen>
       <DependentUpon>Settings.settings</DependentUpon>
@@ -222,20 +222,20 @@
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
-    <None Include="Resources\camera1.frag" />
-    <None Include="Resources\camera1.vert" />
-    <None Include="Resources\joint1.frag" />
-    <None Include="Resources\joint1.vert" />
-    <None Include="Resources\light1.frag" />
-    <None Include="Resources\light1.vert" />
-    <None Include="Resources\locator1.frag" />
-    <None Include="Resources\locator1.vert" />
-    <None Include="Resources\pick1.frag" />
-    <None Include="Resources\pick1.vert" />
-    <None Include="Resources\tess1.tcs" />
-    <None Include="Resources\tess1.tes" />
-    <None Include="Resources\text1.frag" />
-    <None Include="Resources\text1.vert" />
+    <None Include="Resources\camera.frag" />
+    <None Include="Resources\camera.vert" />
+    <None Include="Resources\joint.frag" />
+    <None Include="Resources\joint.vert" />
+    <None Include="Resources\light.frag" />
+    <None Include="Resources\light.vert" />
+    <None Include="Resources\locator.frag" />
+    <None Include="Resources\locator.vert" />
+    <None Include="Resources\pick.frag" />
+    <None Include="Resources\pick.vert" />
+    <None Include="Resources\tess.tcs" />
+    <None Include="Resources\tess.tes" />
+    <None Include="Resources\text.frag" />
+    <None Include="Resources\text.vert" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

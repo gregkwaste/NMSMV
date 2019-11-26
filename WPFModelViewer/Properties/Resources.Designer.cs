@@ -137,15 +137,18 @@ namespace WPFModelViewer.Properties {
         /// <summary>
         ///   Looks up a localized string similar to #version 330
         ///#extension GL_ARB_explicit_uniform_location : enable
-        ////* Copies incoming vertex color without change.
-        /// * Applies the transformation matrix to vertex position.
-        /// */
+        ///
+        ///#include &quot;/common_structs.glsl&quot;
         ///
         ///layout(location=0) in vec4 vPosition;
         ///layout(location=1) in vec3 vcolor;
         ///
-        ///layout(location=7) uniform mat4 mvp;
-        ///layout(location=10) uniform mat4 worldMat;
+        /////Uniform Blocks
+        ///layout (std140) uniform Uniforms
+        ///{
+        ///    CommonPerFrameUniforms mpCommonPerFrame;
+        ///    CommonPerMeshUniforms mpCommonPerMesh;
+        ///};
         ///
         ///out vec3 color;
         ///
@@ -153,7 +156,7 @@ namespace WPFModelViewer.Properties {
         ///{
         ///    //Set color
         ///    color = vcolor;
-        ///	gl_Position = mvp * vPosition;
+        ///	gl_Position = mpCommonPerFrame.mvp * vPosition;
         ///}.
         /// </summary>
         internal static string joint_vert {
@@ -184,13 +187,21 @@ namespace WPFModelViewer.Properties {
         /// <summary>
         ///   Looks up a localized string similar to #version 330
         ///
+        ///#include &quot;/common_structs.glsl&quot;
+        ///
         ///layout(location=0) in vec4 vPosition;
-        ///uniform mat4 mvp;
+        ///
+        /////Uniform Blocks
+        ///layout (std140) uniform Uniforms
+        ///{
+        ///    CommonPerFrameUniforms mpCommonPerFrame;
+        ///    CommonPerMeshUniforms mpCommonPerMesh;
+        ///};
         ///
         ///void main()
         ///{
-        ///	gl_Position = mvp * vPosition;
-        ///} .
+        ///	gl_Position = mpCommonPerFrame.mvp * vPosition;
+        ///}.
         /// </summary>
         internal static string light_vert {
             get {
@@ -225,7 +236,7 @@ namespace WPFModelViewer.Properties {
         ///#extension GL_ARB_separate_shader_objects : enable
         ///
         ///layout(location=0) in vec3 vPosition;
-        ///layout(location=2) in vec3 vcolor;
+        ///layout(location=1) in vec3 vcolor;
         ///layout(location=7) uniform mat4 mvp;
         ///layout(location=8) uniform mat4 nMat;
         ///layout(location=9) uniform mat4 rotMat;
@@ -234,13 +245,13 @@ namespace WPFModelViewer.Properties {
         ///out vec3 color;
         ///out vec4 finalPos;
         ///
-        ///uniform float scale;
         ///
         ///void main()
         ///{
         ///    //Set color
         ///    color = vcolor;
-        ///	finalPos = worldMat * vec4(scale  [rest of string was truncated]&quot;;.
+        ///	finalPos = worldMat * vec4(vPosition, 1.0);
+        ///    gl_Pos [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string locator_vert {
             get {

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 using MVCore.GMDL;
+using libMBIN.NMS.Toolkit;
 
 namespace MVCore
 {
@@ -20,6 +21,7 @@ namespace MVCore
         public Dictionary<string, GMDL.GeomObject> GLgeoms = new Dictionary<string, GMDL.GeomObject>();
         public Dictionary<string, GMDL.scene> GLScenes = new Dictionary<string, GMDL.scene>();
         public Dictionary<string, GMDL.Texture> GLTextures = new Dictionary<string, GMDL.Texture>();
+        public Dictionary<string, TkAnimMetadata> Animations = new Dictionary<string, TkAnimMetadata>();
 
         public Dictionary<ulong, mainVAO> GLVaos = new Dictionary<ulong, mainVAO>();
         public Dictionary<string, mainVAO> GLPrimitiveVaos = new Dictionary<string, mainVAO>();
@@ -57,6 +59,9 @@ namespace MVCore
             foreach (GMDL.GeomObject p in GLgeoms.Values)
                 p.Dispose();
             GLgeoms.Clear();
+
+            //Cleanup Animations
+            Animations.Clear();
 
             //Cleanup Decals
             foreach (GMDL.model p in GLDecals)
