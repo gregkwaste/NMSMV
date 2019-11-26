@@ -15,7 +15,6 @@ namespace MVCore
             string load_path;
             NMSTemplate template;
 
-
             string exmlpath = Path.ChangeExtension(filepath, "exml");
             exmlpath = exmlpath.ToUpper(); //Make upper case
 
@@ -26,7 +25,6 @@ namespace MVCore
 
 
             //Load Exml
-
             try
             {
                 if (load_mode == 0)
@@ -36,6 +34,8 @@ namespace MVCore
                 }
                 else
                 {
+                    if (!File.Exists(filepath))
+                        throw new FileNotFoundException("File not found\n " + filepath);
                     libMBIN.MBINFile mbinf = new libMBIN.MBINFile(filepath);
                     mbinf.Load();
                     template = mbinf.GetData();

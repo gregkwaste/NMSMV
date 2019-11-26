@@ -10,8 +10,9 @@
 
 //TODO: Do some queries internally and figure out the exact locations of the uniforms
 uniform CustomPerMaterialUniforms mpCustomPerMaterial;
+uniform CommonPerFrameSamplers mpCommonPerFrameSamplers;
+
 uniform Light lights[16]; //Support up to 4 lights for now
-uniform int light_count;
 
 //Uniform Blocks
 layout (std140) uniform Uniforms
@@ -19,7 +20,6 @@ layout (std140) uniform Uniforms
     CommonPerFrameUniforms mpCommonPerFrame;
     CommonPerMeshUniforms mpCommonPerMesh;
 };
-
 
 in vec4 fragPos;
 in vec3 N;
@@ -159,15 +159,15 @@ vec3 calcColor(Light light, vec4 _fragPos, vec4 _fragColor, vec3 _fragNormal){
 }
 
 
-float calcShadow(vec4 _fragPos){
+float calcShadow(vec4 _fragPos, Light light){
 	// get vector between fragment position and light position
-	vec3 fragToLight = fragPos - lightPos;
+	vec3 fragToLight = _fragPos.xyz - light.position;
 	
 	// use the light to fragment vector to sample from the depth map 
-	float closestDepth = texture(depthMap, fragToLight).r; 
+	float closestDepth = texture(mpCommonPerFrameSamplers.depthMap, fragToLight).r; 
 	
 	// it is currently in linear range between [0,1]. Re-transform back to original value 
-	closestDepth *= CommonPerFrameUniforms.cameraFarPlane; 
+	closestDepth *= mpCommonPerFrame.cameraFarPlane; 
 	
 	// now get current linear depth as the length between the fragment and light position 
 	float currentDepth = length(fragToLight);
@@ -249,7 +249,7 @@ void main()
 
 
 
-		for (int i=0;i<light_count;i++){
+		for (int i=0;i<mpCommonPerFrame.light_count;i++){
 			//outcolors[0].rgb = (ambient + diff + specular);	
 			if (lights[i].renderable > 0.0f){
 				outcolors[0].rgb += calcColor(lights[i], fragPos, diffTexColor, normal);

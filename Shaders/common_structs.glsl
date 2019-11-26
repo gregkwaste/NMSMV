@@ -26,15 +26,18 @@ struct CommonPerFrameUniforms
     float diffuseFlag; //Enable Textures //floats align to 16 bytes
     float use_lighting; //Enable lighting
     
-    samplerCube depthMap; //Depth Map for shadow calculation
-    
     //Rendering Options
     mat4 rotMat;
     mat4 mvp;
     vec3 cameraPosition;
-    vec3 cameraDirection;
     float cameraFarPlane;
-    int light_number;
+    vec3 cameraDirection;
+    int light_count;
+};
+
+struct CommonPerFrameSamplers
+{
+    samplerCube depthMap; //Depth Map for shadow calculation
 };
 
 //Custom Per Frame Struct

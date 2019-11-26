@@ -481,14 +481,22 @@ namespace MVCore
         private static Dictionary<string, Joint> localJointDict;
         private static model localAnimScene;
         private static List<model> localAnimScenes = new List<model>();
-        
+
+        private static Dictionary<Type, int> SupportedComponents = new Dictionary<Type, int>
+        {
+            {typeof(TkAnimPoseComponentData), 0},
+            {typeof(TkAnimationComponentData), 1},
+            {typeof(TkLODComponentData), 2}
+        };
+
+
         public static scene LoadObjects(string filepath)
         {
-            TkSceneNodeData scene = (TkSceneNodeData) NMSUtils.LoadNMSFile(filepath);
+            TkSceneNodeData template = (TkSceneNodeData) NMSUtils.LoadNMSFile(filepath);
             
             Console.WriteLine("Loading Objects from MBINFile");
 
-            string sceneName = scene.Name;
+            string sceneName = template.Name;
             MVCore.Common.CallBacks.Log(string.Format("Trying to load Scene {0}", sceneName));
             string[] split = sceneName.Split('\\');
             string scnName = split[split.Length - 1];
@@ -497,13 +505,13 @@ namespace MVCore
             
 #if DEBUG
             //Save NMSTemplate to exml
-            var xmlstring = EXmlFile.WriteTemplate(scene);
+            var xmlstring = EXmlFile.WriteTemplate(template);
             File.WriteAllText("Temp\\" + scnName + ".exml", xmlstring);
 #endif
             //Get Geometry File
             //Parse geometry once
-            string geomfile = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(scene.Attributes, "GEOMETRY");
-            int num_lods = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(scene.Attributes, "NUMLODS"));
+            string geomfile = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(template.Attributes, "GEOMETRY");
+            int num_lods = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(template.Attributes, "NUMLODS"));
 
             FileStream fs;
             if (!File.Exists(Path.Combine(FileUtils.dirpath, geomfile) + ".PC"))
@@ -524,7 +532,17 @@ namespace MVCore
                 return dummy;
             }
 
-            fs = new FileStream(Path.Combine(FileUtils.dirpath, geomfile) + ".PC", FileMode.Open);
+            string geompath = Path.Combine(FileUtils.dirpath, geomfile) + ".PC";
+
+#if DEBUG
+            //Use libMBIN to decompile the file
+            TkGeometryData geomdata = (TkGeometryData) NMSUtils.LoadNMSFile(geompath);
+            //Save NMSTemplate to exml
+            xmlstring = EXmlFile.WriteTemplate(geomdata);
+            File.WriteAllText("Temp\\temp_geom.exml", xmlstring);
+#endif
+
+            fs = new FileStream(geompath, FileMode.Open);
             GeomObject gobject;
         
             if (!Common.RenderState.activeResMgr.GLgeoms.ContainsKey(geomfile))
@@ -546,7 +564,8 @@ namespace MVCore
             Random randgen = new Random();
 
             //Parse root scene
-            scene root = (scene) parseNode(scene, gobject, null, null, null);
+            scene root = (scene) parseNode(template, gobject, null, null, null);
+            root.nms_template = template;
 
             return root;
         }
@@ -574,40 +593,41 @@ namespace MVCore
             return -1;
         }
 
-        private static void ProcessAnimPoseComponent(model node, TkAttachmentData attachment)
+        private static void ProcessAnimPoseComponent(model node, TkAnimPoseComponentData component)
         {
-            //Check if node has AnimPoseComponent
-            int component_index = hasComponent(attachment, typeof(TkAnimPoseComponentData));
-
-            if (component_index < 0)
-            {
-                node.animPoseComponentID = -1;
-                return;
-            }
-                
-            TkAnimPoseComponentData pcd = (TkAnimPoseComponentData)attachment.Components[component_index];
             //Load PoseFile
-            AnimPoseComponent apc = new AnimPoseComponent(pcd);
+            AnimPoseComponent apc = new AnimPoseComponent(component);
             apc.ref_object = node; //Set referenced animScene
             node.animPoseComponentID = node.Components.Count;
             node.Components.Add(apc);
         }
 
-        private static void ProcessAnimationComponent(model node, TkAttachmentData attachment)
+        private static void ProcessAnimationComponent(model node, TkAnimationComponentData component)
         {
-            //Check if node has AnimPoseComponent
-            int component_id = hasComponent(attachment, typeof(TkAnimationComponentData));
-            
-            if (component_id < 0)
-            {
-                node.animComponentID = -1;
-                return;
-            }
-                
-            TkAnimationComponentData acd = attachment.Components[component_id] as TkAnimationComponentData;
-            AnimComponent ac = new AnimComponent(acd);
+            AnimComponent ac = new AnimComponent(component);
             node.animComponentID = node.Components.Count;
             node.Components.Add(ac); //Create Animation Component and add attach it to the component
+        }
+
+        private static void ProcessLODComponent(model node, TkLODComponentData component)
+        {
+            //Load all LOD models as children to the node
+            LODModelComponent lodmdlcomp = new LODModelComponent();
+
+            for (int i = 0; i < component.LODModel.Count; i++)
+            {
+                string filepath = component.LODModel[i].LODModel.Filename;
+                filepath = Path.Combine(FileUtils.dirpath, filepath);
+                Console.WriteLine("Loading LOD " + filepath);
+                scene so = LoadObjects(filepath);
+                so.parent = node; //Set parent
+                node.children.Add(so);
+                //Create LOD Resource
+                LODModelResource lodres = new LODModelResource(component.LODModel[i]);
+                lodmdlcomp.Resources.Add(lodres);
+            }
+            
+            node.Components.Add(lodmdlcomp);
         }
 
         private static void ProcessComponents(model node, TkAttachmentData attachment)
@@ -615,9 +635,31 @@ namespace MVCore
             if (attachment == null)
                 return;
 
-            //Call individual Component Processors
-            ProcessAnimationComponent(node, attachment);
-            ProcessAnimPoseComponent(node, attachment);
+            for (int i = 0; i < attachment.Components.Count; i++)
+            {
+                NMSTemplate comp = attachment.Components[i];
+                Type comp_type = comp.GetType();
+                
+                if (!SupportedComponents.ContainsKey(comp_type))
+                {
+                    //Console.WriteLine("Unsupported Component Type " + comp_type);
+                    continue;
+                }
+                    
+                switch (SupportedComponents[comp_type])
+                {
+                    case 0:
+                        ProcessAnimPoseComponent(node, comp as TkAnimPoseComponentData);
+                        break;
+                    case 1:
+                        ProcessAnimationComponent(node, comp as TkAnimationComponentData);
+                        break;
+                    case 2:
+                        ProcessLODComponent(node, comp as TkLODComponentData);
+                        break;
+                }   
+            
+            }
         }
 
 
@@ -695,12 +737,12 @@ namespace MVCore
                 so.vertrend_graphics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRENDGRAPHIC"));
                 so.firstskinmat = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "FIRSTSKINMAT"));
                 so.lastskinmat = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LASTSKINMAT"));
-                so.lod_level = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LODLEVEL"));
+                so.LodLevel = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LODLEVEL"));
                 so.boundhullstart = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BOUNDHULLST"));
                 so.boundhullend = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BOUNDHULLED"));
 
                 //Get Hash
-                so.hash = ulong.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HASH"));
+                so.Hash = ulong.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HASH"));
                 MVCore.Common.CallBacks.Log(string.Format("Batch Physics Start {0} Count {1} Vertex Physics {2} - {3} Vertex Graphics {4} - {5} SkinMats {6}-{7}",
                     so.batchstart_physics, so.batchcount, so.vertrstart_physics, so.vertrend_physics, so.vertrstart_graphics, so.vertrend_graphics,
                     so.firstskinmat, so.lastskinmat));
@@ -799,6 +841,11 @@ namespace MVCore
                 //Set skinned flag
                 if (so.BoneRemapIndicesCount > 0 && so.animComponentID >= 0)
                     so.skinned = 1;
+
+                //Set skinned flag if its set as a metarial flag
+                if (so.Material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F02_SKINNED))
+                    so.skinned = 1;
+                
                 so.animScene = localAnimScene;
 
                 Console.WriteLine("Object {0}, Number of skinmatrices required: {1}", so.name, so.lastskinmat - so.firstskinmat);
@@ -829,7 +876,6 @@ namespace MVCore
 
                 //Finally Order children by name
                 so.children.OrderBy(i => i.Name);
-                localAnimScene = old_localAnimScene; //Bring back the old localAnimScene
                 return so;
             }
             else if (typeEnum == TYPES.MODEL)
@@ -892,7 +938,7 @@ namespace MVCore
                         ac.jointDict[kv.Key] = kv.Value;
                     }
 
-                    //Make a copy of the joing InvBMats
+                    //Make a copy of the joint InvBMats
                     Array.Copy(gobject.invBMats, ac.invBMats, gobject.invBMats.Length);
 
                 }
@@ -963,7 +1009,9 @@ namespace MVCore
                 }
                 //Finally Order children by name
                 so.children.OrderBy(i => i.Name);
-                localAnimScene = old_localAnimScene; //Restore old_localAnimScene
+                
+                //Do not restore the old AnimScene let them flow
+                //localAnimScene = old_localAnimScene; //Restore old_localAnimScene
                 return so;
             }
             else if (typeEnum == TYPES.JOINT)
@@ -985,7 +1033,7 @@ namespace MVCore
                 //Get InvBMatrix from gobject
                 if (joint.jointIndex < gobject.jointData.Count)
                 {
-                    joint.invBMat = gobject.jointData[joint.jointIndex].BindMatrix.Inverted();
+                    joint.invBMat = gobject.jointData[joint.jointIndex].invBindMatrix;
                     joint.BindMat = gobject.jointData[joint.jointIndex].BindMatrix;
                 }
                 
@@ -1038,14 +1086,7 @@ namespace MVCore
                     so.nms_template = node;
                     //Override transforms
                     so.init(transforms);
-
-                    //Handle Children
-                    if (children.Count > 0)
-                    {
-                        Console.WriteLine("Reference Object is not supposed to have children. I need to properly handle them...");
-                        Debug.Assert(false);
-                    }
-
+                    
                     //Load Objects from new xml
                     return so;
                 

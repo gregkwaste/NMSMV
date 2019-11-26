@@ -190,11 +190,9 @@ namespace Model_Viewer
         {
             //Update per frame data
             frameUpdate();
-
             renderMgr.render(); //Render Everything
-
         }
-
+        
         public void findAnimScenes(model node)
         {
             if (node.animComponentID >= 0)
@@ -220,12 +218,12 @@ namespace Model_Viewer
                 foreach (Joint j in ac.jointDict.Values)
                 {
                     MathUtils.insertMatToArray16(ac.JMArray, j.jointIndex * 16, j.worldMat);
+                    MathUtils.insertMatToArray16(ac.invBMats, j.jointIndex * 16, j.invBMat);
                 }
 
                 //Calculate skinning matrices for each joint for each geometry object
                 MathUtils.mulMatArrays(ref ac.skinMats, ac.invBMats,
                     ac.JMArray, ac.jointDict.Keys.Count);
-
             }
             
             rootObject?.update();
@@ -286,6 +284,10 @@ namespace Model_Viewer
                     {
                         switch (req.type)
                         {
+                            case THREAD_REQUEST_TYPE.QUERY_GLCONTROL_STATUS_REQUEST:
+                                //At this point the renderer is up and running
+                                req.status = THREAD_REQUEST_STATUS.FINISHED;
+                                break;
                             case THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST:
                                 lock (inputPollTimer)
                                 {
@@ -392,8 +394,8 @@ namespace Model_Viewer
         private void genericLoad(object sender, EventArgs e)
         {
 
-            this.InitializeComponent();
-            this.MakeCurrent();
+            InitializeComponent();
+            MakeCurrent();
 
             //Once the context is initialized compile the shaders
             compileShaders();
@@ -894,6 +896,7 @@ namespace Model_Viewer
 
             //Clear Form Resources
             resMgr.Cleanup();
+            MVCore.Common.RenderState.activeResMgr = resMgr;
             ModelProcGen.procDecisions.Clear();
             //Clear animScenes
             animScenes.Clear();
@@ -901,7 +904,7 @@ namespace Model_Viewer
 
             //Clear RenderStats
             RenderStats.clearStats();
-
+            
             //Stop animation if on
             if (RenderOptions.ToggleAnimations)
                 toggleAnimation();
@@ -909,8 +912,8 @@ namespace Model_Viewer
             //Add defaults
             addDefaultLights();
             addDefaultTextures();
-            addCamera(true);
-            addCamera(false);
+            addCamera();
+            addCamera(cull: false); //Add second camera
             setActiveCam(0);
             addDefaultPrimitives();
 
@@ -1041,7 +1044,7 @@ namespace Model_Viewer
         {
             RenderOptions.ToggleAnimations = !RenderOptions.ToggleAnimations;
 
-            if (RenderOptions.ToggleAnimations)
+            if (!backgroundWorker1.IsBusy)
                 backgroundWorker1.RunWorkerAsync();
             else
                 backgroundWorker1.CancelAsync();

@@ -21,6 +21,18 @@ namespace MVCore.Text
         COUNT
     };
 
+
+    public class myQFontDrawingPrimitive : QFontDrawingPrimitive
+    {
+        public bool isStatic = false;
+
+        public myQFontDrawingPrimitive(QFont _font, QFontRenderOptions _opts, bool static_flag) : base(_font, _opts)
+        {
+            isStatic = static_flag;
+        }
+    }
+
+
     public class TextRenderer :IDisposable
     {
         private QFont _font;
@@ -34,11 +46,11 @@ namespace MVCore.Text
             //Init drawings list to null
             _drawing = new QFontDrawing();
             _textOptions = new List<QFontRenderOptions>();
+            
 
             //Setup Text Options
             QFontRenderOptions fro = new QFontRenderOptions();
             
-
             //Add Custom text
             QFontDrawingPrimitive prim = new QFontDrawingPrimitive(_font);
             prim.Print("Test", new Vector3(0.0f, 0.0f, 0.0f), QFontAlignment.Centre);
@@ -52,9 +64,19 @@ namespace MVCore.Text
 
         }
 
-        public void clearPrimities()
+        public void clearPrimitives()
         {
             _drawing.DrawingPrimitives.Clear();
+        }
+
+        public void clearNonStaticPrimitives()
+        {
+            foreach (myQFontDrawingPrimitive p in _drawing.DrawingPrimitives)
+            {
+                if (!p.isStatic)
+                    _drawing.DrawingPrimitives.Remove(p);
+                
+            }
         }
 
         public void update()
@@ -62,15 +84,14 @@ namespace MVCore.Text
             _drawing.RefreshBuffers();
         }
 
-        public SizeF addDrawing(string text, Vector3 pos, System.Drawing.Color col, GLTEXT_INDEX text_type)
+        public SizeF addDrawing(string text, Vector3 pos, System.Drawing.Color col, GLTEXT_INDEX text_type, bool isStatic)
         {
             var textOpts = new QFontRenderOptions();
             textOpts.Colour = col;
             textOpts.DropShadowActive = true;
             
-
             SizeF size;
-            QFontDrawingPrimitive prim = new QFontDrawingPrimitive(_font, textOpts);
+            myQFontDrawingPrimitive prim = new myQFontDrawingPrimitive(_font, textOpts, isStatic);
             _drawing.DrawingPrimitives.Add(prim);
             size = prim.Print(text, pos, QFontAlignment.Right); //Print text to drawing
             return size;

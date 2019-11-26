@@ -31,6 +31,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Palettes.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)RenderManager.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ResourceManager.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ShadowRenderer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ThreadRequest.cs" />
   </ItemGroup>
 </Project>

@@ -56,15 +56,15 @@ namespace WPFModelViewer
             //Override Window Title
             Title += " " + Util.Version;
 
-            //Generate CGLControl
-            glControl = new CGLControl();
-            RenderState.activeResMgr = glControl.resMgr;
-
             //Add request timer handler
             requestHandler.Interval = 10;
             requestHandler.Elapsed += queryRequests;
             requestHandler.Start();
 
+            //Generate CGLControl
+            glControl = new CGLControl();
+            RenderState.activeResMgr = glControl.resMgr;
+            
             Host.Child = glControl;
 
             //Improve performance on Treeview
@@ -89,6 +89,20 @@ namespace WPFModelViewer
             Console.WriteLine("Importing " + filename);
 
 
+            ThreadRequest req;
+
+
+            //Pause renderer
+            req = new ThreadRequest();
+            req.type = THREAD_REQUEST_TYPE.PAUSE_RENDER_REQUEST;
+            req.arguments.Clear();
+
+            //Send request
+            glControl.issueRequest(ref req);
+
+            while (req.status != THREAD_REQUEST_STATUS.FINISHED)
+                System.Threading.Thread.Sleep(10);
+
             //Clear treeview
             Application.Current.Dispatcher.BeginInvoke((Action)(() =>
             {
@@ -97,7 +111,7 @@ namespace WPFModelViewer
             }));
             
             //Generate Request for rendering thread
-            ThreadRequest req = new ThreadRequest();
+            req = new ThreadRequest();
             req.type = THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST;
             req.arguments.Clear();
             req.arguments.Add(filename);
@@ -105,8 +119,14 @@ namespace WPFModelViewer
             glControl.issueRequest(ref req);
             issuedRequests.Add(req);
 
-            //Cleanup resource manager
-            Util.setStatus("Ready");
+            //Generate Request for resuming rendering
+            req = new ThreadRequest();
+            req.type = THREAD_REQUEST_TYPE.RESUME_RENDER_REQUEST;
+            req.arguments.Clear();
+            
+            glControl.issueRequest(ref req);
+            issuedRequests.Add(req);
+
         }
 
         //Request Handler
@@ -269,7 +289,15 @@ namespace WPFModelViewer
             //Setup Logger
             Util.loggingSr = new StreamWriter("log.out");
 
+            //Check if the rt_thread is ready
+            ThreadRequest req = new ThreadRequest();
+            req.type = THREAD_REQUEST_TYPE.QUERY_GLCONTROL_STATUS_REQUEST;
+            issuedRequests.Add(req);
+            glControl.issueRequest(ref req);
 
+            while(req.status != THREAD_REQUEST_STATUS.FINISHED)
+                System.Threading.Thread.Sleep(10);
+            
             //Populate GLControl
             scene scene = new scene();
             scene.type = TYPES.MODEL;

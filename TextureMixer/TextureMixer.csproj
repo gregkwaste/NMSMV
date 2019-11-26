@@ -54,6 +54,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup>
     <StartupObject>TextureMixer.Program</StartupObject>
@@ -69,6 +70,7 @@
     <Reference Include="MathNet.Numerics, Version=4.6.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\MathNet.Numerics.4.6.0\lib\net40\MathNet.Numerics.dll</HintPath>
     </Reference>
+    <Reference Include="netstandard, Version=2.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51" />
     <Reference Include="OpenTK, Version=3.0.1.0, Culture=neutral, PublicKeyToken=bad199fe84eb3df4, processorArchitecture=MSIL">
       <HintPath>..\packages\OpenTK.3.0.1\lib\net20\OpenTK.dll</HintPath>
     </Reference>
@@ -113,14 +115,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
-      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
       <SubType>Designer</SubType>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
-    <Compile Include="Properties\Resources.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DependentUpon>Resources.resx</DependentUpon>
-      <DesignTime>True</DesignTime>
-    </Compile>
     <None Include="..\Model Viewer\Resources\camera.frag">
       <Link>Resources\camera.frag</Link>
     </None>
@@ -214,6 +211,11 @@
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
     <Compile Include="Properties\Settings.Designer.cs">
       <AutoGen>True</AutoGen>
       <DependentUpon>Settings.settings</DependentUpon>
@@ -238,7 +240,7 @@
   <Import Project="..\MVCore\MVCore.projitems" Label="Shared" />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>XCOPY "$(SolutionDir)Model Viewer\Shaders\pass_*" "$(TargetDir)Shaders" /s /i /y &amp;&amp; XCOPY "$(SolutionDir)Model Viewer\Shaders\common.glsl" "$(TargetDir)Shaders" /s /i /y &amp;&amp; COPY "$(SolutionDir)Model Viewer\Resources\default.dds" "$(TargetDir)\default.dds" &amp;&amp; COPY "$(SolutionDir)Model Viewer\Resources\default_mask.dds" "$(TargetDir)\default_mask.dds" &amp;&amp; XCOPY "$(SolutionDir)TextureMixer\Resources\*.dll" "$(TargetDir)" /y</PostBuildEvent>
+    <PostBuildEvent>XCOPY "$(SolutionDir)Shaders" "$(TargetDir)Shaders" /s /i /y &amp;&amp; COPY "$(SolutionDir)\Resources\default.dds" "$(TargetDir)\default.dds" &amp;&amp; COPY "$(SolutionDir)Resources\default_mask.dds" "$(TargetDir)\default_mask.dds"</PostBuildEvent>
   </PropertyGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>

@@ -12,22 +12,33 @@ namespace MVCore
 {
     //Render Structs
     [StructLayout(LayoutKind.Explicit)]
+    struct CommonPerFrameSamplers
+    {
+        [FieldOffset(0)]
+        public int depthMap; //Depth Map Sampler ID
+        
+        public static readonly int SizeInBytes = 12;
+    };
+
+    [StructLayout(LayoutKind.Explicit)]
     struct CommonPerFrameUniforms
     {
         [FieldOffset(0)]
         public float diffuseFlag; //Enable Textures
         [FieldOffset(4)]
         public float use_lighting; //Enable lighting
-        [FieldOffset(8)]
-        public int depthMap; //Depth Map Sampler ID
         [FieldOffset(16)]
         public Matrix4 rotMat;
         [FieldOffset(80)]
         public Matrix4 mvp;
         [FieldOffset(144)]
         public Vector3 cameraPosition;
+        [FieldOffset(156)]
+        public float cameraFarPlane;
         [FieldOffset(160)]
         public Vector3 cameraDirection;
+        [FieldOffset(172)]
+        public int light_number;
 
         public static readonly int SizeInBytes = 176;
     };
@@ -61,7 +72,8 @@ namespace MVCore
         public ShadowRenderer shdwRenderer; //Shadow Renderer instance
         //Control Font and Text Objects
         private Text.TextRenderer txtRenderer;
-
+        public int last_text_height;
+        
         private GBuffer gbuf;
         private Dictionary<string, int> UBOs = new Dictionary<string, int>();
 
@@ -136,8 +148,8 @@ namespace MVCore
                 process_models(child);
             }
         }
-
-
+        
+        
         public void setupTextRenderer()
         {
             //Use QFont
@@ -190,7 +202,11 @@ namespace MVCore
             cpfu.rotMat = RenderState.rotMat;
             cpfu.cameraPosition = RenderState.activeCam.Position;
             cpfu.cameraDirection = RenderState.activeCam.Orientation;
-            cpfu.depthMap = shdwRenderer.depth_tex_id; //Assign Depth Map
+            cpfu.cameraFarPlane = RenderState.activeCam.zFar;
+            cpfu.light_number = RenderState.activeResMgr.GLlights.Count;
+            
+            //TODO: Move depthMap to the new commonperSamplers struct
+            //cpfu.depthMap = shdwRenderer.depth_tex_id; //Assign Depth Map
 
             GL.BindBuffer(BufferTarget.UniformBuffer, UBOs["Uniforms"]);
             GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, CommonPerFrameUniforms.SizeInBytes, ref cpfu);
@@ -322,23 +338,16 @@ namespace MVCore
 
             GL.UseProgram(config.program_id);
 
-            GL.Uniform1(config.uniformLocations["light_count"], resMgr.GLlights.Count);
-            
             //Upload lights
-            for (int i = 0; i < resMgr.GLlights.Count; i++)
+            //ONLY 16 lights are allowed for now
+            for (int i = 0; i < Math.Min(16, resMgr.GLlights.Count); i++)
             {
                 Light light = resMgr.GLlights[i];
-                int loc;
-                loc = GL.GetUniformLocation(config.program_id, "lights[" + i.ToString() + "].position");
-                GL.Uniform3(loc, light.worldPosition);
-                loc = GL.GetUniformLocation(config.program_id, "lights[" + i.ToString() + "].color");
-                GL.Uniform3(loc, light.color.Vec.Xyz);
-                loc = GL.GetUniformLocation(config.program_id, "lights[" + i.ToString() + "].intensity");
-                GL.Uniform1(loc, light.intensity);
-                loc = GL.GetUniformLocation(config.program_id, "lights[" + i.ToString() + "].falloff");
-                GL.Uniform1(loc, (int) light.falloff);
-                loc = GL.GetUniformLocation(config.program_id, "lights[" + i.ToString() + "].renderable");
-                GL.Uniform1(loc, light.renderable ? 1.0f: 0.0f);
+                GL.Uniform3(config.uniformLocations["lights[" + i.ToString() + "].position"], light.worldPosition);
+                GL.Uniform3(config.uniformLocations["lights[" + i.ToString() + "].color"], light.color.Vec.Xyz);
+                GL.Uniform1(config.uniformLocations["lights[" + i.ToString() + "].intensity"], light.intensity);
+                GL.Uniform1(config.uniformLocations["lights[" + i.ToString() + "].falloff"], (int) light.falloff);
+                GL.Uniform1(config.uniformLocations["lights[" + i.ToString() + "].renderable"], light.renderable ? 1.0f : 0.0f);
             }
         }
 
@@ -353,10 +362,7 @@ namespace MVCore
                 switch (m.type)
                 {
                     case TYPES.MESH:
-                        if (RenderState.activeCam.frustum_occlude((meshModel)m, Matrix4.Identity)) {
-                            uploadLights(m.shader_programs[(int)RENDERPASS.MAIN]);
-                        }   
-                        else {
+                        if (!RenderState.activeCam.frustum_occlude((meshModel)m, Matrix4.Identity)) { 
                             occludedNum++;
                             continue;
                         }
@@ -365,6 +371,9 @@ namespace MVCore
                         break;
                 }
 
+                if (RenderOptions.UseLighting && m.type == TYPES.MESH)
+                    uploadLights(m.shader_programs[(int)RENDERPASS.MAIN]);
+                
                 prepareCommonPermeshUBO(m);
                 m.render(RENDERPASS.MAIN);
                 if (RenderOptions.RenderBoundHulls && (m.type == TYPES.MESH))
@@ -521,40 +530,46 @@ namespace MVCore
             float text_pos_y = 80.0f;
 
 
-            txtRenderer.clearPrimities();
+            txtRenderer.clearPrimitives();
+            //txtRenderer.clearNonStaticPrimitives();
 
+
+            //Update only dynamic stuff
+            
             System.Drawing.SizeF size = new System.Drawing.SizeF();
+            Vector3 pos;
             for (int i = 0; i < 5; i++)
             {
+                //Set Vector Pos
+                pos.X = text_pos_x;
+                pos.Y = text_pos_y;
+                pos.Z = 0;
                 switch (i)
                 {
                     case 0:
                         size = txtRenderer.addDrawing(string.Format("FPS: {0:F1}", RenderStats.fpsCount),
-                            new Vector3(text_pos_x, text_pos_y, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS);
+                            pos, System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS, false);
                         break;
                     case 1:
                         size = txtRenderer.addDrawing(string.Format("OccludedNum: {0:D1}", occludedNum),
-                            new Vector3(text_pos_x, text_pos_y, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS);
+                            pos, System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS, false);
                         break;
                     case 2:
                         size = txtRenderer.addDrawing(string.Format("Total Vertices: {0:D1}", RenderStats.vertNum),
-                            new Vector3(text_pos_x, text_pos_y, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS);
+                            pos, System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS, false);
                         break;
                     case 3:
                         size = txtRenderer.addDrawing(string.Format("Total Triangles: {0:D1}", RenderStats.trisNum),
-                            new Vector3(text_pos_x, text_pos_y, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS);
+                            pos, System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS, false);
                         break;
                     case 4:
                         size = txtRenderer.addDrawing(string.Format("Textures: {0:D1}", RenderStats.texturesNum),
-                            new Vector3(text_pos_x, text_pos_y, 0.0f), System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS);
+                            pos, System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS, false);
                         break;
                 }
                 text_pos_y -= (size.Height + 2.0f);
             }
-
-
-
-
+            
             //Render drawings
             txtRenderer.update();
             txtRenderer.render(gbuf.size[0], gbuf.size[1]);

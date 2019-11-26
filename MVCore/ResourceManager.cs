@@ -48,7 +48,12 @@ namespace MVCore
                 p.Dispose();
             GLScenes.Clear();
 
-            GLVaos.Clear(); //Individual VAos are handled from each Geom.Dispose call
+            //Cleanup VAOs
+            foreach (GMDL.mainVAO v in GLVaos.Values)
+                v.Dispose();
+            GLVaos.Clear();
+
+            //Cleanup Geom Objects
             foreach (GMDL.GeomObject p in GLgeoms.Values)
                 p.Dispose();
             GLgeoms.Clear();

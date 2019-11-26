@@ -639,7 +639,7 @@ namespace MVCore.GMDL
         {
 
             GLSLHelper.GLSLShaderConfig shader = shader_programs[(int)pass];
-
+            
             switch (pass)
             {
                 case 0:
@@ -713,17 +713,20 @@ namespace MVCore.GMDL
         public int firstskinmat = 0;
         public int lastskinmat = 0;
         //New stuff Properties
-        public int lod_level = 0;
         public int boundhullstart = 0;
         public int boundhullend = 0;
         public Vector3[] Bbox;
         public DrawElementsType indicesLength = DrawElementsType.UnsignedShort;
 
-        public Material Material {get; set;}
+        public int LodLevel { get; set; }
+
+
+        public Material Material { get; set; }
         public Vector3 color = new Vector3();
 
         public int skinned = 0;
-        public ulong hash = 0xFFFFFFFF;
+        public ulong Hash { get; set; }
+        
         //Accurate boneRemap
         public int BoneRemapIndicesCount;
         public int[] BoneRemapIndices;
@@ -740,6 +743,7 @@ namespace MVCore.GMDL
         public meshModel() : base()
         {
             type = TYPES.MESH;
+            Hash = 0xFFFFFFFF;
         }
 
         public meshModel(meshModel input) :base(input)
@@ -749,7 +753,9 @@ namespace MVCore.GMDL
             this.vertrstart_physics = input.vertrstart_physics;
             this.vertrend_graphics = input.vertrend_graphics;
             this.vertrend_physics = input.vertrend_physics;
-            //Render Tris
+            this.Hash = input.Hash;
+            
+        //Render Tris
             this.batchcount = input.batchcount;
             this.batchstart_graphics = input.batchstart_graphics;
             this.batchstart_physics = input.batchstart_physics;
@@ -1022,10 +1028,6 @@ namespace MVCore.GMDL
             for (int i = 0; i < Material.Flags.Count; i++)
                 GL.Uniform1(loc + (int) Material.Flags[i].MaterialFlag, 1.0f);
 
-            //Upload BoneRemap Information
-            loc = GL.GetUniformLocation(pass, "boneRemap");
-            GL.Uniform1(loc, BoneRemapMatrices.Length, BoneRemapMatrices);
-
             //Upload joint transform data
             //Multiply matrices before sending them
             //Check if scene has the jointModel
@@ -1076,13 +1078,22 @@ namespace MVCore.GMDL
 
         public override void update()
         {
-            if ((skinned > 0) && (animScene !=null))
+            if (skinned > 0)
             {
-                AnimComponent ac = animScene.Components[animScene.animComponentID] as AnimComponent;
-                //Update the mesh remap matrices and continue with the transform updates
-                for (int i = 0; i < BoneRemapIndicesCount; i++)
+                if (animScene != null)
                 {
-                    Array.Copy(ac.skinMats, BoneRemapIndices[i] * 16, BoneRemapMatrices, i * 16, 16);
+                    AnimComponent ac = animScene.Components[animScene.animComponentID] as AnimComponent;
+                    //Update the mesh remap matrices and continue with the transform updates
+                    for (int i = 0; i < BoneRemapIndicesCount; i++)
+                    {
+                        Array.Copy(ac.skinMats, BoneRemapIndices[i] * 16, BoneRemapMatrices, i * 16, 16);
+                    }
+                }
+                else
+                {
+                    //We set the default pose here, which corresponds to identiy skin matrix
+                    for (int i = 0; i < BoneRemapIndicesCount; i++)
+                        MathUtils.insertMatToArray16(BoneRemapMatrices, i * 16, Matrix4.Identity);
                 }
             }
             
@@ -1095,8 +1106,8 @@ namespace MVCore.GMDL
             if (this.type == TYPES.COLLISION) return;
             
             int vertcount = this.vertrend_graphics - this.vertrstart_graphics + 1;
-            MemoryStream vms = new MemoryStream(gobject.meshDataDict[hash].vs_buffer);
-            MemoryStream ims = new MemoryStream(gobject.meshDataDict[hash].is_buffer);
+            MemoryStream vms = new MemoryStream(gobject.meshDataDict[Hash].vs_buffer);
+            MemoryStream ims = new MemoryStream(gobject.meshDataDict[Hash].is_buffer);
             BinaryReader vbr = new BinaryReader(vms);
             BinaryReader ibr = new BinaryReader(ims);
             //Start Writing
@@ -1626,14 +1637,16 @@ namespace MVCore.GMDL
             
             
             //Make sure that the hash exists in the dictionary
-            if (so.hash == 0xFFFFFFFF)
+            if (so.Hash == 0xFFFFFFFF)
                 throw new System.Collections.Generic.KeyNotFoundException("Invalid Mesh Hash");
 
-            if (MVCore.Common.RenderState.activeResMgr.GLVaos.ContainsKey(so.hash))
-                return MVCore.Common.RenderState.activeResMgr.GLVaos[so.hash];
+            if (MVCore.Common.RenderState.activeResMgr.GLVaos.ContainsKey(so.Hash))
+                return MVCore.Common.RenderState.activeResMgr.GLVaos[so.Hash];
             
             
             mainVAO vao = new mainVAO();
+            //Save vao to Resource Manager
+            MVCore.Common.RenderState.activeResMgr.GLVaos[so.Hash] = vao;
 
             //Generate VAO
             vao.vao_id = GL.GenVertexArray();
@@ -1651,8 +1664,8 @@ namespace MVCore.GMDL
             int size;
             GL.BindBuffer(BufferTarget.ArrayBuffer, vao.vertex_buffer_object);
             //Upload Vertex Buffer
-            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr) meshMetaDataDict[so.hash].vs_size,
-                meshDataDict[so.hash].vs_buffer, BufferUsageHint.StaticDraw);
+            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr) meshMetaDataDict[so.Hash].vs_size,
+                meshDataDict[so.Hash].vs_buffer, BufferUsageHint.StaticDraw);
             GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize,
                 out size);
             if (size != vx_size * (so.vertrend_graphics + 1))
@@ -1671,17 +1684,17 @@ namespace MVCore.GMDL
 
             //Upload index buffer
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, vao.element_buffer_object);
-            GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr) meshMetaDataDict[so.hash].is_size, 
-                meshDataDict[so.hash].is_buffer, BufferUsageHint.StaticDraw);
+            GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr) meshMetaDataDict[so.Hash].is_size, 
+                meshDataDict[so.Hash].is_buffer, BufferUsageHint.StaticDraw);
             GL.GetBufferParameter(BufferTarget.ElementArrayBuffer, BufferParameterName.BufferSize,
                 out size);
             Console.WriteLine(GL.GetError());
-            if (size != meshMetaDataDict[so.hash].is_size)
+            if (size != meshMetaDataDict[so.Hash].is_size)
                 throw new ApplicationException(String.Format("Problem with vertex buffer"));
 
 
             //Calculate indiceslength per index buffer
-            int indicesLength = (int)meshMetaDataDict[so.hash].is_size / so.batchcount;
+            int indicesLength = (int)meshMetaDataDict[so.Hash].is_size / so.batchcount;
 
             switch (indicesLength)
             {
@@ -1886,7 +1899,7 @@ namespace MVCore.GMDL
     }
 
 
-    public class Sampler: TkMaterialSampler, IDisposable
+    public class Sampler : TkMaterialSampler, IDisposable
     {
         public MyTextureUnit texUnit;
         public Texture tex;
@@ -1993,7 +2006,7 @@ namespace MVCore.GMDL
                     isProcGen = true;
                 }
             }
-            
+
             //Load the texture to the sampler
             loadTexture();
         }
@@ -2241,7 +2254,7 @@ namespace MVCore.GMDL
             //Save NMSTemplate to exml
             template.WriteToExml("Temp\\" + template.Name + ".exml");
 #endif
-
+            
             //Make new material based on the template
             Material mat = new Material(template);
 
@@ -3363,9 +3376,9 @@ namespace MVCore.GMDL
 
             br.Close();
 
-            int rmask = 0x1F << 11;
-            int gmask = 0x3F << 5;
-            int bmask = 0x1F;
+            //int rmask = 0x1F << 11;
+            //int gmask = 0x3F << 5;
+            //int bmask = 0x1F;
             uint temp;
 
             temp = (uint) (color0 >> 11) * 255 + 16;
@@ -3544,6 +3557,7 @@ namespace MVCore.GMDL
     {
         QUADRATIC = 0x0,
         CONSTANT,
+        LINEAR,
         COUNT
     }
     
@@ -3855,7 +3869,9 @@ namespace MVCore.GMDL
             jointDict = new Dictionary<string, Joint>();
 
             //Load Animations
-            _animations.Add(new AnimData(data.Idle)); //Add Idle Animation
+            if (data.Idle.Anim != "")
+                _animations.Add(new AnimData(data.Idle)); //Add Idle Animation
+            
             for (int i = 0; i < data.Anims.Count; i++)
             {
                 AnimData my_ad = new AnimData(data.Anims[i]);
@@ -3907,6 +3923,41 @@ namespace MVCore.GMDL
 
     }
 
+    public class LODModelComponent: Component
+    {
+        private List<LODModelResource> _resources;
+
+        //Properties
+        public List<LODModelResource> Resources => _resources;
+
+        public LODModelComponent()
+        {
+            _resources = new List<LODModelResource>();
+        }
+    }
+
+    public class LODModelResource
+    {
+        private string _filename;
+        private float _crossFadeTime;
+        private float _crossFadeoverlap;
+
+        //Properties
+        public string Filename
+        {
+            get
+            {
+                return _filename;
+            }
+        }
+
+        public LODModelResource(TkLODModelResource res)
+        {
+            _filename = res.LODModel.Filename;
+            _crossFadeTime = res.CrossFadeTime;
+            _crossFadeoverlap = res.CrossFadeOverlap;
+        }
+    }
 
     public class AnimPoseComponent: Component
     {
@@ -4168,9 +4219,8 @@ namespace MVCore.GMDL
 
         public void animate()
         {
-            frameCounter += 1;
-            if (frameCounter >= animMeta.FrameCount - 1)
-                frameCounter = 0;
+            if (animMeta != null)
+                frameCounter = (frameCounter + 1) % animMeta.FrameCount;
         }
 
     }

@@ -16,6 +16,9 @@
     <WarningLevel>4</WarningLevel>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <IsWebBootstrapper>false</IsWebBootstrapper>
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+    <TargetFrameworkProfile />
     <PublishUrl>publish\</PublishUrl>
     <Install>true</Install>
     <InstallFrom>Disk</InstallFrom>
@@ -34,9 +37,6 @@
     <UseApplicationTrust>false</UseApplicationTrust>
     <PublishWizardCompleted>true</PublishWizardCompleted>
     <BootstrapperEnabled>true</BootstrapperEnabled>
-    <NuGetPackageImportStamp>
-    </NuGetPackageImportStamp>
-    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -88,7 +88,7 @@
     <ApplicationManifest>Properties\app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="libMBIN, Version=1.78.0.1, Culture=neutral, processorArchitecture=MSIL">
+    <Reference Include="libMBIN, Version=2.15.0.1, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\Model Viewer\lib\libMBIN.dll</HintPath>
     </Reference>
@@ -267,7 +267,7 @@
   <Import Project="..\MVCore\MVCore.projitems" Label="Shared" />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>XCOPY "$(SolutionDir)Model Viewer\Shaders" "$(TargetDir)Shaders" /s /i /y &amp;&amp; COPY "$(SolutionDir)Model Viewer\Resources\default.dds" "$(TargetDir)\default.dds" &amp;&amp; COPY "$(SolutionDir)Model Viewer\Resources\default_mask.dds" "$(TargetDir)\default_mask.dds"</PostBuildEvent>
+    <PostBuildEvent>XCOPY "$(SolutionDir)Shaders" "$(TargetDir)Shaders" /s /i /y &amp;&amp; COPY "$(SolutionDir)\Resources\default.dds" "$(TargetDir)\default.dds" &amp;&amp; COPY "$(SolutionDir)Resources\default_mask.dds" "$(TargetDir)\default_mask.dds"</PostBuildEvent>
   </PropertyGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>

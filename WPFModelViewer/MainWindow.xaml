@@ -53,7 +53,7 @@
                     <TextBlock Text="{Binding PMap}" HorizontalAlignment="Right"/>
                 </DockPanel>
             </DataTemplate>
-
+            
             <DataTemplate DataType="{x:Type gmdl:Uniform}">
                 <DockPanel>
                     <TextBlock Text="{Binding Name}"/>
@@ -109,6 +109,12 @@
                 <DockPanel>
                     <TextBlock Text="{Binding PAnim}"/>
                     <Slider Minimum="{Binding PFrameStart}" Maximum="{Binding PFrameEnd}" Value="{Binding PActivePoseFrame}" ></Slider>
+                </DockPanel>
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type gmdl:LODModelResource}">
+                <DockPanel>
+                    <TextBlock Text="{Binding Filename}"/>
                 </DockPanel>
             </DataTemplate>
 
@@ -199,6 +205,19 @@
                 </StackPanel>
             </DataTemplate>
 
+            <DataTemplate DataType="{x:Type gmdl:LODModelComponent}">
+                <StackPanel Grid.Row="2">
+                    <TextBlock Text="LODModels"></TextBlock>
+                    <ListBox ItemsSource="{Binding Resources}" HorizontalContentAlignment="Stretch">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <ContentControl Content="{Binding}"/>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </StackPanel>
+            </DataTemplate>
+
             <DataTemplate DataType="{x:Type gmdl:AnimPoseComponent}">
                 <StackPanel>
                     <TextBlock Text="Model Pose"></TextBlock>
@@ -221,7 +240,7 @@
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:locator}">
-                <ContentPresenter Grid.Row="0" Content="{Binding}" ContentTemplate="{StaticResource basemodel}"/>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}" Grid.Row="0"/>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:meshModel}">
@@ -229,9 +248,26 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}" Grid.Row="0"/>
-                    <ContentControl Content="{Binding Material}" Grid.Row="1"></ContentControl>
+                    <GroupBox Header="Mesh Properties" Grid.Row="1">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Height="20">
+                                <TextBlock Text="LOD Level"></TextBlock >
+                                <TextBlock HorizontalAlignment="Right" Text="{Binding LodLevel}"></TextBlock>
+                            </DockPanel>
+                            <DockPanel Grid.Row="1" HorizontalAlignment="Stretch" Height="20">
+                                <TextBlock Text="Hash"></TextBlock >
+                                <TextBlock HorizontalAlignment="Right" Text="{Binding Hash}"></TextBlock>
+                            </DockPanel>
+                        </Grid>
+                    </GroupBox>
+                    <ContentControl Content="{Binding Material}" Grid.Row="2"></ContentControl>
                 </Grid>
             </DataTemplate>
 

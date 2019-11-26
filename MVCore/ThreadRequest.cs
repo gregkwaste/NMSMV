@@ -6,6 +6,7 @@ namespace MVCore
 {
    public enum THREAD_REQUEST_TYPE
     {
+        QUERY_GLCONTROL_STATUS_REQUEST,
         NEW_SCENE_REQUEST,
         UPDATE_SCENE_REQUEST,
         CHANGE_MODEL_PARENT_REQUEST,

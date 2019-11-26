@@ -170,9 +170,22 @@ namespace GLSLHelper {
     }
 
 
-
     public static class GLShaderHelper
     {
+        static private string NumberLines(string s)
+        {
+            if (s == "")
+                return s;
+                
+            string n_s = "";
+            string[] split = s.Split('\n');
+
+            for (int i = 0; i < split.Length; i++)
+                n_s += (i + 1).ToString() + ": " + split[i] + "\n";
+            
+            return n_s;
+        }
+        
         //Shader Creation
         static public void CreateShaders(GLSLShaderConfig config, out int vertexObject,
             out int fragmentObject, out int program)
@@ -185,13 +198,13 @@ namespace GLSLHelper {
             if (!((config.tcs == "") & (config.tes == ""))) tsflag = true;
 
             //Write Shader strings
-            config.log += config.vs + "\n";
-            config.log += config.fs + "\n";
-            config.log += config.gs + "\n";
-            config.log += config.tcs + "\n";
-            config.log += config.tes + "\n";
             
-
+            config.log += NumberLines(config.vs) + "\n";
+            config.log += NumberLines(config.fs) + "\n";
+            config.log += NumberLines(config.gs) + "\n";
+            config.log += NumberLines(config.tcs) + "\n";
+            config.log += NumberLines(config.tes) + "\n";
+            
             vertexObject = GL.CreateShader(ShaderType.VertexShader);
             fragmentObject = GL.CreateShader(ShaderType.FragmentShader);
             int geometryObject = -1;

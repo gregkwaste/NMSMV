@@ -16,9 +16,8 @@ namespace TextureMixer
     public partial class Form1 : Form
     {
         private bool glloaded;
-        private int shader_program;
-
         private Context context;
+        private int shader_program;
 
         //QUAD GEOMETRY
         private float[] quad = new float[6 * 3] {
@@ -57,8 +56,8 @@ namespace TextureMixer
         private Texture dMask;
 
         //Rendering Options
-        private float hasAlphaChannel = 0.0f;
-        private int  renderMode = 0;
+        private float hasAlphaChannel = 0;
+        private int renderMode = 0;
 
         public Form1()
         {
@@ -151,7 +150,6 @@ namespace TextureMixer
             //Setup default program
             GL.UseProgram(shader_program);
 
-            
             context = new Context(Tw.GraphicsAPI.OpenGL);
             ////Add stuff to context
             //var configsBar = new Bar(context);
@@ -240,10 +238,7 @@ namespace TextureMixer
             GL.ClearColor(System.Drawing.Color.Black);
 
             GL.Viewport(0, 0, glControl1.ClientSize.Width, glControl1.ClientSize.Height);
-            //BIND TEXTURES
-            Texture tex;
-            int loc;
-
+            
             //TODO use mode selection and choose between mask, normal, diffuse mix methods
             MVCore.GMDL.TextureMixer.mixDiffuseTextures(ClientSize.Width, ClientSize.Height);
         }
