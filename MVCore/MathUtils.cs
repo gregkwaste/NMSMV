@@ -134,6 +134,21 @@ namespace MVCore
             return (float) Math.Sqrt(n);
         }
 
+        public static bool isIdentity(Matrix4 mat)
+        {
+            //Hacks, i have no idea yet if mathematically this is valid
+            if (mat.M11 != 1.0f)
+                return false;
+            if (mat.M22 != 1.0f)
+                return false;
+            if (mat.M33 != 1.0f)
+                return false;
+            if (mat.M44 != 1.0f)
+                return false;
+
+            return true;
+        }
+
 
         public static float radians(float angle)
         {

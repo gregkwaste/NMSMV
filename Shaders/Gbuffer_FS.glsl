@@ -6,6 +6,7 @@
 uniform sampler2DMS diffuseTex;
 uniform sampler2DMS positionTex;
 uniform sampler2DMS depthTex;
+uniform sampler2DMS bloomTex;
 
 uniform mat4 mvp;
 in vec2 uv0;
@@ -43,13 +44,24 @@ void main()
 {
 	//sample our texture
 	vec4 texColor = vec4(0.0, 0.0, 0.0, 0.0);
+	vec4 depthColor = vec4(0.0, 0.0, 0.0, 0.0);
+	vec4 bloomColor = vec4(0.0, 0.0, 0.0, 0.0);
 	for (int i=0; i<8; i++){
 		texColor += texelFetch(diffuseTex, ivec2(gl_FragCoord.xy), i);	
+		depthColor += texelFetch(depthTex, ivec2(gl_FragCoord.xy), i);	
+		bloomColor += texelFetch(bloomTex, ivec2(gl_FragCoord.xy), i);	
 	}
-	//vec4 texelValue = texelFetch(depthTex, ivec2(gl_FragCoord.xy), 0);
-	//vec4 texelValue = texelFetch(positionTex, ivec2(gl_FragCoord.xy), 0);
 	
-	gl_FragColor = 0.125 * texColor;
+	//Normalize Values
+	texColor = 0.125 * texColor;
+	depthColor = 0.125 * depthColor;
+	bloomColor = 0.125 * bloomColor;
+
+
+	
+	vec3 clearColor = vec3(0.13, 0.13, 0.13);
+	vec3 mixColor = (texColor + bloomColor).rgb;
+	gl_FragColor = vec4(mix(clearColor, mixColor, texColor.a), 1.0);
 	
 	//gl_FragColor = vec4(texture2D(depthTex, uv0).rrr, 1.0);
 	//vec4 world = worldfromDepth();

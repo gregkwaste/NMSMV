@@ -39,8 +39,11 @@ namespace MVCore
         public Vector3 cameraDirection;
         [FieldOffset(172)]
         public int light_number;
+        [FieldOffset(176)]
+        public unsafe fixed float lights[32 * 64];
 
-        public static readonly int SizeInBytes = 176;
+
+        public static readonly int SizeInBytes = 2224;
     };
 
     [StructLayout(LayoutKind.Explicit)]
@@ -53,12 +56,14 @@ namespace MVCore
         [FieldOffset(128)] //4 bytes
         public unsafe fixed float skinMats[80 * 16]; //This is mapped to mat4 //5120 bytes
         [FieldOffset(5248)]
-        public Vector3 color; //12 bytes
-        [FieldOffset(5260)]
-        public float skinned; //4 bytes (aligns to 4 bytes)
+        public Vector4 gUserDataVec4;
         [FieldOffset(5264)]
+        public Vector3 color; //12 bytes
+        [FieldOffset(5276)]
+        public float skinned; //4 bytes (aligns to 4 bytes)
+        [FieldOffset(5280)]
         public float selected; //4 Bytes
-        public static readonly int SizeInBytes = 5280;
+        public static readonly int SizeInBytes = 5296;
     };
 
 
@@ -80,6 +85,8 @@ namespace MVCore
         //Local Counters
         private int occludedNum;
 
+        //UBO structs
+        CommonPerFrameUniforms cpfu;
         
         public void init(ResourceManager input_resMgr)
         {
@@ -195,7 +202,6 @@ namespace MVCore
         private void prepareCommonPerFrameUBO()
         {
             //Prepare Struct
-            CommonPerFrameUniforms cpfu;
             cpfu.diffuseFlag = RenderOptions._useTextures;
             cpfu.use_lighting = RenderOptions._useLighting;
             cpfu.mvp = RenderState.mvp;
@@ -204,10 +210,46 @@ namespace MVCore
             cpfu.cameraDirection = RenderState.activeCam.Orientation;
             cpfu.cameraFarPlane = RenderState.activeCam.zFar;
             cpfu.light_number = RenderState.activeResMgr.GLlights.Count;
+
+            //Upload light information
+            for (int i = 0; i < Math.Min(32, resMgr.GLlights.Count); i++)
+            {
+                Light l = resMgr.GLlights[i];
+                if (!l.update_changes)
+                    continue;
+                l.update_changes = false; //Reset the flag
+
+                int offset = (GLLight.SizeInBytes / 4) * i;
+                GLLight strct = resMgr.GLlights[i].strct;
+                unsafe
+                {
+                    //Position : Offset 0
+                    cpfu.lights[offset + 0] = strct.position.X;
+                    cpfu.lights[offset + 1] = strct.position.Y;
+                    cpfu.lights[offset + 2] = strct.position.Z;
+                    cpfu.lights[offset + 3] = strct.position.W;
+                    //Color : Offset 16(4)
+                    cpfu.lights[offset + 4] = strct.color.X;
+                    cpfu.lights[offset + 5] = strct.color.Y;
+                    cpfu.lights[offset + 6] = strct.color.Z;
+                    cpfu.lights[offset + 7] = strct.color.W;
+                    //Direction: Offset 32(8)
+                    cpfu.lights[offset + 8] = strct.direction.X;
+                    cpfu.lights[offset + 9] = strct.direction.Y;
+                    cpfu.lights[offset + 10] = strct.direction.Z;
+                    cpfu.lights[offset + 11] = strct.direction.W;
+                    //Falloff: Offset 48(12)
+                    cpfu.lights[offset + 12] = strct.falloff;
+                    //Type: Offset 52(13)
+                    cpfu.lights[offset + 13] = strct.type;
+                }
+            
+            }
             
             //TODO: Move depthMap to the new commonperSamplers struct
             //cpfu.depthMap = shdwRenderer.depth_tex_id; //Assign Depth Map
 
+            
             GL.BindBuffer(BufferTarget.UniformBuffer, UBOs["Uniforms"]);
             GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, CommonPerFrameUniforms.SizeInBytes, ref cpfu);
             GL.BindBuffer(BufferTarget.UniformBuffer, 0);
@@ -223,7 +265,6 @@ namespace MVCore
             cpmu.nMat = nMat;
             cpmu.selected = m.selected;
             
-
             if (m.type == TYPES.MESH)
             {
                 //Copy SkinMatrices
@@ -240,11 +281,15 @@ namespace MVCore
 
                 cpmu.skinned = (float) mm.skinned;
                 cpmu.color = mm.color;
+
+                //Copy custom mesh parameters
+                cpmu.gUserDataVec4 = new Vector4(0.0f, 0.0f, 0.0f, 0.0f);
             }
             else
             {
                 cpmu.skinned = 0.0f;
                 cpmu.color = new Vector3(1.0f, 0.0f, 0.0f);
+                cpmu.gUserDataVec4 = new Vector4(0.0f, 0.0f, 0.0f, 0.0f);
             }
 
             //Updates matrices UBO
@@ -332,25 +377,6 @@ namespace MVCore
 
         #region Rendering Methods
 
-        private void uploadLights(GLSLHelper.GLSLShaderConfig config)
-        {
-            //Super Fucking UGLY approach but I need to start from somewhere
-
-            GL.UseProgram(config.program_id);
-
-            //Upload lights
-            //ONLY 16 lights are allowed for now
-            for (int i = 0; i < Math.Min(16, resMgr.GLlights.Count); i++)
-            {
-                Light light = resMgr.GLlights[i];
-                GL.Uniform3(config.uniformLocations["lights[" + i.ToString() + "].position"], light.worldPosition);
-                GL.Uniform3(config.uniformLocations["lights[" + i.ToString() + "].color"], light.color.Vec.Xyz);
-                GL.Uniform1(config.uniformLocations["lights[" + i.ToString() + "].intensity"], light.intensity);
-                GL.Uniform1(config.uniformLocations["lights[" + i.ToString() + "].falloff"], (int) light.falloff);
-                GL.Uniform1(config.uniformLocations["lights[" + i.ToString() + "].renderable"], light.renderable ? 1.0f : 0.0f);
-            }
-        }
-
         private void renderMain()
         {
             foreach (model m in staticMeshQeueue)
@@ -371,9 +397,6 @@ namespace MVCore
                         break;
                 }
 
-                if (RenderOptions.UseLighting && m.type == TYPES.MESH)
-                    uploadLights(m.shader_programs[(int)RENDERPASS.MAIN]);
-                
                 prepareCommonPermeshUBO(m);
                 m.render(RENDERPASS.MAIN);
                 if (RenderOptions.RenderBoundHulls && (m.type == TYPES.MESH))
@@ -460,7 +483,7 @@ namespace MVCore
             renderTransparent(0);
 
             //Store the dumps
-            
+
             //gbuf.dump();
             //render_decals();
             //render_cameras();
@@ -469,7 +492,12 @@ namespace MVCore
             //gbuf.dump();
             //System.Threading.Thread.Sleep(1000);
 
-            //Render Deferred
+
+            //POST-PROCESSING
+            post_process();
+
+
+            //Combine Passes
             gbuf.render();
 
             //No need to blit without a renderbuffer
@@ -578,6 +606,70 @@ namespace MVCore
             GL.Enable(EnableCap.DepthTest);
 
         }
+
+        private void bloom()
+        {
+
+            //Apply Gaussian Blur Passes
+            GLSLHelper.GLSLShaderConfig pass_through_program = resMgr.GLShaders["PASSTHROUGH_SHADER"];
+            GLSLHelper.GLSLShaderConfig gs_program = resMgr.GLShaders["GAUSSIAN_BLUR_SHADER"];
+            int quad_vao = resMgr.GLPrimitiveVaos["default_renderquad"].vao_id;
+            
+            for (int i=0; i < 10; i++)
+            {
+                //Apply Gaussian Blur Shader
+                GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, gbuf.dump_fbo);
+                GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+                GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+                
+                GL.UseProgram(gs_program.program_id);
+                GL.BindVertexArray(quad_vao);
+
+                if (gs_program.uniformLocations.ContainsKey("diffuseTex"))
+                {
+                    GL.Uniform1(gs_program.uniformLocations["diffuseTex"], 0);
+                    GL.ActiveTexture(TextureUnit.Texture0);
+                    GL.BindTexture(TextureTarget.Texture2DMultisample, gbuf.bloom);
+                }
+
+                //Render quad
+                GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
+                GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, (IntPtr)0);
+                GL.BindVertexArray(0);
+
+                //Use passthrough shader to pass the dump texture back to the bloom
+                GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, gbuf.fbo);
+                GL.DrawBuffer(DrawBufferMode.ColorAttachment3);
+                GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+                
+                GL.UseProgram(pass_through_program.program_id);
+                GL.BindVertexArray(quad_vao);
+
+                if (pass_through_program.uniformLocations.ContainsKey("InTex"))
+                {
+                    GL.Uniform1(pass_through_program.uniformLocations["InTex"], 0);
+                    GL.ActiveTexture(TextureUnit.Texture0);
+                    GL.BindTexture(TextureTarget.Texture2DMultisample, gbuf.dump_rgba8);
+                }
+                
+                //Render quad
+                GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
+                GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, (IntPtr)0);
+                GL.BindVertexArray(0);
+            }
+
+            GL.BindFramebuffer(FramebufferTarget.FramebufferExt, gbuf.fbo);
+            GL.DrawBuffers(4, new DrawBuffersEnum[] { DrawBuffersEnum.ColorAttachment0,
+                                                      DrawBuffersEnum.ColorAttachment1,
+                                                      DrawBuffersEnum.ColorAttachment2,
+                                                      DrawBuffersEnum.ColorAttachment3});
+        }
+
+        private void post_process()
+        {
+            bloom();
+        }
+
 
         #endregion Rendering Methods
 

@@ -45,6 +45,7 @@ namespace MVCore.Common
         public static bool _renderLights = true;
         public static bool _renderInfo = true;
         public static bool _renderJoints = true;
+        public static bool _renderLocators = true;
         public static bool _renderCollisions = false;
         public static bool _renderBoundHulls = false;
         public static bool _renderDebug = false;
@@ -162,6 +163,19 @@ namespace MVCore.Common
             set
             {
                 _renderJoints = value;
+            }
+        }
+
+        public static bool RenderLocators
+        {
+            get
+            {
+                return _renderLocators;
+            }
+
+            set
+            {
+                _renderLocators = value;
             }
         }
 

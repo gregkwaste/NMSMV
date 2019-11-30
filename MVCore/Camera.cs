@@ -499,7 +499,7 @@ namespace MVCore.GMDL
             NormalizePlane(_frustum, (int)ClippingPlane.Front);
             NormalizePlane(_frustum, (int)ClippingPlane.Back);
 
-            /*
+            
             
             //Find Frustum Points by solving all the systems
             float[] p;
@@ -520,7 +520,7 @@ namespace MVCore.GMDL
             p = solvePlaneSystem((int)ClippingPlane.Front, (int)ClippingPlane.Right, (int)ClippingPlane.Top);
             _frustum_points[7, 0] = p[0]; _frustum_points[7, 1] = p[1]; _frustum_points[7, 2] = p[2];
 
-            */
+            
         }
 
 
@@ -608,6 +608,8 @@ namespace MVCore.GMDL
             _frustum[(int)ClippingPlane.Front, 3] = clipMatrix.M44 + clipMatrix.M43;
             NormalizePlane(_frustum, (int)ClippingPlane.Front);
 
+            /*
+
             //Find Frustum Points by solving all the systems
             float[] p;
             p = solvePlaneSystem((int)ClippingPlane.Back, (int)ClippingPlane.Left, (int)ClippingPlane.Bottom);
@@ -628,7 +630,7 @@ namespace MVCore.GMDL
             _frustum_points[7, 0] = p[0]; _frustum_points[7, 1] = p[1]; _frustum_points[7, 2] = p[2];
 
 
-            /*
+            
             //Print equations and find points on each
             for (int pl = 0; pl < 6; pl++)
             {
@@ -642,7 +644,7 @@ namespace MVCore.GMDL
                     -_frustum[pl, 3] / _frustum[pl, 0], 0, 0);
             }
             */
-        
+
         }
 
         float[] solvePlaneSystem(int p1, int p2, int p3)

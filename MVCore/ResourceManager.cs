@@ -23,7 +23,6 @@ namespace MVCore
         public Dictionary<string, GMDL.Texture> GLTextures = new Dictionary<string, GMDL.Texture>();
         public Dictionary<string, TkAnimMetadata> Animations = new Dictionary<string, TkAnimMetadata>();
 
-        public Dictionary<ulong, mainVAO> GLVaos = new Dictionary<ulong, mainVAO>();
         public Dictionary<string, mainVAO> GLPrimitiveVaos = new Dictionary<string, mainVAO>();
         public List<GMDL.Light> GLlights = new List<GMDL.Light>();
         public List<GMDL.Decal> GLDecals = new List<GMDL.Decal>();
@@ -49,11 +48,6 @@ namespace MVCore
             foreach (GMDL.scene p in GLScenes.Values)
                 p.Dispose();
             GLScenes.Clear();
-
-            //Cleanup VAOs
-            foreach (GMDL.mainVAO v in GLVaos.Values)
-                v.Dispose();
-            GLVaos.Clear();
 
             //Cleanup Geom Objects
             foreach (GMDL.GeomObject p in GLgeoms.Values)

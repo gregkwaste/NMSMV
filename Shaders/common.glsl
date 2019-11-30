@@ -3,6 +3,8 @@
 //static const vec4 RGBToHSV_K    = vec4( 0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0 );
 //static const vec4 HSVToRGB_K    = vec4( 1.0,  2.0 / 3.0, 1.0 / 3.0,  3.0 );
 
+#define PI 3.14159265359
+
 #define _F01_DIFFUSEMAP 0
 #define _F02_SKINNED 1
 #define _F03_NORMALMAP 2
@@ -45,6 +47,10 @@ vec3 fixColorGamma(vec3 color){
 //Saturate Function
 vec3 saturate(in vec3 color){
 	return min(max(color, 0.0), 1.0);
+}
+
+float saturate(in float val){
+    return min(max(val, 0.0), 1.0);
 }
 
 //-----------------------------------------------------------------------------

@@ -664,8 +664,8 @@ namespace Model_Viewer
                             "", "", "", "BBOX_SHADER", ref log);
 
             //Texture Mixing Shader
-            compileShader("Shaders/pass_VS.glsl",
-                            "Shaders/pass_FS.glsl",
+            compileShader("Shaders/texture_mixer_VS.glsl",
+                            "Shaders/texture_mixer_FS.glsl",
                             "", "", "", "TEXTURE_MIXING_SHADER", ref log);
 
             //GBuffer Shaders
@@ -702,6 +702,18 @@ namespace Model_Viewer
             compileShader(ProjProperties.Resources.camera_vert,
                             ProjProperties.Resources.camera_frag,
                             "", "", "", "CAMERA_SHADER", ref log);
+
+            //FILTERS - EFFECTS
+
+            //Pass Shader
+            compileShader("Shaders/Gbuffer_VS.glsl",
+                            "Shaders/PassThrough_FS.glsl",
+                            "", "", "", "PASSTHROUGH_SHADER", ref log);
+            
+            //Camera Shaders
+            compileShader("Shaders/Gbuffer_VS.glsl",
+                            "Shaders/gaussian_blur_FS.glsl",
+                            "", "", "", "GAUSSIAN_BLUR_SHADER", ref log);
 
         }
 
@@ -943,12 +955,16 @@ namespace Model_Viewer
             //Add one and only light for now
             Light light = new Light();
             light.name = "Default Light";
+            light.intensity = 50000;
             light.shader_programs = new GLSLHelper.GLSLShaderConfig[] { this.resMgr.GLShaders["LIGHT_SHADER"] };
             light.localPosition = new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                             Math.Sin(this.light_angle_y * Math.PI / 180.0)),
                                                 (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
                                                 (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                            Math.Cos(this.light_angle_y * Math.PI / 180.0)));
+                                                Math.Cos(this.light_angle_y * Math.PI / 180.0)));
+            
+            light.main_Vao = new MVCore.Primitives.LineSegment(1, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
+
             resMgr.GLlights.Add(light);
         }
 

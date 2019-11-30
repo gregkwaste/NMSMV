@@ -137,7 +137,7 @@ namespace MVCore.GMDL
             get { return type.ToString(); }
         }
 
-        public bool IsRenderable
+        public virtual bool IsRenderable
         {
             get
             {
@@ -637,6 +637,9 @@ namespace MVCore.GMDL
 
         public override bool render(RENDERPASS pass)
         {
+
+            if (!Common.RenderOptions.RenderLocators)
+                return false;
 
             GLSLHelper.GLSLShaderConfig shader = shader_programs[(int)pass];
             
@@ -1335,10 +1338,10 @@ namespace MVCore.GMDL
         public Vector4 gMaterialSFXColVec4;
         [FieldOffset(340)] //16 bytes
         public Vector4 gDissolveDataVec4;
-        //[FieldOffset(356)] //16 bytes
-        //public Vector4 gUserDataVec4; MOVE TO COMMON PER MESH
-
-        public static readonly int SizeInBytes = 356;
+        [FieldOffset(356)] //16 bytes
+        public Vector4 gCustomParams01Vec4;
+        
+        public static readonly int SizeInBytes = 360;
     };
 
     public class Collision : meshModel
@@ -1601,6 +1604,9 @@ namespace MVCore.GMDL
         //Joint info
         public List<JointBindingData> jointData = new List<JointBindingData>();
         public float[] invBMats = new float[256 * 16];
+
+        //Dictionary with the compiled VAOs belonging on this gobect
+        private Dictionary<ulong, GMDL.mainVAO> GLVaos = new Dictionary<ulong, mainVAO>();
         
         public Vector3 get_vec3_half(BinaryReader br)
         {
@@ -1635,18 +1641,17 @@ namespace MVCore.GMDL
         public mainVAO getMainVao(meshModel so)
         {
             
-            
             //Make sure that the hash exists in the dictionary
             if (so.Hash == 0xFFFFFFFF)
                 throw new System.Collections.Generic.KeyNotFoundException("Invalid Mesh Hash");
 
-            if (MVCore.Common.RenderState.activeResMgr.GLVaos.ContainsKey(so.Hash))
-                return MVCore.Common.RenderState.activeResMgr.GLVaos[so.Hash];
+            if (GLVaos.ContainsKey(so.Hash))
+                return GLVaos[so.Hash];
             
             
             mainVAO vao = new mainVAO();
             //Save vao to Resource Manager
-            MVCore.Common.RenderState.activeResMgr.GLVaos[so.Hash] = vao;
+            GLVaos[so.Hash] = vao;
 
             //Generate VAO
             vao.vao_id = GL.GenVertexArray();
@@ -1848,7 +1853,6 @@ namespace MVCore.GMDL
                     boneRemap = null;
                     invBMats = null;
                     
-                    
                     bIndices.Clear();
                     bWeights.Clear();
                     bufInfo.Clear();
@@ -1863,6 +1867,11 @@ namespace MVCore.GMDL
 
                     meshDataDict.Clear();
                     meshMetaDataDict.Clear();
+
+                    //Clear Vaos
+                    foreach (mainVAO p in GLVaos.Values)
+                        p.Dispose();
+                    GLVaos.Clear();
 
                 }
 
@@ -2411,7 +2420,7 @@ namespace MVCore.GMDL
 
     }
 
-    public class MVector4
+    public class MVector4: INotifyPropertyChanged
     {
         private Vector4 vec4;
 
@@ -2434,30 +2443,40 @@ namespace MVCore.GMDL
         public Vector4 Vec
         {
             get { return vec4; }
-            set { vec4 = value; }
+            set { vec4 = value; RaisePropertyChanged("Vec"); }
         }
         public float X
         {
             get { return vec4.X; }
-            set { vec4.X = value; }
+            set { vec4.X = value; RaisePropertyChanged("X"); }
         }
         public float Y
         {
             get { return vec4.Y; }
-            set { vec4.Y = value; }
+            set { vec4.Y = value; RaisePropertyChanged("Y"); }
         }
 
         public float Z
         {
             get { return vec4.Z; }
-            set { vec4.Z = value; }
+            set { vec4.Z = value; RaisePropertyChanged("Z"); }
         }
 
         public float W
         {
             get { return vec4.W; }
-            set { vec4.W = value; }
+            set { vec4.W = value; RaisePropertyChanged("W"); }
         }
+
+        //Property Change callbacks
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        private void RaisePropertyChanged(string prop)
+        {
+            if (PropertyChanged != null)
+                PropertyChanged(this, new PropertyChangedEventArgs(prop));
+        }
+        
     }
 
     public class MatOpts
@@ -3540,17 +3559,17 @@ namespace MVCore.GMDL
     public struct GLLight
     {
         [FieldOffset(0)]
-        public Vector4 position;
+        public Vector4 position; //w is renderable
         [FieldOffset(16)]
-        public Vector3 color;
+        public Vector4 color; //w is intensity
         [FieldOffset(32)]
-        public float intensity;
-        [FieldOffset(36)]
-        public float fov;
-        [FieldOffset(40)]
+        public Vector4 direction; //w is fov
+        [FieldOffset(48)]
         public int falloff;
-
-        public static readonly int SizeInBytes = 44;
+        [FieldOffset(52)]
+        public float type;
+        
+        public static readonly int SizeInBytes = 64;
     }
 
     public enum ATTENUATION_TYPE
@@ -3560,23 +3579,34 @@ namespace MVCore.GMDL
         LINEAR,
         COUNT
     }
-    
+
+    public enum LIGHT_TYPE
+    {
+        POINT = 0x0,
+        SPOT,
+        COUNT
+    }
+
     public class Light : model
     {
         //I should expand the light properties here
         public MVector4 color = new MVector4(1.0f);
-        //public MVector4 ambient = new MVector4(0.2f);
+        public mainVAO main_Vao;
         public float fov = 360.0f;
         public ATTENUATION_TYPE falloff;
-
+        public LIGHT_TYPE light_type;
+        
         public float intensity = 1.0f;
-
+        public Vector3 direction = new Vector3();
+        
         private int vertex_buffer_object;
         private int element_buffer_object;
+        public bool update_changes = false; //Used to prevent unecessary uploads to the UBO
 
         //Light Projection + View Matrices
         public Matrix4[] lightSpaceMatrices;
         public Matrix4 lightProjectionMatrix;
+        public GLLight strct;
 
         //Properties
         public MVector4 Color
@@ -3587,7 +3617,7 @@ namespace MVCore.GMDL
 
             set
             {
-                color = value;
+                catchPropertyChanged(color, new PropertyChangedEventArgs("Vec"));
             }
         }
 
@@ -3601,6 +3631,8 @@ namespace MVCore.GMDL
             set
             {
                 fov = value;
+                strct.direction.W = MathUtils.radians(fov);
+                update_changes = true;
             }
         }
 
@@ -3614,6 +3646,8 @@ namespace MVCore.GMDL
             set
             {
                 intensity = value;
+                strct.color.W = value;
+                update_changes = true;
             }
         }
 
@@ -3627,8 +3661,39 @@ namespace MVCore.GMDL
             set
             {
                 Enum.TryParse<ATTENUATION_TYPE>(value, out falloff);
+                strct.falloff = (int) falloff;
+                update_changes = true;
             }
         }
+
+        public override bool IsRenderable
+        {
+            get
+            {
+                return renderable;
+            }
+
+            set
+            {
+                strct.position.W = value ? 1.0f : 0.0f;
+                base.IsRenderable = value;
+                update_changes = true;
+            }
+        }
+
+        //Add event handler to catch changes to the Vector property
+
+        private void catchPropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            MVector4 t = sender as MVector4;
+            
+            //Update struct
+            strct.color.X = t.X;
+            strct.color.Y = t.Y;
+            strct.color.Z = t.Z;
+            update_changes = true;
+        }
+
 
         public Light()
         {
@@ -3641,7 +3706,6 @@ namespace MVCore.GMDL
             if (GL.GetError() != ErrorCode.NoError)
                 Console.WriteLine(GL.GetError());
 
-
             //Init projection Matrix
             lightProjectionMatrix = Matrix4.CreatePerspectiveFieldOfView(MathUtils.radians(90), 1.0f, 1.0f, 300f);
             
@@ -3651,6 +3715,10 @@ namespace MVCore.GMDL
             {
                 lightSpaceMatrices[i] = Matrix4.Identity * lightProjectionMatrix;
             }
+
+            //Catch changes to MVector from the UI
+            color = new MVector4(1.0f);
+            color.PropertyChanged += catchPropertyChanged;
         }
 
         protected Light(Light input) : base(input)
@@ -3661,6 +3729,8 @@ namespace MVCore.GMDL
             fov = input.fov;
             vertex_buffer_object = input.vertex_buffer_object;
             element_buffer_object = input.element_buffer_object;
+            strct = input.strct;
+            main_Vao = input.main_Vao;
 
             //Copy Matrices
             lightProjectionMatrix = input.lightProjectionMatrix;
@@ -3672,6 +3742,47 @@ namespace MVCore.GMDL
         public override void update()
         {
             base.update();
+
+            //Update Vertex Buffer based on the new data
+            float[] verts = new float[6];
+            int arraysize = 6 * sizeof(float);
+
+            //Origin Point
+            verts[0] = worldPosition.X;
+            verts[1] = worldPosition.Y;
+            verts[2] = worldPosition.Z;
+
+            //End Point
+            Vector4 ep;
+            if (MathUtils.isIdentity(_localRotation))
+            {
+                ep = new Vector4(0.0f, 0.0f, 0.0f, 1.0f);
+                light_type = LIGHT_TYPE.POINT;
+            }
+            else
+            {
+                ep = new Vector4(0.0f, -1.0f, 0.0f, 1.0f);
+                light_type = LIGHT_TYPE.SPOT;
+            }
+                
+            //End Point Transform
+            ep = ep * _localRotation;
+            direction = ep.Xyz; //Set spotlight direction
+            ep.X += worldPosition.X;
+            ep.Y += worldPosition.Y;
+            ep.Z += worldPosition.Z;
+
+            verts[3] = ep.X;
+            verts[4] = ep.Y;
+            verts[5] = ep.Z;
+
+            GL.BindVertexArray(main_Vao.vao_id);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, main_Vao.vertex_buffer_object);
+            //Add verts data, color data should stay the same
+            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
+
+
+            update_struct();
 
             //Assume that this is a point light for now
             //Right
@@ -3700,16 +3811,18 @@ namespace MVCore.GMDL
                     new Vector3(0.0f, -1.0f, 0.0f));
         }
 
-        //public GLLight getStruct()
-        //{
-        //    GLLight s = new GLLight();
-        //    s.position = new Vector4(worldPosition, 1.0f); //For now we're switching to directional lights
-        //    s.color = Color.Vec.Xyz;
-        //    s.intensity = intensity;
-        //    s.falloff = (int) falloff;
-        //    s.fov = fov;
-        //    return s;
-        //}
+        public void update_struct()
+        {
+            Vector4 old_pos = strct.position;
+            strct.position = new Vector4(worldPosition, renderable ? 1.0f : 0.0f);
+            strct.color = new Vector4(Color.Vec.Xyz, (float) intensity);
+            strct.direction = new Vector4(direction, (float) MathUtils.radians(fov));
+            strct.falloff = (int) falloff;
+            strct.type = (light_type == LIGHT_TYPE.SPOT) ? 1.0f : 0.0f;
+            
+            if (old_pos != strct.position)
+                update_changes = true;
+        }
 
         public override model Clone()
         {
@@ -3720,42 +3833,11 @@ namespace MVCore.GMDL
         {
             GL.UseProgram(pass);
 
-            //Draw Single Points
-            float[] vertsf = new float[3];
-            int[] indices = new int[1];
-            indices[0] = 0;
-            
-            vertsf[0] = this.worldPosition.X;
-            vertsf[1] = this.worldPosition.Y;
-            vertsf[2] = this.worldPosition.Z;
-
-            int arraysize = 3 * sizeof(float);
-            
-            //Upload vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vertex_buffer_object);
-            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)(arraysize), (IntPtr)null, BufferUsageHint.StaticDraw);
-            //Add verts data
-            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, vertsf);
-            
-            ////Upload index buffer
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.element_buffer_object);
-            GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr)(sizeof(int) * indices.Length), indices, BufferUsageHint.StaticDraw);
-
-            //Render Immediately
-            //Bind vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, this.vertex_buffer_object);
-            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, 0);
-            GL.EnableVertexAttribArray(0);
-
-            //Render Elements
-            //Bind elem buffer
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, this.element_buffer_object);
-            GL.PointSize(10.0f);
-
-            GL.DrawArrays(PrimitiveType.Points, 0, indices.Length);
-
-            //Draw only Joint Point
-            GL.DisableVertexAttribArray(0);
+            GL.BindVertexArray(main_Vao.vao_id);
+            GL.PointSize(5.0f);
+            GL.DrawArrays(PrimitiveType.Lines, 0, 2);
+            GL.DrawArrays(PrimitiveType.Points, 0, 2); //Draw both points
+            GL.BindVertexArray(0);
         }
 
         public override bool render(RENDERPASS pass)

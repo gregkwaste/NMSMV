@@ -1,12 +1,11 @@
 //Light struct
 struct Light //locations:5
 {
-    vec3 position;
-    vec3 color;
-    float intensity;
-    int fov;
-    int falloff;
-    float renderable; 
+    vec4 position; //w is renderable
+    vec4 color; //w is intensity
+    vec4 direction; //w is fov
+    float falloff;
+    int type;
 };
 
 //Common Per Mesh Struct
@@ -15,6 +14,7 @@ struct CommonPerMeshUniforms
     mat4 worldMat;
     mat4 nMat;
     mat4 skinMats[80];
+    vec4 gUserDataVec4;
     vec3 color; //Mesh Default Color
     float skinned;
     float selected; //Selected
@@ -33,6 +33,7 @@ struct CommonPerFrameUniforms
     float cameraFarPlane;
     vec3 cameraDirection;
     int light_count;
+    Light lights[32];
 };
 
 struct CommonPerFrameSamplers
@@ -54,5 +55,5 @@ struct CustomPerMaterialUniforms  //locations:73
     vec4 gMaterialSFXVec4;
     vec4 gMaterialSFXColVec4;
     vec4 gDissolveDataVec4;
-    vec4 gUserDataVec4;
+    vec4 gCustomParams01Vec4;
 };

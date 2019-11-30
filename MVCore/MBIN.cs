@@ -697,6 +697,8 @@ namespace MVCore
 
             string name = node.Name;
             string type = node.Type;
+
+
             //Fix double underscore names
             if (name.StartsWith("_"))
                 name = "_" + name.TrimStart('_');
@@ -746,6 +748,7 @@ namespace MVCore
                 MVCore.Common.CallBacks.Log(string.Format("Batch Physics Start {0} Count {1} Vertex Physics {2} - {3} Vertex Graphics {4} - {5} SkinMats {6}-{7}",
                     so.batchstart_physics, so.batchcount, so.vertrstart_physics, so.vertrend_physics, so.vertrstart_graphics, so.vertrend_graphics,
                     so.firstskinmat, so.lastskinmat));
+
 
                 //For now fetch only one attachment
                 string attachment = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "ATTACHMENT");
@@ -809,28 +812,28 @@ namespace MVCore
                     MVCore.Common.CallBacks.Log(string.Format("Parsing Material File {0}", mat_path));
 
                     //Check if path exists
+                    Material mat;
                     if (File.Exists(mat_path))
                     {
                         //Material mat = MATERIALMBIN.Parse(newXml);
-                        Material mat = Material.Parse(mat_path, localTexMgr);
+                        mat = Material.Parse(mat_path, localTexMgr);
                         //Load default form palette on init
                         //mat.palette = Model_Viewer.Palettes.paletteSel;
                         mat.name_key = matkey; //Store the material key to the resource manager
-                        so.Material = mat;
                         //Store the material to the Resources
                         Common.RenderState.activeResMgr.GLmaterials[matkey] = mat;
                     } else
                     {
                         MVCore.Common.CallBacks.Log(string.Format("Warning Material Missing!!!"));
                         //Generate empty material
-                        Material mat = new Material();
-                        so.Material = mat;
+                        mat = new Material();
                     }
+                    so.Material = mat;
                 }
 
                 //Generate Vao's
                 so.main_Vao = gobject.getMainVao(so);
-                //so.bhull_Vao = gobject.getCollisionMeshVao(so); //Missing data
+                so.bhull_Vao = gobject.getCollisionMeshVao(so); //Missing data
 
                 //Configure boneRemap properly
                 so.BoneRemapIndicesCount = so.lastskinmat - so.firstskinmat;
@@ -1065,7 +1068,10 @@ namespace MVCore
                 Console.WriteLine("Reference Detected");
                 Common.CallBacks.Log(string.Format("Loading Reference {0}",
                     Path.Combine(FileUtils.dirpath, node.Attributes.FirstOrDefault(item => item.Name == "SCENEGRAPH").Value)));
-                
+
+                if (name == "RefLandingBays")
+                    Console.WriteLine("Bump");
+
                 //Getting Scene MBIN file
                 string path = Path.GetFullPath(Path.Combine(FileUtils.dirpath, node.Attributes.FirstOrDefault(item => item.Name == "SCENEGRAPH").Value));
                 //string exmlPath = Path.GetFullPath(Util.getFullExmlPath(path));
@@ -1309,6 +1315,8 @@ namespace MVCore
                 so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders["LIGHT_SHADER"],
                                                                          Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
                                                                          Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
+
+                so.main_Vao = new MVCore.Primitives.LineSegment(1, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
 
                 //Add Light to the resource Manager
                 Common.RenderState.activeResMgr.GLlights.Add(so);
