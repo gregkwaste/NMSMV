@@ -25,9 +25,8 @@ namespace MVCore
         public int diffuse = -1;
         public int positions = -1;
         public int bloom = -1;
-        public int hblur = -1; //not used
-        public int vblur = -1; //not used
         public int normals = -1;
+        public int info = -1;
         public int depth = -1;
 
         //Buffer Geometry
@@ -38,11 +37,6 @@ namespace MVCore
 
         public GBuffer(ResourceManager mgr, int x, int y)
         {
-            program = mgr.GLShaders["GBUFFER_SHADER"].program_id;
-            
-            //Create Quad Geometry
-            quad_vao = mgr.GLPrimitiveVaos["default_renderquad"].vao_id;
-
             //Setup all stuff
             //Init size to the current GLcontrol size
             size = new int[] { x, y };
@@ -71,6 +65,8 @@ namespace MVCore
             setup_texture(ref normals, 2, fbo);
             //Setup bloom texture
             setup_texture(ref bloom, 3, fbo);
+            //Setup info texture
+            setup_texture(ref info, 4, fbo);
             //Setup Depth texture
             setup_texture(ref depth, 10, fbo);
 
@@ -89,6 +85,7 @@ namespace MVCore
             GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, 0);
         }
 
+        //TODO: Organize this function a bit
         public void setup_texture(ref int handle, int attachment, int attach_to_fbo)
         {
             handle = GL.Ext.GenTexture();
@@ -114,8 +111,10 @@ namespace MVCore
                     //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
 
                     break;
-                //ColorAttachment1 Positions
+                //Position, Normal, Info Attachments
                 case 1:
+                case 2:
+                case 4:
                     t = FramebufferAttachment.ColorAttachment0Ext + attachment;
                     //GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba32f, size[0], size[1], 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
                     GL.TexImage2DMultisample(TextureTargetMultisample.Texture2DMultisample, msaa_samples, PixelInternalFormat.Rgba32f, size[0], size[1], true);
@@ -147,54 +146,7 @@ namespace MVCore
 
         }
 
-        public void render()
-        {
-            //Bind default fbo
-            GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, 0);
-            GL.ClearColor(MVCore.Common.RenderOptions.clearColor);
-            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            
-
-            GL.UseProgram(program);
-            GL.BindVertexArray(quad_vao);
-
-            //Upload the GBuffer textures
-            //Diffuse
-            int tex0_Id = (int)TextureUnit.Texture0;
-            int loc = GL.GetUniformLocation(program, "diffuseTex");
-            GL.Uniform1(loc, 0);
-
-            GL.ActiveTexture((TextureUnit)(tex0_Id + 0));
-            GL.BindTexture(TextureTarget.Texture2DMultisample, diffuse);
-
-            //Positions
-            loc = GL.GetUniformLocation(program, "positionTex");
-            GL.Uniform1(loc, 1);
-
-            GL.ActiveTexture((TextureUnit)(tex0_Id + 1));
-            GL.BindTexture(TextureTarget.Texture2DMultisample, positions);
-
-            //Depth
-            loc = GL.GetUniformLocation(program, "depthTex");
-            GL.Uniform1(loc, 2);
-
-            GL.ActiveTexture((TextureUnit)(tex0_Id + 2));
-            GL.BindTexture(TextureTarget.Texture2DMultisample, depth);
-
-            //Bloom
-            loc = GL.GetUniformLocation(program, "bloomTex");
-            GL.Uniform1(loc, 3);
-
-            GL.ActiveTexture((TextureUnit)(tex0_Id + 3));
-            GL.BindTexture(TextureTarget.Texture2DMultisample, bloom);
-
-            //Render quad
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
-            GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, (IntPtr) 0);
-            GL.BindVertexArray(0);
         
-        }
-
         public void init()
         {
             GL.Viewport(0, 0, size[0], size[1]);
@@ -203,26 +155,23 @@ namespace MVCore
             //Main flags
             GL.Enable(EnableCap.Multisample);
             GL.Enable(EnableCap.Texture2D);
-            GL.Enable(EnableCap.DepthTest);
-
+            
             //Geometry Shader Parameters
             GL.PatchParameter(PatchParameterFloat.PatchDefaultInnerLevel, new float[] { 2.0f });
             GL.PatchParameter(PatchParameterFloat.PatchDefaultOuterLevel, new float[] { 4.0f, 4.0f, 4.0f });
             GL.PatchParameter(PatchParameterInt.PatchVertices, 3);
         }
 
-        public void start()
+        public void bind()
         {
-            //Draw Scene
-
             //Bind Gbuffer fbo
             GL.Ext.BindFramebuffer(FramebufferTarget.DrawFramebuffer, fbo);
-            GL.DrawBuffers(4, new DrawBuffersEnum[] { DrawBuffersEnum.ColorAttachment0,
+            GL.DrawBuffers(5, new DrawBuffersEnum[] { DrawBuffersEnum.ColorAttachment0,
                                                       DrawBuffersEnum.ColorAttachment1,
                                                       DrawBuffersEnum.ColorAttachment2,
-                                                      DrawBuffersEnum.ColorAttachment3} );
+                                                      DrawBuffersEnum.ColorAttachment3,
+                                                      DrawBuffersEnum.ColorAttachment4} );
 
-            //GL.ClearColor(System.Drawing.Color.Black);
             GL.ClearColor(0.0f, 0.0f, 0.0f, 0.0f); //Transparent Clear color
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
         }
@@ -316,6 +265,8 @@ namespace MVCore
             GL.DeleteTexture(positions);
             GL.DeleteTexture(normals);
             GL.DeleteTexture(depth);
+            GL.DeleteTexture(bloom);
+            GL.DeleteTexture(info);
 
             //Delete dump textures + dump_fbo
             GL.DeleteFramebuffer(dump_fbo);

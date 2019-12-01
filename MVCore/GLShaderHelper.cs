@@ -10,6 +10,24 @@ namespace GLSLHelper {
     public delegate void GLSLShaderModRequest(GLSLShaderConfig config, string shaderText, ShaderType shadertype);
     public delegate void GLSLShaderCompileRequest(GLSLShaderConfig config);
 
+    public enum SHADER_TYPE
+    {
+        NULL_SHADER = 0x0,
+        MESH_SHADER,
+        DECAL_SHADER,
+        DEBUG_MESH_SHADER,
+        PICKING_SHADER,
+        BBOX_SHADER,
+        LOCATOR_SHADER,
+        JOINT_SHADER,
+        CAMERA_SHADER,
+        TEXTURE_MIX_SHADER,
+        PASSTHROUGH_SHADER,
+        LIGHT_SHADER,
+        TEXT_SHADER,
+        GBUFFER_SHADER,
+        GAUSSIAN_BLUR_SHADER
+    }
 
     public class GLSLShaderConfig
     {
@@ -20,6 +38,7 @@ namespace GLSLHelper {
         public string tcs = "";
         public string tes = "";
         public string fs = "";
+        public SHADER_TYPE shader_type = SHADER_TYPE.NULL_SHADER;
 
         //FileSystemWatcher lists
         private Dictionary<FileSystemWatcher, string> FileWatcherDict = new Dictionary<FileSystemWatcher, string>();
@@ -38,10 +57,10 @@ namespace GLSLHelper {
         public GLSLShaderModRequest modifyShader;
         public GLSLShaderCompileRequest compileShader;
         
-        public GLSLShaderConfig(string vvs, string ffs, string ggs, string ttcs, string ttes, string nm)
+        public GLSLShaderConfig(string vvs, string ffs, string ggs, string ttcs, string ttes, SHADER_TYPE type)
         {
-            name = nm;
-
+            shader_type = type;
+            
             //Vertex Shader
             if (vvs != "")
             {
@@ -101,6 +120,14 @@ namespace GLSLHelper {
                     gs = GLSL_Preprocessor.Parser(ggs);
             }
 
+        }
+
+
+        public int getLocation(string name)
+        {
+            if (uniformLocations.ContainsKey(name))
+                return uniformLocations[name];
+            return -1;
         }
 
         private void file_changed(object sender, FileSystemEventArgs e)

@@ -49,7 +49,7 @@ namespace MVCore.Common
         public static bool _renderCollisions = false;
         public static bool _renderBoundHulls = false;
         public static bool _renderDebug = false;
-        public static int animFPS = 50;
+        public static int animFPS = 60;
 
         //Add properties
         public static bool UseTextures
@@ -201,6 +201,19 @@ namespace MVCore.Common
             set
             {
                 _renderBoundHulls = value;
+            }
+        }
+
+        public static string AnimFPS
+        {
+            get
+            {
+                return animFPS.ToString();
+            }
+
+            set
+            {
+                int.TryParse(value, out animFPS);
             }
         }
 

@@ -41,7 +41,7 @@
                         </Grid>
                     </GroupBox>
                     <GroupBox Grid.Row="1" Header="Components">
-                        <ItemsControl ItemsSource="{Binding Components}" Margin="5,5,0,0"/>
+                        <ItemsControl ItemsSource="{Binding Components}" IsTextSearchEnabled="False"/>
                     </GroupBox>
                 </Grid>
                 
@@ -119,26 +119,49 @@
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:AnimData}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="6*"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="{Binding PName}"/>
-                    <ToggleButton Grid.Column="1" IsChecked="{Binding AnimationToggle}">
-                        <ToggleButton.Style>
-                            <Style TargetType="{x:Type ToggleButton}">
-                                <Setter Property="Content" Value="Play" />
-                                <Style.Triggers>
-                                    <Trigger Property="IsChecked" Value="True">
-                                        <Setter Property="Content" Value="Stop" />
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ToggleButton.Style>
-                    </ToggleButton>
+                <Expander>
+                    <Expander.Header>
+                        <TextBlock Text="{Binding PName}"/>
+                    </Expander.Header>
+                    <Grid Margin="20 0 0 0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="8*"/>
+                            <ColumnDefinition Width="2*"/>
+                        </Grid.ColumnDefinitions>
+                        <DockPanel Grid.Row="0"  Grid.Column="0"  HorizontalAlignment="Stretch" Height="20">
+                            <TextBlock Text="AnimType"></TextBlock >
+                        <TextBlock HorizontalAlignment="Right" Text="{Binding PAnimType}"></TextBlock>
+                        </DockPanel>
+                        <DockPanel Grid.Row="1"  Grid.Column="0" HorizontalAlignment="Stretch" Height="20">
+                            <TextBlock Text="Speed"></TextBlock >
+                            <TextBlock HorizontalAlignment="Right" Text="{Binding PSpeed}"></TextBlock>
+                        </DockPanel>
+                        <DockPanel Grid.Row="2"  Grid.Column="0" HorizontalAlignment="Stretch" Height="20">
+                            <TextBlock Text="Additive"></TextBlock >
+                            <TextBlock HorizontalAlignment="Right" Text="{Binding PAdditive}"></TextBlock>
+                        </DockPanel>
 
-                </Grid>
+                        <ToggleButton Grid.Column="1" Grid.RowSpan="3" IsChecked="{Binding AnimationToggle}">
+                            <ToggleButton.Style>
+                                <Style TargetType="{x:Type ToggleButton}">
+                                    <Setter Property="Content" Value="Play" />
+                                    <Style.Triggers>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter Property="Content" Value="Stop" />
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ToggleButton.Style>
+                        </ToggleButton>
+                    </Grid>
+                </Expander>
+                
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:Material}">
@@ -195,13 +218,13 @@
             <DataTemplate DataType="{x:Type gmdl:AnimComponent}">
                 <StackPanel Grid.Row="2">
                     <TextBlock Text="Animations"></TextBlock>
-                    <ListBox ItemsSource="{Binding Animations}" HorizontalContentAlignment="Stretch">
-                        <ListBox.ItemTemplate>
+                    <ListView ItemsSource="{Binding Animations}" HorizontalContentAlignment="Stretch" IsTextSearchEnabled="False">
+                        <ListView.ItemTemplate>
                             <DataTemplate>
-                                <ContentControl Content="{Binding}"/>
+                                <ContentControl Content="{Binding}" Margin="0 0 0 0"/>
                             </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+                        </ListView.ItemTemplate>
+                    </ListView>
                 </StackPanel>
             </DataTemplate>
 
@@ -418,6 +441,7 @@
                                     <RowDefinition Height="20"/>
                                     <RowDefinition Height="20"/>
                                     <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
                                 </Grid.RowDefinitions>
                                 <ContentControl  x:Name="RenderOptionsPanel"></ContentControl>
                                 <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
@@ -463,6 +487,10 @@
                                 <DockPanel Grid.Row="10" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                                     <TextBlock HorizontalAlignment="Left">Render BHulls</TextBlock>
                                     <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderBoundHulls}"></CheckBox>
+                                </DockPanel>
+                                <DockPanel Grid.Row="11" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                    <TextBlock HorizontalAlignment="Left">Animation FPS</TextBlock>
+                                    <TextBox Width="30" HorizontalAlignment="Right" Text="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=AnimFPS}" AcceptsReturn="False" AcceptsTab="False"/>
                                 </DockPanel>
                             </Grid>
                         </GroupBox>

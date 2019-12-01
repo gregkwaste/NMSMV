@@ -30,14 +30,6 @@ using System.Runtime.InteropServices;
 
 namespace MVCore.GMDL
 {
-    public enum SHADERTYPE
-    {
-        MESH = 0x0,
-        DEBUG,
-        BHULL,
-        NORMAL
-    }
-
     public enum RENDERPASS
     {
         MAIN = 0x0,
@@ -501,6 +493,55 @@ namespace MVCore.GMDL
        
     }
 
+    public class reference : locator
+    {
+        public model ref_scene; //holds the referenced scene
+
+        public reference() : base(0.1f)
+        {
+            type = TYPES.REFERENCE;
+        }
+
+        public reference(reference input) : base(input)
+        {
+            ref_scene = input.ref_scene;
+        }
+
+        public void copyFrom(reference input)
+        {
+            base.copyFrom(input); //Copy base stuff
+            this.ref_scene = input.ref_scene;
+
+        }
+
+        public override model Clone()
+        {
+            return new reference(this);
+        }
+
+
+        //Deconstructor
+        protected override void Dispose(bool disposing)
+        {
+            if (disposed)
+                return;
+
+            if (disposing)
+            {
+                handle.Dispose();
+
+                //Free other resources here
+                base.Dispose(disposing);
+            }
+
+            //Free unmanaged resources
+            disposed = true;
+        }
+    }
+
+
+
+
     public class scene : locator
     {
         public GeomObject gobject; //Keep GeomObject reference
@@ -510,9 +551,9 @@ namespace MVCore.GMDL
             type = TYPES.MODEL;
             texMgr = new textureManager();
             //Set Shader Program
-            shader_programs = new GLSLHelper.GLSLShaderConfig[]{Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
-                                        Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
-                                        Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
+            shader_programs = new GLSLHelper.GLSLShaderConfig[]{Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.LOCATOR_SHADER],
+                                        Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
+                                        Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
         }
 
         public scene(scene input) :base(input)
@@ -570,9 +611,9 @@ namespace MVCore.GMDL
             scale = s;
             vao_id = MVCore.Common.RenderState.activeResMgr.GLPrimitiveVaos["default_cross"].vao_id;
             //Add shaders
-            shader_programs = new GLSLHelper.GLSLShaderConfig[] { MVCore.Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
-                MVCore.Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
-                MVCore.Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
+            shader_programs = new GLSLHelper.GLSLShaderConfig[] { MVCore.Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.LOCATOR_SHADER],
+                MVCore.Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
+                MVCore.Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
 
         }
 
@@ -802,15 +843,14 @@ namespace MVCore.GMDL
         //BSphere calculator
         public void setupBSphere()
         {
-            //For now just setup the Bounding Sphere VBO
-            Vector4 bsh_center = (new Vector4((Bbox[0] + Bbox[1])));
-            bsh_center = 0.5f * bsh_center;
-            bsh_center.W = 1.0f;
-
-            float radius = (0.5f * (Bbox[1] - Bbox[0])).Length;
+            float radius = 0.5f * (Bbox[0] - Bbox[1]).Length;
+            Vector3 bsh_center = Bbox[0] + 0.5f * (Bbox[1] - Bbox[0]);
+            
+            //Move sphere to object's root position
+            bsh_center = worldPosition + bsh_center;
 
             //Create Sphere vbo
-            bsh_Vao = new Primitives.Sphere(bsh_center.Xyz, radius).getVAO();
+            bsh_Vao = new Primitives.Sphere(bsh_center, radius).getVAO();
         }
 
         public void renderBbox(int pass)
@@ -923,21 +963,17 @@ namespace MVCore.GMDL
 
         }
 
-        public void renderBSphere(int pass)
+        public void renderBSphere(GLSLHelper.GLSLShaderConfig shader)
         {
-            GL.UseProgram(pass);
+            //delete old vao and generate a new one
+            bsh_Vao.Dispose();
+            setupBSphere();
+            
+            //Rendering
 
-            //Step 1 Upload uniform variables
-            int loc;
+            GL.UseProgram(shader.program_id);
 
-            //Upload Default Color
-            loc = GL.GetUniformLocation(pass, "color");
-            GL.Uniform3(loc, 1.0f, 1.0f, 1.0f);
-
-            //Program changed so I ahve to reupload the model matrices
-            loc = GL.GetUniformLocation(pass, "worldMat");
-            Matrix4 wMat = worldMat;
-            GL.UniformMatrix4(loc, false, ref wMat);
+            
 
             //Step 2 Bind & Render Vao
             //Render Bounding Sphere
@@ -996,9 +1032,6 @@ namespace MVCore.GMDL
         private void renderBHull(GLSLHelper.GLSLShaderConfig shader) {
 
 
-            if (!Common.RenderOptions.RenderBoundHulls)
-                return;
-
             GL.UseProgram(shader.program_id);
 
             GL.Uniform1(shader.uniformLocations["scale"], 1.0f);
@@ -1056,12 +1089,12 @@ namespace MVCore.GMDL
                 //Render Main
                 case RENDERPASS.MAIN:
                     renderMain(shader);
-                    //renderBSphere(MVCore.Common.RenderState.activeResMgr.GLShaders["BBOX_SHADER"]);
                     //renderBbox(MVCore.Common.RenderState.activeResMgr.GLShaders["BBOX_SHADER"]);
                     break;
                 //Render Bound Hull
                 case RENDERPASS.BHULL:
-                    renderBHull(shader);
+                    renderBSphere(shader);
+                    //renderBHull(shader);
                     break;
                 //Render Debug
                 case RENDERPASS.DEBUG:
@@ -2847,7 +2880,7 @@ namespace MVCore.GMDL
             Texture dDiff = Common.RenderState.activeResMgr.texMgr.getTexture("default.dds");
 
             //USE PROGRAM
-            int pass_program = Common.RenderState.activeResMgr.GLShaders["TEXTURE_MIXING_SHADER"].program_id;
+            int pass_program = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.TEXTURE_MIX_SHADER].program_id;
             GL.UseProgram(pass_program);
 
             //Upload base Layers Used
@@ -2966,7 +2999,7 @@ namespace MVCore.GMDL
             Texture dDiff = Common.RenderState.activeResMgr.texMgr.getTexture("default.dds");
 
             //USE PROGRAM
-            int pass_program = Common.RenderState.activeResMgr.GLShaders["TEXTURE_MIXING_SHADER"].program_id;
+            int pass_program = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.TEXTURE_MIX_SHADER].program_id;
             GL.UseProgram(pass_program);
 
             //Upload base Layers Used
@@ -3086,7 +3119,7 @@ namespace MVCore.GMDL
             Texture dDiff = Common.RenderState.activeResMgr.texMgr.getTexture("default.dds");
 
             //USE PROGRAM
-            int pass_program = Common.RenderState.activeResMgr.GLShaders["TEXTURE_MIXING_SHADER"].program_id;
+            int pass_program = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.TEXTURE_MIX_SHADER].program_id;
             GL.UseProgram(pass_program);
 
             //Upload base Layers Used
@@ -3914,9 +3947,7 @@ namespace MVCore.GMDL
     public class AnimComponent : Component
     {
         //Joint Data
-        public float[] JMArray;
         public float[] skinMats; //Final Matrices
-        public float[] invBMats; //Joint Inverse Bound Matrices
         public Dictionary<string, Joint> jointDict;
         public Dictionary<string, model> modelDict; //This will probably replace the jointDict since it seems like animations contain data for all nodes
 
@@ -3934,9 +3965,7 @@ namespace MVCore.GMDL
         public AnimComponent()
         {
             //Init Animation Stuff
-            JMArray = new float[256 * 16];
             skinMats = new float[256 * 16];
-            invBMats = new float[256 * 16];
             modelDict = new Dictionary<string, model>();
             jointDict = new Dictionary<string, Joint>();
         }
@@ -3944,9 +3973,7 @@ namespace MVCore.GMDL
         public AnimComponent(TkAnimationComponentData data)
         {
             //Init Animation Stuff
-            JMArray = new float[256 * 16];
             skinMats = new float[256 * 16];
-            invBMats = new float[256 * 16];
             modelDict = new Dictionary<string, model>();
             jointDict = new Dictionary<string, Joint>();
 
@@ -3960,6 +3987,7 @@ namespace MVCore.GMDL
                 AnimData my_ad = new AnimData(data.Anims[i]);
                 _animations.Add(my_ad);
             }
+
         }
 
         public void copyFrom(AnimComponent input)
@@ -3970,9 +3998,21 @@ namespace MVCore.GMDL
             //ANIMATION DATA
             modelDict = new Dictionary<string, model>();
             jointDict = new Dictionary<string, Joint>();
-            JMArray = (float[])input.JMArray.Clone();
-
+            
             //TODO: Copy Animations
+            
+        }
+
+        public void update()
+        {
+            
+            //Update JM Array
+            foreach (Joint j in jointDict.Values)
+            {
+                Matrix4 jointSkinMat = j.invBMat * j.worldMat;
+                MathUtils.insertMatToArray16(skinMats, j.jointIndex * 16, jointSkinMat);
+            }
+
             
         }
 
@@ -3990,9 +4030,7 @@ namespace MVCore.GMDL
                 if (disposing)
                 {
                     skinMats = null;
-                    invBMats = null;
-                    JMArray = null;
-
+                    
                     modelDict.Clear();
                     jointDict.Clear();
 
@@ -4233,19 +4271,81 @@ namespace MVCore.GMDL
 
     }
 
-
-
+    
     public class AnimMetadata: TkAnimMetadata
     {
+        public float duration;
+        public float interval;
+        public Dictionary<string, Quaternion[]> anim_rotations;
+        public Dictionary<string, Vector3[]> anim_positions;
+        public Dictionary<string, Vector3[]> anim_scales;
+
+        public AnimMetadata(TkAnimMetadata amd)
+        {
+            //Copy struct info
+            FrameCount = amd.FrameCount;
+            NodeCount = amd.NodeCount;
+            NodeData = amd.NodeData;
+            AnimFrameData = amd.AnimFrameData;
+            StillFrameData = amd.StillFrameData;
+
+            anim_rotations = new Dictionary<string, Quaternion[]>();
+            anim_positions = new Dictionary<string, Vector3[]>();
+            anim_scales = new Dictionary<string, Vector3[]>();
+
+            duration = FrameCount * 1000.0f / MVCore.Common.RenderOptions.animFPS;
+            interval = duration / FrameCount;
+
+            //Fetch animation data
+            loadData();
+        }
+
+        public AnimMetadata()
+        {
+            duration = 0.0f;
+            anim_rotations = new Dictionary<string, Quaternion[]>();
+            anim_positions = new Dictionary<string, Vector3[]>();
+            anim_scales = new Dictionary<string, Vector3[]>();
+        }
 
 
+        private void loadData()
+        {
+            for (int j = 0; j < NodeCount; j++)
+            {
+                TkAnimNodeData node = NodeData[j];
+                //Init dictionary entries
+
+                if (anim_rotations.ContainsKey(node.Node))
+                    Console.WriteLine("This shoult not happen");
+
+                anim_rotations[node.Node] = new Quaternion[FrameCount];
+                anim_positions[node.Node] = new Vector3[FrameCount];
+                anim_scales[node.Node] = new Vector3[FrameCount];
+
+                for (int i = 0; i < FrameCount; i++)
+                {
+                    Quaternion q = NMSUtils.fetchRotQuaternion(node, this, i);
+                    Vector3 s = NMSUtils.fetchScaleVector(node, this, i);
+                    Vector3 p = NMSUtils.fetchTransVector(node, this, i);
+
+                    //Save Info
+                    anim_rotations[node.Node][i] = q;
+                    anim_positions[node.Node][i] = p;
+                    anim_scales[node.Node][i] = s;
+                }
+            }
+        }
     }
 
     public class AnimData : TkAnimationData
     {
-        public TkAnimMetadata animMeta;
-        public int frameCounter = 0;
+        public AnimMetadata animMeta;
+        public float animationTime = 0.0f;
         public bool _animationToggle = false;
+        private int prevFrameIndex = 0;
+        private int nextFrameIndex = 0;
+        private float LERP_coeff = 0.0f;
         
         //Constructors
         public AnimData(TkAnimationData ad){
@@ -4255,10 +4355,12 @@ namespace MVCore.GMDL
             FrameEnd = ad.FrameEnd;
             StartNode = ad.StartNode;
             AnimType = ad.AnimType;
-
+            Speed = ad.Speed;
+            Additive = ad.Additive;
+            
             //Load Animation File
             if (Filename != "")
-                loadAnimation();
+                fetchAnimMetaData();
         }
         
         //Properties
@@ -4269,13 +4371,39 @@ namespace MVCore.GMDL
             set { Anim = value; }
         }
 
+        public bool PActive
+        {
+            get { return Active; }
+            set { Active = value; }
+        }
+        
         public bool AnimationToggle
         {
             get { return _animationToggle; }
-            set { _animationToggle = value; animate(); }
+            set { _animationToggle = value; }
         }
 
-        private void loadAnimation()
+        public string PAnimType
+        {
+            get
+            {
+                return AnimType.ToString();
+            }
+        }
+
+        public bool PAdditive
+        {
+            get { return Additive; }
+            set { Additive = value; }
+        }
+
+        public float PSpeed
+        {
+            get { return Speed; }
+            set { Speed = value; }
+        }
+
+        private void fetchAnimMetaData()
         {
             if (MVCore.Common.RenderState.activeResMgr.Animations.ContainsKey(Filename))
             {
@@ -4283,36 +4411,51 @@ namespace MVCore.GMDL
             }
             else
             {
-                animMeta = NMSUtils.LoadNMSFile(Path.GetFullPath(Path.Combine(FileUtils.dirpath, Filename))) as TkAnimMetadata;
+                TkAnimMetadata amd = NMSUtils.LoadNMSFile(Path.GetFullPath(Path.Combine(FileUtils.dirpath, Filename))) as TkAnimMetadata;
+                animMeta = new AnimMetadata(amd);
                 MVCore.Common.RenderState.activeResMgr.Animations[Filename] = animMeta;
             }
-            
         }
 
 
-        //Methods
-        //Animation frame data collection methods
-        public Quaternion fetchRotQuaternion(TkAnimNodeData node)
-        {
-            return NMSUtils.fetchRotQuaternion(node, animMeta, frameCounter);
-        }
-
-        public Vector3 fetchTransVector(TkAnimNodeData node)
-        {
-            return NMSUtils.fetchTransVector(node, animMeta, frameCounter);
-        }
-
-
-        public Vector3 fetchScaleVector(TkAnimNodeData node)
-        {
-            return NMSUtils.fetchScaleVector(node, animMeta, frameCounter);
-        }
-
-
-        public void animate()
+        public void animate(float dt)
         {
             if (animMeta != null)
-                frameCounter = (frameCounter + 1) % animMeta.FrameCount;
+            {
+                float activeAnimDuration = animMeta.duration / Speed;
+                float activeAnimInterval = animMeta.interval / Speed;
+
+                animationTime += dt; //Progress time
+                animationTime = animationTime % activeAnimDuration; //Clamp to correct time span
+
+                //Find frames
+                prevFrameIndex = (int) Math.Floor((double) (animationTime / activeAnimInterval));
+                nextFrameIndex = (prevFrameIndex + 1) % animMeta.FrameCount;
+
+                float prevFrameTime = prevFrameIndex * activeAnimInterval;
+                LERP_coeff = (animationTime - prevFrameTime) / activeAnimInterval;
+            }
+        }
+
+        public void applyNodeTransform(model m, string node)
+        {
+            //Fetch prevFrame stuff
+            Quaternion prev_q = animMeta.anim_rotations[node][prevFrameIndex];
+            Vector3 prev_p = animMeta.anim_positions[node][prevFrameIndex];
+
+            //Fetch nextFrame stuff
+            Quaternion next_q = animMeta.anim_rotations[node][prevFrameIndex];
+            Vector3 next_p = animMeta.anim_positions[node][prevFrameIndex];
+
+            //Interpolate
+
+            Quaternion q = prev_q * LERP_coeff + next_q * (1.0f - LERP_coeff);
+            Vector3 p = prev_p * LERP_coeff + next_p * (1.0f - LERP_coeff);
+
+            //Convert transforms
+            m.localRotation = Matrix4.CreateFromQuaternion(q);
+            m.localPosition = p;
+        
         }
 
     }

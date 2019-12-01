@@ -21,14 +21,14 @@ namespace MVCore
         public Dictionary<string, GMDL.GeomObject> GLgeoms = new Dictionary<string, GMDL.GeomObject>();
         public Dictionary<string, GMDL.scene> GLScenes = new Dictionary<string, GMDL.scene>();
         public Dictionary<string, GMDL.Texture> GLTextures = new Dictionary<string, GMDL.Texture>();
-        public Dictionary<string, TkAnimMetadata> Animations = new Dictionary<string, TkAnimMetadata>();
+        public Dictionary<string, AnimMetadata> Animations = new Dictionary<string, AnimMetadata>();
 
         public Dictionary<string, mainVAO> GLPrimitiveVaos = new Dictionary<string, mainVAO>();
         public List<GMDL.Light> GLlights = new List<GMDL.Light>();
         public List<GMDL.Decal> GLDecals = new List<GMDL.Decal>();
         public List<Camera> GLCameras = new List<Camera>();
         //public Dictionary<string, int> GLShaders = new Dictionary<string, int>();
-        public Dictionary<string, GLSLHelper.GLSLShaderConfig> GLShaders = new Dictionary<string, GLSLHelper.GLSLShaderConfig>();
+        public Dictionary<GLSLHelper.SHADER_TYPE, GLSLHelper.GLSLShaderConfig> GLShaders = new Dictionary<GLSLHelper.SHADER_TYPE, GLSLHelper.GLSLShaderConfig>();
         //public int[] shader_programs;
 
         public textureManager texMgr = new textureManager();

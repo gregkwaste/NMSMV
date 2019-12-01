@@ -59,6 +59,7 @@ namespace Model_Viewer
 
         //Animation Stuff
         private bool animationStatus = false;
+        private bool CaptureAnimFrames = true;
         public bool PAnimationStatus
         {
             get
@@ -73,7 +74,8 @@ namespace Model_Viewer
         }
 
         public List<model> animScenes = new List<model>();
-        
+        public List<Tuple<AnimComponent, AnimData>> activeAnimScenes = new List<Tuple<AnimComponent, AnimData>>();
+
         //Control private Managers
         public ResourceManager resMgr = new ResourceManager();
         public renderManager renderMgr = new renderManager();
@@ -84,7 +86,6 @@ namespace Model_Viewer
         private ToolStripMenuItem exportToObjToolStripMenuItem;
         private ToolStripMenuItem loadAnimationToolStripMenuItem;
         private OpenFileDialog openFileDialog1;
-        private System.ComponentModel.BackgroundWorker backgroundWorker1;
         private Form pform;
 
         //Timers
@@ -93,7 +94,9 @@ namespace Model_Viewer
 
         //Private fps Counter
         private int frames = 0;
+        private double dt = 0.0f;
         private DateTime oldtime;
+        private DateTime prevtime;
 
         //Gamepad Setup
         public GamepadHandler gpHandler;
@@ -141,7 +144,7 @@ namespace Model_Viewer
 
             //Set properties
             DoubleBuffered = true;
-            VSync = true;
+            VSync = false;
         }
 
         //Constructor
@@ -208,26 +211,55 @@ namespace Model_Viewer
         //Per Frame Updates
         private void frameUpdate()
         {
-            //Fetch Updates on Joints on all animscenes
+            //Update Scene
+            rootObject?.update();
+
+            //Save new updated joint transforms to the corresponding AnimCompoent Structures
             for (int i = 0; i < animScenes.Count; i++)
             {
                 model animScene = animScenes[i];
                 AnimComponent ac = animScene._components[animScene.hasComponent(typeof(AnimComponent))] as AnimComponent;
+                ac.update();
+            }
 
-                //Update JM Array
-                foreach (Joint j in ac.jointDict.Values)
+            //Progress animations
+            if (MVCore.Common.RenderOptions.ToggleAnimations)
+            {
+                bool found_first_active_anim = false;
+                //Update active animations
+                foreach (model anim_scene in animScenes)
                 {
-                    MathUtils.insertMatToArray16(ac.JMArray, j.jointIndex * 16, j.worldMat);
-                    MathUtils.insertMatToArray16(ac.invBMats, j.jointIndex * 16, j.invBMat);
-                }
+                    AnimComponent ac = anim_scene._components[anim_scene.hasComponent(typeof(AnimComponent))] as AnimComponent;
 
-                //Calculate skinning matrices for each joint for each geometry object
-                MathUtils.mulMatArrays(ref ac.skinMats, ac.invBMats,
-                    ac.JMArray, ac.jointDict.Keys.Count);
+                    foreach (AnimData ad in ac.Animations)
+                    {
+                        if (ad._animationToggle)
+                        {
+                            found_first_active_anim = true;
+                            //Load updated local joint transforms
+                            foreach (libMBIN.NMS.Toolkit.TkAnimNodeData node in ad.animMeta.NodeData)
+                            {
+                                if (!ac.jointDict.ContainsKey(node.Node))
+                                    continue;
+
+                                Joint tj = ac.jointDict[node.Node];
+                                ad.applyNodeTransform(tj, node.Node);
+                                
+                            }
+
+                            //Once the current frame data is fetched, progress to the next frame
+                            ad.animate((float) dt);
+                        }
+                        //TODO: For now I'm just using the first active animation. Blending should be kinda more sophisticated
+                        if (found_first_active_anim)
+                            break; 
+                    }
+                    //TODO: For now I'm just using the first active animation. Blending should be kinda more sophisticated
+                    if (found_first_active_anim)
+                        break;
+                }
             }
             
-            rootObject?.update();
-
             //Camera & Light Positions
             //Update common transforms
             RenderState.activeCam.aspect = (float) ClientSize.Width / ClientSize.Height;
@@ -309,7 +341,6 @@ namespace Model_Viewer
 
                                     //Add to target node
                                     source.parent = target;
-
                                     target.Children.Add(source);
                                 }));
                                 
@@ -389,6 +420,7 @@ namespace Model_Viewer
         private void genericPaint(object sender, PaintEventArgs e)
         {
             //TODO: Should I add more stuff in here?
+            //SwapBuffers();
         }
 
         private void genericLoad(object sender, EventArgs e)
@@ -411,10 +443,7 @@ namespace Model_Viewer
 
             //Start Timers
             inputPollTimer.Start();
-
-            //Start Animation worker if animations are on
-            if (RenderOptions.ToggleAnimations)
-                backgroundWorker1.RunWorkerAsync();
+        
         }
 
         private void genericMouseMove(object sender, MouseEventArgs e)
@@ -498,7 +527,7 @@ namespace Model_Viewer
         private void ResizeControl(object sender, System.Timers.ElapsedEventArgs e)
         {
             resizeTimer.Stop();
-
+            
             //Make new request
             ThreadRequest req = new ThreadRequest();
             req.type = THREAD_REQUEST_TYPE.RESIZE_REQUEST;
@@ -509,6 +538,7 @@ namespace Model_Viewer
             issueRequest(ref req);
         }
 
+        
         private void OnResize(object sender, EventArgs e)
         {
             //Check the resizeTimer
@@ -523,7 +553,6 @@ namespace Model_Viewer
             this.exportToObjToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.loadAnimationToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
-            this.backgroundWorker1 = new System.ComponentModel.BackgroundWorker();
             this.contextMenuStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -552,13 +581,6 @@ namespace Model_Viewer
             // openFileDialog1
             // 
             this.openFileDialog1.FileName = "openFileDialog1";
-            // 
-            // backgroundWorker1
-            // 
-            this.backgroundWorker1.WorkerReportsProgress = true;
-            this.backgroundWorker1.WorkerSupportsCancellation = true;
-            this.backgroundWorker1.DoWork += new System.ComponentModel.DoWorkEventHandler(this.backgroundWorker1_DoWork);
-            this.backgroundWorker1.ProgressChanged += new System.ComponentModel.ProgressChangedEventHandler(this.backgroundWorker1_ProgressChanged);
             // 
             // CGLControl
             // 
@@ -602,14 +624,14 @@ namespace Model_Viewer
         }
 
         //GLPreparation
-        private void compileShader(string vs, string fs, string gs, string tes, string tcs, string name, ref string log)
+        private void compileShader(string vs, string fs, string gs, string tes, string tcs, SHADER_TYPE type, ref string log)
         {
-            GLSLShaderConfig shader_conf = new GLSLShaderConfig(vs, fs, gs, tcs, tes, name);
+            GLSLShaderConfig shader_conf = new GLSLShaderConfig(vs, fs, gs, tcs, tes, type);
             //Set modify Shader delegate
             shader_conf.modifyShader = issuemodifyShaderRequest;
 
             compileShader(shader_conf);
-            resMgr.GLShaders[shader_conf.name] = shader_conf;
+            resMgr.GLShaders[type] = shader_conf;
             log += shader_conf.log; //Append log
         }
 
@@ -644,76 +666,76 @@ namespace Model_Viewer
             compileShader("Shaders/Simple_VSEmpty.glsl",
                             "Shaders/Simple_FSEmpty.glsl",
                             "Shaders/Simple_GS.glsl",
-                            "", "", "DEBUG_SHADER", ref log);
+                            "", "", GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER, ref log);
 
             //Picking Shaders
             compileShader(ProjProperties.Resources.pick_vert,
                             ProjProperties.Resources.pick_frag,
-                            "", "", "", "PICKING_SHADER", ref log);
+                            "", "", "", GLSLHelper.SHADER_TYPE.PICKING_SHADER, ref log);
 
 
             //Main Object Shader
             compileShader("Shaders/Simple_VS.glsl",
                             "Shaders/Simple_FS.glsl",
-                            "", "", "", "MESH_SHADER", ref log);
+                            "", "", "", GLSLHelper.SHADER_TYPE.MESH_SHADER, ref log);
 
 
             //BoundBox Shader
             compileShader("Shaders/Bound_VS.glsl",
                             "Shaders/Bound_FS.glsl",
-                            "", "", "", "BBOX_SHADER", ref log);
+                            "", "", "", GLSLHelper.SHADER_TYPE.BBOX_SHADER, ref log);
 
             //Texture Mixing Shader
             compileShader("Shaders/texture_mixer_VS.glsl",
                             "Shaders/texture_mixer_FS.glsl",
-                            "", "", "", "TEXTURE_MIXING_SHADER", ref log);
+                            "", "", "", GLSLHelper.SHADER_TYPE.TEXTURE_MIX_SHADER, ref log);
 
             //GBuffer Shaders
             compileShader("Shaders/Gbuffer_VS.glsl",
                             "Shaders/Gbuffer_FS.glsl",
-                            "", "", "", "GBUFFER_SHADER", ref log);
+                            "", "", "", GLSLHelper.SHADER_TYPE.GBUFFER_SHADER, ref log);
 
             //Decal Shaders
             compileShader("Shaders/decal_VS.glsl",
                             "Shaders/Decal_FS.glsl",
-                            "", "", "", "DECAL_SHADER", ref log);
+                            "", "", "", GLSLHelper.SHADER_TYPE.DECAL_SHADER, ref log);
 
             //Locator Shaders
             compileShader(ProjProperties.Resources.locator_vert,
                             ProjProperties.Resources.locator_frag,
-                            "", "", "", "LOCATOR_SHADER", ref log);
+                            "", "", "", GLSLHelper.SHADER_TYPE.LOCATOR_SHADER, ref log);
 
             //Joint Shaders
             compileShader(ProjProperties.Resources.joint_vert,
                             ProjProperties.Resources.joint_frag,
-                            "", "", "", "JOINT_SHADER", ref log);
+                            "", "", "", GLSLHelper.SHADER_TYPE.JOINT_SHADER, ref log);
 
             //Text Shaders
             compileShader(ProjProperties.Resources.text_vert,
                             ProjProperties.Resources.text_frag,
-                            "", "", "", "TEXT_SHADER", ref log);
+                            "", "", "", GLSLHelper.SHADER_TYPE.TEXT_SHADER, ref log);
 
             //Light Shaders
             compileShader(ProjProperties.Resources.light_vert,
                             ProjProperties.Resources.light_frag,
-                            "", "", "", "LIGHT_SHADER", ref log);
+                            "", "", "", GLSLHelper.SHADER_TYPE.LIGHT_SHADER, ref log);
 
             //Camera Shaders
             compileShader(ProjProperties.Resources.camera_vert,
                             ProjProperties.Resources.camera_frag,
-                            "", "", "", "CAMERA_SHADER", ref log);
+                            "", "", "", GLSLHelper.SHADER_TYPE.CAMERA_SHADER, ref log);
 
             //FILTERS - EFFECTS
 
             //Pass Shader
             compileShader("Shaders/Gbuffer_VS.glsl",
                             "Shaders/PassThrough_FS.glsl",
-                            "", "", "", "PASSTHROUGH_SHADER", ref log);
+                            "", "", "", GLSLHelper.SHADER_TYPE.PASSTHROUGH_SHADER, ref log);
             
             //Camera Shaders
             compileShader("Shaders/Gbuffer_VS.glsl",
                             "Shaders/gaussian_blur_FS.glsl",
-                            "", "", "", "GAUSSIAN_BLUR_SHADER", ref log);
+                            "", "", "", GLSLHelper.SHADER_TYPE.GAUSSIAN_BLUR_SHADER, ref log);
 
         }
 
@@ -833,7 +855,7 @@ namespace Model_Viewer
         private void addCamera(bool cull = true)
         {
             //Set Camera position
-            Camera cam = new Camera(60, resMgr.GLShaders["BBOX_SHADER"].program_id, 0, cull);
+            Camera cam = new Camera(60, resMgr.GLShaders[SHADER_TYPE.BBOX_SHADER].program_id, 0, cull);
             for (int i = 0; i < 20; i++)
                 cam.Move(0.0f, -0.1f, 0.0f);
             cam.isActive = false;
@@ -956,7 +978,7 @@ namespace Model_Viewer
             Light light = new Light();
             light.name = "Default Light";
             light.intensity = 50000;
-            light.shader_programs = new GLSLHelper.GLSLShaderConfig[] { this.resMgr.GLShaders["LIGHT_SHADER"] };
+            light.shader_programs = new GLSLHelper.GLSLShaderConfig[] { this.resMgr.GLShaders[GLSLHelper.SHADER_TYPE.LIGHT_SHADER] };
             light.localPosition = new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                             Math.Sin(this.light_angle_y * Math.PI / 180.0)),
                                                 (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
@@ -984,19 +1006,21 @@ namespace Model_Viewer
             //Get FPS
             DateTime now = DateTime.UtcNow;
             TimeSpan time = now - oldtime;
-            int measurement_interval = 100;
-
-            if (time.TotalMilliseconds > measurement_interval)
+            dt = (now - prevtime).TotalMilliseconds;
+            
+            if (time.TotalMilliseconds > 1000)
             {
-                RenderStats.fpsCount = (int) (1000 * frames / (float) measurement_interval);
-                //Console.WriteLine("{0} {1}", frames, fps);
+                RenderStats.fpsCount = frames;
+                //Console.WriteLine("{0} {1} {2}", frames, RenderStats.fpsCount, time.TotalMilliseconds);
                 //Reset
                 frames = 0;
                 oldtime = now;
             }
             else
+            {
                 frames += 1;
-
+                prevtime = now;
+            }
         }
 
 
@@ -1059,82 +1083,6 @@ namespace Model_Viewer
         public void toggleAnimation()
         {
             RenderOptions.ToggleAnimations = !RenderOptions.ToggleAnimations;
-
-            if (!backgroundWorker1.IsBusy)
-                backgroundWorker1.RunWorkerAsync();
-            else
-                backgroundWorker1.CancelAsync();
-        }
-
-        private void backgroundWorker1_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
-        {
-            while (true)
-            {
-                double pause = (1000.0d / (double) RenderOptions.animFPS);
-                System.Threading.Thread.Sleep((int)(Math.Round(pause, 1)));
-                backgroundWorker1.ReportProgress(0);
-
-                if (backgroundWorker1.CancellationPending)
-                {
-                    e.Cancel = true;
-                    return;
-                }
-            }
-        }
-        
-        //Animation Worker
-        private void backgroundWorker1_ProgressChanged(object sender, System.ComponentModel.ProgressChangedEventArgs e)
-        {
-            //Iterate in scenes
-            foreach (model s in animScenes)
-            {
-                //Try to update the transformations of each locator joint by blending active animations
-                List<Vector3> translations = new List<Vector3>();
-                List<Vector3> scales = new List<Vector3>();
-                List<Quaternion> rotations = new List<Quaternion>();
-                
-                //Find active animations
-                List<AnimData> active_anims = new List<AnimData>();
-                AnimComponent ac = s.Components[s.animComponentID] as AnimComponent;
-                foreach (AnimData ad in ac.Animations)
-                {
-                    if (ad.AnimationToggle)
-                    {
-                        active_anims.Add(ad);
-                        ad.animate(); //Progress the animations
-                    }
-                }
-                
-                if (active_anims.Count == 0)
-                    continue;
-
-                //Iterate in Locator animations
-                foreach (AnimData ad in active_anims)
-                {
-                    //Load joint transforms
-                    foreach (libMBIN.NMS.Toolkit.TkAnimNodeData node in ad.animMeta.NodeData)
-                    {
-
-                        if (!ac.jointDict.ContainsKey(node.Node))
-                            continue;
-
-                        Vector3 tvec = ad.fetchTransVector(node);
-                        OpenTK.Quaternion q = ad.fetchRotQuaternion(node);
-                        Matrix4 qmat = Matrix4.CreateFromQuaternion(q);
-                        Vector3 svec = ad.fetchScaleVector(node);
-
-                        
-                        //Add transforms to joint
-                        ac.jointDict[node.Node].localPosition = tvec;
-                        ac.jointDict[node.Node].localRotation = qmat;
-                        //ac.jointDict[node.Node].localScale = new Vector3(1.0f);
-                    }
-
-                    //TODO: For now I'm just using the first active animation. Blending should be kinda more sophisticated
-                    break;
-                }
-
-            }
         }
 
         #endregion ANIMATION_PLAYBACK

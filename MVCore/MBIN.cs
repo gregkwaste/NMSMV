@@ -525,9 +525,9 @@ namespace MVCore
                 dummy.name = "DUMMY_SCENE";
                 dummy.nms_template = null;
                 dummy.type = TYPES.MODEL;
-                dummy.shader_programs = new GLSLHelper.GLSLShaderConfig[] {Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
-                                              Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
-                                              Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
+                dummy.shader_programs = new GLSLHelper.GLSLShaderConfig[] {Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.LOCATOR_SHADER],
+                                              Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
+                                              Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
 
                 return dummy;
             }
@@ -728,6 +728,8 @@ namespace MVCore
                 so.color[1] = Common.RenderState.randgen.Next(255) / 255.0f;
                 so.color[2] = Common.RenderState.randgen.Next(255) / 255.0f;
 
+                so.Bbox = new Vector3[2];
+
                 MVCore.Common.CallBacks.Log(string.Format("Randomized Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]));
                 //Get Options
                 so.batchstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHSTARTPHYSI"));
@@ -742,6 +744,12 @@ namespace MVCore
                 so.LodLevel = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LODLEVEL"));
                 so.boundhullstart = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BOUNDHULLST"));
                 so.boundhullend = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BOUNDHULLED"));
+                so.Bbox[0].X = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMINX"));
+                so.Bbox[0].Y = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMINY"));
+                so.Bbox[0].Z = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMINZ"));
+                so.Bbox[1].X = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMAXX"));
+                so.Bbox[1].Y = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMAXY"));
+                so.Bbox[1].Z = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMAXZ"));
 
                 //Get Hash
                 so.Hash = ulong.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HASH"));
@@ -759,28 +767,19 @@ namespace MVCore
                     attachment_data = NMSUtils.LoadNMSFile(attachment_path) as TkAttachmentData;
                 }
 
-                //Find id within the vbo
-                int iid = -1;
-                for (int i = 0; i < gobject.vstarts.Count; i++)
-                    if (gobject.vstarts[i] == so.vertrstart_physics)
-                    {
-                        iid = i;
-                        break;
-                    }
-
                 so.shader_programs = new GLSLHelper.GLSLShaderConfig[4];
-                so.shader_programs[(int)RENDERPASS.MAIN] = Common.RenderState.activeResMgr.GLShaders["MESH_SHADER"];
-                so.shader_programs[(int)RENDERPASS.DEBUG] = Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"];
-                so.shader_programs[(int)RENDERPASS.BHULL] = Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"];
-                so.shader_programs[(int)RENDERPASS.PICK] = Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"];
+                so.shader_programs[(int)RENDERPASS.MAIN] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_SHADER];
+                so.shader_programs[(int)RENDERPASS.DEBUG] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER];
+                so.shader_programs[(int)RENDERPASS.BHULL] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.BBOX_SHADER];
+                so.shader_programs[(int)RENDERPASS.PICK] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER];
 
-                so.Bbox = gobject.bboxes[iid];
+                //so.Bbox = gobject.bboxes[iid]; //Use scene parameters
+
                 //so.setupBSphere();
                 so.parent = parent;
                 so.nms_template = node;
                 so.gobject = gobject; //Store the gobject for easier access of uniforms
                 so.init(transforms); //Init object transforms
-
 
                 //Process Attachments
                 ProcessComponents(so, attachment_data);
@@ -834,6 +833,7 @@ namespace MVCore
                 //Generate Vao's
                 so.main_Vao = gobject.getMainVao(so);
                 so.bhull_Vao = gobject.getCollisionMeshVao(so); //Missing data
+                so.setupBSphere(); //Setup Bounding Sphere Mesh
 
                 //Configure boneRemap properly
                 so.BoneRemapIndicesCount = so.lastskinmat - so.firstskinmat;
@@ -871,7 +871,7 @@ namespace MVCore
                     so.Dispose(); //Through away the old object
                     //Change object type
                     newso.type = TYPES.DECAL;
-                    newso.shader_programs[0] = Common.RenderState.activeResMgr.GLShaders["DECAL_SHADER"];
+                    newso.shader_programs[0] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DECAL_SHADER];
                 
                     Common.RenderState.activeResMgr.GLDecals.Add(newso);
                     return newso;
@@ -883,8 +883,6 @@ namespace MVCore
             }
             else if (typeEnum == TYPES.MODEL)
             {
-                Console.WriteLine("Model Detected");
-
                 scene so = new scene();
                 so.name = name;
                 
@@ -942,7 +940,7 @@ namespace MVCore
                     }
 
                     //Make a copy of the joint InvBMats
-                    Array.Copy(gobject.invBMats, ac.invBMats, gobject.invBMats.Length);
+                    //Array.Copy(gobject.invBMats, ac.invBMats, gobject.invBMats.Length);
 
                 }
 
@@ -954,7 +952,8 @@ namespace MVCore
                 if (!Common.RenderState.activeResMgr.GLScenes.ContainsKey(name))
                 {
                     Common.RenderState.activeResMgr.GLScenes[name] = so;
-                }
+                } else
+                    Console.WriteLine("Loaded Duplicate Scene");
 
                 //Finally Order children by name
                 so.children.OrderBy(i => i.Name);
@@ -983,9 +982,9 @@ namespace MVCore
                 so.nms_template = node;
                 
                 //Set Shader Program
-                so.shader_programs = new GLSLHelper.GLSLShaderConfig[]{Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
-                                               Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
-                                               Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
+                so.shader_programs = new GLSLHelper.GLSLShaderConfig[]{Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.LOCATOR_SHADER],
+                                               Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
+                                               Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
                 //Get Transformation
                 so.parent = parent;
                 so.init(transforms);
@@ -1024,9 +1023,9 @@ namespace MVCore
                 //Set properties
                 joint.name = name;
                 joint.nms_template = node;
-                joint.shader_programs = new GLSLHelper.GLSLShaderConfig[]{ Common.RenderState.activeResMgr.GLShaders["JOINT_SHADER"],
-                                                   Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
-                                                   Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
+                joint.shader_programs = new GLSLHelper.GLSLShaderConfig[]{ Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.JOINT_SHADER],
+                                                   Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
+                                                   Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
                 //Get Transformation
                 joint.parent = parent;
                 joint.init(transforms);
@@ -1069,9 +1068,6 @@ namespace MVCore
                 Common.CallBacks.Log(string.Format("Loading Reference {0}",
                     Path.Combine(FileUtils.dirpath, node.Attributes.FirstOrDefault(item => item.Name == "SCENEGRAPH").Value)));
 
-                if (name == "RefLandingBays")
-                    Console.WriteLine("Bump");
-
                 //Getting Scene MBIN file
                 string path = Path.GetFullPath(Path.Combine(FileUtils.dirpath, node.Attributes.FirstOrDefault(item => item.Name == "SCENEGRAPH").Value));
                 //string exmlPath = Path.GetFullPath(Util.getFullExmlPath(path));
@@ -1104,9 +1100,9 @@ namespace MVCore
                     so.name = name + "_UNKNOWN";
                     so.type = TYPES.UNKNOWN;
                     //Set Shader Program
-                    so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
-                                                     Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
-                                                     Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
+                    so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.LOCATOR_SHADER],
+                                                     Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
+                                                     Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
 
                     //Locator Objects don't have options
 
@@ -1121,9 +1117,9 @@ namespace MVCore
                 Collision so = new Collision();
 
                 //Remove that after implemented all the different collision types
-                so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders["MESH_SHADER"],
-                                                  Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
-                                                  Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]}; //Use Mesh program for collisions
+                so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_SHADER],
+                                                  Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
+                                                  Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]}; //Use Mesh program for collisions
                 so.debuggable = true;
                 so.name = name + "_COLLISION";
                 so.type = typeEnum;
@@ -1312,9 +1308,9 @@ namespace MVCore
                     throw new Exception("Light attenuation Type " + attenuation + " Not supported");
 
                 //Set Shader Program
-                so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders["LIGHT_SHADER"],
-                                                                         Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
-                                                                         Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
+                so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.LIGHT_SHADER],
+                                                                         Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
+                                                                         Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
 
                 so.main_Vao = new MVCore.Primitives.LineSegment(1, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
 
@@ -1333,9 +1329,9 @@ namespace MVCore
                 so.type = TYPES.UNKNOWN;
                 so.nms_template = node;
                 //Set Shader Program
-                so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders["LOCATOR_SHADER"],
-                                                                         Common.RenderState.activeResMgr.GLShaders["DEBUG_SHADER"],
-                                                                         Common.RenderState.activeResMgr.GLShaders["PICKING_SHADER"]};
+                so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.LOCATOR_SHADER],
+                                                                         Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
+                                                                         Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
                 //Locator Objects don't have options
 
                 //take care of children

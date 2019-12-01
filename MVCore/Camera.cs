@@ -182,21 +182,18 @@ namespace MVCore.GMDL
             if (!culling) return true;
             if (!Common.RenderOptions.UseFrustumCulling) return true;
 
-            Vector4 p1 = new Vector4(cand.Bbox[0], 1.0f);
-            Vector4 p2 = new Vector4(cand.Bbox[1], 1.0f);
-            p1 = p1 * cand.worldMat * transform;
-            p2 = p2 * cand.worldMat * transform;
-            float radius = 0.5f * (p1 - p2).Length;
+            float radius = 0.5f * (cand.Bbox[0] - cand.Bbox[1]).Length;
+            Vector3 bsh_center = cand.Bbox[0] + 0.5f * (cand.Bbox[1] - cand.Bbox[0]);
 
-            Vector4 bsh_center = p1 + p2;
-            bsh_center *= 0.5f;
+            //Move sphere to object's root position
+            bsh_center = cand.worldPosition + bsh_center;
+
 
             //This is not accurate for some fucking reason
             //return extFrustum.AABBVsFrustum(cand.Bbox, cand.worldMat * transform);
             
-            
             //In the future I should add the original AABB as well, spheres look to work like a charm for now   
-            return extFrustum.SphereVsFrustum(bsh_center.Xyz, radius);
+            return extFrustum.SphereVsFrustum(bsh_center, radius);
         }
 
         public void render()
