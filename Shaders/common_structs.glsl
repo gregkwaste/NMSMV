@@ -11,13 +11,13 @@ struct Light //locations:5
 //Common Per Mesh Struct
 struct CommonPerMeshUniforms
 {
-    mat4 worldMat;
     mat4 nMat;
     mat4 skinMats[80];
     vec4 gUserDataVec4;
     vec3 color; //Mesh Default Color
     float skinned;
     float selected; //Selected
+    mat4 worldMats[300]; //World Matrices
 };
 
 //Custom Per Frame Struct

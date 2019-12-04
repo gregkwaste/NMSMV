@@ -51,9 +51,11 @@ float get_mipmap_level(){
 
 
 //Calculates the diffuse color
-vec4 calcDiffuseColor(float mipmaplevel){
+vec4 calcDiffuseColor(float mipmaplevel, out float lHighAlpha, out float lLowAlpha){
 	vec4 diffTexColor; 
-	
+	lLowAlpha = 1.0;
+	lHighAlpha = 1.0;
+
 	//Check _F01_DIFFUSEMAP
 	if (mesh_has_matflag(_F01_DIFFUSEMAP)) {
 		if (mesh_has_matflag(_F55_MULTITEXTURE)){	
@@ -64,6 +66,23 @@ vec4 calcDiffuseColor(float mipmaplevel){
 			diffTexColor = textureLod(mpCustomPerMaterial.gDiffuseMap, vec3(uv0, 0.0), mipmaplevel);
 			//diffTexColor = vec4(1.0, 0.0, 0.0, 1.0);
 		}
+
+		if (!mesh_has_matflag(_F07_UNLIT) && mesh_has_matflag(_F39_METALLIC_MASK)){
+			if (mesh_has_matflag(_F34_GLOW) && mesh_has_matflag(_F35_GLOW_MASK) && !mesh_has_matflag(_F09_TRANSPARENT)){
+				lHighAlpha = GetUpperValue(diffTexColor.a);
+			} else{
+				lHighAlpha = diffTexColor.a;
+			}
+		}
+
+		if (mesh_has_matflag(_F34_GLOW) && mesh_has_matflag(_F35_GLOW_MASK) && !mesh_has_matflag(_F09_TRANSPARENT)){
+			lLowAlpha = GetLowerValue(diffTexColor.a);
+		}
+
+		if (!mesh_has_matflag(_F09_TRANSPARENT) && !mesh_has_matflag(_F11_ALPHACUTOUT)){
+			diffTexColor.a = 1.0;
+		}
+
 	} else {
 		diffTexColor = mpCustomPerMaterial.gMaterialColourVec4;
 		//diffTexColor = vec4(mpCustomPerMaterial.matflags[_F01_DIFFUSEMAP], 0.0, 0.0, 1.0);
@@ -89,11 +108,12 @@ vec3 calcNormal(float mipmaplevel){
 
 float calcRoughness(float mipmaplevel){
 	float lfRoughness = 1.0;
-	if (mesh_has_matflag(_F25_ROUGHNESS_MASK)) {
+	if (mesh_has_matflag(_F25_ROUGHNESS_MASK) && !mesh_has_matflag(_F07_UNLIT)) {
 		lfRoughness = textureLod(mpCustomPerMaterial.gMasksMap, vec3(uv0, 0.0), mipmaplevel).g;
 		lfRoughness = 1.0 - lfRoughness;
-		lfRoughness *= mpCustomPerMaterial.gMaterialParamsVec4.x;
 	} 
+
+	lfRoughness *= mpCustomPerMaterial.gMaterialParamsVec4.x;
 	return lfRoughness;
 }
 
@@ -105,10 +125,13 @@ float calcAO(float mipmaplevel){
 	return ao;
 }
 
-float calcMetallic(float alpha){
+float calcMetallic(float lHighAlpha){
 	float lfMetallic = mpCustomPerMaterial.gMaterialParamsVec4.z;
-	if (mesh_has_matflag(_F39_METALLIC_MASK))
-		lfMetallic = GetUpperValue(alpha);
+	if (mesh_has_matflag(_F39_METALLIC_MASK) && !mesh_has_matflag(_F07_UNLIT))
+		lfMetallic = lHighAlpha;
+	else{
+		lfMetallic = mpCustomPerMaterial.gMaterialParamsVec4.z;
+	}
 	return lfMetallic;
 }
 
@@ -146,17 +169,24 @@ void pbr_lighting(){
 	vec4 diffTexColor;
 	vec3 normal; //Fragment normal
 	float lfRoughness = 1.0;
+	float lfMetallic = 0.0;
+	float lfSubsurface = 0.0; //Not used atm
 	float ao = 0.0;
-	
+	float lLowAlpha = 1.0; //TODO : Find out what exactly is that shit
+	float lHighAlpha = 1.0; //TODO : Find out what exactly is that shit
+
 	if (mpCommonPerFrame.diffuseFlag > 0.0){
 		float mipmaplevel = get_mipmap_level();
 		
 		//Fetch albedo
-		diffTexColor = calcDiffuseColor(mipmaplevel);
+		diffTexColor = calcDiffuseColor(mipmaplevel, lHighAlpha, lLowAlpha);
 		
 		//Fetch roughness value
 		lfRoughness = calcRoughness(mipmaplevel);
 		
+		//Fetch metallic value
+		lfMetallic = calcMetallic(lHighAlpha);
+
 		//Fetch AO value
 	 	ao = calcAO(mipmaplevel);
 
@@ -167,59 +197,70 @@ void pbr_lighting(){
 		normal = N;
 	}
 
-	float alpha;
-	alpha = diffTexColor.a;
-	
+
+	//TRANSPARENCY
+
+	//Set alphaTrehsholds
+	float kfAlphaThreshold = 0.0001;
+	float kfAlphaThresholdMax = 0.8;
+
+	if (mesh_has_matflag(_F62_DETAIL_ALPHACUTOUT)){
+		kfAlphaThreshold = 0.1;
+		kfAlphaThresholdMax = 0.5;
+	} else if (mesh_has_matflag(_F11_ALPHACUTOUT)){
+		kfAlphaThreshold = 0.45;
+		kfAlphaThresholdMax = 0.8;
+	}
+
 	//Mask Checks
 	if (mesh_has_matflag(_F22_TRANSPARENT_SCALAR)) {
 		// Transparency scalar comes from float in Material
-        alpha *= mpCustomPerMaterial.gMaterialColourVec4.a;	
+        diffTexColor.a *= mpCustomPerMaterial.gMaterialColourVec4.a;
 	}
 
-	//Check _F9_TRANSPARENT
-	if (mesh_has_matflag(_F11_ALPHACUTOUT)) {
-		if (alpha < 0.45) discard;
-	}
+	if (mesh_has_matflag(_F09_TRANSPARENT) || mesh_has_matflag(_F22_TRANSPARENT_SCALAR)|| mesh_has_matflag(_F11_ALPHACUTOUT)) {
+		if (diffTexColor.a < kfAlphaThreshold) discard;
 
-	if (mesh_has_matflag(_F09_TRANSPARENT) || mesh_has_matflag(_F22_TRANSPARENT_SCALAR)) {
-		if (alpha < 0.01) discard;
-	}
+		if (mesh_has_matflag(_F11_ALPHACUTOUT)){
+			diffTexColor.a = smoothstep(kfAlphaThreshold, kfAlphaThresholdMax, diffTexColor.a);
+		}
 
-	float lfMetallic = calcMetallic(alpha);
-
-	if (!mesh_has_matflag(_F09_TRANSPARENT) && !mesh_has_matflag(_F22_TRANSPARENT_SCALAR) && !mesh_has_matflag(_F11_ALPHACUTOUT)) {
-		alpha = 1.0;
 	}
 
 	//Get Glow
 	float lfGlow = 0.0;
-	float lLowAlpha = 1.0; //TODO : Find out what exactly is that shit
 	if (mesh_has_matflag(_F35_GLOW_MASK) && !mesh_has_matflag( _F09_TRANSPARENT )){
 		lfGlow = mpCustomPerMaterial.gCustomParams01Vec4.y * lLowAlpha;
 	} else if (mesh_has_matflag( _F34_GLOW)) {
 		lfGlow = mpCustomPerMaterial.gCustomParams01Vec4.y;
 	}
     
-	 
-  
-  	//TODO Save ambient and ao in another color attachment
+ 	//TODO Save ambient and ao in another color attachment
     vec3 ambient = vec3(0.03) * diffTexColor.rgb * ao;
-    
+
+
+#ifdef _DEFERRED_RENDERING
+
     //Save Info
     //Albedo
-	outcolors[0] = vec4(diffTexColor.rgb, alpha);
+	outcolors[0] = diffTexColor;
 	//outcolors[0].rgb = vec3(lfGlow, lfGlow, 0);
 	//outcolors[0].rgb = lfGlow * mpCustomPerMaterial.gMaterialColourVec4.xyz;
 	//Positions
 	outcolors[1].rgb = fragPos.xyz;	
-	//Normals
+	//Normals + lfGlow in alpha channel
 	outcolors[2].rgb = normal;	
-	//Bloom
-	outcolors[3] = vec4(lfGlow * mpCustomPerMaterial.gMaterialColourVec4.xyz, alpha);
+	
+	//Do not use the 3rd channel which is the color after lighting
+
 	//Export Frag Params
 	outcolors[4].x = ao;
 	outcolors[4].y = lfMetallic;
 	outcolors[4].z = lfRoughness;
+	outcolors[4].a = lfGlow;
+#else
+	outcolors[0] = vec4(1.0, 0.0, 0.0, 0.0);
+#endif
 }
 
 

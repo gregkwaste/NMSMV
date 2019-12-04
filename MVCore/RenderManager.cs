@@ -50,20 +50,21 @@ namespace MVCore
     struct CommonPerMeshUniforms
     {
         [FieldOffset(0)] //64 Bytes
-        public Matrix4 worldMat;
-        [FieldOffset(64)] //64 Bytes
         public Matrix4 nMat;
-        [FieldOffset(128)] //4 bytes
+        [FieldOffset(64)] //4 bytes
         public unsafe fixed float skinMats[80 * 16]; //This is mapped to mat4 //5120 bytes
-        [FieldOffset(5248)]
+        [FieldOffset(5184)]
         public Vector4 gUserDataVec4;
-        [FieldOffset(5264)]
+        [FieldOffset(5200)]
         public Vector3 color; //12 bytes
-        [FieldOffset(5276)]
+        [FieldOffset(5212)]
         public float skinned; //4 bytes (aligns to 4 bytes)
-        [FieldOffset(5280)]
+        [FieldOffset(5216)]
         public float selected; //4 Bytes
-        public static readonly int SizeInBytes = 5296;
+        [FieldOffset(5232)] //64*100 Bytes
+        public unsafe fixed float worldMats[300 * 16];
+
+        public static readonly int SizeInBytes = 24432;
     };
 
 
@@ -109,6 +110,22 @@ namespace MVCore
             gbuf = new GBuffer(resMgr, width, height);
         }
 
+
+        public void clearInstances()
+        {
+            foreach (model m in staticMeshQeueue)
+            {
+                if (m is meshModel mm)
+                    mm.instances.Clear();
+            }
+
+            foreach (model m in transparentMeshQeueue)
+            {
+                if (m is meshModel mm)
+                    mm.instances.Clear();
+            }
+        }
+
         public void cleanup()
         {
             //Just cleanup the queues
@@ -122,15 +139,15 @@ namespace MVCore
         public void populate(GMDL.model root)
         {
             cleanup();
-            process_models(root);
+            staticMeshQeueue.Add(root); //TODO: Think of a better way
+            foreach (scene s in resMgr.GLScenes.Values)
+                process_models(s);
         }
 
         private void process_models(GMDL.model root)
         {
-            //Preprocess models
-            if (root.type == TYPES.MESH)
-            {
-                meshModel m = (meshModel)root;
+            if (root.type == TYPES.MESH) {
+                meshModel m = (meshModel) root;
 
                 //Check if the model has a transparent material
                 if (m.Material.has_flag((TkMaterialFlags.MaterialFlagEnum) TkMaterialFlags.UberFlagEnum._F22_TRANSPARENT_SCALAR) ||
@@ -142,8 +159,7 @@ namespace MVCore
                 {
                     staticMeshQeueue.Add(m);
                 }
-            }
-            else
+            } else
             {
                 staticMeshQeueue.Add(root); //For now add everything else to the static mesh queue
             }
@@ -154,8 +170,7 @@ namespace MVCore
                 process_models(child);
             }
         }
-        
-        
+
         public void setupTextRenderer()
         {
             //Use QFont
@@ -260,7 +275,6 @@ namespace MVCore
         {
             //Prepare Struct
             CommonPerMeshUniforms cpmu;
-            cpmu.worldMat = m.worldMat;
             Matrix4 nMat = m.worldMat.Inverted();
             nMat.Transpose();
             cpmu.nMat = nMat;
@@ -278,7 +292,20 @@ namespace MVCore
                     {
                         cpmu.skinMats[i] = mm.BoneRemapMatrices[i];
                     }
+
+                    //Store the intance world Matrices
+                    for (int i = 0; i < Math.Min(64, mm.instances.Count); i++)
+                    {
+                        for (int j = 0; j < 4; j++)
+                        {
+                            for (int k = 0; k < 4; k++)
+                            {
+                                cpmu.worldMats[16 * i + 4 * j + k] = mm.instances[i][j, k];
+                            }
+                        }
+                    }
                 }
+
 
                 cpmu.skinned = (float) mm.skinned;
                 cpmu.color = mm.color;
@@ -288,6 +315,17 @@ namespace MVCore
             }
             else
             {
+                unsafe
+                {
+                    for (int j = 0; j < 4; j++)
+                    {
+                        for (int k = 0; k < 4; k++)
+                        {
+                            cpmu.worldMats[4 * j + k] = m.worldMat[j, k];
+                        }
+                    }
+                }
+                
                 cpmu.skinned = 0.0f;
                 cpmu.color = new Vector3(1.0f, 0.0f, 0.0f);
                 cpmu.gUserDataVec4 = new Vector4(0.0f, 0.0f, 0.0f, 0.0f);
@@ -378,30 +416,139 @@ namespace MVCore
 
         #region Rendering Methods
 
+        private void resetOcclusionStatus()
+        {
+            foreach (model m in staticMeshQeueue)
+            {
+                m.occluded = false;
+            }
+
+            foreach (model m in transparentMeshQeueue)
+            {
+                m.occluded = false;
+            }
+        }
+
+        private void sortLights()
+        {
+            Light mainLight = resMgr.GLlights[0];
+
+            resMgr.GLlights.RemoveAt(0);
+            
+            resMgr.GLlights.Sort(
+                delegate (Light l1, Light l2)
+                {
+                    float d1 = (l1.worldPosition - RenderState.activeCam.Position).Length;
+                    float d2 = (l1.worldPosition - RenderState.activeCam.Position).Length;
+
+                    return d1.CompareTo(d2);
+                }
+            );
+
+            resMgr.GLlights.Insert(0, mainLight);
+        }
+        
+        private void LOD_filtering(List<model> model_list)
+        {
+            foreach (model m in model_list)
+            {
+                switch (m.type)
+                {
+                    case TYPES.MESH:
+                        {
+                            meshModel mm = m as meshModel;
+                            int i = 0;
+                            while (i < mm.instances.Count)
+                            {
+                                //Skip non LODed meshes
+                                if (!m.name.Contains("LOD"))
+                                {
+                                    i++;
+                                    continue;
+                                }
+
+                                //Calculate distance from camera
+                                Vector3 bsh_center = mm.Bbox[0] + 0.5f * (mm.Bbox[1] - mm.Bbox[0]);
+
+                                //Move sphere to object's root position
+                                bsh_center = (new Vector4(bsh_center, 1.0f) * mm.instances[i]).Xyz;
+
+                                double distance = (bsh_center - Common.RenderState.activeCam.Position).Length;
+                                
+
+                                for (int j = 0; j < mm.LODDistances.Count; j++)
+                                {
+                                    string lod_text = "LOD" + j;
+                                    if (m.name.Contains(lod_text) && distance > mm.LODDistances[j])
+                                    {
+                                        mm.instances.RemoveAt(i);
+                                    }
+                                }
+
+                                i++;
+                            }
+
+                            if (mm.instances.Count == 0)
+                                m.occluded = true;
+
+                            break;
+                        }
+                    default:
+                        break;
+                }
+
+                
+            }
+        }
+
+        private void frustum_occlusion(List<model> model_list)
+        {
+            foreach (model m in model_list)
+            {
+                if (!m.renderable) continue;
+                if (m.occluded) continue;
+
+                switch (m.type)
+                {
+                    case TYPES.MESH:
+                        {
+                            meshModel mm = m as meshModel;
+                            int i = 0;
+                            while (i < mm.instances.Count)
+                            {
+                                if (!RenderState.activeCam.frustum_occlude(mm, mm.instances[i], Matrix4.Identity))
+                                {
+                                    occludedNum++;
+                                    mm.instances.RemoveAt(i);
+                                }
+                                else
+                                    i++;
+                            }
+
+                            if (mm.instances.Count == 0)
+                                m.occluded = true;
+
+                            break;
+                        }
+                    default:
+                        break;
+                }
+            }
+        }
+
+
         private void renderMain()
         {
             foreach (model m in staticMeshQeueue)
             {
                 if (!m.renderable) continue;
-
-                //Handle Light Upload and Frustum Culling
-
-                switch (m.type)
-                {
-                    case TYPES.MESH:
-                        if (!RenderState.activeCam.frustum_occlude((meshModel)m, Matrix4.Identity)) { 
-                            occludedNum++;
-                            continue;
-                        }
-                        break;
-                    default:
-                        break;
-                }
+                if (m.occluded) continue;
 
                 prepareCommonPermeshUBO(m);
                 m.render(RENDERPASS.MAIN);
                 if (RenderOptions.RenderBoundHulls && (m.type == TYPES.MESH))
                     m.render(RENDERPASS.BHULL);
+
             }
         }
 
@@ -426,34 +573,17 @@ namespace MVCore
             //I don't expect any other object type here
             foreach (model m in transparentMeshQeueue)
             {
-                if (m.renderable)
+                if (!m.renderable) continue;
+                if (m.occluded) continue;
+
+                if (m.type == TYPES.MESH)
                 {
-                    if (m.type == TYPES.MESH)
-                    {
-                        //Object program
-                        //Local Transformation is the same for all objects 
-                        //Pending - Personalize local matrix on each object
-                        //loc = GL.GetUniformLocation(active_program, "light");
-                        //GL.Uniform3(loc, resMgr.GLlights[0].localPosition);
-
-                        //Upload Light Intensity
-                        //loc = GL.GetUniformLocation(active_program, "intensity");
-                        //GL.Uniform1(210, resMgr.GLlights[0].intensity);
-
-                        //Upload camera position as the light
-                        //GL.Uniform3(loc, cam.Position);
-
-                        //Apply frustum culling only for mesh objects
-                        if (RenderState.activeCam.frustum_occlude((meshModel)m, RenderState.rotMat))
-                        {
-                            prepareCommonPermeshUBO(m); //Update UBO based on current model
-                            m.render(RENDERPASS.MAIN);
-                            if (RenderOptions.RenderBoundHulls && (m.type == TYPES.MESH))
-                                m.render(RENDERPASS.BHULL);
-                        }
-                        else occludedNum++;
-                    }
+                    prepareCommonPermeshUBO(m); //Update UBO based on current model
+                    m.render(RENDERPASS.MAIN);
+                    if (RenderOptions.RenderBoundHulls && (m.type == TYPES.MESH))
+                        m.render(RENDERPASS.BHULL);
                 }
+                
             }
 
             GL.DepthMask(true); //Re-enable writing to the depth buffer
@@ -478,6 +608,26 @@ namespace MVCore
             //Render Shadows
             renderShadows();
 
+            //Occlusion
+            resetOcclusionStatus();
+
+            //Sort Lights
+            sortLights();
+
+            //LOD filtering
+            if (RenderOptions.LODFiltering)
+            {
+                LOD_filtering(staticMeshQeueue);
+                LOD_filtering(transparentMeshQeueue);
+            }
+            
+            //Apply frustum culling
+            if (RenderOptions.UseFrustumCulling)
+            {
+                frustum_occlusion(staticMeshQeueue);
+                frustum_occlusion(transparentMeshQeueue);
+            }
+            
             //Render Geometry
             renderStatic();
             renderTransparent(0);
@@ -493,10 +643,14 @@ namespace MVCore
             //System.Threading.Thread.Sleep(1000);
 
             //POST-PROCESSING
-            post_process();
+            //post_process();
+
+            //Light Pass
+            renderLightPass();
+
 
             //Final Pass
-            renderFinalPass();
+            //TODO
 
             //No need to blit without a renderbuffer
             //gbuf?.stop();
@@ -604,111 +758,34 @@ namespace MVCore
 
         }
 
-        private void bloom()
+
+        private void render_quad(string[] uniforms, float[] uniform_values, string[] sampler_names, int[] texture_ids, GLSLHelper.GLSLShaderConfig shaderConf)
         {
-            GL.Disable(EnableCap.DepthTest);
-            
-            //Apply Gaussian Blur Passes
-            GLSLHelper.GLSLShaderConfig pass_through_program = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.PASSTHROUGH_SHADER];
-            GLSLHelper.GLSLShaderConfig gs_program = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GAUSSIAN_BLUR_SHADER];
             int quad_vao = resMgr.GLPrimitiveVaos["default_renderquad"].vao_id;
-            
-            for (int i=0; i < 10; i++)
+
+
+            GL.UseProgram(shaderConf.program_id);
+            GL.BindVertexArray(quad_vao);
+
+            //Upload samplers
+            for (int i = 0; i < sampler_names.Length; i++)
             {
-                //Apply Gaussian Blur Shader
-                GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, gbuf.dump_fbo);
-                GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-                GL.Clear(ClearBufferMask.ColorBufferBit);
-                
-                GL.UseProgram(gs_program.program_id);
-                GL.BindVertexArray(quad_vao);
-
-                if (gs_program.uniformLocations.ContainsKey("diffuseTex"))
+                if (shaderConf.uniformLocations.ContainsKey(sampler_names[i]))
                 {
-                    GL.Uniform1(gs_program.uniformLocations["diffuseTex"], 0);
-                    GL.ActiveTexture(TextureUnit.Texture0);
-                    GL.BindTexture(TextureTarget.Texture2DMultisample, gbuf.bloom);
+                    GL.Uniform1(shaderConf.uniformLocations[sampler_names[i]], i);
+                    GL.ActiveTexture(TextureUnit.Texture0 + i);
+                    GL.BindTexture(TextureTarget.Texture2DMultisample, texture_ids[i]);
                 }
-
-                //Render quad
-                GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
-                GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, (IntPtr)0);
-                GL.BindVertexArray(0);
-
-                //Use passthrough shader to pass the dump texture back to the bloom
-                GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, gbuf.fbo);
-                GL.DrawBuffer(DrawBufferMode.ColorAttachment3);
-                GL.Clear(ClearBufferMask.ColorBufferBit);
-                
-                GL.UseProgram(pass_through_program.program_id);
-                GL.BindVertexArray(quad_vao);
-
-                if (pass_through_program.uniformLocations.ContainsKey("InTex"))
-                {
-                    GL.Uniform1(pass_through_program.uniformLocations["InTex"], 0);
-                    GL.ActiveTexture(TextureUnit.Texture0);
-                    GL.BindTexture(TextureTarget.Texture2DMultisample, gbuf.dump_rgba8);
-                }
-                
-                //Render quad
-                GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
-                GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, (IntPtr)0);
-                GL.BindVertexArray(0);
             }
-        }
 
-        private void post_process()
-        {
-            bloom();
-        }
-
-        private void renderFinalPass()
-        {
-
-            GLSLHelper.GLSLShaderConfig shader_conf = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_SHADER];
-
-            mainVAO render_quad = resMgr.GLPrimitiveVaos["default_renderquad"];
-
-
-            //Bind default fbo
-            GL.BindFramebuffer(FramebufferTarget.FramebufferExt, 0);
-            GL.ClearColor(MVCore.Common.RenderOptions.clearColor);
-            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-
-            GL.UseProgram(shader_conf.program_id);
-            GL.BindVertexArray(render_quad.vao_id);
-
-            //Upload the GBuffer textures
-            //Diffuse
-            int tex0_Id = (int)TextureUnit.Texture0;
-            GL.Uniform1(shader_conf.getLocation("diffuseTex"), 0);
-            GL.ActiveTexture((TextureUnit)(tex0_Id + 0));
-            GL.BindTexture(TextureTarget.Texture2DMultisample, gbuf.diffuse);
-
-            //Positions
-            GL.Uniform1(shader_conf.getLocation("positionTex"), 1);
-            GL.ActiveTexture((TextureUnit)(tex0_Id + 1));
-            GL.BindTexture(TextureTarget.Texture2DMultisample, gbuf.positions);
-
-            //Normals
-            GL.Uniform1(shader_conf.getLocation("normalTex"), 2);
-            GL.ActiveTexture((TextureUnit)(tex0_Id + 2));
-            GL.BindTexture(TextureTarget.Texture2DMultisample, gbuf.normals);
-
-            //Depth
-            GL.Uniform1(shader_conf.getLocation("depthTex"), 3);
-            GL.ActiveTexture((TextureUnit)(tex0_Id + 3));
-            GL.BindTexture(TextureTarget.Texture2DMultisample, gbuf.depth);
-
-            //Bloom
-            GL.Uniform1(shader_conf.getLocation("bloomTex"), 4);
-            GL.ActiveTexture((TextureUnit)(tex0_Id + 4));
-            GL.BindTexture(TextureTarget.Texture2DMultisample, gbuf.bloom);
-
-            //Info Tex
-            GL.Uniform1(shader_conf.getLocation("parameterTex"), 5);
-            GL.ActiveTexture((TextureUnit)(tex0_Id + 5));
-            GL.BindTexture(TextureTarget.Texture2DMultisample, gbuf.info);
+            //Upload uniforms - Assuming single float uniforms for now
+            for (int i = 0; i < uniforms.Length; i++)
+            {
+                if (shaderConf.uniformLocations.ContainsKey(uniforms[i]))
+                {
+                    GL.Uniform1(shaderConf.uniformLocations[uniforms[i]], i);
+                }
+            }
 
             //Render quad
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
@@ -717,6 +794,67 @@ namespace MVCore
         
         }
 
+        private void bloom()
+        {
+            GL.Disable(EnableCap.DepthTest);
+            
+            //Apply Gaussian Blur Passes
+            GLSLHelper.GLSLShaderConfig pass_through_program = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.PASSTHROUGH_SHADER];
+            GLSLHelper.GLSLShaderConfig gs_program = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GAUSSIAN_BLUR_SHADER];
+            int quad_vao = resMgr.GLPrimitiveVaos["default_renderquad"].vao_id;
+
+            for (int i=0; i < 10; i++)
+            {
+                //Apply Gaussian Blur Shader
+                GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, gbuf.dump_fbo);
+                GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+                GL.Clear(ClearBufferMask.ColorBufferBit);
+                
+                GL.UseProgram(gs_program.program_id);
+
+
+                render_quad(new string[] { }, new float[] { }, new string[] { "diffuseTex" }, new int[] { gbuf.dump_rgba8_1 }, gs_program);
+                
+                //Use passthrough shader to pass the dump texture back to the bloom
+                GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, gbuf.fbo);
+                GL.DrawBuffer(DrawBufferMode.ColorAttachment3);
+                GL.Clear(ClearBufferMask.ColorBufferBit);
+                
+                render_quad(new string[] { }, new float[] { }, new string[] { "InTex" }, new int[] { gbuf.dump_rgba8_2 }, pass_through_program);
+
+            }
+        }
+
+        private void post_process()
+        {
+            bloom();
+        }
+
+        private void renderLightPass()
+        {
+
+            GLSLHelper.GLSLShaderConfig shader_conf = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_SHADER];
+
+            //Bind default fbo
+            GL.BindFramebuffer(FramebufferTarget.FramebufferExt, gbuf.fbo);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment3); //Draw to the light color channel only
+            
+            GL.ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
+            render_quad(new string[] { }, new float[] { }, new string[] { "albedoTex", "positionTex", "normalTex", "depthTex", "parameterTex" }, 
+                                                            new int[] { gbuf.albedo,  gbuf.positions, gbuf.normals, gbuf.depth, gbuf.info}, shader_conf);
+
+            //Blit buffer to the default framebuffer
+
+            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, gbuf.fbo);
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment3);
+
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, 0);
+
+            GL.BlitFramebuffer(0, 0, gbuf.size[0], gbuf.size[1], 0, 0, gbuf.size[0], gbuf.size[1], ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Linear);
+            
+        }
 
         #endregion Rendering Methods
 

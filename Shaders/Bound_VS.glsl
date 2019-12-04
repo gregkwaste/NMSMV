@@ -30,8 +30,7 @@ out vec3 N;
 
 void main()
 {
-    mat4 lWorldMat = mpCommonPerMesh.worldMat;
-    vec4 wPos = lWorldMat * vPosition; //Calculate world Position
+    vec4 wPos = vPosition; //Calculate world Position
 	fragPos = wPos; //Export world position to the fragment shader
     N = nPosition.xyz;
     gl_Position = mpCommonPerFrame.mvp * wPos;

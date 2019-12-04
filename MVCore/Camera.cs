@@ -177,23 +177,27 @@ namespace MVCore.GMDL
 
         }
 
-        public bool frustum_occlude(GMDL.meshModel cand, Matrix4 transform)
+        public bool frustum_occlude(GMDL.meshModel cand, Matrix4 cand_wMat, Matrix4 transform)
         {
             if (!culling) return true;
-            if (!Common.RenderOptions.UseFrustumCulling) return true;
-
+            
             float radius = 0.5f * (cand.Bbox[0] - cand.Bbox[1]).Length;
             Vector3 bsh_center = cand.Bbox[0] + 0.5f * (cand.Bbox[1] - cand.Bbox[0]);
 
             //Move sphere to object's root position
-            bsh_center = cand.worldPosition + bsh_center;
-
+            bsh_center = (new Vector4(bsh_center, 1.0f) * cand_wMat).Xyz;
 
             //This is not accurate for some fucking reason
             //return extFrustum.AABBVsFrustum(cand.Bbox, cand.worldMat * transform);
-            
+
             //In the future I should add the original AABB as well, spheres look to work like a charm for now   
             return extFrustum.SphereVsFrustum(bsh_center, radius);
+        }
+
+        public bool frustum_occlude(GMDL.meshModel cand, Matrix4 transform)
+        {
+            return frustum_occlude(cand, cand.worldMat, transform);
+
         }
 
         public void render()

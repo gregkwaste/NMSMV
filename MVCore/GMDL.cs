@@ -53,6 +53,7 @@ namespace MVCore.GMDL
     {
         public abstract bool render(RENDERPASS pass);
         public bool renderable;
+        public bool occluded;
         public bool debuggable;
         public int selected;
         public GLSLHelper.GLSLShaderConfig[] shader_programs;
@@ -83,6 +84,9 @@ namespace MVCore.GMDL
         public List<Component> _components;
         public int animComponentID;
         public int animPoseComponentID;
+
+        //LOD
+        public List<float> LODDistances = new List<float>();
 
         //Disposable Stuff
         public bool disposed = false;
@@ -255,6 +259,7 @@ namespace MVCore.GMDL
         {
             renderable = true;
             debuggable = false;
+            occluded = false;
             selected = 0;
             ID = -1;
             name = "";
@@ -520,6 +525,48 @@ namespace MVCore.GMDL
         }
 
 
+        public override void update()
+        {
+            //Local copy of the base model update without the children query
+            if (changed)
+            {
+                //Create scaling matrix
+                Matrix4 scale = Matrix4.Identity;
+                scale[0, 0] = _localScale.X;
+                scale[1, 1] = _localScale.Y;
+                scale[2, 2] = _localScale.Z;
+
+                localMat = _localPoseMatrix * scale * _localRotation * Matrix4.CreateTranslation(_localPosition);
+
+                changed = false;
+            }
+
+            //Finally Update world Transformation Matrix
+            if (parent != null)
+            {
+                worldMat = localMat * parent.worldMat;
+            }
+
+            else
+                worldMat = localMat;
+
+            //Update worldPosition
+            if (parent != null)
+            {
+                //Add Translation as well
+                worldPosition = (Vector4.Transform(new Vector4(0.0f, 0.0f, 0.0f, 1.0f), this.worldMat)).Xyz;
+            }
+            else
+                worldPosition = localPosition;
+
+            
+            //Iterate in reference with modified transform
+            Matrix4 old_ref_lMat = ref_scene.localMat;
+            ref_scene.localMat = this.localMat;
+            ref_scene.update();
+            ref_scene.localMat = old_ref_lMat;
+        }
+
         //Deconstructor
         protected override void Dispose(bool disposing)
         {
@@ -783,6 +830,9 @@ namespace MVCore.GMDL
         public GeomObject gobject; //Ref to the geometry shit
         public model animScene; //Ref to connected animScene
 
+        //Mesh instances
+        public List<Matrix4> instances = new List<Matrix4>(); //Keep track of the different instances through the corresponding worldMatrices
+        
         //Constructor
         public meshModel() : base()
         {
@@ -841,16 +891,16 @@ namespace MVCore.GMDL
 
 
         //BSphere calculator
-        public void setupBSphere()
+        public void setupBSphere(int i)
         {
             float radius = 0.5f * (Bbox[0] - Bbox[1]).Length;
-            Vector3 bsh_center = Bbox[0] + 0.5f * (Bbox[1] - Bbox[0]);
+            Vector4 bsh_center = new Vector4(Bbox[0] + 0.5f * (Bbox[1] - Bbox[0]), 1.0f);
             
             //Move sphere to object's root position
-            bsh_center = worldPosition + bsh_center;
+            bsh_center = bsh_center * instances[i];
 
             //Create Sphere vbo
-            bsh_Vao = new Primitives.Sphere(bsh_center, radius).getVAO();
+            bsh_Vao = new Primitives.Sphere(bsh_center.Xyz, radius).getVAO();
         }
 
         public void renderBbox(int pass)
@@ -965,23 +1015,28 @@ namespace MVCore.GMDL
 
         public void renderBSphere(GLSLHelper.GLSLShaderConfig shader)
         {
-            //delete old vao and generate a new one
-            bsh_Vao.Dispose();
-            setupBSphere();
             
-            //Rendering
-
-            GL.UseProgram(shader.program_id);
-
             
+            
+            for (int i = 0; i < instances.Count; i++)
+            {
+                setupBSphere(i);
 
-            //Step 2 Bind & Render Vao
-            //Render Bounding Sphere
-            GL.BindVertexArray(bsh_Vao.vao_id);
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
-            GL.DrawElements(PrimitiveType.Triangles, 600, DrawElementsType.UnsignedInt, (IntPtr)0);
+                //Rendering
 
-            GL.BindVertexArray(0);
+                GL.UseProgram(shader.program_id);
+
+                //Step 2 Bind & Render Vao
+                //Render Bounding Sphere
+                GL.BindVertexArray(bsh_Vao.vao_id);
+                GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+                GL.DrawElements(PrimitiveType.Triangles, 600, DrawElementsType.UnsignedInt, (IntPtr)0);
+            
+                GL.BindVertexArray(0);
+                bsh_Vao.Dispose();
+            }
+            
+            
         }
 
         public virtual void renderMain(GLSLHelper.GLSLShaderConfig shader)
@@ -1020,12 +1075,22 @@ namespace MVCore.GMDL
                     GL.BindTexture(s.tex.target, s.tex.bufferID);
                 }
             }
-            
+
+
+            if (instances.Count > 100)
+                Console.WriteLine("Increase the buffers");
+
             //Step 2 Bind & Render Vao
             //Render Elements
             GL.BindVertexArray(main_Vao.vao_id);
             GL.PolygonMode(MaterialFace.FrontAndBack, Common.RenderOptions.RENDERMODE);
-            GL.DrawElements(PrimitiveType.Triangles, batchcount, indicesLength, IntPtr.Zero);
+            //GL.DrawElements(PrimitiveType.Triangles, batchcount, indicesLength, IntPtr.Zero);
+
+
+            //Use Instancing
+            GL.DrawElementsInstanced(PrimitiveType.Triangles, batchcount, indicesLength,
+                IntPtr.Zero, instances.Count);
+            
             GL.BindVertexArray(0);
         }
 
@@ -1134,6 +1199,17 @@ namespace MVCore.GMDL
             }
             
             base.update();
+
+
+            if (instances.Count > 10000)
+                Console.WriteLine("check");
+
+            //Setup Instances
+            instances.Add(this.worldMat);
+
+            //This looks like its working
+            //if (instances.Count > 1)
+            //    Console.WriteLine("Intance detected");
         }
 
         public void writeGeomToStream(StreamWriter s, ref uint index)
@@ -1335,6 +1411,8 @@ namespace MVCore.GMDL
                     //vbo.Dispose(); I assume the the vbo's will be cleared with Resourcegmt cleanup
                     BoneRemapIndices = null;
                     BoneRemapMatrices = null;
+                    instances.Clear();
+
                     //Dispose GL Stuff
                     main_Vao?.Dispose();
                     debug_Vao?.Dispose();

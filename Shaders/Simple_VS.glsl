@@ -50,7 +50,7 @@ void main()
         lWorldMat += blendWeights.z * mpCommonPerMesh.skinMats[index.z];
         lWorldMat += blendWeights.w * mpCommonPerMesh.skinMats[index.w];
     } else {
-        lWorldMat = mpCommonPerMesh.worldMat;
+        lWorldMat = mpCommonPerMesh.worldMats[gl_InstanceID];
     }
 
     vec4 wPos = lWorldMat * vPosition; //Calculate world Position

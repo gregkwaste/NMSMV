@@ -192,30 +192,29 @@ namespace TextureMixer
             string log = "";
 
             //Texture Mixing Shader
-            compileShader("Shaders/pass_VS.glsl",
-                            "Shaders/pass_FS.glsl",
-                            "", "", "", "TEXTURE_MIXING_SHADER", ref log);
+            GLSLShaderText vs_st = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText fs_st = new GLSLShaderText(ShaderType.FragmentShader);
+            vs_st.addStringFromFile("Shaders/pass_VS.glsl");
+            fs_st.addStringFromFile("Shaders/pass_FS.glsl");
+            compileShader(vs_st, fs_st,null, null , null, SHADER_TYPE.TEXTURE_MIX_SHADER, ref log);
 
         }
 
-        private void compileShader(string vs, string fs, string gs, string tes, string tcs, string name, ref string log)
+        private void compileShader(GLSLShaderText vs, GLSLShaderText fs, GLSLShaderText gs, GLSLShaderText tes, GLSLShaderText tcs, SHADER_TYPE type, ref string log)
         {
-            GLSLShaderConfig shader_conf = new GLSLShaderConfig(vs, fs, gs, tcs, tes, name);
+            GLSLShaderConfig shader_conf = new GLSLShaderConfig(vs, fs, gs, tcs, tes, type);
 
             compileShader(shader_conf);
-            MVCore.Common.RenderState.activeResMgr.GLShaders[shader_conf.name] = shader_conf;
+            MVCore.Common.RenderState.activeResMgr.GLShaders[shader_conf.shader_type] = shader_conf;
             log += shader_conf.log; //Append log
         }
 
         public void compileShader(GLSLShaderConfig config)
         {
-            int vertexObject;
-            int fragmentObject;
-
             if (config.program_id != -1)
                 GL.DeleteProgram(config.program_id);
 
-            GLShaderHelper.CreateShaders(config, out vertexObject, out fragmentObject, out config.program_id);
+            GLShaderHelper.CreateShaders(config);
         }
 
 

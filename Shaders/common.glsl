@@ -29,6 +29,7 @@
 #define _F42_DETAIL_NORMAL 41
 #define _F53_COLOURISABLE 52
 #define _F55_MULTITEXTURE 54
+#define _F62_DETAIL_ALPHACUTOUT 61
 
 vec3 
 GammaCorrectInput(
@@ -96,4 +97,20 @@ GetUpperValue(
 {
     int a = int( lValue * 255 );
     return ( float(a >> 4) / 16.0 );
+}
+
+//-----------------------------------------------------------------------------
+///
+///     GetLowerValue
+///
+///
+//-----------------------------------------------------------------------------
+float 
+GetLowerValue( 
+    float lValue )
+{
+    int a = int( lValue * 255 );
+    float lReturn = float( a & 0xf ) / 16.0;
+    lReturn = clamp( lReturn - GetUpperValue( lValue ), 0.0, 1.0 );
+    return lReturn;
 }

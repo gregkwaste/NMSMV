@@ -41,6 +41,7 @@ namespace MVCore.Common
         public static float _useTextures = 1.0f;
         public static float _useLighting = 1.0f;
         public static bool _useFrustumCulling = true;
+        public static bool _useLODFiltering = true;
         public static bool _toggleAnimations = true;
         public static bool _renderLights = true;
         public static bool _renderInfo = true;
@@ -96,6 +97,20 @@ namespace MVCore.Common
                 _useFrustumCulling = value;
             }
         }
+
+        public static bool LODFiltering
+        {
+            get
+            {
+                return _useLODFiltering;
+            }
+
+            set
+            {
+                _useLODFiltering = value;
+            }
+        }
+        
 
         public static bool ToggleWireframe
         {

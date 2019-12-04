@@ -211,6 +211,10 @@ namespace Model_Viewer
         //Per Frame Updates
         private void frameUpdate()
         {
+            //Cleanup instances
+            renderMgr.clearInstances();
+
+
             //Update Scene
             rootObject?.update();
 
@@ -624,7 +628,7 @@ namespace Model_Viewer
         }
 
         //GLPreparation
-        private void compileShader(string vs, string fs, string gs, string tes, string tcs, SHADER_TYPE type, ref string log)
+        private void compileShader(GLSLShaderText vs, GLSLShaderText fs, GLSLShaderText gs, GLSLShaderText tes, GLSLShaderText tcs, SHADER_TYPE type, ref string log)
         {
             GLSLShaderConfig shader_conf = new GLSLShaderConfig(vs, fs, gs, tcs, tes, type);
             //Set modify Shader delegate
@@ -662,81 +666,120 @@ namespace Model_Viewer
 
             //Geometry Shader
             //Compile Object Shaders
-            //Create Shader Config
-            compileShader("Shaders/Simple_VSEmpty.glsl",
-                            "Shaders/Simple_FSEmpty.glsl",
-                            "Shaders/Simple_GS.glsl",
-                            "", "", GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER, ref log);
+            GLSLShaderText geometry_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText geometry_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            GLSLShaderText geometry_shader_gs = new GLSLShaderText(ShaderType.GeometryShader);
+            geometry_shader_vs.addStringFromFile("Shaders/Simple_VSEmpty.glsl");
+            geometry_shader_fs.addStringFromFile("Shaders/Simple_FSEmpty.glsl");
+            geometry_shader_gs.addStringFromFile("Shaders/Simple_GS.glsl");
+
+            compileShader(geometry_shader_vs, geometry_shader_fs, geometry_shader_gs,null,null,
+                            GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER, ref log);
 
             //Picking Shaders
-            compileShader(ProjProperties.Resources.pick_vert,
-                            ProjProperties.Resources.pick_frag,
-                            "", "", "", GLSLHelper.SHADER_TYPE.PICKING_SHADER, ref log);
+            GLSLShaderText picking_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText picking_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            picking_shader_vs.addString(ProjProperties.Resources.pick_vert);
+            picking_shader_vs.addString(ProjProperties.Resources.pick_frag);
+            compileShader(picking_shader_vs, picking_shader_fs, null, null, null,
+                GLSLHelper.SHADER_TYPE.PICKING_SHADER, ref log);
 
 
-            //Main Object Shader
-            compileShader("Shaders/Simple_VS.glsl",
-                            "Shaders/Simple_FS.glsl",
-                            "", "", "", GLSLHelper.SHADER_TYPE.MESH_SHADER, ref log);
+            //Main Object Shader - Deferred Shading
+            GLSLShaderText main_deferred_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText main_deferred_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            main_deferred_shader_vs.addStringFromFile("Shaders/Simple_VS.glsl");
+            main_deferred_shader_fs.addStringFromFile("Shaders/Simple_FS.glsl");
 
+            compileShader(main_deferred_shader_vs, main_deferred_shader_fs, null, null, null,
+                GLSLHelper.SHADER_TYPE.MESH_SHADER, ref log);
 
             //BoundBox Shader
-            compileShader("Shaders/Bound_VS.glsl",
-                            "Shaders/Bound_FS.glsl",
-                            "", "", "", GLSLHelper.SHADER_TYPE.BBOX_SHADER, ref log);
+            GLSLShaderText bbox_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText bbox_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            bbox_shader_vs.addStringFromFile("Shaders/Bound_VS.glsl");
+            bbox_shader_fs.addStringFromFile("Shaders/Bound_FS.glsl");
+            compileShader(bbox_shader_vs, bbox_shader_fs, null, null, null,
+                GLSLHelper.SHADER_TYPE.BBOX_SHADER, ref log);
 
             //Texture Mixing Shader
-            compileShader("Shaders/texture_mixer_VS.glsl",
-                            "Shaders/texture_mixer_FS.glsl",
-                            "", "", "", GLSLHelper.SHADER_TYPE.TEXTURE_MIX_SHADER, ref log);
+            GLSLShaderText texture_mixing_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText texture_mixing_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            texture_mixing_shader_vs.addStringFromFile("Shaders/texture_mixer_VS.glsl");
+            texture_mixing_shader_fs.addStringFromFile("Shaders/texture_mixer_FS.glsl");
+            compileShader(texture_mixing_shader_vs, texture_mixing_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.TEXTURE_MIX_SHADER, ref log);
 
             //GBuffer Shaders
-            compileShader("Shaders/Gbuffer_VS.glsl",
-                            "Shaders/Gbuffer_FS.glsl",
-                            "", "", "", GLSLHelper.SHADER_TYPE.GBUFFER_SHADER, ref log);
+            GLSLShaderText gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gbuffer_shader_fs.addStringFromFile("Shaders/Gbuffer_FS.glsl");
+            compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.GBUFFER_SHADER, ref log);
 
             //Decal Shaders
-            compileShader("Shaders/decal_VS.glsl",
-                            "Shaders/Decal_FS.glsl",
-                            "", "", "", GLSLHelper.SHADER_TYPE.DECAL_SHADER, ref log);
+            GLSLShaderText decal_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText decal_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            decal_shader_vs.addStringFromFile("Shaders/decal_VS.glsl");
+            decal_shader_fs.addStringFromFile("Shaders/Decal_FS.glsl");
+            compileShader(decal_shader_vs, decal_shader_fs, null,null,null,
+                            GLSLHelper.SHADER_TYPE.DECAL_SHADER, ref log);
 
             //Locator Shaders
-            compileShader(ProjProperties.Resources.locator_vert,
-                            ProjProperties.Resources.locator_frag,
-                            "", "", "", GLSLHelper.SHADER_TYPE.LOCATOR_SHADER, ref log);
+            GLSLShaderText locator_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText locator_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            locator_shader_vs.addString(ProjProperties.Resources.locator_vert);
+            locator_shader_fs.addString(ProjProperties.Resources.locator_frag);
+            compileShader(locator_shader_vs, locator_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.LOCATOR_SHADER, ref log);
 
             //Joint Shaders
-            compileShader(ProjProperties.Resources.joint_vert,
-                            ProjProperties.Resources.joint_frag,
-                            "", "", "", GLSLHelper.SHADER_TYPE.JOINT_SHADER, ref log);
+            GLSLShaderText joint_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText joint_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            joint_shader_vs.addString(ProjProperties.Resources.joint_vert);
+            joint_shader_fs.addString(ProjProperties.Resources.joint_frag);
+            compileShader(joint_shader_vs, joint_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.JOINT_SHADER, ref log);
 
             //Text Shaders
-            compileShader(ProjProperties.Resources.text_vert,
-                            ProjProperties.Resources.text_frag,
-                            "", "", "", GLSLHelper.SHADER_TYPE.TEXT_SHADER, ref log);
+            GLSLShaderText text_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText text_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            text_shader_vs.addString(ProjProperties.Resources.text_vert);
+            text_shader_fs.addString(ProjProperties.Resources.text_frag);
+            compileShader(text_shader_vs, text_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.TEXT_SHADER, ref log);
 
             //Light Shaders
-            compileShader(ProjProperties.Resources.light_vert,
-                            ProjProperties.Resources.light_frag,
-                            "", "", "", GLSLHelper.SHADER_TYPE.LIGHT_SHADER, ref log);
+            GLSLShaderText light_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText light_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            light_shader_vs.addString(ProjProperties.Resources.text_vert);
+            light_shader_fs.addString(ProjProperties.Resources.text_frag);
+            compileShader(light_shader_vs, light_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.LIGHT_SHADER, ref log);
 
             //Camera Shaders
-            compileShader(ProjProperties.Resources.camera_vert,
-                            ProjProperties.Resources.camera_frag,
-                            "", "", "", GLSLHelper.SHADER_TYPE.CAMERA_SHADER, ref log);
+            GLSLShaderText camera_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText camera_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            camera_shader_vs.addString(ProjProperties.Resources.camera_vert);
+            camera_shader_fs.addString(ProjProperties.Resources.camera_frag);
+            compileShader(camera_shader_vs, camera_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.CAMERA_SHADER, ref log);
 
             //FILTERS - EFFECTS
 
             //Pass Shader
-            compileShader("Shaders/Gbuffer_VS.glsl",
-                            "Shaders/PassThrough_FS.glsl",
-                            "", "", "", GLSLHelper.SHADER_TYPE.PASSTHROUGH_SHADER, ref log);
-            
-            //Camera Shaders
-            compileShader("Shaders/Gbuffer_VS.glsl",
-                            "Shaders/gaussian_blur_FS.glsl",
-                            "", "", "", GLSLHelper.SHADER_TYPE.GAUSSIAN_BLUR_SHADER, ref log);
+            GLSLShaderText passthrough_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            passthrough_shader_fs.addStringFromFile("Shaders/PassThrough_FS.glsl");
+            compileShader(gbuffer_shader_vs, passthrough_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.PASSTHROUGH_SHADER, ref log);
 
+            //Gaussian Blur Shaders
+            GLSLShaderText gaussian_blur_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            passthrough_shader_fs.addStringFromFile("Shaders/gaussian_blur_FS.glsl");
+            compileShader(gbuffer_shader_vs, gaussian_blur_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.GAUSSIAN_BLUR_SHADER, ref log);
+        
         }
 
         public void compileShader(GLSLShaderConfig config)
@@ -747,7 +790,7 @@ namespace Model_Viewer
             if (config.program_id != -1)
                 GL.DeleteProgram(config.program_id);
 
-            GLShaderHelper.CreateShaders(config, out vertexObject, out fragmentObject, out config.program_id);
+            GLShaderHelper.CreateShaders(config);
         }
 
         
@@ -952,7 +995,7 @@ namespace Model_Viewer
             addDefaultPrimitives();
 
             //Setup new object
-            rootObject = GEOMMBIN.LoadObjects(filename);
+            rootObject = GEOMMBIN.LoadObjects(filename, false);
 
             //Explicitly add default light to the rootObject
             rootObject.children.Add(resMgr.GLlights[0]);

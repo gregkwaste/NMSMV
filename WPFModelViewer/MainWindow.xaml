@@ -442,6 +442,7 @@
                                     <RowDefinition Height="20"/>
                                     <RowDefinition Height="20"/>
                                     <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
                                 </Grid.RowDefinitions>
                                 <ContentControl  x:Name="RenderOptionsPanel"></ContentControl>
                                 <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
@@ -465,30 +466,34 @@
                                     <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=UseFrustumCulling}"></CheckBox>
                                 </DockPanel>
                                 <DockPanel Grid.Row="5" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                    <TextBlock HorizontalAlignment="Left">Use LODs</TextBlock>
+                                    <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=UseLODFiltering}"></CheckBox>
+                                </DockPanel>
+                                <DockPanel Grid.Row="6" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                                     <TextBlock HorizontalAlignment="Left">Render Info</TextBlock>
                                     <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderInfo}"></CheckBox>
                                 </DockPanel>
-                                <DockPanel Grid.Row="6" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                <DockPanel Grid.Row="7" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                                     <TextBlock HorizontalAlignment="Left">Render Lights</TextBlock>
                                     <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderLights}"></CheckBox>
                                 </DockPanel>
-                                <DockPanel Grid.Row="7" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                <DockPanel Grid.Row="8" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                                     <TextBlock HorizontalAlignment="Left">Render Joints</TextBlock>
                                     <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderJoints}"></CheckBox>
                                 </DockPanel>
-                                <DockPanel Grid.Row="8" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                <DockPanel Grid.Row="9" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                                     <TextBlock HorizontalAlignment="Left">Render Locators</TextBlock>
                                     <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderLocators}"></CheckBox>
                                 </DockPanel>
-                                <DockPanel Grid.Row="9" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                <DockPanel Grid.Row="10" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                                     <TextBlock HorizontalAlignment="Left">Render Collisions</TextBlock>
                                     <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderCollisions}"></CheckBox>
                                 </DockPanel>
-                                <DockPanel Grid.Row="10" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                <DockPanel Grid.Row="11" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                                     <TextBlock HorizontalAlignment="Left">Render BHulls</TextBlock>
                                     <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderBoundHulls}"></CheckBox>
                                 </DockPanel>
-                                <DockPanel Grid.Row="11" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                <DockPanel Grid.Row="12" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                                     <TextBlock HorizontalAlignment="Left">Animation FPS</TextBlock>
                                     <TextBox Width="30" HorizontalAlignment="Right" Text="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=AnimFPS}" AcceptsReturn="False" AcceptsTab="False"/>
                                 </DockPanel>

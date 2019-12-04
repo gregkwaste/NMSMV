@@ -490,8 +490,16 @@ namespace MVCore
         };
 
 
-        public static scene LoadObjects(string filepath)
+        public static scene LoadObjects(string path, bool rel)
         {
+            string filepath;
+            if (rel)
+            {
+                filepath = Path.GetFullPath(Path.Combine(FileUtils.dirpath, path));
+            }
+            else
+                filepath = path;
+                
             TkSceneNodeData template = (TkSceneNodeData) NMSUtils.LoadNMSFile(filepath);
             
             Console.WriteLine("Loading Objects from MBINFile");
@@ -560,6 +568,7 @@ namespace MVCore
         
             fs.Close();
 
+
             //Random Generetor for colors
             Random randgen = new Random();
 
@@ -567,6 +576,9 @@ namespace MVCore
             scene root = (scene) parseNode(template, gobject, null, null, null);
             root.nms_template = template;
 
+            //Save scene path to resourcemanager
+            Common.RenderState.activeResMgr.GLScenes[path] = root; //Use input path
+            
             return root;
         }
 
@@ -619,7 +631,7 @@ namespace MVCore
                 string filepath = component.LODModel[i].LODModel.Filename;
                 filepath = Path.Combine(FileUtils.dirpath, filepath);
                 Console.WriteLine("Loading LOD " + filepath);
-                scene so = LoadObjects(filepath);
+                scene so = LoadObjects(filepath, false);
                 so.parent = node; //Set parent
                 node.children.Add(so);
                 //Create LOD Resource
@@ -659,6 +671,15 @@ namespace MVCore
                         break;
                 }   
             
+            }
+
+
+            //Setup LOD distances
+
+            node.LODDistances.Clear();
+            for (int i = 0; i < attachment.LodDistances.Length; i++)
+            {
+                node.LODDistances.Add(attachment.LodDistances[i]);
             }
         }
 
@@ -833,7 +854,7 @@ namespace MVCore
                 //Generate Vao's
                 so.main_Vao = gobject.getMainVao(so);
                 so.bhull_Vao = gobject.getCollisionMeshVao(so); //Missing data
-                so.setupBSphere(); //Setup Bounding Sphere Mesh
+                //so.setupBSphere(); //Setup Bounding Sphere Mesh
 
                 //Configure boneRemap properly
                 so.BoneRemapIndicesCount = so.lastskinmat - so.firstskinmat;
@@ -948,13 +969,6 @@ namespace MVCore
                 localJointDict = old_localJointDict;
                 localAnimScene = old_localAnimScene;
 
-                //Check if root node is in the resMgr
-                if (!Common.RenderState.activeResMgr.GLScenes.ContainsKey(name))
-                {
-                    Common.RenderState.activeResMgr.GLScenes[name] = so;
-                } else
-                    Console.WriteLine("Loaded Duplicate Scene");
-
                 //Finally Order children by name
                 so.children.OrderBy(i => i.Name);
                 return so;
@@ -1065,51 +1079,43 @@ namespace MVCore
             {
                 //Another Scene file referenced
                 Console.WriteLine("Reference Detected");
+
+                string scene_ref = node.Attributes.FirstOrDefault(item => item.Name == "SCENEGRAPH").Value;
                 Common.CallBacks.Log(string.Format("Loading Reference {0}",
-                    Path.Combine(FileUtils.dirpath, node.Attributes.FirstOrDefault(item => item.Name == "SCENEGRAPH").Value)));
+                    Path.Combine(FileUtils.dirpath, scene_ref)));
 
                 //Getting Scene MBIN file
-                string path = Path.GetFullPath(Path.Combine(FileUtils.dirpath, node.Attributes.FirstOrDefault(item => item.Name == "SCENEGRAPH").Value));
                 //string exmlPath = Path.GetFullPath(Util.getFullExmlPath(path));
                 //Console.WriteLine("Loading Scene " + path);
                 //Parse MBIN to xml
-                
-                //Check if path exists
-                if (File.Exists(path)) {
 
-                    //if (!File.Exists(exmlPath))
-                    //    Util.MbinToExml(path, exmlPath);
 
+                //Generate Reference object
+                reference so = new reference();
+                so.name = name;
+
+                //Get Transformation
+                so.parent = parent;
+                so.nms_template = node;
+                so.init(transforms);
+
+                scene new_so;
+                //Check if scene has been parsed
+                if (!MVCore.Common.RenderState.activeResMgr.GLScenes.ContainsKey(scene_ref))
+                {
                     //Read new Scene
-                    scene so = LoadObjects(path);
-                    so.parent = parent;
-                    //Override Name
-                    so.name = name;
-                    so.nms_template = node;
-                    //Override transforms
-                    so.init(transforms);
-                    
-                    //Load Objects from new xml
-                    return so;
-                
-                } else {
-                    Console.WriteLine("Reference Missing");
-                    Common.CallBacks.Log(string.Format("Reference Missing"));
-                    locator so = new locator(0.1f);
-                    //Set Properties
-                    so.name = name + "_UNKNOWN";
-                    so.type = TYPES.UNKNOWN;
-                    //Set Shader Program
-                    so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.LOCATOR_SHADER],
-                                                     Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
-                                                     Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
-
-                    //Locator Objects don't have options
-
-                    //take care of children
-                    return so;
+                    new_so = LoadObjects(scene_ref, true);
                 }
-            
+                else
+                    new_so = MVCore.Common.RenderState.activeResMgr.GLScenes[scene_ref];
+
+                so.ref_scene = new_so;
+                so.children.Add(new_so); //Keep it also as a child so the rest of pipeline is not affected
+
+                if (node.Children.Count != 0)
+                    Console.WriteLine("Not Expected");
+
+                return so;
             }
             else if (typeEnum == TYPES.COLLISION)
             {
