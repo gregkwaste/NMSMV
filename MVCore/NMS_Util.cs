@@ -12,7 +12,6 @@ namespace MVCore
         public static NMSTemplate LoadNMSFile(string filepath)
         {
             int load_mode = 0;
-            string load_path;
             NMSTemplate template;
 
             string exmlpath = Path.ChangeExtension(filepath, "exml");

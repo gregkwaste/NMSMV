@@ -1,8 +1,7 @@
-
-#version 330
-#extension GL_ARB_explicit_uniform_location : enable
-#extension GL_ARB_separate_shader_objects : enable
-#extension GL_ARB_texture_query_lod : enable
+/*  Version and extension are added during preprocessing
+ *  Copies incoming vertex color without change.
+ *  Applies the transformation matrix to vertex position.
+ */
 
 //Includes
 #include "/common.glsl"

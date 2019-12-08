@@ -243,15 +243,15 @@ namespace KUtility {
 
 			for (int j = 0; j < 4; j++) {
 				for (int i = 0; i < 4; i++) {
-					int alphaCodeIndex = 3 * (4 * j + i);
-					int alphaCode;
+					ushort alphaCodeIndex = (ushort) (3 * (4 * j + i));
+					ushort alphaCode;
 
 					if (alphaCodeIndex <= 12) {
-						alphaCode = (alphaCode2 >> alphaCodeIndex) & 0x07;
+						alphaCode = (ushort) ((alphaCode2 >> alphaCodeIndex) & 0x07);
 					} else if (alphaCodeIndex == 15) {
-						alphaCode = (int)((alphaCode2 >> 15) | ((alphaCode1 << 1) & 0x06));
+						alphaCode = (ushort) ((alphaCode2 >> 15) | ((alphaCode1 << 1) & 0x06));
 					} else {
-						alphaCode = (int)((alphaCode1 >> (alphaCodeIndex - 16)) & 0x07);
+						alphaCode = (ushort) ((alphaCode1 >> (alphaCodeIndex - 16)) & 0x07);
 					}
 
 					byte finalAlpha;

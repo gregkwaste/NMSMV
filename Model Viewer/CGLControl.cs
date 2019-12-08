@@ -50,16 +50,14 @@ namespace Model_Viewer
 
         //Control Identifier
         private int index;
-        private int occludedNum = 0;
-        private float fpsCount = 0;
-        private bool has_focus;
-
+        
         //Custom Palette
         private Dictionary<string,Dictionary<string,Vector4>> palette;
 
         //Animation Stuff
         private bool animationStatus = false;
-        private bool CaptureAnimFrames = true;
+        
+
         public bool PAnimationStatus
         {
             get
@@ -214,7 +212,9 @@ namespace Model_Viewer
             //Cleanup instances
             renderMgr.clearInstances();
 
-
+            //Set time to the renderManager
+            renderMgr.progressTime(dt);
+            
             //Update Scene
             rootObject?.update();
 
@@ -361,8 +361,7 @@ namespace Model_Viewer
                                 break;
                             case THREAD_REQUEST_TYPE.MODIFY_SHADER_REQUEST:
                                 GLShaderHelper.modifyShader((GLSLShaderConfig) req.arguments[0],
-                                             (string)req.arguments[1],
-                                             (OpenTK.Graphics.OpenGL4.ShaderType)req.arguments[2]);
+                                             (GLSLShaderText) req.arguments[1]);
                                 req.status = THREAD_REQUEST_STATUS.FINISHED;
                                 break;
                             case THREAD_REQUEST_TYPE.TERMINATE_REQUEST:
@@ -614,14 +613,13 @@ namespace Model_Viewer
 
         #region ShaderMethods
 
-        public void issuemodifyShaderRequest(GLSLShaderConfig config, string shaderText, OpenTK.Graphics.OpenGL4.ShaderType shadertype)
+        public void issuemodifyShaderRequest(GLSLShaderConfig config, GLSLShaderText shaderText)
         {
             Console.WriteLine("Sending Shader Modification Request");
             ThreadRequest req = new ThreadRequest();
             req.type = THREAD_REQUEST_TYPE.MODIFY_SHADER_REQUEST;
             req.arguments.Add(config);
             req.arguments.Add(shaderText);
-            req.arguments.Add(shadertype);
             
             //Send request
             issueRequest(ref req);
@@ -680,7 +678,7 @@ namespace Model_Viewer
             GLSLShaderText picking_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
             GLSLShaderText picking_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
             picking_shader_vs.addString(ProjProperties.Resources.pick_vert);
-            picking_shader_vs.addString(ProjProperties.Resources.pick_frag);
+            picking_shader_fs.addString(ProjProperties.Resources.pick_frag);
             compileShader(picking_shader_vs, picking_shader_fs, null, null, null,
                 GLSLHelper.SHADER_TYPE.PICKING_SHADER, ref log);
 
@@ -688,11 +686,22 @@ namespace Model_Viewer
             //Main Object Shader - Deferred Shading
             GLSLShaderText main_deferred_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
             GLSLShaderText main_deferred_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            main_deferred_shader_vs.addString("#define _DEFERRED_RENDERING\n");
             main_deferred_shader_vs.addStringFromFile("Shaders/Simple_VS.glsl");
+            main_deferred_shader_fs.addString("#define _DEFERRED_RENDERING\n");
             main_deferred_shader_fs.addStringFromFile("Shaders/Simple_FS.glsl");
-
+            
             compileShader(main_deferred_shader_vs, main_deferred_shader_fs, null, null, null,
-                GLSLHelper.SHADER_TYPE.MESH_SHADER, ref log);
+                GLSLHelper.SHADER_TYPE.MESH_DEFERRED_SHADER, ref log);
+
+            //Main Object Shader - Deferred Shading
+            GLSLShaderText main_forward_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText main_forward_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            main_forward_shader_vs.addStringFromFile("Shaders/Simple_VS.glsl");
+            main_forward_shader_fs.addStringFromFile("Shaders/Simple_FS.glsl");
+
+            compileShader(main_forward_shader_vs, main_forward_shader_fs, null, null, null,
+                GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER, ref log);
 
             //BoundBox Shader
             GLSLShaderText bbox_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
@@ -784,9 +793,6 @@ namespace Model_Viewer
 
         public void compileShader(GLSLShaderConfig config)
         {
-            int vertexObject;
-            int fragmentObject;
-
             if (config.program_id != -1)
                 GL.DeleteProgram(config.program_id);
 
@@ -1022,13 +1028,16 @@ namespace Model_Viewer
             light.name = "Default Light";
             light.intensity = 50000;
             light.shader_programs = new GLSLHelper.GLSLShaderConfig[] { this.resMgr.GLShaders[GLSLHelper.SHADER_TYPE.LIGHT_SHADER] };
+
+            /*
             light.localPosition = new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                             Math.Sin(this.light_angle_y * Math.PI / 180.0)),
                                                 (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
                                                 (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
                                                 Math.Cos(this.light_angle_y * Math.PI / 180.0)));
-            
-            light.main_Vao = new MVCore.Primitives.LineSegment(1, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
+            */
+            light.localPosition = new Vector3(10.0f, 10.0f, 10.0f);
+            light.main_Vao = new MVCore.Primitives.LineSegment(1, new Vector3(1.0f, 1.0f, 1.0f)).getVAO();
 
             resMgr.GLlights.Add(light);
         }

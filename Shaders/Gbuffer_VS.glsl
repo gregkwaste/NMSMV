@@ -1,6 +1,6 @@
-#version 330
-/* Copies incoming vertex color without change.
- * Applies the transformation matrix to vertex position.
+/*  Version and extension are added during preprocessing
+ *  Copies incoming vertex color without change.
+ *  Applies the transformation matrix to vertex position.
  */
 
 layout(location = 0) in vec4 vPosition;

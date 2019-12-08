@@ -8,6 +8,13 @@ struct Light //locations:5
     int type;
 };
 
+struct MeshInstance
+{
+    mat4 worldMat;
+    float isOccluded;
+    float isSelected;
+};
+
 //Common Per Mesh Struct
 struct CommonPerMeshUniforms
 {
@@ -17,7 +24,7 @@ struct CommonPerMeshUniforms
     vec3 color; //Mesh Default Color
     float skinned;
     float selected; //Selected
-    mat4 worldMats[300]; //World Matrices
+    MeshInstance instanceData[300]; //World Matrices
 };
 
 //Custom Per Frame Struct
@@ -25,7 +32,7 @@ struct CommonPerFrameUniforms
 {
     float diffuseFlag; //Enable Textures //floats align to 16 bytes
     float use_lighting; //Enable lighting
-    
+    float gfTime; //Time
     //Rendering Options
     mat4 rotMat;
     mat4 mvp;
@@ -54,6 +61,7 @@ struct CustomPerMaterialUniforms  //locations:73
     vec4 gMaterialParamsVec4;
     vec4 gMaterialSFXVec4;
     vec4 gMaterialSFXColVec4;
+    vec4 gUVScrollStepVec4;
     vec4 gDissolveDataVec4;
     vec4 gCustomParams01Vec4;
 };

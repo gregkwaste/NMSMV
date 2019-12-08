@@ -1,6 +1,9 @@
-#version 440
-#extension GL_ARB_explicit_uniform_location : enable
-#extension GL_ARB_separate_shader_objects : enable
+/*  Version and extension are added during preprocessing
+ *  Copies incoming vertex color without change.
+ *  Applies the transformation matrix to vertex position.
+ */
+
+ 
 /* Copies incoming fragment color without change. */
 
 //Diffuse Textures

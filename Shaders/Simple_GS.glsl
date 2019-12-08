@@ -1,8 +1,9 @@
-/* First Geometry Shader :)
-    It is supposed to emit vertex normals 
+/*  Version and extension are added during preprocessing
+ *  Copies incoming vertex color without change.
+ *  Applies the transformation matrix to vertex position.
  */
-#version 330
-#extension GL_ARB_geometry_shader5 : enable
+
+
 layout(triangles) in;
 
 // Three lines will be generated: 6 vertices

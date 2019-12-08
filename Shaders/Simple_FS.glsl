@@ -1,12 +1,13 @@
-#version 450
-#extension GL_ARB_explicit_uniform_location : enable
-#extension GL_ARB_separate_shader_objects : enable
-#extension GL_ARB_texture_query_lod : enable
-#extension GL_ARB_gpu_shader5 : enable
-
+/*  Version and extension are added during preprocessing
+ *  Copies incoming vertex color without change.
+ *  Applies the transformation matrix to vertex position.
+ */
+ 
 //Includes
 #include "/common.glsl"
 #include "/common_structs.glsl"
+#include "/common_lighting.glsl"
+
 
 //TODO: Do some queries internally and figure out the exact locations of the uniforms
 uniform CustomPerMaterialUniforms mpCustomPerMaterial;
@@ -20,9 +21,11 @@ layout (std140) uniform Uniforms
 };
 
 in vec4 fragPos;
+in vec4 vertColor;
 in vec3 N;
 in vec2 uv0;
 in mat3 TBN;
+in float isOccluded;
 
 //Deferred Shading outputs
 out vec4 outcolors[5];
@@ -87,6 +90,11 @@ vec4 calcDiffuseColor(float mipmaplevel, out float lHighAlpha, out float lLowAlp
 		diffTexColor = mpCustomPerMaterial.gMaterialColourVec4;
 		//diffTexColor = vec4(mpCustomPerMaterial.matflags[_F01_DIFFUSEMAP], 0.0, 0.0, 1.0);
 	}
+
+
+	if (mesh_has_matflag(_F21_VERTEXCOLOUR)){
+		diffTexColor *= vertColor;
+	}
 	
 	//Apply gamma correction
     //diffTexColor.rgb = fixColorGamma(diffTexColor.rgb);
@@ -107,7 +115,7 @@ vec3 calcNormal(float mipmaplevel){
 }
 
 float calcRoughness(float mipmaplevel){
-	float lfRoughness = 1.0;
+	float lfRoughness = 0.0;
 	if (mesh_has_matflag(_F25_ROUGHNESS_MASK) && !mesh_has_matflag(_F07_UNLIT)) {
 		lfRoughness = textureLod(mpCustomPerMaterial.gMasksMap, vec3(uv0, 0.0), mipmaplevel).g;
 		lfRoughness = 1.0 - lfRoughness;
@@ -118,7 +126,7 @@ float calcRoughness(float mipmaplevel){
 }
 
 float calcAO(float mipmaplevel){
-	float ao = 0.0;
+	float ao = 1.0;
 	if (mesh_has_matflag(_F24_AOMAP)) {
  		ao = textureLod(mpCustomPerMaterial.gMasksMap, vec3(uv0, 0.0), mipmaplevel).r;
 	}
@@ -171,7 +179,7 @@ void pbr_lighting(){
 	float lfRoughness = 1.0;
 	float lfMetallic = 0.0;
 	float lfSubsurface = 0.0; //Not used atm
-	float ao = 0.0;
+	float ao = 1.0;
 	float lLowAlpha = 1.0; //TODO : Find out what exactly is that shit
 	float lHighAlpha = 1.0; //TODO : Find out what exactly is that shit
 
@@ -240,15 +248,14 @@ void pbr_lighting(){
 
 
 #ifdef _DEFERRED_RENDERING
-
-    //Save Info
+	//Save Info to GBuffer
     //Albedo
 	outcolors[0] = diffTexColor;
 	//outcolors[0].rgb = vec3(lfGlow, lfGlow, 0);
 	//outcolors[0].rgb = lfGlow * mpCustomPerMaterial.gMaterialColourVec4.xyz;
 	//Positions
 	outcolors[1].rgb = fragPos.xyz;	
-	//Normals + lfGlow in alpha channel
+	//Normals in alpha channel
 	outcolors[2].rgb = normal;	
 	
 	//Do not use the 3rd channel which is the color after lighting
@@ -259,12 +266,54 @@ void pbr_lighting(){
 	outcolors[4].z = lfRoughness;
 	outcolors[4].a = lfGlow;
 #else
-	outcolors[0] = vec4(1.0, 0.0, 0.0, 0.0);
+	
+	//FORWARD LIGHTING
+	vec4 finalColor = vec4(0.0, 0.0, 0.0, diffTexColor.a);
+
+	if (!mesh_has_matflag(_F07_UNLIT)){
+		for(int i = 0; i < mpCommonPerFrame.light_count; ++i) 
+	    {
+	    	// calculate per-light radiance
+	        Light light = mpCommonPerFrame.lights[i]; 
+
+			if (light.position.w < 1.0)
+	        	continue;
+	    	
+	        int isDirectional = 0;
+
+	        if (i==0)
+	        	isDirectional = 1;
+
+	    	finalColor.rgb += calcLighting(light, fragPos, normal, mpCommonPerFrame.cameraPosition,
+	            diffTexColor.rgb, lfMetallic, lfRoughness, ao, isDirectional);
+		}  
+	} else {
+		finalColor = diffTexColor;
+	}
+	
+	//finalColor.rgb = vec3(1.0, 1.0, 1.0);
+	//TODO: Add glow depending on the material parameters cached in the gbuffer (normalmap.a) if necessary
+	
+	if (mesh_has_matflag(_F34_GLOW)){
+		finalColor.rgb = mix( finalColor.rgb, diffTexColor.rgb, lfGlow );
+
+		if (mesh_has_matflag(_F35_GLOW_MASK)){
+			finalColor.a = lfGlow;
+		}
+	}
+	
+	//Apply Gamma Correction
+    finalColor.rgb = fixColorGamma(finalColor.rgb);
+    //finalColor.a = 0.5;
+    outcolors[0] = finalColor;
 #endif
 }
 
 
 void main(){
+
+	if (isOccluded > 0.0)
+		discard;
 
 	pbr_lighting();
 }

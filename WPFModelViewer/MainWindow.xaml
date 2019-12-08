@@ -147,13 +147,15 @@
                             <TextBlock HorizontalAlignment="Right" Text="{Binding PAdditive}"></TextBlock>
                         </DockPanel>
 
-                        <ToggleButton Grid.Column="1" Grid.RowSpan="3" IsChecked="{Binding AnimationToggle}">
+                        <ToggleButton Grid.Column="1" Grid.RowSpan="3" IsEnabled="{Binding isValid, Mode=OneWay}" IsChecked="{Binding AnimationToggle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
                             <ToggleButton.Style>
                                 <Style TargetType="{x:Type ToggleButton}">
-                                    <Setter Property="Content" Value="Play" />
                                     <Style.Triggers>
                                         <Trigger Property="IsChecked" Value="True">
                                             <Setter Property="Content" Value="Stop" />
+                                        </Trigger>
+                                        <Trigger Property="IsChecked" Value="False">
+                                            <Setter Property="Content" Value="Play" />
                                         </Trigger>
                                     </Style.Triggers>
                                 </Style>

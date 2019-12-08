@@ -90,7 +90,7 @@ float calcLightAttenuation(Light light, vec4 _fragPos){
 }
 
 
-vec3 calcLighting(Light light, vec4 fragPos, vec3 fragNormal, vec3 cameraDirection,
+vec3 calcLighting(Light light, vec4 fragPos, vec3 fragNormal, vec3 cameraPosition,
             vec3 albedoColor, float lfMetallic, float lfRoughness, float ao, int isDirectional) {
     
     vec3 L;
@@ -100,8 +100,7 @@ vec3 calcLighting(Light light, vec4 fragPos, vec3 fragNormal, vec3 cameraDirecti
     vec3 N = fragNormal;
     F0 = mix(F0, albedoColor, lfMetallic);
 
-    vec3 viewDir = -normalize(cameraDirection);
-
+    vec3 viewDir = normalize(cameraPosition - fragPos.xyz);
     //ao = 1.0;
     vec3 ambient = vec3(0.03) * albedoColor * ao;
     //return vec3(lfRoughness, 0.0, 0.0);

@@ -1,5 +1,9 @@
-#version 330
-/* Copies incoming fragment color without change. */
+/*  Version and extension are added during preprocessing
+ *  Copies incoming vertex color without change.
+ *  Applies the transformation matrix to vertex position.
+ */
+
+ 
 //Diffuse Textures
 uniform sampler2D depthTex;
 uniform sampler2D decalTex;

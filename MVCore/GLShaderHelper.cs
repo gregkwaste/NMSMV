@@ -3,18 +3,19 @@ using System.IO;
 using OpenTK.Graphics.OpenGL4;
 using System.Collections.Generic;
 using System.Reflection;
+using MVCore;
 
 namespace GLSLHelper { 
 
     //Delegate function for sending requests to the active GL control
-    public delegate void GLSLShaderModRequest(GLSLShaderConfig config, string shaderText, ShaderType shadertype);
+    public delegate void GLSLShaderModRequest(GLSLShaderConfig config, GLSLShaderText shaderText);
     public delegate void GLSLShaderCompileRequest(GLSLShaderConfig config);
-
     
     public enum SHADER_TYPE
     {
         NULL_SHADER = 0x0,
-        MESH_SHADER,
+        MESH_FORWARD_SHADER,
+        MESH_DEFERRED_SHADER,
         DECAL_SHADER,
         DEBUG_MESH_SHADER,
         PICKING_SHADER,
@@ -43,8 +44,11 @@ namespace GLSLHelper {
 
         public string compilation_log = ""; //Keep track of the generated log during shader compilation
         
-        public List<GLSLShaderConfig> parentShaders; //Keeps track of all the Shaders that the current text belongs to
-        
+        public List<GLSLShaderConfig> parentShaders = new List<GLSLShaderConfig>(); //Keeps track of all the Shaders that the current text belongs to
+
+        //Static random generator used in temp file name generation
+        private static Random rand_gen = new Random(999991);
+
         //FileSystemWatcher lists
         private Dictionary<FileSystemWatcher, int> FileWatcherDict = new Dictionary<FileSystemWatcher, int>();
 
@@ -60,7 +64,7 @@ namespace GLSLHelper {
 
         public void addString(string s)
         {
-            strings[string_num] = Parser(s);
+            strings[string_num] = Parser(s, true);
             string_lengths[string_num] = s.Length;
             string_num++;
         }
@@ -79,13 +83,13 @@ namespace GLSLHelper {
         public void addStringFromFile(string filepath)
         {
             filepaths[string_num] = filepath; //Save filepath
-            addFileWatcher(filepath);
             addString(filepath);
         }
 
         
         public void compile()
         {
+            compilation_log = ""; //Reset compilation log
             shader_object_id = GL.CreateShader(shader_type);
             string info, actual_shader_source;
             int status_code, actual_shader_length;
@@ -95,9 +99,8 @@ namespace GLSLHelper {
             
             //Get resolved shader text
             GL.GetShaderSource(shader_object_id, 4096, out actual_shader_length, out actual_shader_source);
-
-            Console.WriteLine(actual_shader_source);
-
+            resolved_text = actual_shader_source; //Store full shader code
+            
             GL.CompileShader(shader_object_id);
             GL.GetShaderInfoLog(shader_object_id, out info);
 
@@ -120,6 +123,7 @@ namespace GLSLHelper {
             Console.WriteLine("Reloading {0}", path);
             string data = "";
             bool islocked = true;
+
             while (islocked)
             {
                 try
@@ -134,29 +138,34 @@ namespace GLSLHelper {
 
             }
 
-            data = Parser(data);
-            string old_data = resolved_text;
+            data = Parser(data, false);
+            string old_data = strings[FileWatcherDict[fw]];
+
 
             //Checksum the shader source before sending a request
             if (old_data.GetHashCode() != data.GetHashCode())
             {
+                //Replace data
+                strings[FileWatcherDict[fw]] = data;
+
                 //Send shader modification request for all the parrent shaders
-                //Fow now there will be only one, since again I have no idea how to track changes on included files
+                //They just need to link the new shader_object into their programs
                 foreach (GLSLShaderConfig shader in parentShaders)
                 {
-                    shader.modifyShader(shader, resolved_text, shader_type);
+                    shader.modifyShader(shader, this);
                 }
             }
         }
 
-        private string Parser(string path)
+        private string Parser(string path, bool initWatchers)
         {
             //Make sure that the input file is indeed a file
             StreamReader sr;
             string[] split;
             string relpath = "";
             string text = "";
-            string tmp_file = "tmp_" + (new Random()).Next().ToString();
+            string tmp_file = "tmp_" + rand_gen.Next().ToString();
+            Console.WriteLine("Using temp file {0}", tmp_file);
             bool use_tmp_file = false;
             if (path.EndsWith(".glsl"))
             {
@@ -174,6 +183,10 @@ namespace GLSLHelper {
                     if (!File.Exists(path))
                         throw new ApplicationException("Preprocessor: File not found. Check the input filepath");
                 }
+
+                //Add filewatcher
+                if (initWatchers)
+                    addFileWatcher(path);
 
                 split = Path.GetDirectoryName(path).Split(Path.PathSeparator);
                 relpath = split[split.Length - 1];
@@ -209,9 +222,7 @@ namespace GLSLHelper {
                     string npath = split[1].Trim('"');
                     npath = npath.TrimStart('/');
                     npath = Path.Combine(relpath, npath);
-                    //Add filewatcher
-                    addFileWatcher(npath);
-                    outline = Parser(npath);
+                    outline = Parser(npath, initWatchers);
                 }
                 //Skip Comments
                 else if (line.StartsWith("///")) continue;
@@ -224,9 +235,10 @@ namespace GLSLHelper {
 
             sr.Close();
             if (use_tmp_file)
+            {
                 File.Delete(tmp_file);
+            }
             return text;
-
         }
 
     }
@@ -276,6 +288,14 @@ namespace GLSLHelper {
             vs_text = vvs;
             tes_text = ttes;
             tcs_text = ttcs;
+
+            //Set parents to the shader objects
+            ffs?.parentShaders.Add(this);
+            ggs?.parentShaders.Add(this);
+            vvs?.parentShaders.Add(this);
+            ttes?.parentShaders.Add(this);
+            ttcs?.parentShaders.Add(this);
+        
         }
 
 
@@ -402,12 +422,14 @@ namespace GLSLHelper {
             }
         }
         
-        static public void modifyShader(GLSLShaderConfig shader_conf, string shaderText, OpenTK.Graphics.OpenGL4.ShaderType shadertype)
+        static public void modifyShader(GLSLShaderConfig shader_conf, GLSLShaderText shaderText)
         {
             Console.WriteLine("Actually Modifying Shader");
 
             int[] attached_shaders = new int[20];
             int count;
+            int status_code;
+            string info;
             GL.GetAttachedShaders(shader_conf.program_id, 20, out count, attached_shaders);
 
             for (int i = 0; i < count; i++)
@@ -415,46 +437,27 @@ namespace GLSLHelper {
                 int[] shader_params = new int[10];
                 GL.GetShader(attached_shaders[i], OpenTK.Graphics.OpenGL4.ShaderParameter.ShaderType, shader_params);
 
-                if (shader_params[0] == (int)shadertype)
+                if (shader_params[0] == (int) shaderText.shader_type)
                 {
                     Console.WriteLine("Found modified shader");
 
-                    string info;
-                    int status_code;
-                    int new_shader_ob = GL.CreateShader(shadertype);
-                    GL.ShaderSource(new_shader_ob, shaderText);
-                    GL.CompileShader(new_shader_ob);
-                    GL.GetShaderInfoLog(new_shader_ob, out info);
-                    GL.GetShader(new_shader_ob, OpenTK.Graphics.OpenGL4.ShaderParameter.CompileStatus, out status_code);
-                    if (status_code != 1)
-                    {
-                        Console.WriteLine("Shader Compilation Failed, Aborting...");
-                        Console.WriteLine(info);
-                        return;
-                    }
+                    //Trying to compile shader
+                    shaderText.compile();
 
                     //Attach new shader back to program
                     GL.DetachShader(shader_conf.program_id, attached_shaders[i]);
-                    GL.AttachShader(shader_conf.program_id, new_shader_ob);
+                    GL.AttachShader(shader_conf.program_id, shaderText.shader_object_id);
                     GL.LinkProgram(shader_conf.program_id);
 
                     GL.GetProgram(shader_conf.program_id, GetProgramParameterName.LinkStatus, out status_code);
                     if (status_code != 1)
                     {
                         Console.WriteLine("Unable to link the new shader. Reverting to the old shader");
-                        Console.WriteLine(info);
-
-                        //Relink the old shader
-                        GL.DetachShader(shader_conf.program_id, new_shader_ob);
-                        GL.AttachShader(shader_conf.program_id, attached_shaders[i]);
-                        GL.LinkProgram(shader_conf.program_id);
                         return;
                     }
 
                     //Delete old shader and reload uniforms
-                    GL.DeleteShader(attached_shaders[i]);
                     loadActiveUniforms(shader_conf); //Re-load active uniforms
-
                     Console.WriteLine("Shader was modified successfully");
                     break;
                 }
@@ -465,7 +468,15 @@ namespace GLSLHelper {
 
         public static void throwCompilationError(string log)
         {
-            StreamWriter sr = new StreamWriter("shader_compilation_log_" +DateTime.Now.ToFileTime() + "_log.out");
+            //Lock execution until the file is available
+            string log_file = "shader_compilation_log.out";
+
+            if (!File.Exists(log_file))
+                File.Create(log_file);
+            
+            while (!FileUtils.IsFileReady(log_file)) { };
+            
+            StreamWriter sr = new StreamWriter(log_file);
             sr.Write(log);
             sr.Close();
             Console.WriteLine(log);

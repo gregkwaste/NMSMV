@@ -2,6 +2,7 @@
  *  Copies incoming vertex color without change.
  *  Applies the transformation matrix to vertex position.
  */
+ 
 layout(location=0) in vec4 vPosition;
 layout(location=1) in vec2 uvPosition0;
 layout(location=2) in vec4 nPosition; //normals

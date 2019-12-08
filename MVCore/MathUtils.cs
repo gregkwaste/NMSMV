@@ -104,6 +104,30 @@ namespace MVCore
             array[offset + 15] = mat.M44;
         }
 
+        public static Matrix4 Matrix4FromArray(float[] array, int offset)
+        {
+            Matrix4 mat = Matrix4.Identity;
+
+            mat.M11 = array[offset + 0];
+            mat.M12 = array[offset + 1];
+            mat.M13 = array[offset + 2];
+            mat.M14 = array[offset + 3];
+            mat.M21 = array[offset + 4];
+            mat.M22 = array[offset + 5];
+            mat.M23 = array[offset + 6];
+            mat.M24 = array[offset + 7];
+            mat.M31 = array[offset + 8];
+            mat.M32 = array[offset + 9];
+            mat.M33 = array[offset + 10];
+            mat.M34 = array[offset + 11];
+            mat.M41 = array[offset + 12];
+            mat.M42 = array[offset + 13];
+            mat.M43 = array[offset + 14];
+            mat.M44 = array[offset + 15];
+            
+            return mat;
+        }
+
         public static void insertMatToArray12Trans(float[] array, int offset, Matrix4 mat)
         {
             //mat.Transpose();//Transpose Matrix Testing
@@ -169,6 +193,17 @@ namespace MVCore
         {
             return Math.Min(Math.Max(min, val), max);
         }
+
+        public static float distance_Point_to_AABB(Vector3 aabb_min, Vector3 aabb_max, Vector3 p)
+        {
+            float dx = Math.Max(Math.Max(aabb_min.X - p.X, 0), aabb_max.X);
+            float dy = Math.Max(Math.Max(aabb_min.Y - p.Y, 0), aabb_max.Y);
+            float dz = Math.Max(Math.Max(aabb_min.Z - p.Z, 0), aabb_max.Z);
+
+            return (float) Math.Sqrt(dx * dx + dy * dy + dz * dz);
+        
+        }
+
 
     }
 }

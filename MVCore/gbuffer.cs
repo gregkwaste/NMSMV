@@ -72,17 +72,25 @@ namespace MVCore
             //Setup Depth texture
             setup_texture(ref depth, fbo, FramebufferAttachment.DepthAttachmentExt, PixelInternalFormat.DepthComponent);
 
-            //Setup dump_fbo
-            dump_fbo = GL.Ext.GenFramebuffer();
             //Check
             if (GL.Ext.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
                 Console.WriteLine("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
-            setup_texture(ref dump_rgba8_1, dump_fbo, FramebufferAttachment.ColorAttachment0, PixelInternalFormat.DepthComponent);
-            setup_texture(ref dump_rgba8_2, dump_fbo, FramebufferAttachment.ColorAttachment1, PixelInternalFormat.DepthComponent);
-            setup_texture(ref dump_rgba32f_1, dump_fbo, FramebufferAttachment.ColorAttachment2, PixelInternalFormat.DepthComponent);
-            setup_texture(ref dump_rgba32f_2, dump_fbo, FramebufferAttachment.ColorAttachment3, PixelInternalFormat.DepthComponent);
+
+            //Setup dump_fbo
+            dump_fbo = GL.Ext.GenFramebuffer();
+            
+
+            setup_texture(ref dump_rgba8_1, dump_fbo, FramebufferAttachment.ColorAttachment0, PixelInternalFormat.Rgba8);
+            setup_texture(ref dump_rgba8_2, dump_fbo, FramebufferAttachment.ColorAttachment1, PixelInternalFormat.Rgba8);
+            setup_texture(ref dump_rgba32f_1, dump_fbo, FramebufferAttachment.ColorAttachment2, PixelInternalFormat.Rgba32f);
+            setup_texture(ref dump_rgba32f_2, dump_fbo, FramebufferAttachment.ColorAttachment3, PixelInternalFormat.Rgba32f);
             setup_texture(ref dump_depth, dump_fbo, FramebufferAttachment.DepthAttachmentExt, PixelInternalFormat.DepthComponent);
+
+
+            //Check
+            if (GL.Ext.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
+                Console.WriteLine("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
             //Revert Back the default fbo
             GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, 0);

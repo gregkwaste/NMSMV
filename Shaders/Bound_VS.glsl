@@ -1,9 +1,8 @@
-#version 450
-#extension GL_ARB_explicit_uniform_location : enable
-#extension GL_ARB_separate_shader_objects : enable
-#extension GL_ARB_gpu_shader5 : enable
-
-
+/*  Version and extension are added during preprocessing
+ *  Copies incoming vertex color without change.
+ *  Applies the transformation matrix to vertex position.
+ */
+ 
 //Imports
 #include "/common.glsl"
 #include "/common_structs.glsl"

@@ -1,7 +1,8 @@
-#version 330
-#extension GL_ARB_explicit_uniform_location : enable
-#extension GL_ARB_separate_shader_objects : enable
-
+/*  Version and extension are added during preprocessing
+ *  Copies incoming vertex color without change.
+ *  Applies the transformation matrix to vertex position.
+ */
+ 
 //Includes
 #include "/common.glsl"
 #include "/common_structs.glsl"
@@ -115,11 +116,16 @@ void main()
         if (i==0)
         	isDirectional = 1;
 
-    	finalColor += calcLighting(light, fragPos, fragNormal.xyz, mpCommonPerFrame.cameraDirection,
+    	finalColor += calcLighting(light, fragPos, fragNormal.xyz, mpCommonPerFrame.cameraPosition,
             albedoColor.rgb, lfMetallic, lfRoughness, ao, isDirectional);
 	}  
     
 	//TODO: Add glow depending on the material parameters cached in the gbuffer (normalmap.a) if necessary
+	
+
+	vec3 ambient = vec3(0.03) * albedoColor.rgb * ao;
+    finalColor = ambient + finalColor;
+	finalColor = finalColor / (finalColor + vec3(1.0));
 	
 	//Apply Gamma Correction
     finalColor = fixColorGamma(finalColor);

@@ -573,7 +573,7 @@ namespace MVCore
             Random randgen = new Random();
 
             //Parse root scene
-            scene root = (scene) parseNode(template, gobject, null, null, null);
+            scene root = (scene) parseNode(template, gobject, null, null);
             root.nms_template = template;
 
             //Save scene path to resourcemanager
@@ -675,7 +675,6 @@ namespace MVCore
 
 
             //Setup LOD distances
-
             node.LODDistances.Clear();
             for (int i = 0; i < attachment.LodDistances.Length; i++)
             {
@@ -689,12 +688,15 @@ namespace MVCore
             if (node.animComponentID >= 0)
                 localAnimScenes.Add(node);
 
+            if (node.type == TYPES.REFERENCE)
+                return;
+
             foreach (model child in node.children)
                 findAnimScenes(child);
         }
 
         private static model parseNode(TkSceneNodeData node, 
-            GeomObject gobject, model parent, scene scene, model animscene)
+            GeomObject gobject, model parent, scene scene)
         {
             TkTransformData transform = node.Transform;
             List<TkSceneNodeAttributeData> attribs = node.Attributes;
@@ -788,14 +790,14 @@ namespace MVCore
                     attachment_data = NMSUtils.LoadNMSFile(attachment_path) as TkAttachmentData;
                 }
 
-                so.shader_programs = new GLSLHelper.GLSLShaderConfig[4];
-                so.shader_programs[(int)RENDERPASS.MAIN] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_SHADER];
+                so.shader_programs = new GLSLHelper.GLSLShaderConfig[5];
+                so.shader_programs[(int)RENDERPASS.DEFERRED] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_DEFERRED_SHADER];
+                so.shader_programs[(int)RENDERPASS.FORWARD] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER];
                 so.shader_programs[(int)RENDERPASS.DEBUG] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER];
                 so.shader_programs[(int)RENDERPASS.BHULL] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.BBOX_SHADER];
                 so.shader_programs[(int)RENDERPASS.PICK] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER];
 
                 //so.Bbox = gobject.bboxes[iid]; //Use scene parameters
-
                 //so.setupBSphere();
                 so.parent = parent;
                 so.nms_template = node;
@@ -879,7 +881,7 @@ namespace MVCore
                     //Console.WriteLine("Children Count {0}", childs.ChildNodes.Count);
                     foreach (TkSceneNodeData child in children)
                     {
-                        model part = parseNode(child, gobject, so, scene, localAnimScene);
+                        model part = parseNode(child, gobject, so, scene);
                         so.children.Add(part);
                     }
                 }
@@ -912,6 +914,17 @@ namespace MVCore
                 so.nms_template = node;
                 so.init(transforms);
                 so.gobject = gobject;
+
+                //Fetch attributes
+                so.LODDistances = new List<float>();
+                
+                float lod_num = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "NUMLODS"));
+                
+                //float dist1 = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LODDIST1"));
+                //float dist1 = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LODDIST1"));
+                //float dist1 = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LODDIST1"));
+                //float dist1 = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LODDIST1"));
+
                 
                 //Setup model texture manager
                 so.texMgr = new textureManager();
@@ -931,20 +944,9 @@ namespace MVCore
                 //Handle Children
                 if (children.Count > 0)
                 {
-                    children.Sort(delegate (TkSceneNodeData a, TkSceneNodeData b)
-                        {
-                            TYPES type_a, type_b;
-                            Enum.TryParse<TYPES>(a.Type, out type_a);
-                            Enum.TryParse<TYPES>(b.Type, out type_b);
-
-                            int comp = type_a.CompareTo(type_b);
-
-                            return comp;
-                        });
-                        
                     foreach (TkSceneNodeData child in children)
                     {
-                        model part = parseNode(child, gobject, so, so, localAnimScene);
+                        model part = parseNode(child, gobject, so, so);
                         so.children.Add(part);
                     }
                 }
@@ -952,6 +954,10 @@ namespace MVCore
                 //Post Processing - Identify AnimScenes on immediate children
                 localAnimScenes.Clear();
                 findAnimScenes(so);
+
+                if (localAnimScenes.Count > 1)
+                    Console.WriteLine("Check this out");
+                
                 foreach (model child in localAnimScenes)
                 {
                     AnimComponent ac = child.Components[child.animComponentID] as AnimComponent;
@@ -959,18 +965,16 @@ namespace MVCore
                     {
                         ac.jointDict[kv.Key] = kv.Value;
                     }
-
-                    //Make a copy of the joint InvBMats
-                    //Array.Copy(gobject.invBMats, ac.invBMats, gobject.invBMats.Length);
-
                 }
 
-                //Bring back the old localJointDict
+                if (localAnimScenes.Count > 0)
+                    so.setAnimScene(localAnimScenes[0]);
+
+                //Bring back joint dictionaries
                 localJointDict = old_localJointDict;
                 localAnimScene = old_localAnimScene;
 
-                //Finally Order children by name
-                so.children.OrderBy(i => i.Name);
+
                 return so;
             }
             else if (typeEnum == TYPES.LOCATOR)
@@ -1019,7 +1023,7 @@ namespace MVCore
                 {
                     foreach (TkSceneNodeData child in children)
                     {
-                        model part = parseNode(child, gobject, so, scene, localAnimScene);
+                        model part = parseNode(child, gobject, so, scene);
                         so.children.Add(part);
                     }
                 }
@@ -1032,7 +1036,6 @@ namespace MVCore
             }
             else if (typeEnum == TYPES.JOINT)
             {
-                Console.WriteLine("Joint Detected");
                 Joint joint = new Joint();
                 //Set properties
                 joint.name = name;
@@ -1067,7 +1070,7 @@ namespace MVCore
                 {
                     foreach (TkSceneNodeData child in children)
                     {
-                        model part = parseNode(child, gobject, joint, scene, localAnimScene);
+                        model part = parseNode(child, gobject, joint, scene);
                         joint.children.Add(part);
                     }
                 }
@@ -1123,7 +1126,7 @@ namespace MVCore
                 Collision so = new Collision();
 
                 //Remove that after implemented all the different collision types
-                so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_SHADER],
+                so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER],
                                                   Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
                                                   Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]}; //Use Mesh program for collisions
                 so.debuggable = true;
@@ -1285,7 +1288,7 @@ namespace MVCore
                 //Collision probably has no children biut I'm leaving that code here
                 if (children.Count > 0)
                     foreach (TkSceneNodeData child in children)
-                        so.children.Add(parseNode(child, gobject, so, scene, animscene));
+                        so.children.Add(parseNode(child, gobject, so, scene));
 
                 return so;
 

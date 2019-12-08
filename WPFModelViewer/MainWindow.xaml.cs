@@ -303,6 +303,9 @@ namespace WPFModelViewer
             scene.type = TYPES.MODEL;
             scene.name = "DEFAULT SCENE";
 
+            //Add default scene to the resource manager
+            RenderState.activeResMgr.GLScenes["DEFAULT_SCENE"] = scene;
+
             //Force rootobject
             glControl.rootObject = scene;
             glControl.renderMgr.populate(scene);
