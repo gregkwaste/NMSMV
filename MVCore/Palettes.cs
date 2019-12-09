@@ -208,6 +208,7 @@ namespace Model_Viewer
                 alt4 = colour_to_vec4(template.Palettes[i].Colours[index4]);
                 matchg = primary;
                 unique = colour_to_vec4(template.Palettes[i].Colours[unique_index]);
+                none = primary;
 
                 //save the colors to the dictionary
                 newPal[pal_name]["Primary"] = primary;

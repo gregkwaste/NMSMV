@@ -170,6 +170,7 @@ namespace GLSLHelper {
             if (path.EndsWith(".glsl"))
             {
                 string execPath = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
+                //string execPath = "G:\\Projects\\Model Viewer C#\\Model Viewer\\Viewer_Unit_Tests\\bin\\Debug";
                 path = Path.Combine(execPath, path);
                 Console.WriteLine(path);
                 //Check if file exists

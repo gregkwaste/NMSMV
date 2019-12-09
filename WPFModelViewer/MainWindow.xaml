@@ -56,7 +56,7 @@
             
             <DataTemplate DataType="{x:Type gmdl:Uniform}">
                 <DockPanel>
-                    <TextBlock Text="{Binding Name}"/>
+                    <TextBlock Text="{Binding PName}"/>
                     <ContentControl Content="{Binding Vec}" HorizontalAlignment="Right"/>
                 </DockPanel>
             </DataTemplate>
@@ -175,16 +175,21 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <DockPanel HorizontalAlignment="Stretch" Grid.Row="0">
                             <TextBlock Text="Name"></TextBlock >
                             <TextBlock HorizontalAlignment="Right" Text="{Binding PName}"></TextBlock>
                         </DockPanel>
-                        <StackPanel Grid.Row="1">
-                            <TextBlock Text="Material Flags"></TextBlock>
-                            <ListBox ItemsSource="{Binding MaterialFlags}" HorizontalContentAlignment="Right"></ListBox>
-                        </StackPanel>
+                        <DockPanel HorizontalAlignment="Stretch" Grid.Row="1">
+                            <TextBlock Text="Class"></TextBlock >
+                            <TextBlock HorizontalAlignment="Right" Text="{Binding PClass}"></TextBlock>
+                        </DockPanel>
                         <StackPanel Grid.Row="2">
+                            <TextBlock Text="Material Flags"></TextBlock>
+                            <ListBox ItemsSource="{Binding MaterialFlags}" HorizontalContentAlignment="Left"></ListBox>
+                        </StackPanel>
+                        <StackPanel Grid.Row="3">
                             <TextBlock Text="CustomPerMaterialUniforms"></TextBlock>
                             <ListBox ItemsSource="{Binding CustomPerMaterialUniforms}" HorizontalContentAlignment="Stretch">
                                 <ListBox.ItemTemplate>
@@ -194,7 +199,7 @@
                                 </ListBox.ItemTemplate>
                             </ListBox>
                         </StackPanel>
-                        <StackPanel Grid.Row="3">
+                        <StackPanel Grid.Row="4">
                             <TextBlock Text="Samplers"></TextBlock>
                             <ListBox ItemsSource="{Binding PSamplers}" HorizontalContentAlignment="Stretch">
                                 <ListBox.ItemTemplate>
@@ -274,6 +279,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}" Grid.Row="0"/>
                     <GroupBox Header="Mesh Properties" Grid.Row="1">
@@ -292,7 +298,10 @@
                             </DockPanel>
                         </Grid>
                     </GroupBox>
-                    <ContentControl Content="{Binding Material}" Grid.Row="2"></ContentControl>
+                    <GroupBox Grid.Row="2" Header="CommonPerMeshUniforms">
+                        <ContentControl Content="{Binding PgUserDataVec4}"></ContentControl>
+                    </GroupBox>
+                    <ContentControl Content="{Binding Material}" Grid.Row="3"></ContentControl>
                 </Grid>
             </DataTemplate>
 

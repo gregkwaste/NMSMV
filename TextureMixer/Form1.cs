@@ -192,12 +192,12 @@ namespace TextureMixer
             string log = "";
 
             //Texture Mixing Shader
-            GLSLShaderText vs_st = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText fs_st = new GLSLShaderText(ShaderType.FragmentShader);
-            vs_st.addStringFromFile("Shaders/pass_VS.glsl");
-            fs_st.addStringFromFile("Shaders/pass_FS.glsl");
-            compileShader(vs_st, fs_st,null, null , null, SHADER_TYPE.TEXTURE_MIX_SHADER, ref log);
-
+            GLSLShaderText texture_mixing_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText texture_mixing_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            texture_mixing_shader_vs.addStringFromFile("Shaders/texture_mixer_VS.glsl");
+            texture_mixing_shader_fs.addStringFromFile("Shaders/texture_mixer_FS.glsl");
+            compileShader(texture_mixing_shader_vs, texture_mixing_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.TEXTURE_MIX_SHADER, ref log);
         }
 
         private void compileShader(GLSLShaderText vs, GLSLShaderText fs, GLSLShaderText gs, GLSLShaderText tes, GLSLShaderText tcs, SHADER_TYPE type, ref string log)

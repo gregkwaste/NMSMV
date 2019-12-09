@@ -125,6 +125,8 @@ void main()
 
 	vec3 ambient = vec3(0.03) * albedoColor.rgb * ao;
     finalColor = ambient + finalColor;
+
+    //Tone Mapping
 	finalColor = finalColor / (finalColor + vec3(1.0));
 	
 	//Apply Gamma Correction

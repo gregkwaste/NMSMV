@@ -18,7 +18,7 @@ namespace MVCore
         //Dump fbo stuff
         public int dump_fbo = -1;
         public int dump_rgba8_1 = -1;
-        public int dump_rgba8_2 = -1;
+        public int dump_rgba16f_1 = -1;
         public int dump_rgba32f_1 = -1;
         public int dump_rgba32f_2 = -1;
         public int dump_depth = -1;
@@ -60,7 +60,7 @@ namespace MVCore
                 Console.WriteLine("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
             //Setup diffuse texture
-            setup_texture(ref albedo, fbo, FramebufferAttachment.ColorAttachment0Ext, PixelInternalFormat.Rgba8);
+            setup_texture(ref albedo, fbo, FramebufferAttachment.ColorAttachment0Ext, PixelInternalFormat.Rgba16f);
             //Setup positions texture
             setup_texture(ref positions, fbo, FramebufferAttachment.ColorAttachment1Ext, PixelInternalFormat.Rgba32f);
             //Setup normals texture
@@ -82,7 +82,8 @@ namespace MVCore
             
 
             setup_texture(ref dump_rgba8_1, dump_fbo, FramebufferAttachment.ColorAttachment0, PixelInternalFormat.Rgba8);
-            setup_texture(ref dump_rgba8_2, dump_fbo, FramebufferAttachment.ColorAttachment1, PixelInternalFormat.Rgba8);
+            setup_texture(ref dump_rgba16f_1, dump_fbo, FramebufferAttachment.ColorAttachment1, PixelInternalFormat.Rgba16f);
+            //setup_texture(ref dump_rgba8_2, dump_fbo, FramebufferAttachment.ColorAttachment1, PixelInternalFormat.Rgba8);
             setup_texture(ref dump_rgba32f_1, dump_fbo, FramebufferAttachment.ColorAttachment2, PixelInternalFormat.Rgba32f);
             setup_texture(ref dump_rgba32f_2, dump_fbo, FramebufferAttachment.ColorAttachment3, PixelInternalFormat.Rgba32f);
             setup_texture(ref dump_depth, dump_fbo, FramebufferAttachment.DepthAttachmentExt, PixelInternalFormat.DepthComponent);
@@ -241,7 +242,7 @@ namespace MVCore
             //Delete dump textures + dump_fbo
             GL.DeleteFramebuffer(dump_fbo);
             GL.DeleteTexture(dump_rgba8_1);
-            GL.DeleteTexture(dump_rgba8_2);
+            GL.DeleteTexture(dump_rgba16f_1);
             GL.DeleteTexture(dump_rgba32f_1);
             GL.DeleteTexture(dump_rgba32f_2);
             GL.DeleteTexture(dump_depth);

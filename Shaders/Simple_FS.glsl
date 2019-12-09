@@ -108,7 +108,11 @@ vec3 calcNormal(float mipmaplevel){
 	vec3 normal = normalize(N);
 	//Check _F03_NORMALMAP 63
 	if (mesh_has_matflag(_F03_NORMALMAP)) {
-		normal = DecodeNormalMap(textureLod(mpCustomPerMaterial.gNormalMap, vec3(uv0, 0.0), mipmaplevel));
+		vec2 lTexCoordsVec2 = uv0;
+		if (mesh_has_matflag(_F43_NORMAL_TILING))
+			lTexCoordsVec2 *= mpCustomPerMaterial.gCustomParams01Vec4.z;
+		
+		normal = DecodeNormalMap(textureLod(mpCustomPerMaterial.gNormalMap, vec3(lTexCoordsVec2, 0.0), mipmaplevel));
   		normal = normalize(TBN * normal);
 	}
   	return (vec4(normal, 0.0)).xyz; //This is normalized in any case
@@ -301,6 +305,9 @@ void pbr_lighting(){
 			finalColor.a = lfGlow;
 		}
 	}
+
+	//Tone Mapping
+	finalColor.rgb = finalColor.rgb / (finalColor.rgb + vec3(1.0));
 	
 	//Apply Gamma Correction
     finalColor.rgb = fixColorGamma(finalColor.rgb);

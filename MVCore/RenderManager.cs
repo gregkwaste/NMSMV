@@ -347,7 +347,7 @@ namespace MVCore
                 cpmu.color = mm.color;
 
                 //Copy custom mesh parameters
-                cpmu.gUserDataVec4 = new Vector4(0.0f, 0.0f, 0.0f, 0.0f);
+                cpmu.gUserDataVec4 = mm.PgUserDataVec4.Vec.Vec;
             }
             else
             {
@@ -552,17 +552,31 @@ namespace MVCore
 
                     double distance = (bsh_center - Common.RenderState.activeCam.Position).Length;
 
-
-                    for (int j = 0; j < m.LODDistances.Count; j++)
+                    //Find active LOD
+                    int active_lod = m.parent.LODNum - 1;
+                    for (int j = 0; j < m.parentScene.LODNum - 1; j++)
                     {
-                        string lod_text = "LOD" + j;
-                        if (m.name.Contains(lod_text) && distance > m.LODDistances[j])
+                        if (distance < m.parentScene.LODDistances[j])
                         {
-                            m.setInstanceOccludedStatus(i, false);
-                            occluded_instances++;
+                            active_lod = j;
+                            break;
                         }
                     }
 
+                    //occlude the other LOD levels
+                    for (int j = 0; j < m.parentScene.LODNum; j++)
+                    {
+                        if (j == active_lod)
+                            continue;
+                        
+                        string lod_text = "LOD" + j;
+                        if (m.name.Contains(lod_text))
+                        {
+                            m.setInstanceOccludedStatus(i, true);
+                            occluded_instances++;
+                        }
+                    }
+                    
                     i++;
                 }
 
@@ -871,6 +885,8 @@ namespace MVCore
 
         private void bloom()
         {
+
+            //TODO: I THINK THIS IS BROKEN - NEEDS RE-FIX IF ENABLED AT ALL
             GL.Disable(EnableCap.DepthTest);
             
             //Apply Gaussian Blur Passes
@@ -895,7 +911,7 @@ namespace MVCore
                 GL.DrawBuffer(DrawBufferMode.ColorAttachment3);
                 GL.Clear(ClearBufferMask.ColorBufferBit);
                 
-                render_quad(new string[] { }, new float[] { }, new string[] { "InTex" }, new int[] { gbuf.dump_rgba8_2 }, pass_through_program);
+                render_quad(new string[] { }, new float[] { }, new string[] { "InTex" }, new int[] { gbuf.dump_rgba8_1 }, pass_through_program);
 
             }
         }

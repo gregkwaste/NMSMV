@@ -87,7 +87,8 @@ namespace MVCore.GMDL
         public int animPoseComponentID;
 
         //LOD
-        public List<float> LODDistances = new List<float>();
+        public float[] LODDistances = new float[5];
+        public int LODNum = 1; //Default value of 1 LOD per model
 
         //Disposable Stuff
         public bool disposed = false;
@@ -917,6 +918,9 @@ namespace MVCore.GMDL
 
     }
 
+    
+
+
     public class meshModel : model
     {
         public int vertrstart_physics = 0;
@@ -937,7 +941,6 @@ namespace MVCore.GMDL
 
         public int LodLevel { get; set; }
 
-
         public Material Material { get; set; }
         public Vector3 color = new Vector3();
 
@@ -955,6 +958,7 @@ namespace MVCore.GMDL
         public mainVAO bhull_Vao;
         public GeomObject gobject; //Ref to the geometry shit
         public model animScene; //Ref to connected animScene
+        public model parentScene; //Ref to the parent scene that the mesh belongs to
 
         //Mesh instances
         public int instance_count = 0;
@@ -964,18 +968,34 @@ namespace MVCore.GMDL
         public static int instance_worldMat_Offset = 0;
         public static int instance_isOccluded_Offset = 64;
         public static int instance_isSelected_Offset = 68;
-        
+
         //Instance Data Format:
         //0-16 : instance WorldMatrix
         //16-17: isOccluded
         //17-18: isSelected
         //18-20: padding
 
+
+        //Exposable Uniforms Properties
+        private Uniform gUserDataVec4;
+        public Uniform PgUserDataVec4
+        {
+            get { return gUserDataVec4; }
+
+            set { gUserDataVec4 = value; }
+        }
+
+
+
         //Constructor
         public meshModel() : base()
         {
             type = TYPES.MESH;
             Hash = 0xFFFFFFFF;
+
+            //Init Properties
+            gUserDataVec4 = new Uniform();
+            gUserDataVec4.PName = "mpCommonPerMesh.gUserDataVec4";
         }
 
         public meshModel(meshModel input) :base(input)
@@ -987,7 +1007,7 @@ namespace MVCore.GMDL
             this.vertrend_physics = input.vertrend_physics;
             this.Hash = input.Hash;
             
-        //Render Tris
+            //Render Tris
             this.batchcount = input.batchcount;
             this.batchstart_graphics = input.batchstart_graphics;
             this.batchstart_physics = input.batchstart_physics;
@@ -1247,7 +1267,6 @@ namespace MVCore.GMDL
                         indicesLength, IntPtr.Zero, -vertrstart_physics);
             GL.BindVertexArray(0);
         }
-
 
         public virtual void renderDebug(int pass)
         {
@@ -1954,7 +1973,10 @@ namespace MVCore.GMDL
             {
                 if (this.bufInfo[i] == null) continue;
                 bufInfo buf = this.bufInfo[i];
-                GL.VertexAttribPointer(i, buf.count, buf.type, false, this.vx_size, buf.stride);
+                bool normalize = false;
+                if (buf.type == VertexAttribPointerType.UnsignedByte)
+                    normalize = true;
+                GL.VertexAttribPointer(i, buf.count, buf.type, normalize, this.vx_size, buf.stride);
                 GL.EnableVertexAttribArray(i);
             }
 
@@ -2444,6 +2466,14 @@ namespace MVCore.GMDL
             }
         }
 
+        public string PClass
+        {
+            get
+            {
+                return Class;
+            }
+        }
+
         public List<string> MaterialFlags
         {
             get
@@ -2558,8 +2588,8 @@ namespace MVCore.GMDL
             //Get Uniforms
             foreach (TkMaterialUniform un in Uniforms)
             {
-                Uniform my_un = new Uniform(un);
-                CustomPerMaterialUniforms[my_un.name] = my_un;
+                Uniform my_un = new Uniform("mpCustomPerMaterial.", un);
+                CustomPerMaterialUniforms[my_un.Name] = my_un;
             }
 
             //Get Samplers
@@ -2665,27 +2695,39 @@ namespace MVCore.GMDL
 
     }
     
-    public class Uniform
+    public class Uniform: TkMaterialUniform
     {
-        public string name;
         public MVector4 vec;
+        private string prefix;
 
         public Uniform()
         {
-            name = "";
+            prefix = "";
             vec = new MVector4(0.0f);
         }
 
         public Uniform(TkMaterialUniform un)
         {
-            name = "mpCustomPerMaterial." + un.Name;
+            //Copy Attributes
+            Name = un.Name;
             vec = new MVector4(un.Values.x, un.Values.y, un.Values.z, un.Values.t);
         }
 
-        public string Name
+        public Uniform(string pref, TkMaterialUniform un) : this(un)
         {
-            get { return name; }
-            
+            prefix = pref;
+            Name = prefix + un.Name;
+        }
+
+        public void setPrefix(string pref)
+        {
+            prefix = pref;
+        }
+
+        public string PName
+        {
+            get { return Name; }
+            set { Name = value; }
         }
 
         public MVector4 Vec
@@ -3226,6 +3268,8 @@ namespace MVCore.GMDL
 
             //Store Diffuse Texture to material
             Texture new_tex = new Texture();
+            new_tex.width = texWidth;
+            new_tex.height = texHeight;
             new_tex.bufferID = out_tex_2darray_diffuse;
             new_tex.target = TextureTarget.Texture2DArray;
             
@@ -3570,7 +3614,7 @@ namespace MVCore.GMDL
             //Temp Variables
             int w = width;
             int h = height;
-            int mm_count = Math.Min(7, ddsImage.header.dwMipMapCount); //Load only 7 or less mipmaps
+            int mm_count = ddsImage.header.dwMipMapCount; 
             int depth_count = Math.Max(1, ddsImage.header.dwDepth); //Fix the counter to 1 to fit the texture in a 3D container
             int temp_size = ddsImage.header.dwPitchOrLinearSize;
 
@@ -3595,12 +3639,16 @@ namespace MVCore.GMDL
                 //Console.WriteLine(GL.GetError());
 
                 offset += temp_size * depth_count;
-                temp_size = Math.Max(temp_size/4, blocksize);
-                w = Math.Max(w >> 1, 4);
-                h = Math.Max(h >> 1, 4);
+
+                w = Math.Max(w >> 1, 1);
+                h = Math.Max(h >> 1, 1);
+
+                temp_size = Math.Max(1, (w + 3) / 4) * Math.Max(1, (h + 3) / 4) * blocksize;
+                //This works only for square textures
+                //temp_size = Math.Max(temp_size/4, blocksize);
             }
-            
-            
+
+
             //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureLodBias, -0.2f);
             GL.TexParameter(target, TextureParameterName.TextureWrapS, (int) TextureWrapMode.Repeat);
             GL.TexParameter(target, TextureParameterName.TextureWrapT, (int) TextureWrapMode.Repeat);

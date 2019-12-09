@@ -675,10 +675,12 @@ namespace MVCore
 
 
             //Setup LOD distances
-            node.LODDistances.Clear();
-            for (int i = 0; i < attachment.LodDistances.Length; i++)
+            for (int i = 0; i < 5; i++)
             {
-                node.LODDistances.Add(attachment.LodDistances[i]);
+                if (i < node.LODDistances.Length)
+                    node.LODDistances[i] = attachment.LodDistances[i];
+                else
+                    node.LODDistances[i] = 100000.0f;
             }
         }
 
@@ -745,6 +747,7 @@ namespace MVCore
 
                 so.name = name;
                 so.debuggable = true;
+                so.parentScene = scene;
                 
                 //Set Random Color
                 so.color[0] = Common.RenderState.randgen.Next(255) / 255.0f;
@@ -916,15 +919,15 @@ namespace MVCore
                 so.gobject = gobject;
 
                 //Fetch attributes
-                so.LODDistances = new List<float>();
+                so.LODDistances = new float[5];
+                so.LODNum = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "NUMLODS"));
                 
-                float lod_num = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "NUMLODS"));
-                
-                //float dist1 = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LODDIST1"));
-                //float dist1 = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LODDIST1"));
-                //float dist1 = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LODDIST1"));
-                //float dist1 = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LODDIST1"));
-
+                //Fetch extra LOD attributes
+                for (int i = 1; i < so.LODNum; i++)
+                {
+                    float attr_val = float.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LODDIST" + i));
+                    so.LODDistances[i - 1] = attr_val;
+                }
                 
                 //Setup model texture manager
                 so.texMgr = new textureManager();
@@ -1328,6 +1331,56 @@ namespace MVCore
 
                 return so;
             }
+
+            else if (typeEnum == TYPES.EMITTER)
+            {
+                locator so = new locator(0.1f);
+                so.type = TYPES.EMITTER;
+                //Fetch attributes
+
+                //For now fetch only one attachment
+                string attachment = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "ATTACHMENT");
+                TkAttachmentData attachment_data = null;
+                if (attachment != "")
+                {
+                    string attachment_path = Path.GetFullPath(Path.Combine(FileUtils.dirpath, attachment));
+                    attachment_data = NMSUtils.LoadNMSFile(attachment_path) as TkAttachmentData;
+                }
+
+                if (node.Attributes.Count > 1)
+                    MessageBox.Show("PM THE IDIOT TO ADD SUPPORT FOR FUCKING MULTIPLE ATTACHMENTS...");
+
+                //Set Properties
+                //Testingso.Name = name + "_LOC";
+                so.name = name;
+                so.nms_template = node;
+
+                //Set Shader Program
+                so.shader_programs = new GLSLHelper.GLSLShaderConfig[]{Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.LOCATOR_SHADER],
+                                               Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
+                                               Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
+                //Get Transformation
+                so.parent = parent;
+                so.init(transforms);
+
+                //Process Locator Attachments
+                ProcessComponents(so, attachment_data);
+
+                //Handle Children
+                if (children.Count > 0)
+                {
+                    foreach (TkSceneNodeData child in children)
+                    {
+                        model part = parseNode(child, gobject, so, scene);
+                        so.children.Add(part);
+                    }
+                }
+                
+                //Do not restore the old AnimScene let them flow
+                //localAnimScene = old_localAnimScene; //Restore old_localAnimScene
+                return so;
+            }
+
 
             else
             {
