@@ -74,6 +74,8 @@ namespace Model_Viewer
                 newPal[f.Name] = new Dictionary<string, Vector4>();
                 //Add None option
                 newPal[f.Name]["None"] = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
+                //Add MatchGround option
+                newPal[f.Name]["MatchGround"] = new Vector4(0.5f, 0.427f, 0.337f, 0.0f);
 
                 try
                 {
@@ -217,8 +219,9 @@ namespace Model_Viewer
                 newPal[pal_name]["Alternative3"] = alt3;
                 newPal[pal_name]["Alternative4"] = alt4;
                 newPal[pal_name]["Unique"] = unique;
+                //Add MatchGround option
+                newPal[pal_name]["MatchGround"] = new Vector4(0.5f, 0.427f, 0.337f, 0.0f);
                 newPal[pal_name]["None"] = none;
-
 
                 //bmp.Save("Temp\\" + pal_name + ".bmp", ImageFormat.Bmp);
             }

@@ -39,6 +39,7 @@ namespace MVCore.GMDL
         PICK,
         UNKNOWN
     }
+
     public class SimpleSampler
     {
         public string PName { get; set; }
@@ -52,7 +53,6 @@ namespace MVCore.GMDL
 
     public abstract class model : IDisposable, INotifyPropertyChanged
     {
-        public abstract bool render(RENDERPASS pass);
         public bool renderable;
         public bool occluded;
         public bool debuggable;
@@ -61,14 +61,18 @@ namespace MVCore.GMDL
         public int ID;
         public TYPES type;
         public string name;
+        public ulong nameHash;
         public List<model> children = new List<model>();
         public Dictionary<string, Dictionary<string, Vector3>> palette;
         public bool procFlag; //This is used to define procgen usage
         public TkSceneNodeData nms_template;
+        public GLMeshVao meshVao;
+        public int instanceId = -1;
         
         //Transformation Parameters
         public Vector3 worldPosition;
         public Matrix4 worldMat;
+        public Matrix4 normMat;
         public Matrix4 localMat;
 
         public Vector3 _localPosition;
@@ -79,16 +83,22 @@ namespace MVCore.GMDL
 
         public model parent;
         public int cIndex = 0;
-        public bool changed = true; //Making it public just for the joints
+        public bool updated = true; //Making it public just for the joints
 
         //Components
-        public List<Component> _components;
+        public scene parentScene;
+        public List<Component> _components = new List<Component>();
         public int animComponentID;
         public int animPoseComponentID;
 
         //LOD
-        public float[] LODDistances = new float[5];
-        public int LODNum = 1; //Default value of 1 LOD per model
+        public float[] _LODDistances = new float[5];
+        public int _LODNum = 1; //Default value of 1 LOD per model
+
+        //Bounding Volume
+        public Vector3 AABBMIN = new Vector3();
+        public Vector3 AABBMAX = new Vector3();
+        
 
         //Disposable Stuff
         public bool disposed = false;
@@ -106,19 +116,36 @@ namespace MVCore.GMDL
         public Vector3 localPosition
         {
             get { return _localPosition; }
-            set { _localPosition = value; changed = true; }
+            set { _localPosition = value; updated = true; }
         }
 
         public Matrix4 localRotation
         {
             get { return _localRotation; }
-            set { _localRotation = value; changed = true; }
+            set { _localRotation = value; updated = true; }
         }
 
         public Vector3 localScale
         {
             get { return _localScale; }
-            set { _localScale = value; changed = true; }
+            set { _localScale = value; updated = true; }
+        }
+
+        public int LODNumber
+        {
+            get { return _LODNum; }
+        }
+        public List<float> LODDistances
+        {
+            get {
+                List<float> l = new List<float>();
+                for (int i = 0; i < _LODDistances.Length; i++)
+                {
+                    if (_LODDistances[i] > 0)
+                        l.Add(_LODDistances[i]);
+                }
+                return l;
+            }
         }
 
         public void updateRotationFromAngles(float x, float y, float z)
@@ -141,12 +168,13 @@ namespace MVCore.GMDL
             {
                 return renderable;
             }
-
             set
             {
                 renderable = value;
+                updated = true;
                 foreach (var child in Children)
                     child.IsRenderable = value;
+                meshVao?.setInstanceOccludedStatus(instanceId, !renderable);
                 NotifyPropertyChanged("IsRenderable"); //Make sure to update the UI because of the subsequent changes
             }
         }
@@ -164,10 +192,24 @@ namespace MVCore.GMDL
 
         public abstract model Clone();
 
+        public virtual void updateLODDistances()
+        {
+            foreach (model s in children)
+                s.updateLODDistances();
+        }
+        
+        public virtual void updateMeshInfo()
+        {
+            foreach (model child in children)
+            {
+                child.updateMeshInfo();
+            }
+        }
+
         public virtual void update()
         {
 
-            if (changed)
+            //if (changed)
             {
                 //Create scaling matrix
                 Matrix4 scale = Matrix4.Identity;
@@ -176,8 +218,6 @@ namespace MVCore.GMDL
                 scale[2, 2] = _localScale.Z;
 
                 localMat = _localPoseMatrix * scale * _localRotation * Matrix4.CreateTranslation(_localPosition);
-
-                changed = false;
             }
 
             //Finally Update world Transformation Matrix
@@ -197,7 +237,6 @@ namespace MVCore.GMDL
             }
             else
                 worldPosition = localPosition;
-
 
             //Trigger the position update of all children nodes
             foreach (GMDL.model child in children)
@@ -270,6 +309,7 @@ namespace MVCore.GMDL
             //Transformation Parameters
             worldPosition = new Vector3(0.0f, 0.0f, 0.0f);
             worldMat = Matrix4.Identity;
+            normMat = Matrix4.Identity;
             localMat = Matrix4.Identity;
 
             _localPosition = new Vector3(0.0f, 0.0f, 0.0f);
@@ -297,25 +337,33 @@ namespace MVCore.GMDL
             this.name = input.name;
             this.ID = input.ID;
             this.cIndex = input.cIndex;
+            //MESHVAO AND INSTANCE IDS SHOULD BE HANDLED EXPLICITLY
             
             //Clone transformation
             _localPosition = input._localPosition;
             _localRotationAngles = input._localRotationAngles;
             _localRotation = input._localRotation;
             _localScale = input._localScale;
+            _localPoseMatrix = input._localPoseMatrix;
+
+            this.localMat = input.localMat;
+            this.worldMat = input.worldMat;
+            this.normMat = input.normMat;
+
+            //Clone LOD Info
+            this._LODNum = input._LODNum;
+            for (int i = 0; i < 5; i++)
+                this._LODDistances[i] = input._LODDistances[i];
 
             //Component Stuff
             this.animComponentID = input.animComponentID;
             this.animPoseComponentID = input.animPoseComponentID;
-            
-            //TODO: Implement Components Clone function
-            /*
+
+            //Clone components
             for (int i = 0; i < input.Components.Count; i++)
             {
                 this.Components.Add(input.Components[i].Clone());
             }
-            */
-
         }
 
         //Copy Constructor
@@ -349,40 +397,12 @@ namespace MVCore.GMDL
 
         #region AnimationComponent
 
-        public virtual void setAnimScene(model animscene)
+        public virtual void setParentScene(scene scene)
         {
+            parentScene = scene;
             foreach (model child in children)
             {
-                child.setAnimScene(animscene);
-            }
-        }
-
-
-        public void resetPose()
-        {
-            if (animComponentID < 0)
-                return;
-
-            AnimComponent ac = _components[animComponentID] as AnimComponent;
-
-            foreach (Joint j in ac.jointDict.Values)
-                j.localPoseMatrix = Matrix4.Identity;
-        }
-
-        //TODO Add button in the UI to toggle that shit
-        private void resetAnimation()
-        {
-            if (animComponentID < 0)
-                return;
-
-            AnimComponent ac = _components[animComponentID] as AnimComponent;
-
-            foreach (Joint j in ac.jointDict.Values)
-            {
-                j._localScale = j.BindMat.ExtractScale();
-                j._localRotation = Matrix4.CreateFromQuaternion(j.BindMat.ExtractRotation());
-                j._localPosition = j.BindMat.ExtractTranslation();
-                j._localPoseMatrix = Matrix4.Identity;
+                child.setParentScene(scene);
             }
         }
 
@@ -393,26 +413,27 @@ namespace MVCore.GMDL
         //AnimPoseComponent class to temporarily store the selected pose frames, while also in the model.update method
 
         //Locator Animation Stuff
-        public void loadPose()
+        
+        public Dictionary<string, Matrix4> loadPose()
         {
+
             if (animPoseComponentID < 0)
-                return;
-            if (animComponentID < 0)
-                return;
+                return new Dictionary<string, Matrix4>();
 
             AnimPoseComponent apc = _components[animPoseComponentID] as AnimPoseComponent;
-            AnimComponent ac = _components[animComponentID] as AnimComponent;
+            Dictionary<string, Matrix4> posematrices = new Dictionary<string, Matrix4>();
 
             foreach (TkAnimNodeData node in apc._poseFrameData.NodeData)
             {
-                if (!ac.jointDict.ContainsKey(node.Node))
-                    continue;
+                List<Quaternion> quats = new List<Quaternion>();
+                List<Vector3> translations = new List<Vector3>();
+                List<Vector3> scales = new List<Vector3>();
 
                 //We should interpolate frame shit over all the selected Pose Data
-                List<Matrix4> framePoseMatrices = new List<Matrix4>();
-                List<float> framePoseMatricesNorms = new List<float>();
-                List<int> IDs = new List<int>();
+
+                //Gather all the transformation data for all the pose factors
                 for (int i = 0; i < apc._poseData.Count; i++)
+                //for (int i = 0; i < 1; i++)
                 {
                     //Get Pose Frame
                     int poseFrameIndex = apc._poseData[i].PActivePoseFrame;
@@ -423,47 +444,49 @@ namespace MVCore.GMDL
                     lq = NMSUtils.fetchRotQuaternion(node, apc._poseFrameData, poseFrameIndex);
                     v_t = NMSUtils.fetchTransVector(node, apc._poseFrameData, poseFrameIndex);
                     v_s = NMSUtils.fetchScaleVector(node, apc._poseFrameData, poseFrameIndex);
-                    
-                    //Generate Transformation Matrix
-                    Matrix4 poseMat = Matrix4.CreateScale(1.0f) * Matrix4.CreateFromQuaternion(lq) * Matrix4.CreateTranslation(v_t);
 
-                    framePoseMatricesNorms.Add(MathUtils.Matrix4Norm(poseMat, ac.jointDict[node.Node].BindMat));
-                    framePoseMatrices.Add(poseMat);
-                    IDs.Add(i);
+                    quats.Add(lq);
+                    translations.Add(v_t);
+                    scales.Add(v_s);
                 }
 
-                //Do some sorting
-                IDs = IDs.OrderBy(d => framePoseMatricesNorms[d]).ToList();
+                float fact = 1.0f / quats.Count;
+                Quaternion fq = new Quaternion();
+                Vector3 f_vt = new Vector3();
+                Vector3 f_vs = new Vector3();
 
-                //Keep just the last matrix
-                Matrix4 framePoseMatrix = framePoseMatrices[IDs[IDs.Count - 1]];
 
-                if (framePoseMatricesNorms[IDs[IDs.Count - 1]] < 1e-4f)
+                fq = quats[0];
+                f_vt = translations[0];
+                f_vs = scales[0];
+
+                //Interpolate all data
+                for (int i = 1; i < quats.Count; i++)
                 {
-                    ac.jointDict[node.Node].localPoseMatrix = Matrix4.Identity;
+                    Quaternion.Slerp(fq, quats[i], 0.5f);
+                    Vector3.Lerp(f_vt, translations[i], 0.5f);
+                    Vector3.Lerp(f_vs, scales[i], 0.5f);
                 }
-                else
-                {
-                    /* Weight multiple matrices
-                    //Calculate frame weight
-                    float w_m = 1.0f / framePoseMatrices.Count;
 
-                    //Accumulate transforms
-                    Matrix4 finalPoseMat = Matrix4.Zero;
-                    for (int i = 0; i < framePoseMatrices.Count; i++)
-                        finalPoseMat += framePoseMatrices[i] * w_m;
-
-                    */
-                    //Use just the selected matrix
-                    Matrix4 finalPoseMat = framePoseMatrix;
-
-                    ac.jointDict[node.Node].localPoseMatrix = finalPoseMat * ac.jointDict[node.Node].invBMat;
-                }
+                //Generate Transformation Matrix
+                //Matrix4 poseMat = Matrix4.CreateScale(f_vs) * Matrix4.CreateFromQuaternion(fq) * Matrix4.CreateTranslation(f_vt);
+                Matrix4 poseMat = Matrix4.CreateScale(f_vs) * Matrix4.CreateFromQuaternion(fq);
+                //Matrix4 poseMat = Matrix4.CreateScale(f_vs);
+                posematrices[node.Node] = poseMat;
+            
             }
+
+            return posematrices;
+
         }
+        
+        public virtual void applyPoses(Dictionary<string, Matrix4> poseMatrices)
+        {
+
+        }
+        
 
         #endregion
-
 
 
         public void Dispose()
@@ -513,7 +536,7 @@ namespace MVCore.GMDL
     {
         public model ref_scene; //holds the referenced scene
 
-        public reference() : base(0.1f)
+        public reference()
         {
             type = TYPES.REFERENCE;
         }
@@ -527,7 +550,6 @@ namespace MVCore.GMDL
         {
             base.copyFrom(input); //Copy base stuff
             this.ref_scene = input.ref_scene;
-
         }
 
         public override model Clone()
@@ -536,50 +558,7 @@ namespace MVCore.GMDL
         }
 
 
-        public override void update()
-        {
-            //Local copy of the base model update without the children query
-            if (changed)
-            {
-                //Create scaling matrix
-                Matrix4 scale = Matrix4.Identity;
-                scale[0, 0] = _localScale.X;
-                scale[1, 1] = _localScale.Y;
-                scale[2, 2] = _localScale.Z;
-
-                localMat = _localPoseMatrix * scale * _localRotation * Matrix4.CreateTranslation(_localPosition);
-
-                changed = false;
-            }
-
-            //Finally Update world Transformation Matrix
-            if (parent != null)
-            {
-                worldMat = localMat * parent.worldMat;
-            }
-
-            else
-                worldMat = localMat;
-
-            //Update worldPosition
-            if (parent != null)
-            {
-                //Add Translation as well
-                worldPosition = (Vector4.Transform(new Vector4(0.0f, 0.0f, 0.0f, 1.0f), this.worldMat)).Xyz;
-            }
-            else
-                worldPosition = localPosition;
-
-            
-            //Iterate in reference with modified transform
-            Matrix4 old_ref_lMat = ref_scene.localMat;
-            model old_parent = ref_scene.parent;
-            ref_scene.parent = this;
-            ref_scene.update();
-            ref_scene.parent = old_parent;
-        }
-
-        public override void setAnimScene(model animscene)
+        public override void setParentScene(scene animscene)
         {
             //DO NOTHING
         }
@@ -610,15 +589,73 @@ namespace MVCore.GMDL
     {
         public GeomObject gobject; //Keep GeomObject reference
         public textureManager texMgr;
+
+        //Keep reference of all the animation joints of the scene and the skinmatrices
+        public float[] skinMats; //Final Matrices
+        public Dictionary<string, Joint> jointDict;
+        public int activeLOD = 0;
         
-        public scene() : base(0.1f) {
+        public scene() {
             type = TYPES.MODEL;
             texMgr = new textureManager();
+            //Init Animation Stuff
+            skinMats = new float[256 * 16];
+            jointDict = new Dictionary<string, Joint>();
+
             //Set Shader Program
             shader_programs = new GLSLHelper.GLSLShaderConfig[]{Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.LOCATOR_SHADER],
                                         Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
                                         Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
         }
+
+        
+        public void resetPoses()
+        {
+            foreach (Joint j in jointDict.Values)
+                j.localPoseMatrix = Matrix4.Identity;
+            update();
+        }
+
+        public override void applyPoses(Dictionary<string, Matrix4> poseMatrices)
+        {
+            foreach (KeyValuePair<string, Matrix4> kp in poseMatrices)
+            {
+                string node_name = kp.Key;
+                
+                if (jointDict.ContainsKey(node_name))
+                {
+                    Joint j = jointDict[node_name];
+                    //j.localPoseMatrix = kp.Value;
+
+                    //Vector3 tr = kp.Value.ExtractTranslation();
+                    Vector3 sc = kp.Value.ExtractScale();
+                    Quaternion q = kp.Value.ExtractRotation();
+
+                    //j.localRotation = Matrix4.CreateFromQuaternion(q);
+                    //j.localPosition = tr;
+
+                    j.localRotation = Matrix4.CreateFromQuaternion(q) * j.localRotation;
+                    j.localScale *= sc;
+
+                    //j.localPoseMatrix = kp.Value;
+                }
+            }
+
+            update();
+        }
+
+        //TODO Add button in the UI to toggle that shit
+        private void resetAnimation()
+        {
+            foreach (Joint j in jointDict.Values)
+            {
+                j._localScale = j.BindMat.ExtractScale();
+                j._localRotation = Matrix4.CreateFromQuaternion(j.BindMat.ExtractRotation());
+                j._localPosition = j.BindMat.ExtractTranslation();
+                j._localPoseMatrix = Matrix4.Identity;
+            }
+        }
+
 
         public scene(scene input) :base(input)
         {
@@ -628,16 +665,80 @@ namespace MVCore.GMDL
         public void copyFrom(scene input)
         {
             base.copyFrom(input); //Copy base stuff
-            this.gobject = input.gobject;
-            
+            gobject = input.gobject;
+            texMgr = input.texMgr;
         }
 
         public override model Clone()
         {
-            return new scene(this);
+            scene new_s = new scene();
+            new_s.copyFrom(this);
+
+            new_s.meshVao = this.meshVao;
+            new_s.instanceId = new_s.meshVao.addInstance(this);
+            
+            //Clone children
+            foreach (model child in children)
+            {
+                model new_child = child.Clone();
+                new_child.parent = new_s;
+                new_s.children.Add(new_child);
+            }
+
+            //Recursively update parentScene to all the new objects
+            new_s.setParentScene(new_s);
+
+            //Initialize jointDictionary
+            new_s.jointDict.Clear();
+            new_s.setupJointDict(new_s);
+
+            return new_s;
+        }
+
+        public void setupJointDict(model m)
+        {
+            if (m.type == TYPES.JOINT)
+                jointDict[m.Name] = (Joint) m;
+
+            foreach (model c in m.children)
+                setupJointDict(c);
+        }
+
+        public override void updateLODDistances()
+        {
+            //TODO: Cache the distance elsewhere
+
+            //Set Current LOD Level
+            double distance = (worldPosition - Common.RenderState.activeCam.Position).Length;
+
+            //Find active LOD
+            activeLOD = _LODNum - 1;
+            for (int j = 0; j < _LODNum - 1; j++)
+            {
+                if (distance < _LODDistances[j])
+                {
+                    activeLOD = j;
+                    break;
+                }
+            }
+
+            base.updateLODDistances();
         }
 
         
+        public override void updateMeshInfo()
+        {
+            //Update Skin Matrices
+            foreach (Joint j in jointDict.Values)
+            {
+                Matrix4 jointSkinMat = j.invBMat * j.worldMat;
+                MathUtils.insertMatToArray16(skinMats, j.jointIndex * 16, jointSkinMat);
+            }
+
+            base.updateMeshInfo();
+        }
+
+
         //Deconstructor
         protected override void Dispose(bool disposing)
         {
@@ -647,6 +748,9 @@ namespace MVCore.GMDL
             if (disposing)
             {
                 handle.Dispose();
+
+                skinMats = null;
+                jointDict.Clear();
 
                 //Free other resources here
                 base.Dispose(disposing);
@@ -660,34 +764,27 @@ namespace MVCore.GMDL
 
     public class locator: model
     {
-        int vao_id;
-        public float scale;
-        
-        //Animation Stuff
-        
-        //Default Constructor
-        public locator(float s)
+        public locator()
         {
             //Set type
             type = TYPES.LOCATOR;
+            //Set BBOX
+            AABBMIN = new Vector3(-1.0f, -1.0f, -1.0f);
+            AABBMAX = new Vector3(1.0f, 1.0f, 1.0f);
+            
             //Assemble geometry in the constructor
-            //X
-            scale = s;
-            vao_id = MVCore.Common.RenderState.activeResMgr.GLPrimitiveVaos["default_cross"].vao_id;
+            meshVao = MVCore.Common.RenderState.activeResMgr.GLPrimitiveMeshVaos["default_cross"];
+            instanceId = meshVao.addInstance(this);
+            
             //Add shaders
             shader_programs = new GLSLHelper.GLSLShaderConfig[] { MVCore.Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.LOCATOR_SHADER],
                 MVCore.Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
                 MVCore.Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
-
         }
 
         public void copyFrom(locator input)
         {
             base.copyFrom(input); //Copy stuff from base class
-
-            this.scale = input.scale;
-            this.vao_id = input.vao_id;
-
         }
 
         protected locator(locator input) : base(input)
@@ -697,7 +794,23 @@ namespace MVCore.GMDL
 
         public override GMDL.model Clone()
         {
-            return new locator(this);
+            locator new_s = new locator();
+            new_s.copyFrom(this);
+
+            //Clone children
+            foreach (model child in children)
+            {
+                model new_child = child.Clone();
+                new_child.parent = new_s;
+                new_s.children.Add(new_child);
+            }
+
+            return new_s;
+        }
+
+        public override void update()
+        {
+            base.update();
         }
 
 
@@ -708,141 +821,57 @@ namespace MVCore.GMDL
             {
                 if (disposing)
                 {
-                    // TODO: dispose managed state (managed objects).
-                    vao_id = -1; //VAO will be deleted from the resource manager since it is a common mesh
+                    meshVao = null; //VAO will be deleted from the resource manager since it is a common mesh
                     shader_programs = null;
                     base.Dispose(disposing);
                 }
                 disposed = true;
             }
         }
-
-        
         #endregion
 
-        private void renderMain(GLSLHelper.GLSLShaderConfig shader)
-        {
-            //Console.WriteLine("Rendering Locator {0}", this.name);
-            //Console.WriteLine("Rendering VBO Object here");
-            //VBO RENDERING
-            GL.UseProgram(shader.program_id);
-
-            //Upload scale
-
-            GL.Uniform1(shader.uniformLocations["scale"], scale);
-
-            GL.BindVertexArray(vao_id);
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
-            GL.DrawElements(PrimitiveType.Lines, 6, DrawElementsType.UnsignedInt, (IntPtr) 0);
-            //GL.PolygonMode(MaterialFace.FrontAndBack, MVCore.RenderOptions.RENDERMODE);
-            GL.BindVertexArray(0);
-
-        }
-
-
-        public override bool render(RENDERPASS pass)
-        {
-
-            if (!Common.RenderOptions.RenderLocators)
-                return false;
-
-            GLSLHelper.GLSLShaderConfig shader = shader_programs[(int)pass];
-            
-            switch (pass)
-            {
-                case 0:
-                    renderMain(shader);
-                    break;
-                default:
-                    break;
-            }
-            
-
-            return true;
-        }
-
-        
     }
 
-    public class GLMeshVao : IDisposable
+    public class GLVao : IDisposable
     {
         //VAO ID
-        private int vao_id = -1;
+        public int vao_id;
         //VBO IDs
         public int vertex_buffer_object;
         public int element_buffer_object;
-        public List<model> instances;
 
-
-        //Mesh Properties
-        public int vertrstart_physics = 0;
-        public int vertrend_physics = 0;
-        public int vertrstart_graphics = 0;
-        public int vertrend_graphics = 0;
-        public int batchstart_physics = 0;
-        public int batchstart_graphics = 0;
-        public int batchcount = 0;
-        public int firstskinmat = 0;
-        public int lastskinmat = 0;
-        //New stuff Properties
-        public int boundhullstart = 0;
-        public int boundhullend = 0;
-        public Vector3[] Bbox;
-        public DrawElementsType indicesLength = DrawElementsType.UnsignedShort;
-        
-        //Material Properties
-        public Material material; 
-
-        //Animation Properties
-
-
-
-        //Constructor
-        public GLMeshVao(meshModel so)
-        {
-            batchcount = so.batchcount;
-            vertrstart_graphics = so.vertrstart_graphics;
-            vertrend_graphics = so.vertrend_graphics;
-            vertrstart_physics = so.vertrstart_physics;
-            vertrend_physics = so.vertrend_physics;
-            firstskinmat = so.firstskinmat;
-            lastskinmat = so.lastskinmat;
-        }
-
-
-
-        //Default render method
-        public virtual void render()
-        {
-
-        }
-
-
-
-
-
-        
-        
-        
         #region IDisposable Support
         private bool disposedValue = false; // To detect redundant calls
 
+        public GLVao()
+        {
+            vao_id = -1;
+            vertex_buffer_object = -1;
+            element_buffer_object = -1;
+        }
 
+        public void Dispose()
+        {
+            Dispose(true);
+#if DEBUG
+            GC.SuppressFinalize(this);
+#endif
+        }
 
-
-
-
-
-        protected virtual void Dispose(bool disposing)
+        protected void Dispose(bool disposing)
         {
             if (!disposedValue)
             {
                 if (disposing)
                 {
                     // TODO: dispose managed state (managed objects).
-
-
-
+                    if (vao_id > 0)
+                    {
+                        GL.DeleteVertexArray(vao_id);
+                        GL.DeleteBuffer(vertex_buffer_object);
+                        GL.DeleteBuffer(element_buffer_object);
+                    }
+                    
                 }
 
                 // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
@@ -853,14 +882,14 @@ namespace MVCore.GMDL
         }
 
         // TODO: override a finalizer only if Dispose(bool disposing) above has code to free unmanaged resources.
-        // ~mainGLVao()
+        // ~GLVao()
         // {
         //   // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
         //   Dispose(false);
         // }
 
         // This code added to correctly implement the disposable pattern.
-        public void Dispose()
+        void IDisposable.Dispose()
         {
             // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
             Dispose(true);
@@ -868,106 +897,104 @@ namespace MVCore.GMDL
             // GC.SuppressFinalize(this);
         }
         #endregion
-
     }
 
 
-
-    //Place holder struct for all rendered meshes
-    public class mainVAO : IDisposable
+    public class MeshMetaData
     {
-        public int rendermode;
-        //VAO IDs
-        public int vao_id;
-        //VBO IDs
-        public int vertex_buffer_object;
-        public int element_buffer_object;
-
-        public void mainVao() {
-            //Generate Empty Vao
-            vao_id = -1;
-            vertex_buffer_object = -1;
-            element_buffer_object = -1;
-        }
-
-        #region IDisposable Support
-        private bool disposedValue = false; // To detect redundant calls
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!disposedValue)
-            {
-                if (disposing)
-                {
-                    // TODO: dispose managed state (managed objects).
-                    GL.DeleteVertexArray(vao_id);
-                    GL.DeleteBuffer(vertex_buffer_object);
-                    GL.DeleteBuffer(element_buffer_object);
-                }
-
-                disposedValue = true;
-            }
-        }
-
-        // This code added to correctly implement the disposable pattern.
-        public void Dispose()
-        {
-            Dispose(true);
-        }
-        #endregion
-
-    }
-
-    
-
-
-    public class meshModel : model
-    {
-        public int vertrstart_physics = 0;
-        public int vertrend_physics = 0;
-        public int vertrstart_graphics = 0;
-        public int vertrend_graphics = 0;
-        public int batchstart_physics = 0;
-        public int batchstart_graphics = 0;
-        public int batchcount = 0;
-        public int firstskinmat = 0;
-        public int lastskinmat = 0;
+        //Mesh Properties
+        public int vertrstart_physics;
+        public int vertrend_physics;
+        public int vertrstart_graphics;
+        public int vertrend_graphics;
+        public int batchstart_physics;
+        public int batchstart_graphics;
+        public int batchcount;
+        public int firstskinmat;
+        public int lastskinmat;
+        public int lodLevel;
         //New stuff Properties
-        public int boundhullstart = 0;
-        public int boundhullend = 0;
-        public Vector3[] Bbox;
-        public Vector3[] updatedBbox;
-        public DrawElementsType indicesLength = DrawElementsType.UnsignedShort;
+        public int boundhullstart;
+        public int boundhullend;
+        public Vector3 AABBMIN;
+        public Vector3 AABBMAX;
+        public ulong Hash;
 
-        public int LodLevel { get; set; }
+        public MeshMetaData()
+        {
+            //Init values to null
+            vertrend_graphics = 0;
+            vertrstart_graphics = 0;
+            vertrend_physics = 0;
+            vertrstart_physics = 0;
+            batchstart_graphics = 0;
+            batchstart_physics = 0;
+            batchcount = 0;
+            firstskinmat = 0;
+            lastskinmat = 0;
+            boundhullstart = 0;
+            boundhullend = 0;
+            Hash = 0xFFFFFFFF;
+            AABBMIN = new Vector3();
+            AABBMAX= new Vector3();
+        }
 
-        public Material Material { get; set; }
-        public Vector3 color = new Vector3();
+        public MeshMetaData(MeshMetaData input)
+        {
+            //Init values to null
+            vertrend_graphics = input.vertrend_graphics;
+            vertrstart_graphics = input.vertrstart_graphics;
+            vertrend_physics = input.vertrend_physics;
+            vertrstart_physics = input.vertrstart_physics;
+            batchstart_graphics = input.batchstart_graphics;
+            batchstart_physics = input.batchstart_physics;
+            batchcount = input.batchcount;
+            firstskinmat = input.firstskinmat;
+            lastskinmat = input.lastskinmat;
+            boundhullstart = input.boundhullstart;
+            boundhullend = input.boundhullend;
+            Hash = input.Hash;
+            lodLevel = input.lodLevel;
+            AABBMIN = new Vector3(input.AABBMIN);
+            AABBMAX = new Vector3(input.AABBMAX);
+        }
+    }
 
-        public int skinned = 0;
-        public ulong Hash { get; set; }
-        
-        //Accurate boneRemap
-        public int BoneRemapIndicesCount;
-        public int[] BoneRemapIndices;
-        public float[] BoneRemapMatrices = new float[16 * 128];
-        public mainVAO main_Vao;
-        public mainVAO debug_Vao;
-        public mainVAO pick_Vao;
-        public mainVAO bsh_Vao;
-        public mainVAO bhull_Vao;
-        public GeomObject gobject; //Ref to the geometry shit
-        public model animScene; //Ref to connected animScene
-        public model parentScene; //Ref to the parent scene that the mesh belongs to
 
-        //Mesh instances
+    public class GLMeshVao : IDisposable
+    {
+        //Class static properties
+        public static int MAX_INSTANCES = 300;
+
+        public GLVao vao;
+        public GLVao bHullVao;
+        public MeshMetaData metaData;
+
+        //Mesh type
+        public COLLISIONTYPES collisionType;
+        public TYPES type;
+
+        //Instance Data
+        public CommonPerMeshUniformsInstanced UBO;
+        public int UBO_aligned_size = 0; //Actual size of the data for the UBO, multiple to 256
+        public int UBO_offset = 0; //Ofset 
+
         public int instance_count = 0;
-        public float[] instance_data = new float[(16 + 4) * 300]; //Keep track of the different instances through the corresponding worldMatrices
-        public static int instance_struct_size_bytes = 80;
-        public static int instance_struct_size_floats = 20;
-        public static int instance_worldMat_Offset = 0;
-        public static int instance_isOccluded_Offset = 64;
-        public static int instance_isSelected_Offset = 68;
+        public List<model> instanceRefs = new List<model>();
+        //public float[] instance_data = new float[(32 + 4) * MAX_INSTANCES]; //Keep track of the different instances through the corresponding worldMatrices
+        
+        //public static int instance_struct_size_bytes = 144;
+        public static int instance_struct_size_floats = 36;
+        //public static int instance_worldMat_Offset = 0;
+        public static int instance_worldMat_Float_Offset = 0;
+        //public static int instance_normalMat_Offset = 64;
+        public static int instance_normalMat_Float_Offset = 16;
+        //public static int instance_isOccluded_Offset = 128;
+        public static int instance_isOccluded_Float_Offset = 32;
+        //public static int instance_isSelected_Offset = 132;
+        public static int instance_isSelected_Float_Offset = 33;
+        //public static int instance_color_Offset = 136; //TODO make that a vec4
+        public static int instance_color_Float_Offset = 34;
 
         //Instance Data Format:
         //0-16 : instance WorldMatrix
@@ -976,99 +1003,69 @@ namespace MVCore.GMDL
         //18-20: padding
 
 
-        //Exposable Uniforms Properties
-        private Uniform gUserDataVec4;
-        public Uniform PgUserDataVec4
-        {
-            get { return gUserDataVec4; }
+        public DrawElementsType indicesLength = DrawElementsType.UnsignedShort;
 
-            set { gUserDataVec4 = value; }
-        }
+        //Material Properties
+        public Material material;
+        public Vector3 color;
 
-
+        //Animation Properties
+        //TODO : At some point include that shit into the instance data
+        public int BoneRemapIndicesCount;
+        public int[] BoneRemapIndices;
+        public float[] BoneRemapMatrices = new float[16 * 128];
+        public bool skinned = false;
 
         //Constructor
-        public meshModel() : base()
+        public GLMeshVao()
         {
-            type = TYPES.MESH;
-            Hash = 0xFFFFFFFF;
-
-            //Init Properties
-            gUserDataVec4 = new Uniform();
-            gUserDataVec4.PName = "mpCommonPerMesh.gUserDataVec4";
+            vao = new GLVao();
         }
 
-        public meshModel(meshModel input) :base(input)
+        public GLMeshVao(MeshMetaData data) 
         {
-            //Copy attributes
-            this.vertrstart_graphics = input.vertrstart_graphics;
-            this.vertrstart_physics = input.vertrstart_physics;
-            this.vertrend_graphics = input.vertrend_graphics;
-            this.vertrend_physics = input.vertrend_physics;
-            this.Hash = input.Hash;
-            
-            //Render Tris
-            this.batchcount = input.batchcount;
-            this.batchstart_graphics = input.batchstart_graphics;
-            this.batchstart_physics = input.batchstart_physics;
-
-            //Bound Hulls
-            this.boundhullstart = input.boundhullstart;
-            this.boundhullend = input.boundhullend;
-            this.Bbox = input.Bbox;
-            
-            //Skinning Stuff
-            this.firstskinmat = input.firstskinmat;
-            this.lastskinmat = input.lastskinmat;
-            this.BoneRemapMatrices = input.BoneRemapMatrices;
-            this.BoneRemapIndices = input.BoneRemapIndices;
-            this.skinned = input.skinned;
-
-            this.main_Vao = input.main_Vao;
-            this.debug_Vao = input.debug_Vao;
-            this.pick_Vao = input.pick_Vao;
-
-            //Material Stuff
-            this.color = input.color;
-            if (input.Material.name_key != "")
-            {
-                this.Material = MVCore.Common.RenderState.activeResMgr.GLmaterials[input.Material.name_key]; // Keep reference
-                //this.material = input.material.Clone(); //Clone material
-            }
-            else
-                this.Material = new Material();
-                
-            this.palette = input.palette;
-            this.gobject = input.gobject; //Leave geometry file intact, no need to copy anything here
-        }
-
-        public override model Clone()
-        {
-            return new meshModel(this);
+            vao = new GLVao();
+            metaData = new MeshMetaData(data);
         }
 
 
+        //Geometry Setup
         //BSphere calculator
-        public void setupBSphere(int i)
+        public GLVao setupBSphere(int instance_id)
         {
-            float radius = 0.5f * (Bbox[0] - Bbox[1]).Length;
-            Vector4 bsh_center = new Vector4(Bbox[0] + 0.5f * (Bbox[1] - Bbox[0]), 1.0f);
+            float radius = 0.5f * (metaData.AABBMIN - metaData.AABBMAX).Length;
+            Vector4 bsh_center = new Vector4(metaData.AABBMIN + 0.5f * (metaData.AABBMAX - metaData.AABBMIN), 1.0f);
 
-            //Move sphere to object's root position
-            Matrix4 t_mat = MathUtils.Matrix4FromArray(instance_data, i * instance_struct_size_floats);
+            Matrix4 t_mat;
+            unsafe
+            {
+                fixed(float* ar = UBO.instanceData)
+                {
+                    t_mat = MathUtils.Matrix4FromArray(ar, instance_id * instance_struct_size_floats);
+                }
+            }
+            
             bsh_center = bsh_center * t_mat;
 
             //Create Sphere vbo
-            bsh_Vao = new Primitives.Sphere(bsh_center.Xyz, radius).getVAO();
+            return new Primitives.Sphere(bsh_center.Xyz, radius).getVAO();
         }
 
-        public void renderBbox(int pass)
+
+        //Rendering Methods
+
+
+        public void renderBbox(int pass, int instance_id)
         {
             GL.UseProgram(pass);
 
+
+            Matrix4 worldMat = getInstanceWorldMat(instance_id);
+            Vector3 color = getInstanceColor(instance_id);
+
             Vector4[] tr_AABB = new Vector4[2];
-            tr_AABB[0] = new Vector4(Bbox[0], 1.0f) * worldMat;
-            tr_AABB[1] = new Vector4(Bbox[1], 1.0f) * worldMat;
+            tr_AABB[0] = new Vector4(metaData.AABBMIN, 1.0f) * worldMat;
+            tr_AABB[1] = new Vector4(metaData.AABBMAX, 1.0f) * worldMat;
 
             //Generate all 8 points from the AABB
             float[] verts1 = new float[] {  tr_AABB[0].X, tr_AABB[0].Y, tr_AABB[0].Z,
@@ -1082,15 +1079,15 @@ namespace MVCore.GMDL
                                            tr_AABB[1].X, tr_AABB[1].Y, tr_AABB[1].Z };
 
 
-            float [] verts = new float[] { Bbox[0].X, Bbox[0].Y, Bbox[0].Z,
-                                           Bbox[1].X, Bbox[0].Y, Bbox[0].Z,
-                                           Bbox[0].X, Bbox[1].Y, Bbox[0].Z,
-                                           Bbox[1].X, Bbox[1].Y, Bbox[0].Z,
+            float[] verts = new float[] { metaData.AABBMIN.X, metaData.AABBMIN.Y, metaData.AABBMIN.Z,
+                                           metaData.AABBMAX.X, metaData.AABBMIN.Y, metaData.AABBMIN.Z,
+                                           metaData.AABBMIN.X, metaData.AABBMAX.Y, metaData.AABBMIN.Z,
+                                           metaData.AABBMAX.X, metaData.AABBMAX.Y, metaData.AABBMIN.Z,
 
-                                           Bbox[0].X, Bbox[0].Y, Bbox[1].Z,
-                                           Bbox[1].X, Bbox[0].Y, Bbox[1].Z,
-                                           Bbox[0].X, Bbox[1].Y, Bbox[1].Z,
-                                           Bbox[1].X, Bbox[1].Y, Bbox[1].Z };
+                                           metaData.AABBMIN.X, metaData.AABBMIN.Y, metaData.AABBMAX.Z,
+                                           metaData.AABBMAX.X, metaData.AABBMIN.Y, metaData.AABBMAX.Z,
+                                           metaData.AABBMIN.X, metaData.AABBMAX.Y, metaData.AABBMAX.Z,
+                                           metaData.AABBMAX.X, metaData.AABBMAX.Y, metaData.AABBMAX.Z };
 
 
             float[] colors = new float[] { color.X,color.Y,color.Z,
@@ -1149,7 +1146,7 @@ namespace MVCore.GMDL
             //Reset
             //Upload Default Color
             loc = GL.GetUniformLocation(pass, "color");
-            GL.Uniform3(loc, this.color);
+            GL.Uniform3(loc, color);
 
             //Program changed so I ahve to reupload the model matrices
             loc = GL.GetUniformLocation(pass, "worldMat");
@@ -1163,7 +1160,7 @@ namespace MVCore.GMDL
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
 
             GL.DrawRangeElements(PrimitiveType.Triangles, 0, verts.Length,
-                indices.Length, DrawElementsType.UnsignedInt , IntPtr.Zero);
+                indices.Length, DrawElementsType.UnsignedInt, IntPtr.Zero);
 
             GL.DisableVertexAttribArray(0);
 
@@ -1176,7 +1173,7 @@ namespace MVCore.GMDL
         {
             for (int i = 0; i < instance_count; i++)
             {
-                setupBSphere(i);
+                GLVao bsh_Vao = setupBSphere(i);
 
                 //Rendering
 
@@ -1187,25 +1184,99 @@ namespace MVCore.GMDL
                 GL.BindVertexArray(bsh_Vao.vao_id);
                 GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
                 GL.DrawElements(PrimitiveType.Triangles, 600, DrawElementsType.UnsignedInt, (IntPtr)0);
-            
+
                 GL.BindVertexArray(0);
                 bsh_Vao.Dispose();
             }
-            
-            
+
+
         }
 
+        private void renderMesh()
+        {
+            //Step 2 Bind & Render Vao
+            //Render Elements
+            GL.BindVertexArray(vao.vao_id);
+            GL.PolygonMode(MaterialFace.FrontAndBack, Common.RenderOptions.RENDERMODE);
+
+            //GL.DrawElements(PrimitiveType.Triangles, batchcount, indicesLength, IntPtr.Zero);
+
+            //Use Instancing
+            GL.DrawElementsInstanced(PrimitiveType.Triangles, metaData.batchcount, indicesLength,
+                IntPtr.Zero, instance_count);
+
+            GL.BindVertexArray(0);
+        }
+
+        private void renderLight()
+        {
+            //Step 2 Bind & Render Vao
+            //Render Elements
+            GL.BindVertexArray(vao.vao_id);
+            GL.PointSize(5.0f);
+            GL.DrawArraysInstanced(PrimitiveType.Lines, 0, 2, instance_count);
+            GL.DrawArraysInstanced(PrimitiveType.Points, 0, 2, instance_count); //Draw both points
+            GL.BindVertexArray(0);
+        }
+
+        private void renderCollision()
+        {
+            //Step 2: Render Elements
+            GL.PointSize(10.0f);
+            GL.BindVertexArray(vao.vao_id);
+            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+
+            switch (collisionType)
+            {
+                //Rendering based on the original mesh buffers
+                case COLLISIONTYPES.MESH:
+                    GL.DrawElementsInstancedBaseVertex(PrimitiveType.Points, metaData.batchcount,
+                        indicesLength, IntPtr.Zero, instance_count, -metaData.vertrstart_physics);
+                    GL.DrawElementsInstancedBaseVertex(PrimitiveType.Triangles, metaData.batchcount,
+                        indicesLength, IntPtr.Zero, instance_count, -metaData.vertrstart_physics);
+                    break;
+
+                //Rendering custom geometry
+                case COLLISIONTYPES.BOX:
+                case COLLISIONTYPES.CYLINDER:
+                case COLLISIONTYPES.CAPSULE:
+                case COLLISIONTYPES.SPHERE:
+                    GL.DrawElementsInstanced(PrimitiveType.Triangles, metaData.batchcount,
+                        DrawElementsType.UnsignedInt, IntPtr.Zero, instance_count);
+                    break;
+
+            }
+
+            GL.BindVertexArray(0);
+        }
+
+        private void renderLocator()
+        {
+            GL.BindVertexArray(vao.vao_id);
+            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+            GL.DrawElements(PrimitiveType.Lines, 6, DrawElementsType.UnsignedInt, (IntPtr)0);
+            //GL.PolygonMode(MaterialFace.FrontAndBack, MVCore.RenderOptions.RENDERMODE);
+            GL.BindVertexArray(0);
+        }
+
+        private void renderJoint()
+        {
+            GL.BindVertexArray(vao.vao_id);
+            GL.PointSize(5.0f);
+            GL.DrawArrays(PrimitiveType.Lines, 0, metaData.batchcount);
+            GL.DrawArrays(PrimitiveType.Points, 0, 1); //Draw only yourself
+            GL.BindVertexArray(0);
+        }
+        
         public virtual void renderMain(GLSLHelper.GLSLShaderConfig shader)
         {
-            GL.UseProgram(shader.program_id);
-
             //Upload Material Information
             
             //Step 1 Upload uniform variables
-            GL.Uniform1(shader.uniformLocations["mpCustomPerMaterial.matflags[0]"], 64, Material.material_flags); //Upload Material Flags
-            
+            GL.Uniform1(shader.uniformLocations["mpCustomPerMaterial.matflags[0]"], 64, material.material_flags); //Upload Material Flags
+
             //Upload Custom Per Material Uniforms
-            foreach (Uniform un in Material.CustomPerMaterialUniforms.Values)
+            foreach (Uniform un in material.CustomPerMaterialUniforms.Values)
             {
                 if (shader.uniformLocations.Keys.Contains(un.Name))
                     GL.Uniform4(shader.uniformLocations[un.Name], un.vec.Vec);
@@ -1214,15 +1285,7 @@ namespace MVCore.GMDL
             //BIND TEXTURES
             //Diffuse Texture
 
-            /*
-            if (Material.material_flags[(int) TkMaterialFlags.MaterialFlagEnum._F55_] > 0.0f)
-            {
-                //Upload depth : gUserVecData
-                GL.Uniform4(216, new Vector4(0.0f));
-            }
-            */
-            
-            foreach (Sampler s in Material.PSamplers.Values)
+            foreach (Sampler s in material.PSamplers.Values)
             {
                 if (shader.uniformLocations.ContainsKey(s.Name) && s.Map != "")
                 {
@@ -1233,38 +1296,46 @@ namespace MVCore.GMDL
             }
 
 
-            if (instance_count > 100)
-                Console.WriteLine("Increase the buffers");
+            //if (instance_count > 100)
+            //    Console.WriteLine("Increase the buffers");
 
-            //Step 2 Bind & Render Vao
-            //Render Elements
-            GL.BindVertexArray(main_Vao.vao_id);
-            GL.PolygonMode(MaterialFace.FrontAndBack, Common.RenderOptions.RENDERMODE);
-            //GL.DrawElements(PrimitiveType.Triangles, batchcount, indicesLength, IntPtr.Zero);
-
-            //Use Instancing
-            GL.DrawElementsInstanced(PrimitiveType.Triangles, batchcount, indicesLength,
-                IntPtr.Zero, instance_count);
-            
-            GL.BindVertexArray(0);
+           
+            switch (type)
+            {
+                case TYPES.MESH:
+                    renderMesh();
+                    break;
+                case TYPES.LOCATOR:
+                case TYPES.MODEL:
+                    renderLocator();
+                    break;
+                case TYPES.JOINT:
+                    renderJoint();
+                    break;
+                case TYPES.COLLISION:
+                    renderCollision();
+                    break;
+                case TYPES.LIGHT:
+                    renderLight();
+                    break;
+            }
         }
 
-        private void renderBHull(GLSLHelper.GLSLShaderConfig shader) {
-
-
+        private void renderBHull(GLSLHelper.GLSLShaderConfig shader)
+        {
             GL.UseProgram(shader.program_id);
 
             GL.Uniform1(shader.uniformLocations["scale"], 1.0f);
 
             //I ASSUME THAT EVERYTHING I NEED IS ALREADY UPLODED FROM A PREVIOUS PASS
             GL.PointSize(10.0f);
-            GL.BindVertexArray(bhull_Vao.vao_id);
+            GL.BindVertexArray(bHullVao.vao_id);
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
 
-            GL.DrawElementsBaseVertex(PrimitiveType.Points, batchcount,
-                        indicesLength, IntPtr.Zero, -vertrstart_physics);
-            GL.DrawElementsBaseVertex(PrimitiveType.Triangles, batchcount,
-                        indicesLength, IntPtr.Zero, -vertrstart_physics);
+            GL.DrawElementsBaseVertex(PrimitiveType.Points, metaData.batchcount,
+                        indicesLength, IntPtr.Zero, -metaData.vertrstart_physics);
+            GL.DrawElementsBaseVertex(PrimitiveType.Triangles, metaData.batchcount,
+                        indicesLength, IntPtr.Zero, -metaData.vertrstart_physics);
             GL.BindVertexArray(0);
         }
 
@@ -1280,8 +1351,8 @@ namespace MVCore.GMDL
             for (int i = 0; i < 64; i++)
                 GL.Uniform1(loc + i, 0.0f);
 
-            for (int i = 0; i < Material.Flags.Count; i++)
-                GL.Uniform1(loc + (int) Material.Flags[i].MaterialFlag, 1.0f);
+            for (int i = 0; i < material.Flags.Count; i++)
+                GL.Uniform1(loc + (int) material.Flags[i].MaterialFlag, 1.0f);
 
             //Upload joint transform data
             //Multiply matrices before sending them
@@ -1293,114 +1364,405 @@ namespace MVCore.GMDL
             */
 
             //Step 2: Render VAO
-            GL.BindVertexArray(main_Vao.vao_id);
-            GL.DrawElements(PrimitiveType.Triangles, batchcount, DrawElementsType.UnsignedShort, (IntPtr)0);
+            GL.BindVertexArray(vao.vao_id);
+            GL.DrawElements(PrimitiveType.Triangles, metaData.batchcount, DrawElementsType.UnsignedShort, (IntPtr)0);
             GL.BindVertexArray(0);
         }
 
-        public override bool render(RENDERPASS pass)
+
+
+        //Default render method
+        public bool render(GLSLHelper.GLSLShaderConfig shader, RENDERPASS pass)
         {
-            GLSLHelper.GLSLShaderConfig shader = shader_programs[(int) pass];
+            if (instance_count == 0)
+                return false;
 
             //Render Object
             switch (pass)
             {
                 //Render Main
                 case RENDERPASS.DEFERRED:
+                    renderMain(shader);
+                    break;
                 case RENDERPASS.FORWARD:
                     renderMain(shader);
                     //renderBbox(MVCore.Common.RenderState.activeResMgr.GLShaders["BBOX_SHADER"]);
                     break;
                 //Render Bound Hull
                 case RENDERPASS.BHULL:
-                    renderBSphere(shader);
+                    //renderBSphere(shader);
                     //renderBHull(shader);
                     break;
                 //Render Debug
                 case RENDERPASS.DEBUG:
-                    renderDebug(shader.program_id);
+                    //renderDebug(shader.program_id);
                     break;
                 //Render for Picking
                 case RENDERPASS.PICK:
-                    renderDebug(shader.program_id);
+                    //renderDebug(shader.program_id);
                     break;
                 default:
                     //Do nothing in any other case
                     break;
             }
-            
+
             return true;
         }
 
-        public override void update()
+
+        public int addInstance(model m)
         {
-            if (skinned > 0)
+            //Set instance id
+            int instance_id = instance_count;
+            
+            if (instance_id < MAX_INSTANCES)
             {
-                if (animScene != null)
-                {
-                    AnimComponent ac = animScene.Components[animScene.animComponentID] as AnimComponent;
-                    //Update the mesh remap matrices and continue with the transform updates
-                    for (int i = 0; i < BoneRemapIndicesCount; i++)
-                    {
-                        Array.Copy(ac.skinMats, BoneRemapIndices[i] * 16, BoneRemapMatrices, i * 16, 16);
-                    }
-                }
-                else
-                {
-                    //We set the default pose here, which corresponds to identity skin matrix
-                    for (int i = 0; i < BoneRemapIndicesCount; i++)
-                        MathUtils.insertMatToArray16(BoneRemapMatrices, i * 16, Matrix4.Identity);
-                }
+                //Uplod worldMat to the meshVao
+                instance_id = instance_count;
+
+                setInstanceWorldMat(instance_id, m.worldMat);
+                setInstanceNormalMat(instance_id, Matrix4.Transpose(m.worldMat.Inverted()));
+                instanceRefs.Add(m); //Keep reference
+                instance_count++;
             }
-            
-            base.update();
 
-            if (instance_count > 10000)
-                Console.WriteLine("check");
-
-            //Setup Instances
-            MathUtils.insertMatToArray16(instance_data, instance_count * instance_struct_size_floats, worldMat);
-            instance_count++;
-            
-            //This looks like its working
-            //if (instances.Count > 1)
-            //    Console.WriteLine("Intance detected");
+            return instance_id;
         }
 
-        public override void setAnimScene(model animscene)
+        public void removeInstance(model m)
         {
-            animScene = animscene;
-            base.setAnimScene(animscene);
+            int id = instanceRefs.IndexOf(m);
+            
+            //TODO: Make all the memory shit to push the instances backwards
         }
+
 
         public void setInstanceOccludedStatus(int instance_id, bool status)
         {
-            instance_data[instance_id * instance_struct_size_floats + 1] = status ? 1.0f : 0.0f;
+            unsafe
+            {
+                UBO.instanceData[instance_id * instance_struct_size_floats + instance_isOccluded_Float_Offset] = status ? 1.0f : 0.0f;
+            }
+            
+        }
+
+        public bool getInstanceOccludedStatus(int instance_id)
+        {
+            unsafe
+            {
+                return UBO.instanceData[instance_id * instance_struct_size_floats + instance_isOccluded_Float_Offset] > 0.0f ? true : false;
+            }
         }
 
         public void setInstanceSelectedStatus(int instance_id, bool status)
         {
-            instance_data[instance_id * instance_struct_size_floats + 2] = status ? 1.0f : 0.0f;
+            unsafe
+            {
+                UBO.instanceData[instance_id * instance_struct_size_floats + instance_isSelected_Float_Offset] = status ? 1.0f : 0.0f;
+            }
         }
 
         public Matrix4 getInstanceWorldMat(int instance_id)
         {
-            return MathUtils.Matrix4FromArray(instance_data, instance_id * instance_struct_size_floats);
+            unsafe
+            {
+                fixed(float* ar = UBO.instanceData)
+                {
+                    return MathUtils.Matrix4FromArray(ar, instance_id * instance_struct_size_floats + instance_worldMat_Float_Offset);
+                }
+            }
+            
+        }
+
+        public Matrix4 getInstanceNormalMat(int instance_id)
+        {
+            unsafe
+            {
+                fixed (float* ar = UBO.instanceData)
+                {
+                    return MathUtils.Matrix4FromArray(ar, instance_id * instance_struct_size_floats + instance_normalMat_Float_Offset);
+                }
+            }
+        }
+
+        public Vector3 getInstanceColor(int instance_id)
+        {
+            float col;
+            unsafe
+            {
+                col = UBO.instanceData[instance_id * instance_struct_size_floats + instance_color_Float_Offset];
+            }
+            
+            return new Vector3(col, col, col);
         }
 
         public void setInstanceWorldMat(int instance_id, Matrix4 mat)
         {
-            MathUtils.insertMatToArray16(instance_data, instance_id * instance_struct_size_floats, mat);
+            unsafe
+            {
+                fixed (float* ar = UBO.instanceData)
+                {
+                    MathUtils.insertMatToArray16(ar, instance_id * instance_struct_size_floats + instance_worldMat_Float_Offset, mat);
+                }
+            }
         }
+
+        public void setInstanceNormalMat(int instance_id, Matrix4 mat)
+        {
+            unsafe
+            {
+                fixed (float* ar = UBO.instanceData)
+                {
+                    MathUtils.insertMatToArray16(ar, instance_id * instance_struct_size_floats + instance_normalMat_Float_Offset, mat);
+                }
+            }
+        }
+
+
+        public void setSkinMatrices(scene animScene)
+        {
+            for (int i = 0; i < BoneRemapIndicesCount; i++)
+            {
+                Array.Copy(animScene.skinMats, BoneRemapIndices[i] * 16, BoneRemapMatrices, i * 16, 16);
+            }
+        }
+
+        public void setDefaultSkinMatrices()
+        {
+            for (int i = 0; i < BoneRemapIndicesCount; i++)
+            {
+                MathUtils.insertMatToArray16(BoneRemapMatrices, i * 16, Matrix4.Identity);
+            }
+                
+        }
+
+
+        #region IDisposable Support
+        private bool disposedValue = false; // To detect redundant calls
+
+
+
+
+
+
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    // TODO: dispose managed state (managed objects).
+                    BoneRemapIndices = null;
+                    BoneRemapMatrices = null;
+                    
+                    vao?.Dispose();
+                }
+
+                // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
+                // TODO: set large fields to null.
+
+                disposedValue = true;
+            }
+        }
+
+        // TODO: override a finalizer only if Dispose(bool disposing) above has code to free unmanaged resources.
+        // ~mainGLVao()
+        // {
+        //   // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+        //   Dispose(false);
+        // }
+
+        // This code added to correctly implement the disposable pattern.
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+            Dispose(true);
+            // TODO: uncomment the following line if the finalizer is overridden above.
+            // GC.SuppressFinalize(this);
+        }
+        #endregion
+
+    }
+
+
+    public class meshModel : model
+    {
+        public int LodLevel
+        {
+            get
+            {
+                return metaData.lodLevel;
+            }
+            
+        }
+
+        public ulong Hash
+        {
+            get
+            {
+                return metaData.Hash;
+            }
+        }
+        
+        public MeshMetaData metaData = new MeshMetaData();
+        public Vector3 color = new Vector3(); //Per instance
+        public bool hasLOD = false;
+        public bool Skinned { 
+            get
+            {
+                if (meshVao.material != null)
+                {
+                    return meshVao.material.has_flag(TkMaterialFlags.UberFlagEnum._F02_SKINNED);
+                }
+                return false;
+            }
+        }
+        
+        public GLVao bHull_Vao;
+        public GeomObject gobject; //Ref to the geometry shit
+        
+        //Exposable Uniforms Properties
+        private Uniform gUserDataVec4;
+        public Uniform PgUserDataVec4
+        {
+            get { return gUserDataVec4; }
+
+            set { gUserDataVec4 = value; }
+        }
+
+        public Material material
+        {
+            get
+            {
+                return meshVao.material;
+            }
+        }
+        
+        //Constructor
+        public meshModel() : base()
+        {
+            type = TYPES.MESH;
+            metaData = new MeshMetaData();
+            
+            //Init Properties
+            gUserDataVec4 = new Uniform();
+            gUserDataVec4.PName = "mpCommonPerMesh.gUserDataVec4";
+        }
+
+        public meshModel(meshModel input) : base(input)
+        {
+            //Copy attributes
+            this.metaData = new MeshMetaData(input.metaData);
+            
+            //Copy Vao Refs
+            this.meshVao = input.meshVao;
+            
+            //Material Stuff
+            this.color = input.color;
+            
+            this.palette = input.palette;
+            this.gobject = input.gobject; //Leave geometry file intact, no need to copy anything here
+        }
+
+        public void copyFrom(meshModel input)
+        {
+            //Copy attributes
+            metaData = new MeshMetaData(input.metaData);
+            hasLOD = input.hasLOD;
+
+            //Copy Vao Refs
+            meshVao = input.meshVao;
+
+            //Material Stuff
+            color = input.color;
+
+            palette = input.palette;
+            gobject = input.gobject;
+
+            base.copyFrom(input);
+        }
+
+        public override model Clone()
+        {
+            meshModel new_m = new meshModel();
+            new_m.copyFrom(this);
+
+            new_m.meshVao = this.meshVao;
+            new_m.instanceId = new_m.meshVao.addInstance(this);
+            
+            //Clone children
+            foreach (model child in children)
+            {
+                model new_child = child.Clone();
+                new_child.parent = new_m;
+                new_m.children.Add(new_child);
+            }
+                
+            return new_m;
+        }
+
+        public override void update()
+        {
+            base.update();
+            //Calculate transfomration matrix for the normals
+            normMat = Matrix4.Transpose(worldMat.Inverted());
+        }
+
+        public override void updateMeshInfo()
+        {
+            if (!renderable)
+            {
+                base.updateMeshInfo();
+                return;
+            }
+
+            bool occluded_status = meshVao.getInstanceOccludedStatus(instanceId);
+            //Apply frustum culling
+            if (!Common.RenderState.activeCam.frustum_occlude(meshVao.metaData.AABBMIN,
+                meshVao.metaData.AABBMAX, worldMat))
+            {
+                Common.RenderStats.occludedNum++;
+                meshVao.setInstanceOccludedStatus(instanceId, true);
+                base.updateMeshInfo();
+                return;
+            }
+
+            //Apply LOD filtering
+            if (hasLOD && Common.RenderOptions.LODFiltering)
+            //if (false)
+            {
+                //Console.WriteLine("Active LoD {0}", parentScene.activeLOD);
+                if (parentScene.activeLOD != LodLevel)
+                {
+                    meshVao.setInstanceOccludedStatus(instanceId, true);
+                    base.updateMeshInfo();
+                    return;
+                }
+            }
+
+            meshVao.setInstanceOccludedStatus(instanceId, false);
+            meshVao.setInstanceWorldMat(instanceId, worldMat);
+            meshVao.setInstanceNormalMat(instanceId, normMat);
+
+            if (Skinned)
+            {
+                //Update the mesh remap matrices and continue with the transform updates
+                meshVao.setSkinMatrices(parentScene);
+
+                //Fallback
+                //main_Vao.setDefaultSkinMatrices();
+            }
+
+            base.updateMeshInfo();
+        }
+
 
         public void writeGeomToStream(StreamWriter s, ref uint index)
         {
-            //For testing DO NOT EXPORT COLLISION OBJECTS
-            if (this.type == TYPES.COLLISION) return;
-            
-            int vertcount = this.vertrend_graphics - this.vertrstart_graphics + 1;
-            MemoryStream vms = new MemoryStream(gobject.meshDataDict[Hash].vs_buffer);
-            MemoryStream ims = new MemoryStream(gobject.meshDataDict[Hash].is_buffer);
+            int vertcount = metaData.vertrend_graphics - metaData.vertrstart_graphics + 1;
+            MemoryStream vms = new MemoryStream(gobject.meshDataDict[metaData.Hash].vs_buffer);
+            MemoryStream ims = new MemoryStream(gobject.meshDataDict[metaData.Hash].is_buffer);
             BinaryReader vbr = new BinaryReader(vms);
             BinaryReader ibr = new BinaryReader(ims);
             //Start Writing
@@ -1443,9 +1805,9 @@ namespace MVCore.GMDL
                         throw new Exception("Unimplemented Vertex Type");
                 }
 
-                
+
                 v = Vector4.Transform(v, this.worldMat);
-                
+
                 //s.WriteLine("v " + Half.decompress(v1).ToString() + " "+ Half.decompress(v2).ToString() + " " + Half.decompress(v3).ToString());
                 s.WriteLine("v " + v.X.ToString() + " " + v.Y.ToString() + " " + v.Z.ToString());
                 vbr.BaseStream.Seek(gobject.vx_size - v_section_bytes, SeekOrigin.Current);
@@ -1502,10 +1864,10 @@ namespace MVCore.GMDL
                     default:
                         throw new Exception("UNIMPLEMENTED NORMAL TYPE. PLEASE REPORT");
                 }
-                
+
                 //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
                 //Transform normal with normalMatrix
-                
+
 
                 vN = Vector4.Transform(vN, nMat);
 
@@ -1513,8 +1875,8 @@ namespace MVCore.GMDL
                 vbr.BaseStream.Seek(gobject.vx_size - n_section_bytes, SeekOrigin.Current);
             }
             //Get UVs, only for mesh objects
-            
-            vbr.BaseStream.Seek(Math.Max(gobject.offsets[1], 0) + gobject.vx_size * vertrstart_graphics, SeekOrigin.Begin);
+
+            vbr.BaseStream.Seek(Math.Max(gobject.offsets[1], 0) + gobject.vx_size * metaData.vertrstart_graphics, SeekOrigin.Begin);
             for (int i = 0; i < vertcount; i++)
             {
                 Vector2 uv;
@@ -1538,7 +1900,7 @@ namespace MVCore.GMDL
                 vbr.BaseStream.Seek(gobject.vx_size - uv_section_bytes, SeekOrigin.Current);
             }
 
-            
+
             //Some Options
             s.WriteLine("usemtl(null)");
             s.WriteLine("s off");
@@ -1547,7 +1909,7 @@ namespace MVCore.GMDL
             ibr.BaseStream.Seek(0, SeekOrigin.Begin);
             bool start = false;
             uint fstart = 0;
-            for (int i = 0; i < batchcount/3; i++)
+            for (int i = 0; i < metaData.batchcount / 3; i++)
             {
                 uint f1, f2, f3;
                 //NEXT models assume that all gstream meshes have uint16 indices
@@ -1556,7 +1918,7 @@ namespace MVCore.GMDL
                 f3 = ibr.ReadUInt16();
 
                 if (!start && this.type != TYPES.COLLISION)
-                    { fstart = f1; start = true; }
+                { fstart = f1; start = true; }
                 else if (!start && this.type == TYPES.COLLISION)
                 {
                     fstart = 0; start = true;
@@ -1567,18 +1929,20 @@ namespace MVCore.GMDL
                 f22 = f2 - fstart + index;
                 f33 = f3 - fstart + index;
 
-               
+
                 s.WriteLine("f " + f11.ToString() + "/" + f11.ToString() + "/" + f11.ToString() + " "
                                 + f22.ToString() + "/" + f22.ToString() + "/" + f22.ToString() + " "
                                 + f33.ToString() + "/" + f33.ToString() + "/" + f33.ToString() + " ");
-               
-                    
+
+
             }
-            index += (uint) vertcount;
+            index += (uint)vertcount;
         }
 
+
+
         #region IDisposable Support
-        
+
         protected override void Dispose(bool disposing)
         {
             if (!disposed)
@@ -1589,17 +1953,6 @@ namespace MVCore.GMDL
                     // TODO: dispose managed state (managed objects).
                     //if (material != null) material.Dispose();
                     //NOTE: No need to dispose material, because the materials reside in the resource manager
-                    //vbo.Dispose(); I assume the the vbo's will be cleared with Resourcegmt cleanup
-                    BoneRemapIndices = null;
-                    BoneRemapMatrices = null;
-                    instance_data = null;
-                    
-                    //Dispose GL Stuff
-                    main_Vao?.Dispose();
-                    debug_Vao?.Dispose();
-                    pick_Vao?.Dispose();
-                    bsh_Vao?.Dispose();
-
                     base.Dispose(disposing);
                 }
             }
@@ -1636,113 +1989,82 @@ namespace MVCore.GMDL
         public static readonly int SizeInBytes = 360;
     };
 
-    public class Collision : meshModel
+    public class Collision : model
     {
         public COLLISIONTYPES collisionType;
+        public GeomObject gobject;
+        public MeshMetaData metaData = new MeshMetaData();
         
         //Custom constructor
         public Collision()
         {
-            this.skinned = 0; //Collision objects are not skinned (at least for now)
-            this.color = new Vector3(1.0f, 1.0f, 0.0f); //Set Yellow Color for collision objects
+            
         }
 
         public override model Clone()
         {
-            return new Collision(this);
-        }
+            Collision new_m = new Collision();
+            new_m.collisionType = collisionType;
+            new_m.copyFrom(this);
 
+            new_m.meshVao = this.meshVao;
+            new_m.instanceId = new_m.meshVao.addInstance(this);
+
+            //Clone children
+            foreach (model child in children)
+            {
+                model new_child = child.Clone();
+                new_child.parent = new_m;
+                new_m.children.Add(new_child);
+            }
+
+            return new_m;
+        }
+        
+        
         protected Collision(Collision input) : base(input)
         {
             collisionType = input.collisionType;
         }
 
-        public override bool render(RENDERPASS pass)
+        public override void update()
         {
-            GLSLHelper.GLSLShaderConfig shader = shader_programs[(int) pass];
+            base.update();
 
-            if (main_Vao == null || !Common.RenderOptions.RenderCollisions)
+            //Do not apply frustum culling on collision meshes
+            if (Common.RenderOptions.RenderCollisions)
             {
-                //Console.WriteLine("Not Renderable");
-                return false;
-            }
-
-            int program;
-            //Render Object
-            switch (pass)
-            {
-                //Render Main
-                case RENDERPASS.DEFERRED:
-                case RENDERPASS.FORWARD:
-                    renderMain(shader);
-                    break;
-                //Render Debug
-                case RENDERPASS.DEBUG:
-                    renderDebug(shader.program_id);
-                    break;
-                default:
-                    //Do nothing otherwise
-                    break;
-            }
-
-            return true;
-        }
-
-        public override void renderMain(GLSLHelper.GLSLShaderConfig shader)
-        {
-            //Console.WriteLine(this.name + this);
-            GL.UseProgram(shader.program_id);
-
-            //Step 1: Upload Uniforms
-            //Upload Material Flags here
             
-            GL.Uniform1(11, 64, Material.material_flags); //Upload Material Flags
-            //Upload Color Flag
-
-            GL.Uniform3(209, color);
-
-            //Step 2: Render Elements
-            GL.PointSize(10.0f);
-            GL.BindVertexArray(main_Vao.vao_id);
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
-
-            switch (collisionType)
-            {
-                //Rendering based on the original mesh buffers
-                case COLLISIONTYPES.MESH:
-                    GL.DrawElementsBaseVertex(PrimitiveType.Points, batchcount,
-                        indicesLength, IntPtr.Zero, -vertrstart_physics);
-                    GL.DrawElementsBaseVertex(PrimitiveType.Triangles, batchcount,
-                        indicesLength, IntPtr.Zero, -vertrstart_physics);
-                    break;
-                
-                //Rendering custom geometry
-                case COLLISIONTYPES.BOX:
-                case COLLISIONTYPES.CYLINDER:
-                case COLLISIONTYPES.CAPSULE:
-                case COLLISIONTYPES.SPHERE:
-                    GL.DrawElements(PrimitiveType.Triangles, batchcount,
-                        DrawElementsType.UnsignedInt, IntPtr.Zero);
-                    break;
-
             }
-            
-            GL.BindVertexArray(0);
         }
-
-        public override void renderDebug(int pass)
+        public override void updateMeshInfo()
         {
-            GL.UseProgram(pass);
+            if (!renderable || !Common.RenderOptions.RenderCollisions)
+            {
+                meshVao.setInstanceOccludedStatus(instanceId, true);
+                base.updateMeshInfo();
+                return;
+            }
 
-            //Render Elements
-            GL.BindVertexArray(main_Vao.vao_id);
-            GL.PolygonMode(MaterialFace.Front, PolygonMode.Fill);
-            GL.DrawElements(PrimitiveType.Triangles, batchcount,
-               DrawElementsType.UnsignedShort, IntPtr.Zero);
-            GL.BindVertexArray(0);
+            //Apply frustum culling
+            if (!Common.RenderState.activeCam.frustum_occlude(meshVao.metaData.AABBMIN,
+                meshVao.metaData.AABBMAX, worldMat))
+            {
+                Common.RenderStats.occludedNum++;
+                meshVao.setInstanceOccludedStatus(instanceId, true);
+                base.updateMeshInfo();
+                return;
+            }
+            else
+            {
+                meshVao.setInstanceOccludedStatus(instanceId, false);
+                meshVao.setInstanceWorldMat(instanceId, worldMat);
+                meshVao.setInstanceNormalMat(instanceId, Matrix4.Transpose(worldMat.Inverted()));
+            }
+
+            base.updateMeshInfo();
         }
 
-        
     }
 
     public class Decal : meshModel
@@ -1752,98 +2074,6 @@ namespace MVCore.GMDL
 
         public Decal(meshModel input):base(input) { }
         public Decal(Decal input) : base(input) { }
-
-        
-        public override bool render(RENDERPASS pass)
-        {
-            GLSLHelper.GLSLShaderConfig shader = shader_programs[(int)pass];
-            if (this.main_Vao == null)
-            {
-                //Console.WriteLine("Not Renderable");
-                return false;
-            }
-
-            return false;//Skip decal rendering for now
-
-            //Render Object
-            switch (pass)
-            {
-                //Render Main
-                case 0:
-                    renderMain(shader);
-                    break;
-                default:
-                    //Do nothing otherwise
-                    break;
-            }
-
-            return true;
-        }
-
-        public override void renderMain(GLSLHelper.GLSLShaderConfig shader)
-        {
-            //Console.WriteLine(this.name + this);
-            GL.UseProgram(shader.program_id);
-
-            //Step 1: Upload Uniforms
-            int loc;
-            //Upload Material Flags here
-            //Reset
-            loc = GL.GetUniformLocation(shader.program_id, "matflags");
-
-            if (loc > 0) 
-            {
-                for (int i = 0; i < 64; i++)
-                    GL.Uniform1(loc + i, 0.0f);
-
-                for (int i = 0; i < Material.Flags.Count; i++)
-                    GL.Uniform1(loc + (int) Material.Flags[i].MaterialFlag, 1.0f);
-            }
-            
-
-            //Upload decalTexture
-            //BIND TEXTURES
-            //Diffuse Texture
-            string test = "decalTex";
-            loc = GL.GetUniformLocation(shader.program_id, test);
-            GL.Uniform1(loc, 0); // I need to upload the texture unit number
-
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(Material.PSamplers["diffuseMap"].tex.target, Material.PSamplers["diffuseMap"].tex.bufferID);
-
-
-            //TODO: Upload the gbuffer depth texture from outside when rendering decal meshes
-            ////Depth Texture
-            //test = "depthTex";
-            //loc = GL.GetUniformLocation(pass, test);
-            //GL.Uniform1(loc, 1); // I need to upload the texture unit number
-
-            //GL.ActiveTexture((TextureUnit) (tex0Id + 1));
-            //GL.BindTexture(TextureTarget.Texture2D, MVCore.Common.RenderState.gbuf.dump_pos);
-
-            //Util.gbuf.dump();
-
-            //Step 2: Render Elements
-            GL.PointSize(5.0f);
-            GL.BindVertexArray(main_Vao.vao_id);
-            GL.DrawElements(PrimitiveType.Triangles, batchcount,
-               DrawElementsType.UnsignedShort, IntPtr.Zero);
-            GL.BindVertexArray(0);
-        }
-
-        public override void renderDebug(int pass)
-        {
-            GL.UseProgram(pass);
-            //Step 1: Upload Uniforms
-
-            //Step 2: Render Elements
-            GL.PointSize(5.0f);
-            GL.BindVertexArray(main_Vao.vao_id);
-            GL.DrawElements(PrimitiveType.Triangles, batchcount,
-               DrawElementsType.UnsignedShort, IntPtr.Zero);
-            GL.BindVertexArray(0);
-
-        }
 
         //Deconstructor
         protected override void Dispose(bool disposing)
@@ -1889,16 +2119,20 @@ namespace MVCore.GMDL
         public List<int> bhullends = new List<int>();
         public List<int[]> bhullindices = new List<int[]>();
         public List<int> vstarts = new List<int>();
-        public Dictionary<ulong, meshMetaData> meshMetaDataDict = new Dictionary<ulong, meshMetaData>();
-        public Dictionary<ulong, meshData> meshDataDict = new Dictionary<ulong, meshData>();
+        public Dictionary<ulong, geomMeshMetaData> meshMetaDataDict = new Dictionary<ulong, geomMeshMetaData>();
+        public Dictionary<ulong, geomMeshData> meshDataDict = new Dictionary<ulong, geomMeshData>();
         
         //Joint info
         public List<JointBindingData> jointData = new List<JointBindingData>();
         public float[] invBMats = new float[256 * 16];
 
-        //Dictionary with the compiled VAOs belonging on this gobect
-        private Dictionary<ulong, GMDL.mainVAO> GLVaos = new Dictionary<ulong, mainVAO>();
-        
+        //Dictionary with the compiled VAOs belonging on this gobject
+        private Dictionary<ulong, GMDL.GLVao> GLVaos = new Dictionary<ulong, GLVao>();
+        //Dictionary to index 
+        private Dictionary<ulong, Dictionary<string, GLMeshVao>> GLMeshVaos = new Dictionary<ulong, Dictionary<string, GLMeshVao>>();
+
+
+
         public Vector3 get_vec3_half(BinaryReader br)
         {
             Vector3 temp;
@@ -1928,22 +2162,66 @@ namespace MVCore.GMDL
 
 
 
-        //Fetch main VAO
-        public mainVAO getMainVao(meshModel so)
+
+
+        //Fetch Meshvao from dictionary
+        public GLMeshVao findGLMeshVao(string material_name, ulong hash)
         {
-            //Make sure that the hash exists in the dictionary
-            if (so.Hash == 0xFFFFFFFF)
-                throw new System.Collections.Generic.KeyNotFoundException("Invalid Mesh Hash");
+            if (GLMeshVaos.ContainsKey(hash))
+                if (GLMeshVaos[hash].ContainsKey(material_name))
+                    return GLMeshVaos[hash][material_name];
+                
+            return null;
+        }
 
-            if (GLVaos.ContainsKey(so.Hash))
-                return GLVaos[so.Hash];
-            
-            
-            mainVAO vao = new mainVAO();
-            //Save vao to Resource Manager
-            GLVaos[so.Hash] = vao;
+        //Fetch Meshvao from dictionary
+        public GLVao findVao(ulong hash)
+        {
+            if (GLVaos.ContainsKey(hash))
+                return GLVaos[hash];
+            return null;
+        }
 
+        //Save GLMeshVAO to gobject
+        public bool saveGLMeshVAO(ulong hash, string matname, GLMeshVao meshVao)
+        {
+            if (GLMeshVaos.ContainsKey(hash))
+            {
+                if (GLMeshVaos[hash].ContainsKey(matname))
+                {
+                    Console.WriteLine("MeshVao already in the dictinary, nothing to do...");
+                    return false;
+                }
+            }
+            else
+                GLMeshVaos[hash] = new Dictionary<string, GLMeshVao>();
+                
+            GLMeshVaos[hash][matname] = meshVao;
+
+            return true;
+
+        }
+
+        //Save VAO to gobject
+        public bool saveVAO(ulong hash, GLVao vao)
+        {
+            //Double check tha the VAO is not already in the dictinary
+            if (GLVaos.ContainsKey(hash))
+            {
+                Console.WriteLine("Vao already in the dictinary, nothing to do...");
+                return false;
+            }
+                
+            //Save to dictionary
+            GLVaos[hash] = vao;
+            return true;
+        }
+
+        //Fetch main VAO
+        public GLVao generateVAO(meshModel so)
+        {
             //Generate VAO
+            GLVao vao = new GLVao();
             vao.vao_id = GL.GenVertexArray();
             GL.BindVertexArray(vao.vao_id);
             
@@ -1954,60 +2232,40 @@ namespace MVCore.GMDL
             vao.vertex_buffer_object = vbo_buffers[0];
             vao.element_buffer_object = vbo_buffers[1];
             
-
             //Bind vertex buffer
             int size;
             GL.BindBuffer(BufferTarget.ArrayBuffer, vao.vertex_buffer_object);
             //Upload Vertex Buffer
-            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr) meshMetaDataDict[so.Hash].vs_size,
-                meshDataDict[so.Hash].vs_buffer, BufferUsageHint.StaticDraw);
+            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr) meshMetaDataDict[so.metaData.Hash].vs_size,
+                meshDataDict[so.metaData.Hash].vs_buffer, BufferUsageHint.StaticDraw);
             GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize,
                 out size);
-            if (size != vx_size * (so.vertrend_graphics + 1))
+            if (size != vx_size * (so.metaData.vertrend_graphics + 1))
                 throw new ApplicationException(String.Format("Problem with vertex buffer"));
 
-            MVCore.Common.RenderStats.vertNum += so.vertrend_graphics + 1; //Accumulate settings
+            MVCore.Common.RenderStats.vertNum += so.metaData.vertrend_graphics + 1; //Accumulate settings
 
             //Assign VertexAttribPointers
             for (int i = 0; i < 7; i++)
             {
                 if (this.bufInfo[i] == null) continue;
                 bufInfo buf = this.bufInfo[i];
-                bool normalize = false;
-                if (buf.type == VertexAttribPointerType.UnsignedByte)
-                    normalize = true;
-                GL.VertexAttribPointer(i, buf.count, buf.type, normalize, this.vx_size, buf.stride);
+                GL.VertexAttribPointer(i, buf.count, buf.type, buf.normalize, this.vx_size, buf.stride);
                 GL.EnableVertexAttribArray(i);
             }
 
             //Upload index buffer
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, vao.element_buffer_object);
-            GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr) meshMetaDataDict[so.Hash].is_size, 
-                meshDataDict[so.Hash].is_buffer, BufferUsageHint.StaticDraw);
+            GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr) meshMetaDataDict[so.metaData.Hash].is_size, 
+                meshDataDict[so.metaData.Hash].is_buffer, BufferUsageHint.StaticDraw);
             GL.GetBufferParameter(BufferTarget.ElementArrayBuffer, BufferParameterName.BufferSize,
                 out size);
             Console.WriteLine(GL.GetError());
-            if (size != meshMetaDataDict[so.Hash].is_size)
+            if (size != meshMetaDataDict[so.metaData.Hash].is_size)
                 throw new ApplicationException(String.Format("Problem with vertex buffer"));
 
 
-            //Calculate indiceslength per index buffer
-            int indicesLength = (int)meshMetaDataDict[so.Hash].is_size / so.batchcount;
-
-            switch (indicesLength)
-            {
-                case 1:
-                    so.indicesLength = DrawElementsType.UnsignedByte;
-                    break;
-                case 2:
-                    so.indicesLength = DrawElementsType.UnsignedShort;
-                    break;
-                case 4:
-                    so.indicesLength = DrawElementsType.UnsignedInt;
-                    break;
-            }
-
-            MVCore.Common.RenderStats.trisNum += (int) (so.batchcount / 3); //Accumulate settings
+            MVCore.Common.RenderStats.trisNum += (int) (so.metaData.batchcount / 3); //Accumulate settings
 
             //Unbind
             GL.BindVertexArray(0);
@@ -2019,16 +2277,16 @@ namespace MVCore.GMDL
             return vao;
         }
 
-        public mainVAO getCollisionMeshVao(meshModel so)
+        public GLVao getCollisionMeshVao(MeshMetaData metaData)
         {
             //Collision Mesh isn't used anywhere else.
             //No need to check for hashes and shit
 
-            float[] vx_buffer_float = new float[(so.boundhullend - so.boundhullstart) * 3];
+            float[] vx_buffer_float = new float[(metaData.boundhullend - metaData.boundhullstart) * 3];
 
-            for (int i = 0; i < so.boundhullend - so.boundhullstart; i++)
+            for (int i = 0; i < metaData.boundhullend - metaData.boundhullstart; i++)
             {
-                Vector3 v = so.gobject.bhullverts[i + so.boundhullstart];
+                Vector3 v = bhullverts[i + metaData.boundhullstart];
                 vx_buffer_float[3 * i + 0] = v.X;
                 vx_buffer_float[3 * i + 1] = v.Y;
                 vx_buffer_float[3 * i + 2] = v.Z;
@@ -2039,8 +2297,8 @@ namespace MVCore.GMDL
 
             //Set main Geometry Info
             temp_geom.vertCount = vx_buffer_float.Length / 3;
-            temp_geom.indicesCount = so.batchcount;
-            temp_geom.indicesLength = so.gobject.indicesLength; 
+            temp_geom.indicesCount = metaData.batchcount;
+            temp_geom.indicesLength = indicesLength; 
 
             //Set Strides
             temp_geom.vx_size = 3 * 4; //3 Floats * 4 Bytes each
@@ -2058,29 +2316,29 @@ namespace MVCore.GMDL
             temp_geom.mesh_descr = "vn";
             temp_geom.offsets[0] = 0;
             temp_geom.offsets[2] = 0;
-            temp_geom.bufInfo[0] = new GMDL.bufInfo(0, VertexAttribPointerType.Float, 3, 0, "vPosition");
-            temp_geom.bufInfo[2] = new GMDL.bufInfo(2, VertexAttribPointerType.Float, 3, 0, "nPosition");
+            temp_geom.bufInfo[0] = new GMDL.bufInfo(0, VertexAttribPointerType.Float, 3, 0, "vPosition", false);
+            temp_geom.bufInfo[2] = new GMDL.bufInfo(2, VertexAttribPointerType.Float, 3, 0, "nPosition", false);
 
             //Set Buffers
-            temp_geom.ibuffer = new byte[temp_geom.indicesLength * so.batchcount];
+            temp_geom.ibuffer = new byte[temp_geom.indicesLength * metaData.batchcount];
             temp_geom.vbuffer = new byte[sizeof(float) * vx_buffer_float.Length];
 
-            System.Buffer.BlockCopy(so.gobject.ibuffer, so.batchstart_physics * temp_geom.indicesLength, temp_geom.ibuffer, 0, temp_geom.ibuffer.Length);
+            System.Buffer.BlockCopy(ibuffer, metaData.batchstart_physics * temp_geom.indicesLength, temp_geom.ibuffer, 0, temp_geom.ibuffer.Length);
             System.Buffer.BlockCopy(vx_buffer_float, 0, temp_geom.vbuffer, 0, temp_geom.vbuffer.Length);
 
-            return temp_geom.getMainVao();
+
+            return temp_geom.generateVAO();
         }
 
-        public mainVAO getMainVao()
+        public GLVao generateVAO()
         {
-            //This method works with custom vbuffer and ibuffer
-            //Used mostly from Primitive Object classes
-            mainVAO vao = new mainVAO();
+
+            GLVao vao = new GLVao();
 
             //Generate VAO
             vao.vao_id = GL.GenVertexArray();
             GL.BindVertexArray(vao.vao_id);
-
+            
             //Generate VBOs
             int[] vbo_buffers = new int[2];
             GL.GenBuffers(2, vbo_buffers);
@@ -2155,17 +2413,26 @@ namespace MVCore.GMDL
                     jointData.Clear();
 
                     //Clear buffers
-                    foreach (KeyValuePair<ulong, meshMetaData> pair in meshMetaDataDict)
+                    foreach (KeyValuePair<ulong, geomMeshMetaData> pair in meshMetaDataDict)
                         meshDataDict[pair.Key] = null;
 
                     meshDataDict.Clear();
                     meshMetaDataDict.Clear();
 
                     //Clear Vaos
-                    foreach (mainVAO p in GLVaos.Values)
+                    foreach (GLVao p in GLVaos.Values)
                         p.Dispose();
                     GLVaos.Clear();
 
+                    //Dispose GLmeshes
+                    foreach (Dictionary<string, GLMeshVao> p in GLMeshVaos.Values)
+                    {
+                        foreach (GLMeshVao m in p.Values)
+                            m.Dispose(); 
+                        p.Clear();
+                        //Materials are stored globally
+                    }
+                
                 }
 
                 disposedValue = true;
@@ -2189,14 +2456,16 @@ namespace MVCore.GMDL
         public int count;
         public int stride;
         public string sem_text;
+        public bool normalize;
 
-        public bufInfo(int sem,VertexAttribPointerType typ, int c, int s, string t)
+        public bufInfo(int sem,VertexAttribPointerType typ, int c, int s, string t, bool n)
         {
             semantic = sem;
             type = typ;
             count = c;
             stride = s;
             sem_text = t;
+            normalize = n;
         }
     }
 
@@ -2650,6 +2919,12 @@ namespace MVCore.GMDL
             MVCore.Common.CallBacks.Log("\n");
         }
 
+        //Wrapper to support uberflags
+        public bool has_flag(TkMaterialFlags.UberFlagEnum flag)
+        {
+            return has_flag((TkMaterialFlags.MaterialFlagEnum) flag);
+        }
+
         public bool has_flag(TkMaterialFlags.MaterialFlagEnum flag)
         {
             for (int i = 0; i < Flags.Count; i++)
@@ -2658,6 +2933,22 @@ namespace MVCore.GMDL
                     return true;
             }
             return false;
+        }
+
+        public bool add_flag(TkMaterialFlags.UberFlagEnum flag)
+        {
+            //Check if material has flag
+            foreach (TkMaterialFlags f in Flags)
+            {
+                if (f.MaterialFlag == (TkMaterialFlags.MaterialFlagEnum)flag)
+                    return false;
+            }
+            
+            TkMaterialFlags ff = new TkMaterialFlags();
+            ff.MaterialFlag = (TkMaterialFlags.MaterialFlagEnum) flag;
+            Flags.Add(ff);
+
+            return true;
         }
 
         public GMDL.Material Clone()
@@ -3776,9 +4067,8 @@ namespace MVCore.GMDL
 
     }
 
-    public class Joint : locator
+    public class Joint : model
     {
-        public mainVAO main_Vao;
         public int jointIndex;
         public Vector3 color;
 
@@ -3794,43 +4084,63 @@ namespace MVCore.GMDL
         public Matrix4 localPoseMatrix
         {
             get { return _localPoseMatrix; }
-            set { _localPoseMatrix = value; changed = true; }
+            set { _localPoseMatrix = value; updated = true; }
         }
 
-        public Joint() :base(0.1f)
+        public Joint()
         {
             type = TYPES.JOINT;   
         }
 
         protected Joint(Joint input) : base(input)
         {
-            this.main_Vao = input.main_Vao;
             this.jointIndex = input.jointIndex;
+            this.BindMat = input.BindMat;
+            this.invBMat = input.invBMat;
             this.color = input.color;
+
+
+            meshVao = new GLMeshVao();
+            instanceId = meshVao.addInstance(this);
+            meshVao.setInstanceWorldMat(instanceId, Matrix4.Identity); //This does not change 
+            meshVao.type = TYPES.JOINT;
+            meshVao.metaData = new MeshMetaData();
+            //TODO: Find a place to keep references from the joint GLMeshVAOs
+            meshVao.vao = new MVCore.Primitives.LineSegment(children.Count, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
+            meshVao.material = Common.RenderState.activeResMgr.GLmaterials["jointMat"];
         }
 
-        public override void update()
+        public override void updateMeshInfo()
         {
-            base.update(); 
-
-            //Update Vertex Buffer based on the new positions
-            float[] verts = new float[2 * children.Count * 3];
-            int arraysize = 2 * children.Count * 3 * sizeof(float);
-
-            for (int i = 0; i < children.Count; i++)
+            
+            //We do not apply frustum occlusion on joint objects
+            if (Common.RenderOptions.RenderJoints && renderable)
             {
-                verts[i * 6 + 0] = worldPosition.X;
-                verts[i * 6 + 1] = worldPosition.Y;
-                verts[i * 6 + 2] = worldPosition.Z;
-                verts[i * 6 + 3] = children[i].worldPosition.X;
-                verts[i * 6 + 4] = children[i].worldPosition.Y;
-                verts[i * 6 + 5] = children[i].worldPosition.Z;
-            }
+                //Update Vertex Buffer based on the new positions
+                float[] verts = new float[2 * children.Count * 3];
+                int arraysize = 2 * children.Count * 3 * sizeof(float);
 
-            GL.BindVertexArray(main_Vao.vao_id);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, main_Vao.vertex_buffer_object);
-            //Add verts data, color data should stay the same
-            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
+                for (int i = 0; i < children.Count; i++)
+                {
+                    verts[i * 6 + 0] = worldPosition.X;
+                    verts[i * 6 + 1] = worldPosition.Y;
+                    verts[i * 6 + 2] = worldPosition.Z;
+                    verts[i * 6 + 3] = children[i].worldPosition.X;
+                    verts[i * 6 + 4] = children[i].worldPosition.Y;
+                    verts[i * 6 + 5] = children[i].worldPosition.Z;
+                }
+
+                meshVao.metaData.batchcount = 2 * children.Count;
+
+                GL.BindVertexArray(meshVao.vao.vao_id);
+                GL.BindBuffer(BufferTarget.ArrayBuffer, meshVao.vao.vertex_buffer_object);
+                //Add verts data, color data should stay the same
+                GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
+                meshVao.setInstanceOccludedStatus(instanceId, false);
+            } else
+                meshVao.setInstanceOccludedStatus(instanceId, true);
+
+            base.updateMeshInfo();
         }
 
         public override model Clone()
@@ -3838,49 +4148,11 @@ namespace MVCore.GMDL
             return new Joint(this);
         }
 
-        
-
-        //Render should render Bones from joint to children
-        private void renderMain(int pass)
-        {
-            GL.UseProgram(pass);
-
-            GL.BindVertexArray(main_Vao.vao_id);
-            GL.PointSize(5.0f);
-            GL.DrawArrays(PrimitiveType.Lines, 0, 2 * children.Count);
-            GL.DrawArrays(PrimitiveType.Points, 0, 1); //Draw only yourself
-            GL.BindVertexArray(0);
-
-        }
-
-        public override bool render(RENDERPASS pass)
-        {
-            
-            if (children.Count == 0 || !Common.RenderOptions.RenderJoints)
-                return false;
-
-            int program;
-            //Render Object
-            switch (pass)
-            {
-                //Render Main
-                case 0:
-                    program = shader_programs[(int) pass].program_id;
-                    renderMain(program);
-                    break;
-                default:
-                    //Do nothing otherwise
-                    break;
-            }
-
-            return true;
-        }
-
         //DIsposal
         protected override void Dispose(bool disposing)
         {
             //Dispose GL Stuff
-            main_Vao?.Dispose();
+            meshVao?.Dispose();
             base.Dispose(disposing);
         }
     }
@@ -3921,7 +4193,7 @@ namespace MVCore.GMDL
     {
         //I should expand the light properties here
         public MVector4 color = new MVector4(1.0f);
-        public mainVAO main_Vao;
+        //public GLMeshVao main_Vao;
         public float fov = 360.0f;
         public ATTENUATION_TYPE falloff;
         public LIGHT_TYPE light_type;
@@ -4060,27 +4332,68 @@ namespace MVCore.GMDL
             vertex_buffer_object = input.vertex_buffer_object;
             element_buffer_object = input.element_buffer_object;
             strct = input.strct;
-            main_Vao = input.main_Vao;
+            meshVao = input.meshVao;
 
             //Copy Matrices
             lightProjectionMatrix = input.lightProjectionMatrix;
+            lightSpaceMatrices = new Matrix4[6];
             for (int i = 0; i < 6; i++)
                 lightSpaceMatrices[i] = input.lightSpaceMatrices[i];
 
         }
 
+        public override void updateMeshInfo()
+        {
+            if (Common.RenderOptions.RenderLights && renderable)
+            {
+                //End Point
+                Vector4 ep;
+                if (MathUtils.isIdentity(_localRotation))
+                {
+                    ep = new Vector4(0.0f, 0.0f, 0.0f, 1.0f);
+                    light_type = LIGHT_TYPE.POINT;
+                }
+                else
+                {
+                    ep = new Vector4(0.0f, -1.0f, 0.0f, 0.0f);
+                    light_type = LIGHT_TYPE.SPOT;
+                }
+
+                //ep = ep * worldMat;
+                ep = ep * _localRotation;
+
+                //Update Vertex Buffer based on the new data
+                float[] verts = new float[6];
+                int arraysize = 6 * sizeof(float);
+
+                //Origin Point
+                verts[0] = worldPosition.X;
+                verts[1] = worldPosition.Y;
+                verts[2] = worldPosition.Z;
+
+                ep.X += worldPosition.X;
+                ep.Y += worldPosition.Y;
+                ep.Z += worldPosition.Z;
+
+                verts[3] = ep.X;
+                verts[4] = ep.Y;
+                verts[5] = ep.Z;
+
+                GL.BindVertexArray(meshVao.vao.vao_id);
+                GL.BindBuffer(BufferTarget.ArrayBuffer, meshVao.vao.vertex_buffer_object);
+                //Add verts data, color data should stay the same
+                GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
+
+                //Uplod worldMat to the meshVao
+                meshVao.setInstanceWorldMat(instanceId, Matrix4.Identity);
+            }
+
+            base.updateMeshInfo();
+        }
+
         public override void update()
         {
             base.update();
-
-            //Update Vertex Buffer based on the new data
-            float[] verts = new float[6];
-            int arraysize = 6 * sizeof(float);
-
-            //Origin Point
-            verts[0] = worldPosition.X;
-            verts[1] = worldPosition.Y;
-            verts[2] = worldPosition.Z;
 
             //End Point
             Vector4 ep;
@@ -4091,27 +4404,14 @@ namespace MVCore.GMDL
             }
             else
             {
-                ep = new Vector4(0.0f, -1.0f, 0.0f, 1.0f);
+                ep = new Vector4(0.0f, -1.0f, 0.0f, 0.0f);
                 light_type = LIGHT_TYPE.SPOT;
             }
-                
-            //End Point Transform
+
+            //ep = ep * worldMat;
             ep = ep * _localRotation;
+            
             direction = ep.Xyz; //Set spotlight direction
-            ep.X += worldPosition.X;
-            ep.Y += worldPosition.Y;
-            ep.Z += worldPosition.Z;
-
-            verts[3] = ep.X;
-            verts[4] = ep.Y;
-            verts[5] = ep.Z;
-
-            GL.BindVertexArray(main_Vao.vao_id);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, main_Vao.vertex_buffer_object);
-            //Add verts data, color data should stay the same
-            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
-
-
             update_struct();
 
             //Assume that this is a point light for now
@@ -4159,36 +4459,6 @@ namespace MVCore.GMDL
             return new Light(this);
         }
 
-        private void renderMain(int pass)
-        {
-            GL.UseProgram(pass);
-
-            GL.BindVertexArray(main_Vao.vao_id);
-            GL.PointSize(5.0f);
-            GL.DrawArrays(PrimitiveType.Lines, 0, 2);
-            GL.DrawArrays(PrimitiveType.Points, 0, 2); //Draw both points
-            GL.BindVertexArray(0);
-        }
-
-        public override bool render(RENDERPASS pass)
-        {
-            int program = shader_programs[(int) pass].program_id;
-
-            if (!Common.RenderOptions.RenderLights)
-                return false;
-
-            switch (pass)
-            {
-                case 0:
-                    renderMain(program);
-                    break;
-                default:
-                    break;      
-            }
-
-            return true;
-        }
-
         //Disposal
         protected override void Dispose(bool disposing)
         {
@@ -4213,9 +4483,10 @@ namespace MVCore.GMDL
 
     //model Components
     //TODO Move them somewhere else
-    public class Component : IDisposable
+    public abstract class Component : IDisposable
     {
-
+        public abstract Component Clone();
+        
         #region IDisposable Support
         private bool disposedValue = false; // To detect redundant calls
 
@@ -4243,11 +4514,6 @@ namespace MVCore.GMDL
     
     public class AnimComponent : Component
     {
-        //Joint Data
-        public float[] skinMats; //Final Matrices
-        public Dictionary<string, Joint> jointDict;
-        public Dictionary<string, model> modelDict; //This will probably replace the jointDict since it seems like animations contain data for all nodes
-
         //animations list Contains all the animations bound to the locator through Tkanimationcomponent
         public List<AnimData> _animations = new List<AnimData>();
         public List<AnimData> Animations
@@ -4261,19 +4527,11 @@ namespace MVCore.GMDL
         //Default Constructor
         public AnimComponent()
         {
-            //Init Animation Stuff
-            skinMats = new float[256 * 16];
-            modelDict = new Dictionary<string, model>();
-            jointDict = new Dictionary<string, Joint>();
+            
         }
 
         public AnimComponent(TkAnimationComponentData data)
         {
-            //Init Animation Stuff
-            skinMats = new float[256 * 16];
-            modelDict = new Dictionary<string, model>();
-            jointDict = new Dictionary<string, Joint>();
-
             //Load Animations
             if (data.Idle.Anim != "")
                 _animations.Add(new AnimData(data.Idle)); //Add Idle Animation
@@ -4292,24 +4550,23 @@ namespace MVCore.GMDL
             //Base class is dummy
             //base.copyFrom(input); //Copy stuff from base class
 
-            //ANIMATION DATA
-            modelDict = new Dictionary<string, model>();
-            jointDict = new Dictionary<string, Joint>();
-            
             //TODO: Copy Animations
             
         }
 
+        public override Component Clone()
+        {
+            AnimComponent ac = new AnimComponent();
+
+            //Copy Animations
+            foreach (AnimData ad in _animations)
+                ac.Animations.Add(ad.Clone());
+            
+            return ac;
+        }
+
         public void update()
         {
-            
-            //Update JM Array
-            foreach (Joint j in jointDict.Values)
-            {
-                Matrix4 jointSkinMat = j.invBMat * j.worldMat;
-                MathUtils.insertMatToArray16(skinMats, j.jointIndex * 16, jointSkinMat);
-            }
-
             
         }
 
@@ -4326,11 +4583,6 @@ namespace MVCore.GMDL
             {
                 if (disposing)
                 {
-                    skinMats = null;
-                    
-                    modelDict.Clear();
-                    jointDict.Clear();
-
                     base.Dispose(disposing);
                 }
                 disposed = true;
@@ -4352,6 +4604,14 @@ namespace MVCore.GMDL
         {
             _resources = new List<LODModelResource>();
         }
+
+        public override Component Clone()
+        {
+            LODModelComponent lmc = new LODModelComponent();
+            return lmc;
+        }
+
+
     }
 
     public class LODModelResource
@@ -4403,6 +4663,11 @@ namespace MVCore.GMDL
         }
 
         //Default Constructor
+        public AnimPoseComponent()
+        {
+
+        }
+
         public AnimPoseComponent(TkAnimPoseComponentData apcd)
         {
             _poseFrameData = (TkAnimMetadata) NMSUtils.LoadNMSFile(Path.GetFullPath(Path.Combine(FileUtils.dirpath, apcd.Filename)));
@@ -4414,7 +4679,12 @@ namespace MVCore.GMDL
                 poseData.Add(my_apd);
             }
         }
-        
+
+        public override Component Clone()
+        {
+            return new AnimPoseComponent();
+        }
+
         //ICommands
 
         private class ApplyPoseCommand : ICommand
@@ -4433,7 +4703,7 @@ namespace MVCore.GMDL
             void ICommand.Execute(object parameter)
             {
                 AnimPoseComponent apc = parameter as AnimPoseComponent;
-                apc.ref_object.loadPose();
+                ((scene) apc.ref_object.parentScene).applyPoses(apc.ref_object.loadPose());
             }
         }
 
@@ -4453,7 +4723,7 @@ namespace MVCore.GMDL
             void ICommand.Execute(object parameter)
             {
                 AnimPoseComponent apc = parameter as AnimPoseComponent;
-                apc.ref_object.resetPose();
+                apc.ref_object.parentScene.resetPoses();
             }
         }
 
@@ -4661,6 +4931,28 @@ namespace MVCore.GMDL
             if (Filename != "")
                 fetchAnimMetaData();
         }
+
+        public AnimData()
+        {
+            
+        }
+
+        public AnimData Clone()
+        {
+            AnimData ad = new AnimData();
+            
+            ad.Anim = Anim;
+            ad.Filename = Filename;
+            ad.FrameStart = FrameStart;
+            ad.FrameEnd = FrameEnd;
+            ad.StartNode = StartNode;
+            ad.AnimType = AnimType;
+            ad.Speed = Speed;
+            ad.Additive = Additive;
+            ad.animMeta = animMeta;
+
+            return ad;
+        }
         
         //Properties
 
@@ -4760,6 +5052,8 @@ namespace MVCore.GMDL
             }
         }
 
+        //TODO: Use this new definition for animation blending
+        //public void applyNodeTransform(model m, string node, out Quaternion q, out Vector3 p)
         public void applyNodeTransform(model m, string node)
         {
             //Fetch prevFrame stuff
@@ -4772,7 +5066,7 @@ namespace MVCore.GMDL
 
             //Interpolate
 
-            Quaternion q = prev_q * LERP_coeff + next_q * (1.0f - LERP_coeff);
+            Quaternion q = Quaternion.Slerp(prev_q, next_q, LERP_coeff);
             Vector3 p = prev_p * LERP_coeff + next_p * (1.0f - LERP_coeff);
 
             //Convert transforms

@@ -28,6 +28,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)MBIN.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ModelProcGen.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)NMS_Util.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Octree.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Palettes.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)RenderManager.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ResourceManager.cs" />

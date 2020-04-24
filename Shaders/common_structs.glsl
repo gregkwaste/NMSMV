@@ -11,6 +11,7 @@ struct Light //locations:5
 struct MeshInstance
 {
     mat4 worldMat;
+    mat4 normalMat;
     float isOccluded;
     float isSelected;
 };
@@ -18,12 +19,10 @@ struct MeshInstance
 //Common Per Mesh Struct
 struct CommonPerMeshUniforms
 {
-    mat4 nMat;
     mat4 skinMats[80];
     vec4 gUserDataVec4;
     vec3 color; //Mesh Default Color
     float skinned;
-    float selected; //Selected
     MeshInstance instanceData[300]; //World Matrices
 };
 

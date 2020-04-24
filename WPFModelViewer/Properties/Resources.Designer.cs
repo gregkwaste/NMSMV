@@ -61,9 +61,10 @@ namespace WPFModelViewer.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to #version 330
-        ///#extension GL_ARB_explicit_uniform_location : enable
-        ///#extension GL_ARB_separate_shader_objects : enable
+        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
+        /// *  Copies incoming vertex color without change.
+        /// *  Applies the transformation matrix to vertex position.
+        /// */
         ///
         ///void main()
         ///{	
@@ -77,13 +78,11 @@ namespace WPFModelViewer.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to #version 330
-        ///#extension GL_ARB_explicit_uniform_location : enable
-        ///#extension GL_ARB_separate_shader_objects : enable
-        ///
-        ////* Copies incoming vertex color without change.
-        /// * Applies the transformation matrix to vertex position.
+        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
+        /// *  Copies incoming vertex color without change.
+        /// *  Applies the transformation matrix to vertex position.
         /// */
+        ///
         ///layout(location=0) in vec4 vPosition;
         ///layout(location=1) in vec4 nPosition; //normals
         ///uniform mat4 self_mvp, mvp;
@@ -97,7 +96,8 @@ namespace WPFModelViewer.Properties {
         ///
         ///    gl_Position = mvp * inv_pos;
         ///
-        ///	//gl_Po [rest of string was truncated]&quot;;.
+        ///	//gl_Position = mvp * vPosition;
+        ///	gl_Position = gl_Position * 1.0f [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string camera_vert {
             get {
@@ -116,7 +116,11 @@ namespace WPFModelViewer.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to #version 330
+        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
+        /// *  Copies incoming vertex color without change.
+        /// *  Applies the transformation matrix to vertex position.
+        /// */
+        ///
         ////* Copies incoming fragment color without change. */
         ///in vec3 color;
         ///
@@ -135,8 +139,11 @@ namespace WPFModelViewer.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to #version 330
-        ///#extension GL_ARB_explicit_uniform_location : enable
+        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
+        /// *  Copies incoming vertex color without change.
+        /// *  Applies the transformation matrix to vertex position.
+        /// */
+        ///
         ///
         ///#include &quot;/common_structs.glsl&quot;
         ///
@@ -156,8 +163,7 @@ namespace WPFModelViewer.Properties {
         ///{
         ///    //Set color
         ///    color = vcolor;
-        ///	gl_Position = mpCommonPerFrame.mvp * vPosition;
-        ///}.
+        /// [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string joint_vert {
             get {
@@ -210,7 +216,11 @@ namespace WPFModelViewer.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to #version 330
+        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
+        /// *  Copies incoming vertex color without change.
+        /// *  Applies the transformation matrix to vertex position.
+        /// */
+        ///
         ////* Copies incoming fragment color without change. */
         ///in vec3 color;
         ///in vec4 finalPos;
@@ -231,27 +241,30 @@ namespace WPFModelViewer.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to #version 330
-        ///#extension GL_ARB_explicit_uniform_location : enable
-        ///#extension GL_ARB_separate_shader_objects : enable
+        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
+        /// *  Copies incoming vertex color without change.
+        /// *  Applies the transformation matrix to vertex position.
+        /// */
         ///
-        ///layout(location=0) in vec3 vPosition;
+        ///
+        ///#include &quot;/Shaders/common_structs.glsl&quot;
+        ///
+        ///layout(location=0) in vec4 vPosition;
         ///layout(location=1) in vec3 vcolor;
-        ///layout(location=7) uniform mat4 mvp;
-        ///layout(location=8) uniform mat4 nMat;
-        ///layout(location=9) uniform mat4 rotMat;
-        ///layout(location=10) uniform mat4 worldMat;
+        ///
+        ///uniform float scale;
+        ///
+        /////Uniform Blocks
+        ///layout (std140) uniform Uniforms
+        ///{
+        ///    CommonPerFrameUniforms mpCommonPerFrame;
+        ///    CommonPerMeshUniforms mpCommonPerMesh;
+        ///};
         ///
         ///out vec3 color;
         ///out vec4 finalPos;
         ///
-        ///
-        ///void main()
-        ///{
-        ///    //Set color
-        ///    color = vcolor;
-        ///	finalPos = worldMat * vec4(vPosition, 1.0);
-        ///    gl_Pos [rest of string was truncated]&quot;;.
+        ///vo [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string locator_vert {
             get {
@@ -260,8 +273,12 @@ namespace WPFModelViewer.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to #version 330
-        ///#extension GL_ARB_explicit_uniform_location : enable
+        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
+        /// *  Copies incoming vertex color without change.
+        /// *  Applies the transformation matrix to vertex position.
+        /// */
+        ///
+        ///
         ///flat in int object_id;
         /////flat int object_id;
         ///layout(location=0) out vec4 outcolor;
@@ -277,8 +294,7 @@ namespace WPFModelViewer.Properties {
         ///	color.b = 0.0;
         ///
         ///	//pickColor = color;
-        ///	outcolor = color;
-        ///}.
+        ///	outcolor = [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string pick_frag {
             get {
@@ -287,10 +303,10 @@ namespace WPFModelViewer.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to #version 330
-        ///#extension GL_ARB_explicit_uniform_location : enable
-        ///#extension GL_ARB_separate_shader_objects : enable
-        ///#extension GL_NV_gpu_shader5 : enable
+        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
+        /// *  Copies incoming vertex color without change.
+        /// *  Applies the transformation matrix to vertex position.
+        /// */
         ///
         ///layout(location=0) in vec4 vPosition;
         ///layout(location=1) in vec2 uvPosition0;
@@ -300,7 +316,7 @@ namespace WPFModelViewer.Properties {
         ///layout(location=5) in vec4 blendIndices;
         ///layout(location=6) in vec4 blendWeights;
         ///
-        ///layout(location=7) uniform mat4 mv [rest of string was truncated]&quot;;.
+        ///layout(location=7) un [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string pick_vert {
             get {
@@ -374,7 +390,12 @@ namespace WPFModelViewer.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to #version 330
+        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
+        /// *  Copies incoming vertex color without change.
+        /// *  Applies the transformation matrix to vertex position.
+        /// */
+        ///
+        ///
         ////* Copies incoming fragment color without change. */
         ///uniform sampler2D diffuseTex;
         ///in vec2 uv0;
@@ -389,13 +410,7 @@ namespace WPFModelViewer.Properties {
         ///		Character Maps are usually full white textures with
         ///		black characters. The Shader should invert the colors
         ///		and use the input color to recolour the letters
-        ///	*/
-        ///
-        ///	vec4 color = textureLod(diffuseTex, uv0, 0.0);
-        ///	//color = vec4(vec3(1.0, 1.0, 1.0) - color.rgb, color.a);
-        ///
-        ///	//color -= dFdx(color) * dx;
-        ///	//color -= dFdy( [rest of string was truncated]&quot;;.
+        ///	*/        /// [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string text_frag {
             get {
@@ -404,7 +419,12 @@ namespace WPFModelViewer.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to #version 330
+        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
+        /// *  Copies incoming vertex color without change.
+        /// *  Applies the transformation matrix to vertex position.
+        /// */
+        ///
+        ///
         ////* Simple Quad Rendering Shader
         /// */
         ///attribute vec4 vPosition;
@@ -423,13 +443,7 @@ namespace WPFModelViewer.Properties {
         ///void main()
         ///{
         ///    //uv0 = vPosition.xy * vec2(0.5, 0.5) + vec2(0.5, 0.5);
-        ///    uv0 = uvPosition.xy;
-        ///    uv0.y = 1.0 - uv0.y;
-        ///    dx = 2.0/w;
-        ///    dy = 2.0/h;
-        ///    //Render to UV coordinate
-        ///    mat4 projmat = mat4(2.0/w, 0.0,    0.0, 0.0,
-        ///       [rest of string was truncated]&quot;;.
+        ///    uv0 = u [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string text_vert {
             get {

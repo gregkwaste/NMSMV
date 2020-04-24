@@ -28,6 +28,7 @@ namespace MVCore
         public int positions = -1;
         public int normals = -1;
         public int info = -1;
+        public int info2 = -1;
         public int final_color = -1;
         public int depth = -1;
 
@@ -60,17 +61,19 @@ namespace MVCore
                 Console.WriteLine("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
             //Setup diffuse texture
-            setup_texture(ref albedo, fbo, FramebufferAttachment.ColorAttachment0Ext, PixelInternalFormat.Rgba16f);
+            setup_texture(ref albedo, TextureTarget.Texture2DMultisample, fbo, FramebufferAttachment.ColorAttachment0Ext, PixelInternalFormat.Rgba16f);
             //Setup positions texture
-            setup_texture(ref positions, fbo, FramebufferAttachment.ColorAttachment1Ext, PixelInternalFormat.Rgba32f);
+            setup_texture(ref positions, TextureTarget.Texture2DMultisample, fbo, FramebufferAttachment.ColorAttachment1Ext, PixelInternalFormat.Rgba32f);
             //Setup normals texture
-            setup_texture(ref normals, fbo, FramebufferAttachment.ColorAttachment2Ext, PixelInternalFormat.Rgba32f);
+            setup_texture(ref normals, TextureTarget.Texture2DMultisample, fbo, FramebufferAttachment.ColorAttachment2Ext, PixelInternalFormat.Rgba32f);
             //Setup final color texture
-            setup_texture(ref final_color, fbo, FramebufferAttachment.ColorAttachment3Ext, PixelInternalFormat.Rgba8);
+            setup_texture(ref final_color, TextureTarget.Texture2DMultisample, fbo, FramebufferAttachment.ColorAttachment3Ext, PixelInternalFormat.Rgba8);
             //Setup info texture
-            setup_texture(ref info, fbo, FramebufferAttachment.ColorAttachment4Ext, PixelInternalFormat.Rgba32f);
+            setup_texture(ref info, TextureTarget.Texture2DMultisample, fbo, FramebufferAttachment.ColorAttachment4Ext, PixelInternalFormat.Rgba32f);
+            //Setup info2 texture
+            setup_texture(ref info2, TextureTarget.Texture2DMultisample, fbo, FramebufferAttachment.ColorAttachment5Ext, PixelInternalFormat.Rgba32f);
             //Setup Depth texture
-            setup_texture(ref depth, fbo, FramebufferAttachment.DepthAttachmentExt, PixelInternalFormat.DepthComponent);
+            setup_texture(ref depth, TextureTarget.Texture2DMultisample, fbo, FramebufferAttachment.DepthAttachmentExt, PixelInternalFormat.DepthComponent);
 
             //Check
             if (GL.Ext.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
@@ -80,13 +83,12 @@ namespace MVCore
             //Setup dump_fbo
             dump_fbo = GL.Ext.GenFramebuffer();
             
-
-            setup_texture(ref dump_rgba8_1, dump_fbo, FramebufferAttachment.ColorAttachment0, PixelInternalFormat.Rgba8);
-            setup_texture(ref dump_rgba16f_1, dump_fbo, FramebufferAttachment.ColorAttachment1, PixelInternalFormat.Rgba16f);
-            //setup_texture(ref dump_rgba8_2, dump_fbo, FramebufferAttachment.ColorAttachment1, PixelInternalFormat.Rgba8);
-            setup_texture(ref dump_rgba32f_1, dump_fbo, FramebufferAttachment.ColorAttachment2, PixelInternalFormat.Rgba32f);
-            setup_texture(ref dump_rgba32f_2, dump_fbo, FramebufferAttachment.ColorAttachment3, PixelInternalFormat.Rgba32f);
-            setup_texture(ref dump_depth, dump_fbo, FramebufferAttachment.DepthAttachmentExt, PixelInternalFormat.DepthComponent);
+            setup_texture(ref dump_rgba8_1, TextureTarget.Texture2DMultisample, dump_fbo, FramebufferAttachment.ColorAttachment0, PixelInternalFormat.Rgba8);
+            setup_texture(ref dump_rgba16f_1, TextureTarget.Texture2DMultisample, dump_fbo, FramebufferAttachment.ColorAttachment1, PixelInternalFormat.Rgba16f);
+            //setup_texture(ref dump_rgba8_2, TextureTarget.Texture2DMultisample,dump_fbo, FramebufferAttachment.ColorAttachment1, PixelInternalFormat.Rgba8);
+            setup_texture(ref dump_rgba32f_1, TextureTarget.Texture2DMultisample, dump_fbo, FramebufferAttachment.ColorAttachment2, PixelInternalFormat.Rgba32f);
+            setup_texture(ref dump_rgba32f_2, TextureTarget.Texture2DMultisample, dump_fbo, FramebufferAttachment.ColorAttachment3, PixelInternalFormat.Rgba32f);
+            setup_texture(ref dump_depth, TextureTarget.Texture2DMultisample, dump_fbo, FramebufferAttachment.DepthAttachmentExt, PixelInternalFormat.DepthComponent);
 
 
             //Check
@@ -98,22 +100,52 @@ namespace MVCore
         }
 
         //TODO: Organize this function a bit
-        public void setup_texture(ref int handle, int attach_to_fbo, FramebufferAttachment attachment_id, PixelInternalFormat format)
+        public void setup_texture(ref int handle, TextureTarget textarget, int attach_to_fbo, FramebufferAttachment attachment_id, PixelInternalFormat format)
         {
             handle = GL.Ext.GenTexture();
 
-            GL.Ext.BindTexture(TextureTarget.Texture2DMultisample, handle);
 
-            //GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent, size[0], size[1], 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
-            GL.TexImage2DMultisample(TextureTargetMultisample.Texture2DMultisample, msaa_samples, format, size[0], size[1], true);
-            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
-            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-            //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+            if (textarget == TextureTarget.Texture2DMultisample)
+            {
+                GL.Ext.BindTexture(TextureTarget.Texture2DMultisample, handle);
 
-            GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, attach_to_fbo);
-            GL.Ext.FramebufferTexture2D(FramebufferTarget.FramebufferExt, attachment_id, TextureTarget.Texture2DMultisample, handle, 0);
-            //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+                //GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent, size[0], size[1], 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
+                GL.TexImage2DMultisample(TextureTargetMultisample.Texture2DMultisample, msaa_samples, format, size[0], size[1], true);
+                //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+                //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+                //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+                //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+
+                GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, attach_to_fbo);
+                GL.Ext.FramebufferTexture2D(FramebufferTarget.FramebufferExt, attachment_id, TextureTarget.Texture2DMultisample, handle, 0);
+                //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+            } else if (textarget == TextureTarget.Texture2D)
+            {
+                GL.Ext.BindTexture(TextureTarget.Texture2D, handle);
+
+                Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+
+                //GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent, size[0], size[1], 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
+                //GL.TexImage2DMultisample(TextureTargetMultisample.Texture2DMultisample, msaa_samples, format, size[0], size[1], true);
+                GL.TexImage2D(TextureTarget.Texture2D, 0, format, size[0], size[1], 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
+                //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+                //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+                //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+                //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+
+                Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+
+                GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, attach_to_fbo);
+                Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+                GL.Ext.FramebufferTexture2D(FramebufferTarget.FramebufferExt, attachment_id, TextureTarget.Texture2D, handle, 0);
+                Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+                //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+            } else
+            {
+                throw new Exception("Unsupported texture target " + textarget);
+            }
+
+
 
         }
 
@@ -137,11 +169,17 @@ namespace MVCore
         {
             //Bind Gbuffer fbo
             GL.Ext.BindFramebuffer(FramebufferTarget.DrawFramebuffer, fbo);
-            GL.DrawBuffers(5, new DrawBuffersEnum[] { DrawBuffersEnum.ColorAttachment0,
+            GL.DrawBuffers(6, new DrawBuffersEnum[] { DrawBuffersEnum.ColorAttachment0,
                                                       DrawBuffersEnum.ColorAttachment1,
                                                       DrawBuffersEnum.ColorAttachment2,
                                                       DrawBuffersEnum.ColorAttachment3,
-                                                      DrawBuffersEnum.ColorAttachment4} );
+                                                      DrawBuffersEnum.ColorAttachment4,
+                                                      DrawBuffersEnum.ColorAttachment5} );
+#if DEBUG
+            ErrorCode err = GL.GetError();
+            if (err != ErrorCode.NoError)
+                Console.WriteLine(err);
+#endif
 
             GL.ClearColor(0.0f, 0.0f, 0.0f, 0.0f); //Transparent Clear color
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
@@ -238,6 +276,7 @@ namespace MVCore
             GL.DeleteTexture(depth);
             GL.DeleteTexture(final_color);
             GL.DeleteTexture(info);
+            GL.DeleteTexture(info2);
 
             //Delete dump textures + dump_fbo
             GL.DeleteFramebuffer(dump_fbo);

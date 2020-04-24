@@ -72,6 +72,7 @@ namespace Model_Viewer
         }
 
         public List<model> animScenes = new List<model>();
+        public Queue<model> modelUpdateQueue = new Queue<model>();
         public List<Tuple<AnimComponent, AnimData>> activeAnimScenes = new List<Tuple<AnimComponent, AnimData>>();
 
         //Control private Managers
@@ -127,13 +128,13 @@ namespace Model_Viewer
             registerFunctions();
 
             //Default Setup
-            this.rot.Y = 131;
-            this.light_angle_y = 190;
+            rot.Y = 131;
+            light_angle_y = 190;
 
             //Input Polling Timer
             inputPollTimer = new System.Timers.Timer();
             inputPollTimer.Elapsed += new System.Timers.ElapsedEventHandler(input_poller);
-            inputPollTimer.Interval = 10;
+            inputPollTimer.Interval = 5;
             
             //Resize Timer
             resizeTimer = new System.Timers.Timer();
@@ -143,6 +144,7 @@ namespace Model_Viewer
             //Set properties
             DoubleBuffered = true;
             VSync = false;
+
         }
 
         //Constructor
@@ -184,7 +186,9 @@ namespace Model_Viewer
             });
 
             if (focused)
-                keyboardController(); //Move camera according to input
+            {
+                kbHandler.updateState();
+            }
         }
 
         private void rt_render()
@@ -198,57 +202,58 @@ namespace Model_Viewer
         {
             if (node.animComponentID >= 0)
                 animScenes.Add(node);
-
+            
             foreach (model child in node.children)
-            {
                 findAnimScenes(child);
-            }
-
         }
 
         //Per Frame Updates
         private void frameUpdate()
         {
-            //Cleanup instances
-            renderMgr.clearInstances();
+            //Update movement
+            keyboardController();
 
             //Set time to the renderManager
             renderMgr.progressTime(dt);
-            
-            //Update Scene
-            rootObject?.update();
 
-            //Save new updated joint transforms to the corresponding AnimCompoent Structures
-            for (int i = 0; i < animScenes.Count; i++)
+            //Reset Stats
+            RenderStats.occludedNum = 0;
+
+            //rootObject?.update();
+            rootObject?.updateLODDistances();
+            rootObject?.updateMeshInfo();
+
+            //Update moving queue
+            while (modelUpdateQueue.Count > 0)
             {
-                model animScene = animScenes[i];
-                AnimComponent ac = animScene._components[animScene.hasComponent(typeof(AnimComponent))] as AnimComponent;
-                ac.update();
+                model m = modelUpdateQueue.Dequeue();
+                m.update();
+                m.updateMeshInfo();
             }
 
             //Progress animations
-            if (MVCore.Common.RenderOptions.ToggleAnimations)
+            if (RenderOptions.ToggleAnimations)
             {
-                bool found_first_active_anim = false;
                 //Update active animations
-                foreach (model anim_scene in animScenes)
+                foreach (model anim_model in animScenes)
                 {
-                    AnimComponent ac = anim_scene._components[anim_scene.hasComponent(typeof(AnimComponent))] as AnimComponent;
+                    AnimComponent ac = anim_model._components[anim_model.hasComponent(typeof(AnimComponent))] as AnimComponent;
+                    bool found_first_active_anim = false;
 
                     foreach (AnimData ad in ac.Animations)
                     {
                         if (ad._animationToggle)
                         {
                             found_first_active_anim = true;
+                            modelUpdateQueue.Enqueue(anim_model.parentScene);
                             //Load updated local joint transforms
                             foreach (libMBIN.NMS.Toolkit.TkAnimNodeData node in ad.animMeta.NodeData)
                             {
-                                if (!ac.jointDict.ContainsKey(node.Node))
+                                if (!anim_model.parentScene.jointDict.ContainsKey(node.Node))
                                     continue;
 
-                                Joint tj = ac.jointDict[node.Node];
+                                Joint tj = anim_model.parentScene.jointDict[node.Node];
                                 ad.applyNodeTransform(tj, node.Node);
-                                
                             }
 
                             //Once the current frame data is fetched, progress to the next frame
@@ -258,9 +263,6 @@ namespace Model_Viewer
                         if (found_first_active_anim)
                             break; 
                     }
-                    //TODO: For now I'm just using the first active animation. Blending should be kinda more sophisticated
-                    if (found_first_active_anim)
-                        break;
                 }
             }
             
@@ -291,12 +293,11 @@ namespace Model_Viewer
             this.MakeCurrent(); //This is essential
 
             //Add default primitives trying to avoid Vao Request queue traffic
-            addDefaultLights();
-            addDefaultTextures();
+            resMgr.Cleanup();
+            resMgr.Init();
             addCamera();
             addCamera(cull:false); //Add second camera
             setActiveCam(0);
-            addDefaultPrimitives();
             addTestObjects();
 
             renderMgr.setupGBuffer(ClientSize.Width, ClientSize.Height);
@@ -574,13 +575,6 @@ namespace Model_Viewer
             this.exportToObjToolStripMenuItem.Text = "Export to obj";
             this.exportToObjToolStripMenuItem.Click += new System.EventHandler(this.exportToObjToolStripMenuItem_Click);
             // 
-            // loadAnimationToolStripMenuItem
-            // 
-            this.loadAnimationToolStripMenuItem.Name = "loadAnimationToolStripMenuItem";
-            this.loadAnimationToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
-            this.loadAnimationToolStripMenuItem.Text = "Load Animation";
-            this.loadAnimationToolStripMenuItem.Click += new System.EventHandler(this.loadAnimationToolStripMenuItem_Click);
-            // 
             // openFileDialog1
             // 
             this.openFileDialog1.FileName = "openFileDialog1";
@@ -830,21 +824,24 @@ namespace Model_Viewer
 
         private void findGeoms(model m, StreamWriter s, ref uint index)
         {
-            if (m.type == TYPES.MESH || m.type==TYPES.COLLISION)
+            switch (m.type)
             {
-                //Get converted text
-                meshModel me = (meshModel) m;
-                me.writeGeomToStream(s, ref index);
-
+                case TYPES.MESH:
+                    {
+                        //Get converted text
+                        meshModel me = (meshModel)m;
+                        me.writeGeomToStream(s, ref index);
+                        break;
+                    }
+                case TYPES.COLLISION:
+                    Console.WriteLine("NOT IMPLEMENTED YET");
+                    break;
+                default:
+                    break;
             }
+            
             foreach (model c in m.children)
                 if (c.renderable) findGeoms(c, s, ref index);
-        }
-
-        private void loadAnimationToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            AnimationSelectForm aform = new AnimationSelectForm(animScenes);
-            aform.Show();
         }
 
         #endregion ContextMethods
@@ -904,52 +901,16 @@ namespace Model_Viewer
         private void addCamera(bool cull = true)
         {
             //Set Camera position
-            Camera cam = new Camera(60, resMgr.GLShaders[SHADER_TYPE.BBOX_SHADER].program_id, 0, cull);
+            Camera cam = new Camera(90, resMgr.GLShaders[SHADER_TYPE.BBOX_SHADER].program_id, 0, cull);
             for (int i = 0; i < 20; i++)
                 cam.Move(0.0f, -0.1f, 0.0f);
             cam.isActive = false;
             resMgr.GLCameras.Add(cam);
         }
 
-        private void addDefaultTextures()
-        {
-            string execpath = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
-            //Add Default textures
-            //White tex
-            string texpath = Path.Combine(execpath, "default.dds");
-            Texture tex = new Texture(texpath);
-            tex.name = "default.dds";
-            resMgr.texMgr.addTexture(tex);
-            //Transparent Mask
-            texpath = Path.Combine(execpath, "default_mask.dds");
-            tex = new Texture(texpath);
-            tex.name = "default_mask.dds";
-            resMgr.texMgr.addTexture(tex);
-        }
+        
 
-        private void addDefaultPrimitives()
-        {
-            //Default quad
-            MVCore.Primitives.Quad q = new MVCore.Primitives.Quad(1.0f, 1.0f);
-            resMgr.GLPrimitiveVaos["default_quad"] = q.getVAO();
-
-            //Default render quad
-            q = new MVCore.Primitives.Quad();
-            resMgr.GLPrimitiveVaos["default_renderquad"] = q.getVAO();
-
-            //Default cross
-            MVCore.Primitives.Cross c = new MVCore.Primitives.Cross();
-            resMgr.GLPrimitiveVaos["default_cross"] = c.getVAO();
-
-            //Default cube
-            MVCore.Primitives.Box bx = new MVCore.Primitives.Box(1.0f, 1.0f, 1.0f);
-            resMgr.GLPrimitiveVaos["default_box"] = bx.getVAO();
-
-            //Default sphere
-            MVCore.Primitives.Sphere sph = new MVCore.Primitives.Sphere(new Vector3(0.0f,0.0f,0.0f), 100.0f);
-            resMgr.GLPrimitiveVaos["default_sphere"] = sph.getVAO();
-        }
-
+        
         private void addTestObjects()
         {
             
@@ -979,6 +940,7 @@ namespace Model_Viewer
 
             //Clear Form Resources
             resMgr.Cleanup();
+            resMgr.Init();
             MVCore.Common.RenderState.activeResMgr = resMgr;
             ModelProcGen.procDecisions.Clear();
             //Clear animScenes
@@ -986,19 +948,15 @@ namespace Model_Viewer
             rootObject = null;
 
             //Clear RenderStats
-            RenderStats.clearStats();
+            RenderStats.ClearStats();
             
             //Stop animation if on
             if (RenderOptions.ToggleAnimations)
                 toggleAnimation();
             
-            //Add defaults
-            addDefaultLights();
-            addDefaultTextures();
             addCamera();
             addCamera(cull: false); //Add second camera
             setActiveCam(0);
-            addDefaultPrimitives();
 
             //Setup new object
             rootObject = GEOMMBIN.LoadObjects(filename, false);
@@ -1012,8 +970,9 @@ namespace Model_Viewer
             //find Animation Capable nodes
             findAnimScenes(rootObject);
 
-            //Refresh all transforms
-            rootObject.update();
+            rootObject.updateLODDistances();
+            rootObject.update(); //Refresh all transforms
+            rootObject.updateMeshInfo(); //Update all mesh info
 
             //Restart anim worker if it was active
             if (!RenderOptions.ToggleAnimations)
@@ -1021,28 +980,7 @@ namespace Model_Viewer
         }
 
         //Light Functions
-        private void addDefaultLights()
-        {
-            //Add one and only light for now
-            Light light = new Light();
-            light.name = "Default Light";
-            light.intensity = 50000;
-            light.shader_programs = new GLSLHelper.GLSLShaderConfig[] { this.resMgr.GLShaders[GLSLHelper.SHADER_TYPE.LIGHT_SHADER] };
-
-            /*
-            light.localPosition = new Vector3((float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                            Math.Sin(this.light_angle_y * Math.PI / 180.0)),
-                                                (float)(light_distance * Math.Sin(this.light_angle_x * Math.PI / 180.0)),
-                                                (float)(light_distance * Math.Cos(this.light_angle_x * Math.PI / 180.0) *
-                                                Math.Cos(this.light_angle_y * Math.PI / 180.0)));
-            */
-            light.localPosition = new Vector3(10.0f, 10.0f, 10.0f);
-            light.main_Vao = new MVCore.Primitives.LineSegment(1, new Vector3(1.0f, 1.0f, 1.0f)).getVAO();
-
-            resMgr.GLlights.Add(light);
-        }
-
-
+        
         public void updateLightPosition(int light_id)
         {
             Light light = resMgr.GLlights[light_id];
@@ -1108,23 +1046,16 @@ namespace Model_Viewer
         {
             if (kbHandler == null) return;
 
-            //This Method handles and controls the gamepad input
-            
-            kbHandler.updateState();
-            //gpHandler.reportAxes();
-
             //Camera Movement
-            float step = movement_speed * 0.01f;
+            float step = movement_speed * 0.002f;
             RenderState.activeCam.Move(
                     step * (kbHandler.getKeyStatus(OpenTK.Input.Key.D) - kbHandler.getKeyStatus(OpenTK.Input.Key.A)),
                     step * (kbHandler.getKeyStatus(OpenTK.Input.Key.W) - kbHandler.getKeyStatus(OpenTK.Input.Key.S)),
                     step * (kbHandler.getKeyStatus(OpenTK.Input.Key.R) - kbHandler.getKeyStatus(OpenTK.Input.Key.F)));
 
-            
             //Rotate Axis
             rot.Y += 50 * step * (kbHandler.getKeyStatus(OpenTK.Input.Key.E) - kbHandler.getKeyStatus(OpenTK.Input.Key.Q));
             rot.X += 50 * step * (kbHandler.getKeyStatus(OpenTK.Input.Key.C) - kbHandler.getKeyStatus(OpenTK.Input.Key.Z));
-            
         }
 
         #endregion

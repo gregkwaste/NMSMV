@@ -37,16 +37,16 @@ namespace MVCore.GMDL
         private Frustum extFrustum = new Frustum();
         public Vector4[] frPlanes = new Vector4[6];
 
-
         //Rendering Stuff
-        public GMDL.mainVAO vao;
+        public GMDL.GLMeshVao vao;
         public int program;
 
         public Camera(int angle, int program, int mode, bool cull)
         {
             //Set fov on init
             this.setFOV(angle);
-            vao = (new Primitives.Box(1.0f, 1.0f, 1.0f)).getVAO();
+            vao = new GLMeshVao();
+            vao.vao = (new Primitives.Box(1.0f, 1.0f, 1.0f)).getVAO();
             this.program = program;
             this.type = mode;
             this.culling = cull;
@@ -177,15 +177,27 @@ namespace MVCore.GMDL
 
         }
 
-        public bool frustum_occlude(GMDL.meshModel cand, Matrix4 cand_wMat, Matrix4 transform)
+        public bool frustum_occlude(GMDL.GLMeshVao meshVao, int instance_id)
         {
             if (!culling) return true;
-            
-            float radius = 0.5f * (cand.Bbox[0] - cand.Bbox[1]).Length;
-            Vector3 bsh_center = cand.Bbox[0] + 0.5f * (cand.Bbox[1] - cand.Bbox[0]);
+
+            //Fetch worldMat from meshVao using the instance_id
+            Matrix4 wMat = meshVao.getInstanceWorldMat(instance_id);
+
+            //Run the actual frustum_occlude method
+            return frustum_occlude(meshVao.metaData.AABBMIN, meshVao.metaData.AABBMAX, wMat);
+        }
+
+        public bool frustum_occlude(Vector3 AABBMIN, Vector3 AABBMAX, Matrix4 transform)
+        {
+            if (!Common.RenderOptions.UseFrustumCulling)
+                return true;
+
+            float radius = 0.5f * (AABBMIN - AABBMAX).Length;
+            Vector3 bsh_center = AABBMIN + 0.5f * (AABBMAX - AABBMIN);
 
             //Move sphere to object's root position
-            bsh_center = (new Vector4(bsh_center, 1.0f) * cand_wMat).Xyz;
+            bsh_center = (new Vector4(bsh_center, 1.0f) * transform).Xyz;
 
             //This is not accurate for some fucking reason
             //return extFrustum.AABBVsFrustum(cand.Bbox, cand.worldMat * transform);
@@ -194,10 +206,17 @@ namespace MVCore.GMDL
             return extFrustum.SphereVsFrustum(bsh_center, radius);
         }
 
+
+        public bool frustum_occlude(GMDL.meshModel cand)
+        {
+            if (!culling) return true;
+
+            return frustum_occlude(cand.meshVao.metaData.AABBMIN, cand.meshVao.metaData.AABBMAX, cand.worldMat);
+        }
+
         public bool frustum_occlude(GMDL.meshModel cand, Matrix4 transform)
         {
-            return frustum_occlude(cand, cand.worldMat, transform);
-
+            return frustum_occlude(cand.meshVao.metaData.AABBMIN, cand.meshVao.metaData.AABBMAX, cand.worldMat * transform);
         }
 
         public void render()

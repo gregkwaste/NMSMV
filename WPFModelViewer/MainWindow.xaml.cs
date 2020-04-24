@@ -61,6 +61,17 @@ namespace WPFModelViewer
             requestHandler.Elapsed += queryRequests;
             requestHandler.Start();
 
+            Console.WriteLine("Testing");
+
+            //Setup Logger
+            Util.loggingSr = new StreamWriter("log.out");
+
+            //SETUP THE CALLBACKS OF MVCORE
+            CallBacks.updateStatus = Util.setStatus;
+            CallBacks.openAnim = Util.loadAnimationFile;
+            CallBacks.Log = Util.Log;
+            CallBacks.issueRequestToGLControl = Util.sendRequest;
+
             //Generate CGLControl
             glControl = new CGLControl();
             RenderState.activeResMgr = glControl.resMgr;
@@ -286,9 +297,6 @@ namespace WPFModelViewer
             settings = SettingsForm.loadSettingsStatic();
             SettingsForm.saveSettingsToEnv(settings);
 
-            //Setup Logger
-            Util.loggingSr = new StreamWriter("log.out");
-
             //Check if the rt_thread is ready
             ThreadRequest req = new ThreadRequest();
             req.type = THREAD_REQUEST_TYPE.QUERY_GLCONTROL_STATUS_REQUEST;
@@ -308,8 +316,9 @@ namespace WPFModelViewer
 
             //Force rootobject
             glControl.rootObject = scene;
+            glControl.modelUpdateQueue.Enqueue(scene);
             glControl.renderMgr.populate(scene);
-
+            
             SceneTreeView.Items.Clear();
             SceneTreeView.Items.Add(scene);
             
@@ -321,12 +330,6 @@ namespace WPFModelViewer
             //Set active Components
             Util.activeStatusStrip = StatusLabel;
             Util.activeControl = glControl;
-
-            //SETUP THE CALLBACKS OF MVCORE
-            MVCore.Common.CallBacks.updateStatus = Util.setStatus;
-            MVCore.Common.CallBacks.openAnim = Util.loadAnimationFile;
-            MVCore.Common.CallBacks.Log = Util.Log;
-            MVCore.Common.CallBacks.issueRequestToGLControl = Util.sendRequest;
 
             //Add event handlers to GUI elements
             sliderzNear.ValueChanged += Sliders_OnValueChanged;
@@ -360,12 +363,6 @@ namespace WPFModelViewer
         private void PlayStop_Click(object sender, RoutedEventArgs e)
         {
             glControl.toggleAnimation();
-        }
-
-        private void loadAnim(object sender, RoutedEventArgs e)
-        {
-            AnimationSelectForm aform = new AnimationSelectForm(glControl.animScenes);
-            aform.Show();
         }
 
         private void RegenPose_Click(object sender, RoutedEventArgs e)

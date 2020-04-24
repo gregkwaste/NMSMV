@@ -14,11 +14,16 @@ uniform CustomPerMaterialUniforms mpCustomPerMaterial;
 uniform CommonPerFrameSamplers mpCommonPerFrameSamplers;
 
 //Uniform Blocks
-layout (std140) uniform Uniforms
+layout (std140, binding=0) uniform _COMMON_PER_FRAME
 {
     CommonPerFrameUniforms mpCommonPerFrame;
+};
+
+layout (std140, binding=1) uniform _COMMON_PER_MESH
+{
     CommonPerMeshUniforms mpCommonPerMesh;
 };
+
 
 in vec4 fragPos;
 in vec4 vertColor;
@@ -26,9 +31,10 @@ in vec3 N;
 in vec2 uv0;
 in mat3 TBN;
 in float isOccluded;
+in float isSelected;
 
 //Deferred Shading outputs
-out vec4 outcolors[5];
+out vec4 outcolors[6];
 
 //New Decoding function - RGTC
 vec3 DecodeNormalMap(vec4 lNormalTexVec4 ){
@@ -70,10 +76,12 @@ vec4 calcDiffuseColor(float mipmaplevel, out float lHighAlpha, out float lLowAlp
 			//diffTexColor = vec4(1.0, 0.0, 0.0, 1.0);
 		}
 
+		//diffTexColor = diffTexColor / diffTexColor.a;
+
 		if (!mesh_has_matflag(_F07_UNLIT) && mesh_has_matflag(_F39_METALLIC_MASK)){
 			if (mesh_has_matflag(_F34_GLOW) && mesh_has_matflag(_F35_GLOW_MASK) && !mesh_has_matflag(_F09_TRANSPARENT)){
 				lHighAlpha = GetUpperValue(diffTexColor.a);
-			} else{
+			} else {
 				lHighAlpha = diffTexColor.a;
 			}
 		}
@@ -90,7 +98,6 @@ vec4 calcDiffuseColor(float mipmaplevel, out float lHighAlpha, out float lLowAlp
 		diffTexColor = mpCustomPerMaterial.gMaterialColourVec4;
 		//diffTexColor = vec4(mpCustomPerMaterial.matflags[_F01_DIFFUSEMAP], 0.0, 0.0, 1.0);
 	}
-
 
 	if (mesh_has_matflag(_F21_VERTEXCOLOUR)){
 		diffTexColor *= vertColor;
@@ -149,7 +156,7 @@ float calcMetallic(float lHighAlpha){
 
 vec4 ApplySelectedColor(vec4 color){
 	vec4 new_col = color;
-	if (mpCommonPerMesh.selected > 0.0)
+	if (isSelected > 0.0)
 		new_col *= vec4(0.005, 1.5, 0.005, 1.0);
 	return new_col;
 }
@@ -184,6 +191,7 @@ void pbr_lighting(){
 	float lfMetallic = 0.0;
 	float lfSubsurface = 0.0; //Not used atm
 	float ao = 1.0;
+	float isLit = 0.0;
 	float lLowAlpha = 1.0; //TODO : Find out what exactly is that shit
 	float lHighAlpha = 1.0; //TODO : Find out what exactly is that shit
 
@@ -209,6 +217,8 @@ void pbr_lighting(){
 		normal = N;
 	}
 
+	if (!mesh_has_matflag(_F07_UNLIT))
+		isLit = 1.0;
 
 	//TRANSPARENCY
 
@@ -220,8 +230,11 @@ void pbr_lighting(){
 		kfAlphaThreshold = 0.1;
 		kfAlphaThresholdMax = 0.5;
 	} else if (mesh_has_matflag(_F11_ALPHACUTOUT)){
-		kfAlphaThreshold = 0.45;
-		kfAlphaThresholdMax = 0.8;
+		//kfAlphaThreshold = 0.45; OLD
+		//kfAlphaThresholdMax = 0.8;
+		kfAlphaThreshold = 0.5;
+		kfAlphaThresholdMax = 0.9;
+		
 	}
 
 	//Mask Checks
@@ -235,9 +248,13 @@ void pbr_lighting(){
 
 		if (mesh_has_matflag(_F11_ALPHACUTOUT)){
 			diffTexColor.a = smoothstep(kfAlphaThreshold, kfAlphaThresholdMax, diffTexColor.a);
+
+			if (diffTexColor.a < kfAlphaThreshold + 0.1) discard;
 		}
 
-	}
+	}	
+
+	
 
 	//Get Glow
 	float lfGlow = 0.0;
@@ -269,12 +286,13 @@ void pbr_lighting(){
 	outcolors[4].y = lfMetallic;
 	outcolors[4].z = lfRoughness;
 	outcolors[4].a = lfGlow;
+	outcolors[5].x = isLit;
 #else
 	
 	//FORWARD LIGHTING
 	vec4 finalColor = vec4(0.0, 0.0, 0.0, diffTexColor.a);
 
-	if (!mesh_has_matflag(_F07_UNLIT)){
+	if (isLit > 0.0) {
 		for(int i = 0; i < mpCommonPerFrame.light_count; ++i) 
 	    {
 	    	// calculate per-light radiance
@@ -319,6 +337,7 @@ void pbr_lighting(){
 
 void main(){
 
+	//Occlusion is properly applied per instance in the main code. No need to discard anything here
 	if (isOccluded > 0.0)
 		discard;
 

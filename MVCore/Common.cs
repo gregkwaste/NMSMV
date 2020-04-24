@@ -241,8 +241,9 @@ namespace MVCore.Common
         public static int trisNum = 0;
         public static int texturesNum = 0;
         public static int fpsCount = 0;
-        
-        public static void clearStats()
+        public static int occludedNum = 0;
+
+        public static void ClearStats()
         {
             vertNum = 0;
             trisNum = 0;

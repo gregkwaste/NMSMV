@@ -41,8 +41,8 @@ namespace MVCore.Primitives
             geom.mesh_descr = "vn";
             geom.offsets[0] = 0;
             geom.offsets[2] = 0;
-            geom.bufInfo[0] = new GMDL.bufInfo(0, VertexAttribPointerType.Float, 3, 0, "vPosition");
-            geom.bufInfo[2] = new GMDL.bufInfo(2, VertexAttribPointerType.Float, 3, 0, "nPosition");
+            geom.bufInfo[0] = new GMDL.bufInfo(0, VertexAttribPointerType.Float, 3, 0, "vPosition", false);
+            geom.bufInfo[2] = new GMDL.bufInfo(2, VertexAttribPointerType.Float, 3, 0, "nPosition", false);
 
 
             //Set Buffers
@@ -54,9 +54,9 @@ namespace MVCore.Primitives
             return geom;
         }
 
-        public GMDL.mainVAO getVAO()
+        public GMDL.GLVao getVAO()
         {
-            return geom?.getMainVao();
+            return geom?.generateVAO();
         }
     }
 
@@ -436,7 +436,7 @@ namespace MVCore.Primitives
     class Cross : Primitive
     {
         //Constructor
-        public Cross()
+        public Cross(float scale)
         {
             //Set type
             //this.type = "LOCATOR";
@@ -448,6 +448,10 @@ namespace MVCore.Primitives
                     0.0f, -1.0f, 0.0f,
                     0.0f, 0.0f, 1.0f,
                     0.0f, 0.0f, -1.0f};
+
+            //Apply Scane to verts
+            for (int i = 0; i < 3 * 6; i++)
+                verts[i] *= scale;
 
             int arraysize = 6 * 3;
             int b_size = 2 * arraysize;
@@ -498,9 +502,10 @@ namespace MVCore.Primitives
             geom.mesh_descr = "vn";
             geom.offsets[0] = 0;
             geom.offsets[2] = 0;
-            geom.bufInfo[0] = new GMDL.bufInfo(0, VertexAttribPointerType.Float, 3, 0, "vPosition");
-            geom.bufInfo[2] = new GMDL.bufInfo(2, VertexAttribPointerType.Float, 3, 72, "nPosition");
-
+            geom.offsets[4] = 0;
+            geom.bufInfo[0] = new GMDL.bufInfo(0, VertexAttribPointerType.Float, 3, 0, "vPosition", false);
+            geom.bufInfo[2] = new GMDL.bufInfo(2, VertexAttribPointerType.Float, 3, 72, "nPosition", false);
+            geom.bufInfo[4] = new GMDL.bufInfo(4, VertexAttribPointerType.Float, 3, 72, "bPosition", false);
 
             //Set Buffers
             geom.ibuffer = new byte[4 * indices.Length];
@@ -577,8 +582,8 @@ namespace MVCore.Primitives
             geom.mesh_descr = "vn";
             geom.offsets[0] = 0;
             geom.offsets[2] = 0;
-            geom.bufInfo[0] = new GMDL.bufInfo(0, VertexAttribPointerType.Float, 3, 0, "vPosition");
-            geom.bufInfo[2] = new GMDL.bufInfo(2, VertexAttribPointerType.Float, 3, 24, "nPosition");
+            geom.bufInfo[0] = new GMDL.bufInfo(0, VertexAttribPointerType.Float, 3, 0, "vPosition", false);
+            geom.bufInfo[2] = new GMDL.bufInfo(2, VertexAttribPointerType.Float, 3, 24, "nPosition", false);
 
 
             //Set Buffers

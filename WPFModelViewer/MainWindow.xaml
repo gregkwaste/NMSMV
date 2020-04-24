@@ -28,6 +28,8 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Height="20">
                                 <TextBlock Text="Name"></TextBlock >
@@ -37,7 +39,15 @@
                                 <TextBlock Text="Type"></TextBlock>
                                 <TextBlock HorizontalAlignment="Right"  Text="{Binding Type}"></TextBlock>
                             </DockPanel>
-                            <local:ModelTransform Grid.Row="2" Model="{Binding}"/>
+                            <DockPanel Grid.Row="2" HorizontalAlignment="Stretch" Height="20">
+                                <TextBlock Text="LOD Number"></TextBlock>
+                                <TextBlock HorizontalAlignment="Right"  Text="{Binding LODNumber}"></TextBlock>
+                            </DockPanel>
+                            <DockPanel Grid.Row="3" HorizontalAlignment="Stretch" Height="60">
+                                <TextBlock Text="LOD Distances"></TextBlock>
+                                <ListBox ItemsSource="{Binding LODDistances}" HorizontalContentAlignment="Left"></ListBox>
+                            </DockPanel>
+                            <local:ModelTransform Grid.Row="4" Model="{Binding}"/>
                         </Grid>
                     </GroupBox>
                     <GroupBox Grid.Row="1" Header="Components">
@@ -53,13 +63,14 @@
                     <TextBlock Text="{Binding PMap}" HorizontalAlignment="Right"/>
                 </DockPanel>
             </DataTemplate>
-            
+
             <DataTemplate DataType="{x:Type gmdl:Uniform}">
                 <DockPanel>
                     <TextBlock Text="{Binding PName}"/>
                     <ContentControl Content="{Binding Vec}" HorizontalAlignment="Right"/>
                 </DockPanel>
             </DataTemplate>
+            
             <DataTemplate DataType="{x:Type gmdl:MVector4}">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -223,29 +234,39 @@
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:AnimComponent}">
-                <StackPanel Grid.Row="2">
-                    <TextBlock Text="Animations"></TextBlock>
-                    <ListView ItemsSource="{Binding Animations}" HorizontalContentAlignment="Stretch" IsTextSearchEnabled="False">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <ContentControl Content="{Binding}" Margin="0 0 0 0"/>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-                </StackPanel>
+                <Expander>
+                    <Expander.Header>
+                        <TextBlock Text="TkAnimationComponentData"/>
+                    </Expander.Header>
+                    <StackPanel Grid.Row="2">
+                        <TextBlock Text="Animations"></TextBlock>
+                        <ListView ItemsSource="{Binding Animations}" HorizontalContentAlignment="Stretch" IsTextSearchEnabled="False">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <ContentControl Content="{Binding}" Margin="0 0 0 0"/>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </StackPanel>
+                </Expander>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:LODModelComponent}">
-                <StackPanel Grid.Row="2">
-                    <TextBlock Text="LODModels"></TextBlock>
-                    <ListBox ItemsSource="{Binding Resources}" HorizontalContentAlignment="Stretch">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <ContentControl Content="{Binding}"/>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </StackPanel>
+                <Expander>
+                    <Expander.Header>
+                        <TextBlock Text="TkLODComponentData"/>
+                    </Expander.Header>
+                    <StackPanel Grid.Row="2">
+                        <TextBlock Text="LODModels"></TextBlock>
+                        <ListBox ItemsSource="{Binding Resources}" HorizontalContentAlignment="Stretch">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <ContentControl Content="{Binding}"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </StackPanel>
+                </Expander>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:AnimPoseComponent}">
@@ -270,6 +291,14 @@
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:locator}">
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}" Grid.Row="0"/>
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type gmdl:Joint}">
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}" Grid.Row="0"/>
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type gmdl:Collision}">
                 <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}" Grid.Row="0"/>
             </DataTemplate>
 
@@ -301,7 +330,7 @@
                     <GroupBox Grid.Row="2" Header="CommonPerMeshUniforms">
                         <ContentControl Content="{Binding PgUserDataVec4}"></ContentControl>
                     </GroupBox>
-                    <ContentControl Content="{Binding Material}" Grid.Row="3"></ContentControl>
+                    <ContentControl Content="{Binding material}" Grid.Row="3"></ContentControl>
                 </Grid>
             </DataTemplate>
 
@@ -478,7 +507,7 @@
                                 </DockPanel>
                                 <DockPanel Grid.Row="5" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                                     <TextBlock HorizontalAlignment="Left">Use LODs</TextBlock>
-                                    <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=UseLODFiltering}"></CheckBox>
+                                    <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=LODFiltering}"></CheckBox>
                                 </DockPanel>
                                 <DockPanel Grid.Row="6" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                                     <TextBlock HorizontalAlignment="Left">Render Info</TextBlock>
@@ -525,27 +554,6 @@
                                     </Grid.ColumnDefinitions>
                                     <Button Grid.Column="0" FontSize="18" Click="ButtonBase_OnClick">ProcGen</Button>
                                     <Button Grid.Column="1" FontSize="18" Click="RegenPose_Click">Regen Pose</Button>
-                                </Grid>
-                            </GroupBox>
-                            <GroupBox Grid.Row="1" Header="Animation Tools" BorderThickness="2">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition/>
-                                        <RowDefinition/>
-                                    </Grid.RowDefinitions>
-                                    <ToggleButton Grid.Row="0" Name="PlayStopAnim_Button" Click="PlayStop_Click">
-                                        <ToggleButton.Style>
-                                            <Style TargetType="{x:Type ToggleButton}">
-                                                <Setter Property="Content" Value="Play" />
-                                                <Style.Triggers>
-                                                    <Trigger Property="IsChecked" Value="True">
-                                                        <Setter Property="Content" Value="Stop" />
-                                                    </Trigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </ToggleButton.Style>
-                                    </ToggleButton>
-                                    <Button Grid.Row="1" Click="loadAnim">Load Animation</Button>
                                 </Grid>
                             </GroupBox>
                         </Grid>

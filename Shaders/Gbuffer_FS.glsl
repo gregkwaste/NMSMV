@@ -15,6 +15,7 @@ uniform sampler2DMS positionTex;
 uniform sampler2DMS normalTex;
 uniform sampler2DMS depthTex;
 uniform sampler2DMS parameterTex;
+uniform sampler2DMS parameter2Tex;
 
 uniform mat4 mvp;
 in vec2 uv0;
@@ -70,23 +71,27 @@ void main()
 	vec4 bloomColor = vec4(0.0, 0.0, 0.0, 0.0);
 	vec4 depthColor = vec4(0.0, 0.0, 0.0, 0.0);
 	vec4 fragParams = vec4(0.0, 0.0, 0.0, 0.0);
+	vec4 fragParams2 = vec4(0.0, 0.0, 0.0, 0.0);
+	
 	
 	//Gather MS
 	for (int i=0; i<8; i++){
-		albedoColor   += texelFetch(albedoTex, ivec2(gl_FragCoord.xy), i);	
+		albedoColor += texelFetch(albedoTex, ivec2(gl_FragCoord.xy), i);	
 		depthColor += texelFetch(depthTex, ivec2(gl_FragCoord.xy), i);
 		fragPos    += texelFetch(positionTex, ivec2(gl_FragCoord.xy), i);	
 		fragNormal += texelFetch(normalTex, ivec2(gl_FragCoord.xy), i);	
-		fragParams += texelFetch(parameterTex, ivec2(gl_FragCoord.xy), i);	
+		fragParams += texelFetch(parameterTex, ivec2(gl_FragCoord.xy), i);
+		fragParams2 += texelFetch(parameter2Tex, ivec2(gl_FragCoord.xy), i);
 	}
 	
 	//Normalize Values
 	albedoColor = 0.125 * albedoColor;
 	fragPos = 0.125 * fragPos;
 	fragNormal = 0.125 * fragNormal;
-	fragParams = 0.125 * fragParams;
 	depthColor = 0.125 * depthColor;
 	bloomColor = 0.125 * bloomColor;
+	fragParams = 0.125 * fragParams;
+	fragParams2 = 0.125 * fragParams2;
 
 	vec3 clearColor = vec3(0.13, 0.13, 0.13);
 	
@@ -101,32 +106,36 @@ void main()
 	float lfMetallic = fragParams.y;
 	float lfRoughness = fragParams.z;
 	float lfGlow = fragParams.a;
+	float isLit = fragParams2.x;
 
 	vec3 finalColor = vec3(0.0);
-	for(int i = 0; i < mpCommonPerFrame.light_count; ++i) 
-    {
-    	// calculate per-light radiance
-        Light light = mpCommonPerFrame.lights[i]; 
+	if ((mpCommonPerFrame.use_lighting > 0.0) && (isLit > 0.0)){
+		
+		for(int i = 0; i < mpCommonPerFrame.light_count; ++i) 
+	    {
+	    	// calculate per-light radiance
+	        Light light = mpCommonPerFrame.lights[i]; 
 
-		if (light.position.w < 1.0)
-        	continue;
-    	
-        int isDirectional = 0;
+			if (light.position.w < 1.0)
+	        	continue;
+	    	
+	        int isDirectional = 0;
 
-        if (i==0)
-        	isDirectional = 1;
+	        finalColor += calcLighting(light, fragPos, fragNormal.xyz, mpCommonPerFrame.cameraPosition,
+	            albedoColor.rgb, lfMetallic, lfRoughness, ao, isDirectional);
+		}  
 
-    	finalColor += calcLighting(light, fragPos, fragNormal.xyz, mpCommonPerFrame.cameraPosition,
-            albedoColor.rgb, lfMetallic, lfRoughness, ao, isDirectional);
-	}  
-    
+		vec3 ambient = vec3(0.03) * albedoColor.rgb * ao;
+    	finalColor = ambient + finalColor;
+	
+	} else {
+		finalColor = albedoColor.rgb;
+	}
+
+	
 	//TODO: Add glow depending on the material parameters cached in the gbuffer (normalmap.a) if necessary
 	
-
-	vec3 ambient = vec3(0.03) * albedoColor.rgb * ao;
-    finalColor = ambient + finalColor;
-
-    //Tone Mapping
+	//Tone Mapping
 	finalColor = finalColor / (finalColor + vec3(1.0));
 	
 	//Apply Gamma Correction
@@ -134,7 +143,7 @@ void main()
 
     //gl_FragColor = vec4(albedoColor.rgb, 1.0);
 	gl_FragColor = vec4(mix(clearColor, finalColor, albedoColor.a), 1.0);
-	
+	//gl_FragColor = fragNormal;
 	//gl_FragColor = vec4(texture2D(depthTex, uv0).rrr, 1.0);
 	//vec4 world = worldfromDepth();
 

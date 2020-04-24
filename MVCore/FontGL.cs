@@ -22,11 +22,11 @@ namespace MVCore.Text
     };
 
 
-    public class myQFontDrawingPrimitive : QFontDrawingPrimitive
+    public class MyQFontDrawingPrimitive : QFontDrawingPrimitive
     {
         public bool isStatic = false;
 
-        public myQFontDrawingPrimitive(QFont _font, QFontRenderOptions _opts, bool static_flag) : base(_font, _opts)
+        public MyQFontDrawingPrimitive(QFont _font, QFontRenderOptions _opts, bool static_flag) : base(_font, _opts)
         {
             isStatic = static_flag;
         }
@@ -35,9 +35,9 @@ namespace MVCore.Text
 
     public class TextRenderer :IDisposable
     {
-        private QFont _font;
-        private QFontDrawing _drawing;
-        private List<QFontRenderOptions> _textOptions;
+        private readonly QFont _font;
+        private readonly QFontDrawing _drawing;
+        //private readonly List<QFontRenderOptions> _textOptions;
         private Matrix4 projMat = Matrix4.Identity;
         
         public TextRenderer(string font_path, int size)
@@ -45,11 +45,11 @@ namespace MVCore.Text
             _font = new QFont(font_path, size, new QFontBuilderConfiguration(true));
             //Init drawings list to null
             _drawing = new QFontDrawing();
-            _textOptions = new List<QFontRenderOptions>();
+            //_textOptions = new List<QFontRenderOptions>();
             
 
             //Setup Text Options
-            QFontRenderOptions fro = new QFontRenderOptions();
+            //QFontRenderOptions fro = new QFontRenderOptions();
             
             //Add Custom text
             QFontDrawingPrimitive prim = new QFontDrawingPrimitive(_font);
@@ -71,7 +71,7 @@ namespace MVCore.Text
 
         public void clearNonStaticPrimitives()
         {
-            foreach (myQFontDrawingPrimitive p in _drawing.DrawingPrimitives)
+            foreach (MyQFontDrawingPrimitive p in _drawing.DrawingPrimitives)
             {
                 if (!p.isStatic)
                     _drawing.DrawingPrimitives.Remove(p);
@@ -91,7 +91,7 @@ namespace MVCore.Text
             textOpts.DropShadowActive = true;
             
             SizeF size;
-            myQFontDrawingPrimitive prim = new myQFontDrawingPrimitive(_font, textOpts, isStatic);
+            MyQFontDrawingPrimitive prim = new MyQFontDrawingPrimitive(_font, textOpts, isStatic);
             _drawing.DrawingPrimitives.Add(prim);
             size = prim.Print(text, pos, QFontAlignment.Right); //Print text to drawing
             return size;

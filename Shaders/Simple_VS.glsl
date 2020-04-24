@@ -21,9 +21,13 @@ layout(location=6) in vec4 blendWeights;
 uniform CustomPerMaterialUniforms mpCustomPerMaterial;
 
 //Uniform Blocks
-layout (std140) uniform Uniforms
+layout (std140, binding=0) uniform _COMMON_PER_FRAME
 {
     CommonPerFrameUniforms mpCommonPerFrame;
+};
+
+layout (std140, binding=1) uniform _COMMON_PER_MESH
+{
     CommonPerMeshUniforms mpCommonPerMesh;
 };
 
@@ -31,6 +35,7 @@ layout (std140) uniform Uniforms
 out vec4 fragPos;
 out vec4 vertColor;
 out float isOccluded;
+out float isSelected;
 out vec3 N;
 out vec2 uv0;
 out mat3 TBN;
@@ -54,10 +59,15 @@ void main()
         uv0 += lFlippedScrollingUVVec4.xy * mpCommonPerFrame.gfTime;
     }
 
+    //Load Per Instance data
+    isOccluded = mpCommonPerMesh.instanceData[gl_InstanceID].isOccluded;
+    isSelected = mpCommonPerMesh.instanceData[gl_InstanceID].isSelected;
+    
     mat4 lWorldMat;
     
     //Check F02_SKINNED
-    if (mpCommonPerMesh.skinned > 0.0) { //Needs fixing again
+    if (mpCommonPerMesh.skinned > 0.0) { 
+    //if (1.0 < 0.0) { 
         ivec4 index;
         
         index.x = int(blendIndices.x);
@@ -83,8 +93,12 @@ void main()
     vec4 lLocalBitangentVec4 = vec4(bPosition.xyz, 0.0);
     vec4 lLocalNormalVec4 = nPosition;
     
-    vec4 lWorldTangentVec4 = mpCommonPerMesh.nMat * lLocalTangentVec4;
-    vec4 lWorldNormalVec4 = mpCommonPerMesh.nMat * lLocalNormalVec4;
+    mat4 nMat = mpCommonPerMesh.instanceData[gl_InstanceID].normalMat;
+
+    //OLD
+    vec4 lWorldTangentVec4 = nMat * lLocalTangentVec4;
+    vec4 lWorldNormalVec4 = nMat * lLocalNormalVec4;
+    
     vec4 lWorldBitangentVec4 = vec4( cross(lWorldNormalVec4.xyz, lWorldTangentVec4.xyz), 0.0);
     
     TBN = mat3( normalize(lWorldTangentVec4.xyz),

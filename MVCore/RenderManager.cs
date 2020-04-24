@@ -47,26 +47,43 @@ namespace MVCore
 
         public static readonly int SizeInBytes = 2224;
     };
+    
+    [StructLayout(LayoutKind.Explicit)]
+    public unsafe struct CommonPerMeshUniforms
+    {
+        [FieldOffset(0)]
+        public fixed float skinMats[80*16]; //This is mapped to mat4 //5120 bytes
+        [FieldOffset(5120)]
+        public Vector4 gUserDataVec4;
+        [FieldOffset(5136)]
+        public Vector3 color; //12 bytes
+        [FieldOffset(5148)]
+        public float skinned; //4 bytes (aligns to 4 bytes)
+        [FieldOffset(5152)]
+        public fixed float instanceData[36];
+        [FieldOffset(5296)]
+        public fixed byte padding[80]; //Extra padding to match the UBO aligment
+
+        public static readonly int SizeInBytes = 5376;
+    };
 
     [StructLayout(LayoutKind.Explicit)]
-    struct CommonPerMeshUniforms
+    public unsafe struct CommonPerMeshUniformsInstanced
     {
-        [FieldOffset(0)] //64 Bytes
-        public Matrix4 nMat;
-        [FieldOffset(64)] //4 bytes
-        public unsafe fixed float skinMats[80 * 16]; //This is mapped to mat4 //5120 bytes
-        [FieldOffset(5184)]
+        [FieldOffset(0)]
+        public fixed float skinMats[80 * 16]; //This is mapped to mat4 //5120 bytes
+        [FieldOffset(5120)]
         public Vector4 gUserDataVec4;
-        [FieldOffset(5200)]
+        [FieldOffset(5136)]
         public Vector3 color; //12 bytes
-        [FieldOffset(5212)]
+        [FieldOffset(5148)]
         public float skinned; //4 bytes (aligns to 4 bytes)
-        [FieldOffset(5216)]
-        public float selected; //4 Bytes
-        [FieldOffset(5232)] //64*100 Bytes
-        public unsafe fixed float instanceData[300 * 20];
+        [FieldOffset(5152)]
+        public fixed float instanceData[300 * 36];
+        [FieldOffset(48352)]
+        public fixed byte padding[32]; //Extra padding to match the UBO aligment
 
-        public static readonly int SizeInBytes = 29232;
+        public static readonly int SizeInBytes = 48384;
     };
 
     [StructLayout(LayoutKind.Explicit)]
@@ -74,21 +91,23 @@ namespace MVCore
     {
         [FieldOffset(0)] //64 Bytes
         public Matrix4 worldMat;
-        [FieldOffset(64)] //4 bytes
+        [FieldOffset(64)] //64 Bytes
+        public Matrix4 normalMat;
+        [FieldOffset(128)] //4 bytes
         public float isOccluded;
-        [FieldOffset(68)]
+        [FieldOffset(132)]
         public float isSelected;
         
         public static readonly int SizeInBytes = 72;
     };
 
-    
     public class renderManager : baseResourceManager, IDisposable
     {
-        List<meshModel> staticMeshQueue = new List<meshModel>();
-        List<model> staticObjectsQueue = new List<model>();
-        List<meshModel> movingMeshQueue = new List<meshModel>();
-        List<meshModel> transparentMeshQueue = new List<meshModel>();
+        List<GLMeshVao> staticMeshQueue = new List<GLMeshVao>();
+        List<GLMeshVao> staticObjectsQueue = new List<GLMeshVao>();
+        List<GLMeshVao> movingMeshQueue = new List<GLMeshVao>();
+        List<GLMeshVao> transparentMeshQueue = new List<GLMeshVao>();
+
         public ResourceManager resMgr; //REf to the active resource Manager
 
         public ShadowRenderer shdwRenderer; //Shadow Renderer instance
@@ -101,12 +120,24 @@ namespace MVCore
         private float gfTime = 0.0f;
         private Dictionary<string, int> UBOs = new Dictionary<string, int>();
 
+        private int trippleBufferActiveId;
+        private List<int> trippleBufferUBOs = new List<int>(3);
+        private List<IntPtr> trippleBufferSyncStatuses = new List<IntPtr>(3);
+        
+        //Octree Structure
+        private Octree octree;
+        
         //Local Counters
         private int occludedNum;
 
         //UBO structs
         CommonPerFrameUniforms cpfu;
-        
+        private byte[] atlas_cpmu;
+
+        private int MAX_NUMBER_OF_MESHES = 2000;
+        private ulong MAX_OCTREE_WIDTH = 2048;
+
+
         public void init(ResourceManager input_resMgr)
         {
             //Setup Resource Manager
@@ -120,6 +151,9 @@ namespace MVCore
 
             //Setup UBOs
             setupUBOs();
+
+            //Initialize Octree
+            octree = new Octree(MAX_OCTREE_WIDTH);
         }
 
         public void setupGBuffer(int width, int height)
@@ -137,21 +171,21 @@ namespace MVCore
 
         public void clearInstances()
         {
-            foreach (model m in staticObjectsQueue)
+            foreach (GLMeshVao m in staticObjectsQueue)
             {
-                if (m is meshModel mm)
+                if (m is GLMeshVao mm)
                     mm.instance_count = 0;
             }
 
-            foreach (model m in staticMeshQueue)
+            foreach (GLMeshVao m in staticMeshQueue)
             {
-                if (m is meshModel mm)
+                if (m is GLMeshVao mm)
                     mm.instance_count = 0;
             }
 
-            foreach (model m in transparentMeshQueue)
+            foreach (GLMeshVao m in transparentMeshQueue)
             {
-                if (m is meshModel mm)
+                if (m is GLMeshVao mm)
                     mm.instance_count = 0;
             }
         }
@@ -165,40 +199,49 @@ namespace MVCore
             staticObjectsQueue.Clear();
             movingMeshQueue.Clear();
             transparentMeshQueue.Clear();
+            octree.clear();
         }
 
         public void populate(GMDL.model root)
         {
             cleanup();
+            
+            //Populate octree
+            octree.insert(root);
+            octree.report();
+            
             foreach (scene s in resMgr.GLScenes.Values)
                 process_models(s);
         }
 
-        private void process_models(GMDL.model root)
+        private void process_model(GLMeshVao m)
         {
-            if (root.type == TYPES.MESH) {
-                meshModel m = (meshModel) root;
+            if (m == null)
+                return;
 
-                //Check if the model has a transparent material
-                if (m.Material.has_flag((TkMaterialFlags.MaterialFlagEnum) TkMaterialFlags.UberFlagEnum._F22_TRANSPARENT_SCALAR) ||
-                    m.Material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F09_TRANSPARENT) ||
-                    m.Material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F11_ALPHACUTOUT) ||
-                    m.Material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F34_GLOW) ||
-                    m.Material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F35_GLOW_MASK))
-                {
-                    transparentMeshQueue.Add(m);
-                }
-                else
-                {
-                    staticMeshQueue.Add(m);
-                }
-            } else
+            //Check if the model has a transparent material
+            if (m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F22_TRANSPARENT_SCALAR) ||
+                m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F09_TRANSPARENT) ||
+                m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F11_ALPHACUTOUT) ||
+                m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F34_GLOW) ||
+                m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F35_GLOW_MASK))
             {
-                staticObjectsQueue.Add(root); //For now add everything else to the static mesh queue
+                if (!transparentMeshQueue.Contains(m))
+                    transparentMeshQueue.Add(m);
             }
+            else
+            {
+                if (!staticMeshQueue.Contains(m))
+                    staticMeshQueue.Add(m);
+            }
+        }
 
+        private void process_models(model root)
+        {
+            process_model(root.meshVao);
+            
             //Repeat process with children
-            foreach (GMDL.model child in root.children)
+            foreach (model child in root.children)
             {
                 process_models(child);
             }
@@ -208,7 +251,7 @@ namespace MVCore
         {
             //Use QFont
             //string font = "C:\\WINDOWS\\FONTS\\LUCON.TTF";
-            string font = "C:\\WINDOWS\\FONTS\\ARIAL.TTF";
+            string font = "DroidSansMono.ttf";
             txtRenderer = new MVCore.Text.TextRenderer(font, 10);
         }
 
@@ -219,19 +262,47 @@ namespace MVCore
             //CommonPerMesh Uniforms Size: 16 * 4 + 16 * 4 + 80 * 16 * 4 + 4 + 4 + 3 * 4 = 5268
             //Total Size: 136 + 5268 = 5404 Bytes
 
+            //Allocate atlas
+            int atlas_ubo_buffer_size = MAX_NUMBER_OF_MESHES * CommonPerMeshUniforms.SizeInBytes;
+            atlas_cpmu = new byte[atlas_ubo_buffer_size];
+
             int ubo_id = GL.GenBuffer();
             GL.BindBuffer(BufferTarget.UniformBuffer, ubo_id);
-            GL.BufferData(BufferTarget.UniformBuffer, CommonPerFrameUniforms.SizeInBytes + CommonPerMeshUniforms.SizeInBytes, IntPtr.Zero, BufferUsageHint.StaticRead);
+            GL.BufferData(BufferTarget.UniformBuffer, CommonPerFrameUniforms.SizeInBytes, IntPtr.Zero, BufferUsageHint.StaticRead);
             GL.BindBuffer(BufferTarget.UniformBuffer, 0);
+
             //Store buffer to dictionary
-            UBOs["Uniforms"] = ubo_id;
+            UBOs["_COMMON_PER_FRAME"] = ubo_id;
             
+            //Generate 3 Buffers for the Triple buffering UBO
+            for (int i = 0; i < 3; i++)
+            {
+                ubo_id = GL.GenBuffer();
+                GL.BindBuffer(BufferTarget.UniformBuffer, ubo_id);
+                GL.BufferData(BufferTarget.UniformBuffer, atlas_ubo_buffer_size, IntPtr.Zero, BufferUsageHint.StreamDraw);
+                trippleBufferUBOs.Add(ubo_id);
+                trippleBufferSyncStatuses.Add(IntPtr.Zero);
+            }
+
+            
+            GL.BindBuffer(BufferTarget.UniformBuffer, 0);
+
+            //Store buffer to dictionary
+            //Keep first buffer id as the active one
+            UBOs["_COMMON_PER_MESH"] = trippleBufferUBOs[0];
+            trippleBufferActiveId = 0;
+
             //Attach programs to UBO and binding point
-            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.MESH_DEFERRED_SHADER, "Uniforms", 0);
-            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER, "Uniforms", 0);
-            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.LOCATOR_SHADER, "Uniforms", 0);
-            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.JOINT_SHADER, "Uniforms", 0);
-            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.GBUFFER_SHADER, "Uniforms", 0);
+            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.MESH_DEFERRED_SHADER, "_COMMON_PER_FRAME", 0);
+            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.MESH_DEFERRED_SHADER, "_COMMON_PER_MESH", 1);
+            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER, "_COMMON_PER_FRAME", 0);
+            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER, "_COMMON_PER_MESH", 1);
+            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.LOCATOR_SHADER, "_COMMON_PER_FRAME", 0);
+            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.LOCATOR_SHADER, "_COMMON_PER_MESH", 1);
+            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.JOINT_SHADER, "_COMMON_PER_FRAME", 0);
+            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.JOINT_SHADER, "_COMMON_PER_MESH", 1);
+            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.GBUFFER_SHADER, "_COMMON_PER_FRAME", 0);
+            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.GBUFFER_SHADER, "_COMMON_PER_MESH", 1);
 
             //Attach the generated buffers to the binding points
             bindUBOs();
@@ -266,8 +337,8 @@ namespace MVCore
             for (int i = 0; i < Math.Min(32, resMgr.GLlights.Count); i++)
             {
                 Light l = resMgr.GLlights[i];
-                if (!l.update_changes)
-                    continue;
+                //if (!l.update_changes)
+                //    continue;
                 l.update_changes = false; //Reset the flag
 
                 int offset = (GLLight.SizeInBytes / 4) * i;
@@ -301,83 +372,68 @@ namespace MVCore
             //cpfu.depthMap = shdwRenderer.depth_tex_id; //Assign Depth Map
 
             
-            GL.BindBuffer(BufferTarget.UniformBuffer, UBOs["Uniforms"]);
+            GL.BindBuffer(BufferTarget.UniformBuffer, UBOs["_COMMON_PER_FRAME"]);
             GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, CommonPerFrameUniforms.SizeInBytes, ref cpfu);
             GL.BindBuffer(BufferTarget.UniformBuffer, 0);
         }
 
-        private void prepareCommonPermeshUBO(model m)
+        private void prepareCommonPermeshUBO(GLMeshVao m, ref int UBO_Offset)
         {
-            //Prepare Struct
-            CommonPerMeshUniforms cpmu;
-            Matrix4 nMat = m.worldMat.Inverted();
-            nMat.Transpose();
-            cpmu.nMat = nMat;
-            cpmu.selected = m.selected;
+            if (m.instance_count == 0 )
+                return;
 
-            if (m.type == TYPES.MESH)
+            //TODO move that shit in the MeshVao Class
+            m.UBO.color = m.color;
+            m.UBO.skinned = m.skinned ? 1.0f : 0.0f;
+            
+            if (m.skinned)
             {
-                //Copy SkinMatrices
-                meshModel mm = m as meshModel;
-
                 unsafe
                 {
-                    Marshal.Copy(mm.BoneRemapMatrices, 0, (IntPtr)cpmu.skinMats, mm.BoneRemapIndicesCount * 16);
-
-
-                    //Store the intance world Matrices
-                    Marshal.Copy(mm.instance_data, 0, (IntPtr)cpmu.instanceData, meshModel.instance_struct_size_floats * Math.Min(64, mm.instance_count));
-                    
-                    /*
-                    for (int i = 0; i < Math.Min(64, mm.instances.Count); i++)
-                    {
-                        
-                        for (int j = 0; j < 4; j++)
-                        {
-                            for (int k = 0; k < 4; k++)
-                            {
-                                cpmu.worldMats[16 * i + 4 * j + k] = mm.instances[i][j, k];
-                            }
-                        }
+                    //Again try to think of a better way to copy this shit
+                    for (int i = 0; i < m.BoneRemapIndicesCount * 16; i++)
+                    { 
+                        m.UBO.skinMats[i] = m.BoneRemapMatrices[i];
                     }
-                    */
                 }
-
-                cpmu.skinned = (float) mm.skinned;
-                cpmu.color = mm.color;
-
-                //Copy custom mesh parameters
-                cpmu.gUserDataVec4 = mm.PgUserDataVec4.Vec.Vec;
             }
-            else
+
+            //Copy custom mesh parameters
+            //TODO: Move that to instance data as well
+            //cpmu.gUserDataVec4 = m.PgUserDataVec4.Vec.Vec;
+            m.UBO.gUserDataVec4 = new Vector4(0.0f);
+
+            //Calculate aligned size
+            m.UBO_aligned_size = 5152 + m.instance_count * GLMeshVao.instance_struct_size_floats * 4;
+            m.UBO_aligned_size = ((m.UBO_aligned_size >> 8) + 1) * 256;
+
+            if (m.UBO_aligned_size + UBO_Offset > atlas_cpmu.Length)
             {
-                unsafe
-                {
-                    for (int j = 0; j < 4; j++)
-                    {
-                        for (int k = 0; k < 4; k++)
-                        {
-                            cpmu.instanceData[4 * j + k] = m.worldMat[j, k];
-                        }
-                    }
-                }
+                Console.WriteLine("Mesh overload skipping...");
+                return;
+            }
                 
-                cpmu.skinned = 0.0f;
-                cpmu.color = new Vector3(1.0f, 0.0f, 0.0f);
-                cpmu.gUserDataVec4 = new Vector4(0.0f, 0.0f, 0.0f, 0.0f);
+            unsafe
+            {
+                fixed(void* p = &m.UBO)
+                {
+                    byte* bptr = (byte*) p;
+
+                    Marshal.Copy((IntPtr) p, atlas_cpmu, UBO_Offset, 
+                        m.UBO_aligned_size);
+                }
             }
 
-            //Updates matrices UBO
-            GL.BindBuffer(BufferTarget.UniformBuffer, UBOs["Uniforms"]);
-            GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero + CommonPerFrameUniforms.SizeInBytes, CommonPerMeshUniforms.SizeInBytes, ref cpmu);
-            GL.BindBuffer(BufferTarget.UniformBuffer, 0);
+            m.UBO_offset = UBO_Offset; //Save offset
+            UBO_Offset += m.UBO_aligned_size; //Increase the offset
         }
 
         //This Method binds UBos to binding points
         private void bindUBOs()
         {
             //Bind Matrices
-            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 0, UBOs["Uniforms"]);
+            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 0, UBOs["_COMMON_PER_FRAME"]);
+            //GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 1, UBOs["mpCommonPerMesh"]);
         }
 
         private void reportUBOs()
@@ -454,14 +510,16 @@ namespace MVCore
 
         private void resetOcclusionStatus()
         {
-            foreach (model m in staticMeshQueue)
+            foreach (GLMeshVao m in staticMeshQueue)
             {
-                m.occluded = false;
+                for (int i = 0; i < m.instance_count; i++)
+                    m.setInstanceOccludedStatus(i, false);
             }
 
-            foreach (model m in transparentMeshQueue)
+            foreach (GLMeshVao m in transparentMeshQueue)
             {
-                m.occluded = false;
+                for (int i = 0; i < m.instance_count; i++)
+                    m.setInstanceOccludedStatus(i, false);
             }
         }
 
@@ -487,18 +545,19 @@ namespace MVCore
 
         private void sortTransparent()
         {
+            /* SORTING BREAKS WITH INSTANCED RENDERING
             transparentMeshQueue.Sort(
-                delegate (meshModel l1, meshModel l2)
+                delegate (GLMeshVao l1, GLMeshVao l2)
                 {
                     //Calculating distance assuming that the meshes do not move.
                     
                     //TODO: Fix that shit on instanced transparent meshes
 
-                    Vector3 l1_newMinBBox = (new Vector4(l1.Bbox[0], 1.0f) * l1.worldMat).Xyz;
-                    Vector3 l1_newMaxBBox = (new Vector4(l1.Bbox[1], 1.0f) * l1.worldMat).Xyz;
+                    Vector3 l1_newMinBBox = (new Vector4(l1.metaData.Bbox[0], 1.0f) * l1.getInstanceWorldMat( worldMat).Xyz;
+                    Vector3 l1_newMaxBBox = (new Vector4(l1.metaData.Bbox[1], 1.0f) * l1.worldMat).Xyz;
 
-                    Vector3 l2_newMinBBox = (new Vector4(l2.Bbox[0], 1.0f) * l2.worldMat).Xyz;
-                    Vector3 l2_newMaxBBox = (new Vector4(l2.Bbox[1], 1.0f) * l2.worldMat).Xyz;
+                    Vector3 l2_newMinBBox = (new Vector4(l2.metaData.Bbox[0], 1.0f) * l2.worldMat).Xyz;
+                    Vector3 l2_newMaxBBox = (new Vector4(l2.metaData.Bbox[1], 1.0f) * l2.worldMat).Xyz;
 
                     //Calculate distance from the point to the AABB
                     Vector3 p = RenderState.activeCam.Position;
@@ -511,26 +570,18 @@ namespace MVCore
                     //Console.WriteLine(l1.name + " Distance from camera: {0}", d1);
                     //Console.WriteLine(l2.name + " Distance from camera: {0}", d2);
 
-                    /*
-                    if (l2.occluded && l1.occluded)
-                        return 0;
-                    else if (l2.occluded && !l1.occluded)
-                        return 1;
-                    else if (!l2.occluded && l1.occluded)
-                        return -1;
-                    else 
-                        return d2.CompareTo(d1);
-                    */
                     return d1.CompareTo(d2);
                 }
             );
+        */
 
 
         }
 
-        private void LOD_filtering(List<meshModel> model_list)
+        private void LOD_filtering(List<GLMeshVao> model_list)
         {
-            foreach (meshModel m in model_list)
+            /* TODO : REplace this shit with occlusion based on the instance_ids
+            foreach (GLMeshVao m in model_list)
             {
                 int i = 0;
                 int occluded_instances = 0;
@@ -583,59 +634,151 @@ namespace MVCore
                 if (m.instance_count == occluded_instances)
                     m.occluded = true;
             }
+            */
         }
 
-        private void frustum_occlusion(List<meshModel> model_list)
+        /* NOT USED
+        private void frustum_occlusion(List<GLMeshVao> model_list)
         {
-            foreach (meshModel m in model_list)
+            foreach (GLMeshVao m in model_list)
             {
-                if (!m.renderable) continue;
-                if (m.occluded) continue;
-
                 int occluded_instances = 0;
                 for (int i = 0; i < m.instance_count; i++)
                 {
-                    if (!RenderState.activeCam.frustum_occlude(m, m.getInstanceWorldMat(i), Matrix4.Identity))
+                    if (m.getInstanceOccludedStatus(i))
+                        continue;
+                    
+                    if (!RenderState.activeCam.frustum_occlude(m, i))
                     {
                         occludedNum++;
                         occluded_instances++;
                         m.setInstanceOccludedStatus(i, false);
                     }
                 }
-                
-                if (m.instance_count == occluded_instances)
-                    m.occluded = true;
             }
+        }
+        */
+
+        private void prepareCommonPerMeshUBOs()
+        {
+            trippleBufferActiveId = (trippleBufferActiveId + 1) % 3;
+
+            UBOs["_COMMON_PER_MESH"] = trippleBufferUBOs[trippleBufferActiveId];
+
+            WaitSyncStatus result =  GL.ClientWaitSync(trippleBufferSyncStatuses[trippleBufferActiveId], 0, 1000000);
+
+            if (result == WaitSyncStatus.TimeoutExpired || result == WaitSyncStatus.WaitFailed)
+            {
+                Console.WriteLine("Gamithike o dias");
+            }
+
+            GL.DeleteSync(trippleBufferSyncStatuses[trippleBufferActiveId]);
+            
+            //Prepare UBO data
+            int ubo_offset = 0;
+            int max_ubo_offset = MAX_NUMBER_OF_MESHES * CommonPerMeshUniforms.SizeInBytes;
+            
+            //Upload StaticMeshes
+            foreach (GLMeshVao m in staticMeshQueue)
+            {
+                prepareCommonPermeshUBO(m, ref ubo_offset);
+            }
+
+            //Upload TransparentMeshes
+            foreach (GLMeshVao m in transparentMeshQueue)
+            {
+                prepareCommonPermeshUBO(m, ref ubo_offset);
+            }
+
+            if (ubo_offset > max_ubo_offset)
+                Console.WriteLine("GAMITHIKE O DIAS");
+
+            //at this point the ubo_offset is the actual size of the atlas buffer
+            
+            //Upload atlas UBO data
+            GL.BindBuffer(BufferTarget.UniformBuffer, UBOs["_COMMON_PER_MESH"]);
+            //METHOD 1: BufferSubData
+            //GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, ubo_offset, atlas_cpmu);
+
+            //METHOD 2: Use MAP Buffer
+            IntPtr ptr = GL.MapBufferRange(BufferTarget.UniformBuffer, IntPtr.Zero,
+                ubo_offset, BufferAccessMask.MapUnsynchronizedBit | BufferAccessMask.MapWriteBit);
+            
+            unsafe
+            {
+                Marshal.Copy(atlas_cpmu, 0, ptr, ubo_offset);
+            }
+
+            GL.UnmapBuffer(BufferTarget.UniformBuffer);
+
         }
 
 
-        private void renderStatic()
+        private void renderStaticMeshes()
         {
             //At first render the static meshes
             GL.Enable(EnableCap.DepthTest);
-            //GL.Enable(EnableCap.CullFace);
+            GL.Enable(EnableCap.CullFace);
+
+            GLSLHelper.GLSLShaderConfig shader = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_DEFERRED_SHADER];
+
+            //Prepare UBO data
+            int ubo_offset = 0;
+            int max_ubo_offset = MAX_NUMBER_OF_MESHES * CommonPerMeshUniforms.SizeInBytes;
+            
+            foreach (GLMeshVao m in staticMeshQueue)
+            {
+                prepareCommonPermeshUBO(m, ref ubo_offset);
+            }
+
+            if (ubo_offset > max_ubo_offset)
+                Console.WriteLine("GAMITHIKE O DIAS");
+
+            //at this point the ubo_offset is the actual size of the atlas buffer
+
+            //Upload atlas UBO data
+            GL.BindBuffer(BufferTarget.UniformBuffer, UBOs["_COMMON_PER_MESH"]);
+            //METHOD 1: BufferSubData
+            //GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, ubo_offset, atlas_cpmu);
+
+            //METHOD 2: Use MAP Buffer
+            IntPtr ptr = GL.MapBuffer(BufferTarget.UniformBuffer, BufferAccess.WriteOnly);
+            unsafe
+            {
+                Marshal.Copy(atlas_cpmu, 0, ptr, ubo_offset);
+            }
+            GL.UnmapBuffer(BufferTarget.UniformBuffer);
+
+
+            //Enable the Deferred Mesh Shader
+            GL.UseProgram(shader.program_id);
+
+            foreach (GLMeshVao m in staticObjectsQueue)
+            {
+                prepareCommonPermeshUBO(m, ref ubo_offset);
+            }
 
             //Render Static Objects
-            foreach (model m in staticObjectsQueue)
+            foreach (GLMeshVao m in staticObjectsQueue)
             {
-                if (!m.renderable) continue;
-                prepareCommonPermeshUBO(m);
-                m.render(RENDERPASS.DEFERRED);
+                GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"], (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+                m.render(shader, RENDERPASS.DEFERRED);
             }
-
-
+                
             //Render static meshes
-            foreach (model m in staticMeshQueue)
+            foreach (GLMeshVao m in staticMeshQueue)
             {
-                if (!m.renderable) continue;
-                if (m.occluded) continue;
+                if (m.instance_count == 0)
+                    continue;
+                
+                GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"],
+                    (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
 
-                prepareCommonPermeshUBO(m);
-                m.render(RENDERPASS.DEFERRED);
-                if (RenderOptions.RenderBoundHulls && (m.type == TYPES.MESH))
-                    m.render(RENDERPASS.BHULL);
+                m.render(shader, RENDERPASS.DEFERRED);
+                if (RenderOptions.RenderBoundHulls)
+                    m.render(shader, RENDERPASS.BHULL);
             }
-        
+
         }
 
         private void renderTransparent(int pass)
@@ -653,20 +796,52 @@ namespace MVCore
             //GL.Enable(EnableCap.CullFace);
             //GL.CullFace(CullFaceMode.Front);
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+
+            GLSLHelper.GLSLShaderConfig shader = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER];
+
+            //Prepare UBO data
+            int ubo_offset = 0;
+            int max_ubo_offset = MAX_NUMBER_OF_MESHES * CommonPerMeshUniforms.SizeInBytes;
+            foreach (GLMeshVao m in transparentMeshQueue)
+            {
+                prepareCommonPermeshUBO(m, ref ubo_offset);
+            }
+
+            if (ubo_offset > max_ubo_offset)
+                Console.WriteLine("GAMITHIKE O DIAS");
+
+            //at this point the ubo_offset is the actual size of the atlas buffer
+
+            //Upload atlas UBO data
+            GL.BindBuffer(BufferTarget.UniformBuffer, UBOs["_COMMON_PER_MESH"]);
+            
+            
+            //METHOD 1: Use Buffer Sub Data
+            //GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, ubo_offset, atlas_cpmu);
+
+
+            //METHOD 2: Use MAP Buffer
+            IntPtr ptr = GL.MapBuffer(BufferTarget.UniformBuffer, BufferAccess.WriteOnly);
+            unsafe
+            {
+                Marshal.Copy(atlas_cpmu, 0, ptr, ubo_offset);
+            }
+            GL.UnmapBuffer(BufferTarget.UniformBuffer);
+
+            GL.UseProgram(resMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER].program_id);
             
             //I don't expect any other object type here
-            foreach (model m in transparentMeshQueue)
+            foreach (GLMeshVao m in transparentMeshQueue)
             {
-                if (!m.renderable) continue;
-                if (m.occluded) continue;
+                if (m.instance_count == 0)
+                    continue;
+                
+                GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"],
+                    (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
 
-                if (m.type == TYPES.MESH)
-                {
-                    prepareCommonPermeshUBO(m); //Update UBO based on current model
-                    m.render(RENDERPASS.FORWARD);
-                    if (RenderOptions.RenderBoundHulls && (m.type == TYPES.MESH))
-                        m.render(RENDERPASS.BHULL);
-                }
+                m.render(shader, RENDERPASS.FORWARD);
+                //if (RenderOptions.RenderBoundHulls)
+                //    m.render(RENDERPASS.BHULL);
             }
 
             //GL.Disable(EnableCap.CullFace);
@@ -691,25 +866,24 @@ namespace MVCore
         //Rendering Mechanism
         public void render()
         {
-            occludedNum = 0; //Reset  Counter
+            DateTime oldtime = DateTime.UtcNow;
+            DateTime temptime;
 
             gbuf.bind(); //Bing GBuffer
 
+            
             //Prepare UBOs
             prepareCommonPerFrameUBO();
-
+            
             //Render Shadows
             renderShadows();
 
-            //Occlusion
-            resetOcclusionStatus();
-
             //Sort Lights
             sortLights();
-
+            
             //Sort Transparent Objects
             sortTransparent();
-
+            
             //LOD filtering
             if (RenderOptions.LODFiltering)
             {
@@ -717,30 +891,28 @@ namespace MVCore
                 LOD_filtering(transparentMeshQueue);
             }
             
-            //Apply frustum culling
-            if (RenderOptions.UseFrustumCulling)
-            {
-                frustum_occlusion(staticMeshQueue);
-                frustum_occlusion(transparentMeshQueue);
-            }
+            //Render Geometry (Deferred)
+            renderStaticMeshes();
 
-            //Render Geometry
-            renderStatic();
-            
+            //Render Static Objects  (Forward)
+            //renderStaticObjects();
+
             //Light Pass Deferred
             renderLightPass();
-
+            
             //Light Pass Forward (Transparent/Glowing objects for now
             renderTransparent(0);
 
+            //Setup FENCE AFTER ALL THE DRAWCALLS ARE DONE
+            trippleBufferSyncStatuses[trippleBufferActiveId] = GL.FenceSync(SyncCondition.SyncGpuCommandsComplete, 0);
+            
             //POST-PROCESSING
             //post_process();
-
 
             //Final Pass
             renderFinalPass();
             //TODO
-
+            
             //No need to blit without a renderbuffer
             //gbuf?.stop();
 
@@ -751,8 +923,9 @@ namespace MVCore
 
         private void render_lights()
         {
+
             for (int i = 0; i < resMgr.GLlights.Count; i++)
-                resMgr.GLlights[i].render(0);
+                resMgr.GLlights[i].meshVao.render(resMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_DEFERRED_SHADER], RENDERPASS.DEFERRED);
         }
 
         private void render_cameras()
@@ -819,7 +992,7 @@ namespace MVCore
                             pos, System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS, false);
                         break;
                     case 1:
-                        size = txtRenderer.addDrawing(string.Format("OccludedNum: {0:D1}", occludedNum),
+                        size = txtRenderer.addDrawing(string.Format("OccludedNum: {0:D1}", RenderStats.occludedNum),
                             pos, System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS, false);
                         break;
                     case 2:
@@ -939,8 +1112,8 @@ namespace MVCore
             GL.ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-            render_quad(new string[] { }, new float[] { }, new string[] { "albedoTex", "positionTex", "normalTex", "depthTex", "parameterTex" }, 
-                                                            new int[] { gbuf.albedo,  gbuf.positions, gbuf.normals, gbuf.depth, gbuf.info}, shader_conf);
+            render_quad(new string[] { }, new float[] { }, new string[] { "albedoTex", "positionTex", "normalTex", "depthTex", "parameterTex", "parameter2Tex" }, 
+                                                            new int[] { gbuf.albedo,  gbuf.positions, gbuf.normals, gbuf.dump_depth, gbuf.info, gbuf.info2}, shader_conf);
 
         }
 

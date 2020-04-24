@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 using OpenTK;
 
@@ -7,6 +8,12 @@ namespace MVCore
 {
     public static class MathUtils
     {
+        public static float FloatParse(string text)
+        {
+            float res = float.Parse(text, CultureInfo.InvariantCulture);
+            return res;
+        }
+        
         public static float[] mulMatArrays(float[] lmat1, float[] lmat2, int count)
         {
             float[] res = new float[count * 16];
@@ -22,6 +29,8 @@ namespace MVCore
 
             return res;
         }
+        
+
 
         public static void mulMatArrays(ref float[] dest, float[] lmat1, float[] lmat2, int count)
         {
@@ -104,7 +113,52 @@ namespace MVCore
             array[offset + 15] = mat.M44;
         }
 
-        public static Matrix4 Matrix4FromArray(float[] array, int offset)
+        public unsafe static void insertMatToArray16(float* array, int offset, Matrix4 mat)
+        {
+            //mat.Transpose();//Transpose Matrix Testing
+            array[offset + 0] = mat.M11;
+            array[offset + 1] = mat.M12;
+            array[offset + 2] = mat.M13;
+            array[offset + 3] = mat.M14;
+            array[offset + 4] = mat.M21;
+            array[offset + 5] = mat.M22;
+            array[offset + 6] = mat.M23;
+            array[offset + 7] = mat.M24;
+            array[offset + 8] = mat.M31;
+            array[offset + 9] = mat.M32;
+            array[offset + 10] = mat.M33;
+            array[offset + 11] = mat.M34;
+            array[offset + 12] = mat.M41;
+            array[offset + 13] = mat.M42;
+            array[offset + 14] = mat.M43;
+            array[offset + 15] = mat.M44;
+        }
+
+        public unsafe static Matrix4 Matrix4FromArray(float* array, int offset)
+        {
+            Matrix4 mat = Matrix4.Identity;
+
+            mat.M11 = array[offset + 0];
+            mat.M12 = array[offset + 1];
+            mat.M13 = array[offset + 2];
+            mat.M14 = array[offset + 3];
+            mat.M21 = array[offset + 4];
+            mat.M22 = array[offset + 5];
+            mat.M23 = array[offset + 6];
+            mat.M24 = array[offset + 7];
+            mat.M31 = array[offset + 8];
+            mat.M32 = array[offset + 9];
+            mat.M33 = array[offset + 10];
+            mat.M34 = array[offset + 11];
+            mat.M41 = array[offset + 12];
+            mat.M42 = array[offset + 13];
+            mat.M43 = array[offset + 14];
+            mat.M44 = array[offset + 15];
+
+            return mat;
+        }
+
+        public unsafe static Matrix4 Matrix4FromArray(float[] array, int offset)
         {
             Matrix4 mat = Matrix4.Identity;
 

@@ -121,9 +121,6 @@ namespace TextureMixer
             MVCore.Common.RenderState.activeResMgr.texMgr.addTexture(dDiff);
             MVCore.Common.RenderState.activeResMgr.texMgr.addTexture(dMask);
 
-            //Add default primitives
-            addDefaultPrimitives();
-
             //Generate Geometry VBOs
             GL.GenBuffers(1, out quad_vbo);
             GL.GenBuffers(1, out quad_ebo);
@@ -174,7 +171,7 @@ namespace TextureMixer
             MVCore.Common.RenderState.activeResMgr.GLPrimitiveVaos["default_renderquad"] = q.getVAO();
 
             //Default cross
-            MVCore.Primitives.Cross c = new MVCore.Primitives.Cross();
+            MVCore.Primitives.Cross c = new MVCore.Primitives.Cross(0.1f);
             MVCore.Common.RenderState.activeResMgr.GLPrimitiveVaos["default_cross"] = c.getVAO();
 
             //Default cube
