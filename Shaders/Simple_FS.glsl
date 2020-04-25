@@ -310,16 +310,12 @@ void pbr_lighting(){
 	    	// calculate per-light radiance
 	        Light light = mpCommonPerFrame.lights[i]; 
 
+			//Pos.w is the renderable status of the light
 			if (light.position.w < 1.0)
 	        	continue;
-	    	
-	        int isDirectional = 0;
-
-	        if (i==0)
-	        	isDirectional = 1;
-
-	    	finalColor.rgb += calcLighting(light, fragPos, normal, mpCommonPerFrame.cameraPosition,
-	            diffTexColor.rgb, lfMetallic, lfRoughness, ao, isDirectional);
+    		
+    		finalColor.rgb += calcLighting(light, fragPos, normal, mpCommonPerFrame.cameraPosition,
+	            diffTexColor.rgb, lfMetallic, lfRoughness, ao);
 		}  
 	} else {
 		finalColor = diffTexColor;
@@ -343,6 +339,7 @@ void pbr_lighting(){
     finalColor.rgb = fixColorGamma(finalColor.rgb);
     //finalColor.a = 0.5;
     outcolors[0] = finalColor;
+    //outcolors[0] = vec4(fragPos.z);
 #endif
 }
 

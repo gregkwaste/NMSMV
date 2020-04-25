@@ -222,9 +222,7 @@ namespace MVCore
             //Check if the model has a transparent material
             if (m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F22_TRANSPARENT_SCALAR) ||
                 m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F09_TRANSPARENT) ||
-                m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F11_ALPHACUTOUT) ||
-                m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F34_GLOW) ||
-                m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F35_GLOW_MASK))
+                m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F11_ALPHACUTOUT))
             {
                 if (!transparentMeshQueue.Contains(m))
                     transparentMeshQueue.Add(m);
@@ -551,19 +549,23 @@ namespace MVCore
 
         private void sortTransparent()
         {
-            /* SORTING BREAKS WITH INSTANCED RENDERING
+            //I need to check if transparent meshes have more than one instance, because this looks like it is not the case
+
             transparentMeshQueue.Sort(
                 delegate (GLMeshVao l1, GLMeshVao l2)
                 {
                     //Calculating distance assuming that the meshes do not move.
-                    
+
                     //TODO: Fix that shit on instanced transparent meshes
 
-                    Vector3 l1_newMinBBox = (new Vector4(l1.metaData.Bbox[0], 1.0f) * l1.getInstanceWorldMat( worldMat).Xyz;
-                    Vector3 l1_newMaxBBox = (new Vector4(l1.metaData.Bbox[1], 1.0f) * l1.worldMat).Xyz;
+                    Matrix4 l1_instanceMatrix = l1.getInstanceWorldMat(0);
+                    Matrix4 l2_instanceMatrix = l2.getInstanceWorldMat(0);
 
-                    Vector3 l2_newMinBBox = (new Vector4(l2.metaData.Bbox[0], 1.0f) * l2.worldMat).Xyz;
-                    Vector3 l2_newMaxBBox = (new Vector4(l2.metaData.Bbox[1], 1.0f) * l2.worldMat).Xyz;
+                    Vector3 l1_newMinBBox = (new Vector4(l1.metaData.AABBMIN, 1.0f) * l1_instanceMatrix).Xyz;
+                    Vector3 l1_newMaxBBox = (new Vector4(l1.metaData.AABBMAX, 1.0f) * l1_instanceMatrix).Xyz;
+
+                    Vector3 l2_newMinBBox = (new Vector4(l2.metaData.AABBMIN, 1.0f) * l2_instanceMatrix).Xyz;
+                    Vector3 l2_newMaxBBox = (new Vector4(l2.metaData.AABBMAX, 1.0f) * l2_instanceMatrix).Xyz;
 
                     //Calculate distance from the point to the AABB
                     Vector3 p = RenderState.activeCam.Position;
@@ -576,12 +578,10 @@ namespace MVCore
                     //Console.WriteLine(l1.name + " Distance from camera: {0}", d1);
                     //Console.WriteLine(l2.name + " Distance from camera: {0}", d2);
 
-                    return d1.CompareTo(d2);
+                    //return d1.CompareTo(d2); //Front to back
+                    return d2.CompareTo(d1); //Back To front
                 }
             );
-        */
-
-
         }
 
         private void LOD_filtering(List<GLMeshVao> model_list)
@@ -770,9 +770,12 @@ namespace MVCore
 
             //At first render the static meshes
             GL.Enable(EnableCap.Blend);
-            //GL.Enable(EnableCap.CullFace);
+            GL.Enable(EnableCap.DepthTest); //Enable depth test
+            GL.DepthFunc(DepthFunction.Lequal);
+            GL.Disable(EnableCap.CullFace);
             //GL.CullFace(CullFaceMode.Front);
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            //GL.BlendFunc(BlendingFactor.Src1Alpha, BlendingFactor.ONem);
 
             GLSLHelper.GLSLShaderConfig shader = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER];
 
@@ -792,7 +795,28 @@ namespace MVCore
                 //    m.render(RENDERPASS.BHULL);
             }
 
-            //GL.Disable(EnableCap.CullFace);
+            /*
+            //TESTING - Render Bound Boxes for the transparent meshes
+            GL.UseProgram(resMgr.GLShaders[GLSLHelper.SHADER_TYPE.BBOX_SHADER].program_id);
+
+            //I don't expect any other object type here
+            foreach (GLMeshVao m in transparentMeshQueue)
+            {
+                if (m.instance_count == 0)
+                    continue;
+
+                GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"],
+                    (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+
+                m.render(shader, RENDERPASS.BHULL);
+                //if (RenderOptions.RenderBoundHulls)
+                //    m.render(RENDERPASS.BHULL);
+            }
+
+
+            */
+
+            GL.Enable(EnableCap.CullFace);
             GL.Disable(EnableCap.Blend);
         }
 

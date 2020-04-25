@@ -119,10 +119,8 @@ void main()
 			if (light.position.w < 1.0)
 	        	continue;
 	    	
-	        int isDirectional = 0;
-
 	        finalColor += calcLighting(light, fragPos, fragNormal.xyz, mpCommonPerFrame.cameraPosition,
-	            albedoColor.rgb, lfMetallic, lfRoughness, ao, isDirectional);
+	            albedoColor.rgb, lfMetallic, lfRoughness, ao);
 		}  
 
 		vec3 ambient = vec3(0.03) * albedoColor.rgb * ao;

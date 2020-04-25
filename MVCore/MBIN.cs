@@ -838,7 +838,7 @@ namespace MVCore
                     attachment_data = NMSUtils.LoadNMSFile(attachment_path) as TkAttachmentData;
                 }
 
-                so.shader_programs = new GLSLHelper.GLSLShaderConfig[5];
+                so.shader_programs = new GLSLHelper.GLSLShaderConfig[(int) RENDERPASS.COUNT];
                 so.shader_programs[(int) RENDERPASS.DEFERRED] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_DEFERRED_SHADER];
                 so.shader_programs[(int) RENDERPASS.FORWARD] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER];
                 so.shader_programs[(int) RENDERPASS.DEBUG] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER];
@@ -851,6 +851,10 @@ namespace MVCore
                 so.nms_template = node;
                 so.gobject = gobject; //Store the gobject for easier access of uniforms
                 so.init(transforms); //Init object transforms
+
+                //PASS AABB info to the main object
+                so.AABBMIN = so.metaData.AABBMIN;
+                so.AABBMAX = so.metaData.AABBMAX;
 
                 //Check if the model should be subjected to LOD filtering
                 if (name.Contains("LOD"))

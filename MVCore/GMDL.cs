@@ -35,9 +35,10 @@ namespace MVCore.GMDL
         DEFERRED = 0x0,
         FORWARD,
         BHULL,
+        BBOX,
         DEBUG,
         PICK,
-        UNKNOWN
+        COUNT
     }
 
     public class SimpleSampler
@@ -1056,6 +1057,12 @@ namespace MVCore.GMDL
 
         //Rendering Methods
 
+        public void renderBBoxes(int pass)
+        {
+            for (int i = 0; i > instance_count; i++)
+                renderBbox(pass, i);
+        }
+
 
         public void renderBbox(int pass, int instance_id)
         {
@@ -1384,14 +1391,12 @@ namespace MVCore.GMDL
             {
                 //Render Main
                 case RENDERPASS.DEFERRED:
-                    renderMain(shader);
-                    break;
                 case RENDERPASS.FORWARD:
                     renderMain(shader);
-                    //renderBbox(MVCore.Common.RenderState.activeResMgr.GLShaders["BBOX_SHADER"]);
                     break;
-                //Render Bound Hull
+                case RENDERPASS.BBOX:
                 case RENDERPASS.BHULL:
+                    renderBbox(shader.program_id, 0);
                     //renderBSphere(shader);
                     //renderBHull(shader);
                     break;

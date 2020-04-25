@@ -107,7 +107,7 @@ float calcLightAttenuation(Light light, vec4 _fragPos){
 
 
 vec3 calcLighting(Light light, vec4 fragPos, vec3 fragNormal, vec3 cameraPosition,
-            vec3 albedoColor, float lfMetallic, float lfRoughness, float ao, int isDirectional) {
+            vec3 albedoColor, float lfMetallic, float lfRoughness, float ao) {
     
     vec3 L;
     float attenuation;
