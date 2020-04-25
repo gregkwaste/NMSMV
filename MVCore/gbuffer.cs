@@ -175,7 +175,7 @@ namespace MVCore
                                                       DrawBuffersEnum.ColorAttachment3,
                                                       DrawBuffersEnum.ColorAttachment4,
                                                       DrawBuffersEnum.ColorAttachment5} );
-#if DEBUG
+#if FALSE
             ErrorCode err = GL.GetError();
             if (err != ErrorCode.NoError)
                 Console.WriteLine(err);

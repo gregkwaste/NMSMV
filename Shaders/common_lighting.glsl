@@ -128,7 +128,7 @@ vec3 calcLighting(Light light, vec4 fragPos, vec3 fragNormal, vec3 cameraPositio
     attenuation = calcLightAttenuation(light, fragPos);
     //float attenuation = 1.0 / (distance * distance); //Default calculation
 
-    vec3 radiance = light.color.xyz * light.color.w * attenuation;
+    vec3 radiance = light.color.xyz * log2(light.color.w) * attenuation;
     vec3 H = normalize(viewDir + L);
     //float distance    = length(light.position.xyz - fragPos.xyz);
     

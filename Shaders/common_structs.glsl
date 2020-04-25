@@ -53,6 +53,7 @@ struct CustomPerMaterialUniforms  //locations:73
     float matflags[64];
     
     sampler2DArray gDiffuseMap;
+    sampler2DArray gDiffuse2Map;
     sampler2DArray gMasksMap;
     sampler2DArray gNormalMap;
 

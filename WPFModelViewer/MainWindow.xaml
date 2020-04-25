@@ -432,7 +432,7 @@
                                 </Grid.RowDefinitions>
                                 <DockPanel Grid.Row="0" HorizontalAlignment="Stretch">
                                     <TextBlock Width="80">FOV</TextBlock>
-                                    <Slider x:Name="sliderFOV"  Value="60" Minimum="1" Maximum="100" SmallChange="1"></Slider>
+                                    <Slider x:Name="sliderFOV"  Value="90" Minimum="1" Maximum="100" SmallChange="1"></Slider>
                                 </DockPanel>
                                 <DockPanel Grid.Row="1" HorizontalAlignment="Stretch">
                                     <TextBlock Width="80">Light Distance</TextBlock>
@@ -452,7 +452,7 @@
                                 </DockPanel>
                                 <DockPanel Grid.Row="5" HorizontalAlignment="Stretch">
                                     <TextBlock Width="80">zNear</TextBlock>
-                                    <Slider x:Name="sliderzNear"  Value="0.5" Minimum="0.01" Maximum="10" SmallChange="0.1"></Slider>
+                                    <Slider x:Name="sliderzNear"  Value="0.01" Minimum="0.01" Maximum="1" SmallChange="0.1"></Slider>
                                 </DockPanel>
                                 <DockPanel Grid.Row="6" HorizontalAlignment="Stretch">
                                     <TextBlock Width="80">zFar</TextBlock>

@@ -378,14 +378,9 @@ namespace WPFModelViewer
         private void Sliders_OnValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             //Update slider values
-            //Set Camera FOV
-            float zNear = 0.0f;
-            float zFar = 0.0f;
-            int FOV = 10;
-            
-            zNear = (float) sliderzNear.Value;
-            zFar = (float) sliderzFar.Value;
-            FOV = (int) sliderFOV.Value;
+            float zNear = (float) sliderzNear.Value;
+            float zFar = (float) sliderzFar.Value;
+            int FOV = (int) sliderFOV.Value;
 
             glControl.updateActiveCam(FOV, zNear, zFar);
             glControl.movement_speed = (int) Math.Floor(Math.Pow(sliderMovementFactor.Value, sliderMovementSpeed.Value));

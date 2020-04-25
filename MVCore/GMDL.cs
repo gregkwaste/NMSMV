@@ -243,6 +243,8 @@ namespace MVCore.GMDL
             {
                 child.update();
             }
+
+            updated = true; //Transform changed, trigger mesh updates
         }
 
         //Properties for Data Binding
@@ -1711,6 +1713,12 @@ namespace MVCore.GMDL
 
         public override void updateMeshInfo()
         {
+            if (!updated)
+            {
+                base.updateMeshInfo();
+                return;
+            }
+                
             if (!renderable)
             {
                 base.updateMeshInfo();
@@ -1753,8 +1761,9 @@ namespace MVCore.GMDL
                 //Fallback
                 //main_Vao.setDefaultSkinMatrices();
             }
-
+            
             base.updateMeshInfo();
+            updated = false; //All done
         }
 
 
@@ -2031,12 +2040,8 @@ namespace MVCore.GMDL
         {
             base.update();
 
-            //Do not apply frustum culling on collision meshes
-            if (Common.RenderOptions.RenderCollisions)
-            {
-            
-            }
         }
+
         public override void updateMeshInfo()
         {
             if (!renderable || !Common.RenderOptions.RenderCollisions)
@@ -2543,6 +2548,7 @@ namespace MVCore.GMDL
             switch (Name)
             {
                 case "mpCustomPerMaterial.gDiffuseMap":
+                case "mpCustomPerMaterial.gDiffuse2Map":
                 case "mpCustomPerMaterial.gMasksMap":
                 case "mpCustomPerMaterial.gNormalMap":
                     prepTextures();
@@ -4344,22 +4350,25 @@ namespace MVCore.GMDL
 
         public override void updateMeshInfo()
         {
+            if (!updated)
+                base.updateMeshInfo();
+
             if (Common.RenderOptions.RenderLights && renderable)
             {
                 //End Point
                 Vector4 ep;
-                if (MathUtils.isIdentity(_localRotation))
+                //Lights with 360 FOV are points
+                if (FOV - 360.0f <= 1e-4)
                 {
                     ep = new Vector4(0.0f, 0.0f, 0.0f, 1.0f);
                     light_type = LIGHT_TYPE.POINT;
                 }
                 else
                 {
-                    ep = new Vector4(0.0f, -1.0f, 0.0f, 0.0f);
+                    ep = new Vector4(0.0f, 0.0f, -1.0f, 0.0f);
                     light_type = LIGHT_TYPE.SPOT;
                 }
 
-                //ep = ep * worldMat;
                 ep = ep * _localRotation;
 
                 //Update Vertex Buffer based on the new data
@@ -4383,11 +4392,14 @@ namespace MVCore.GMDL
                 GL.BindBuffer(BufferTarget.ArrayBuffer, meshVao.vao.vertex_buffer_object);
                 //Add verts data, color data should stay the same
                 GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
-
+                
                 //Uplod worldMat to the meshVao
                 meshVao.setInstanceWorldMat(instanceId, Matrix4.Identity);
-            }
+                meshVao.setInstanceOccludedStatus(instanceId, false);
+            } else
+                meshVao.setInstanceOccludedStatus(instanceId, true);
 
+            
             base.updateMeshInfo();
         }
 
@@ -4397,20 +4409,21 @@ namespace MVCore.GMDL
 
             //End Point
             Vector4 ep;
-            if (MathUtils.isIdentity(_localRotation))
+            //Lights with 360 FOV are points
+            if (FOV - 360.0f <= 1e-4)
             {
                 ep = new Vector4(0.0f, 0.0f, 0.0f, 1.0f);
                 light_type = LIGHT_TYPE.POINT;
             }
             else
             {
-                ep = new Vector4(0.0f, -1.0f, 0.0f, 0.0f);
+                ep = new Vector4(0.0f, 0.0f, -1.0f, 0.0f);
                 light_type = LIGHT_TYPE.SPOT;
             }
 
-            //ep = ep * worldMat;
             ep = ep * _localRotation;
-            
+            ep.Normalize();
+
             direction = ep.Xyz; //Set spotlight direction
             update_struct();
 

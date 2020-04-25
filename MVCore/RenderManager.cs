@@ -42,10 +42,10 @@ namespace MVCore
         [FieldOffset(172)]
         public int light_number;
         [FieldOffset(176)]
-        public unsafe fixed float lights[32 * 64];
+        public unsafe fixed float lights[128 * 64];
 
 
-        public static readonly int SizeInBytes = 2224;
+        public static readonly int SizeInBytes = 32944;
     };
     
     [StructLayout(LayoutKind.Explicit)]
@@ -262,8 +262,12 @@ namespace MVCore
             //CommonPerMesh Uniforms Size: 16 * 4 + 16 * 4 + 80 * 16 * 4 + 4 + 4 + 3 * 4 = 5268
             //Total Size: 136 + 5268 = 5404 Bytes
 
+
+            int max_ubo_size = GL.GetInteger(GetPName.MaxUniformBlockSize);
+
             //Allocate atlas
-            int atlas_ubo_buffer_size = MAX_NUMBER_OF_MESHES * CommonPerMeshUniforms.SizeInBytes;
+            //int atlas_ubo_buffer_size = MAX_NUMBER_OF_MESHES * CommonPerMeshUniforms.SizeInBytes;
+            int atlas_ubo_buffer_size = 1024 * 1024 * 16; //16MB
             atlas_cpmu = new byte[atlas_ubo_buffer_size];
 
             int ubo_id = GL.GenBuffer();
@@ -279,9 +283,11 @@ namespace MVCore
             {
                 ubo_id = GL.GenBuffer();
                 GL.BindBuffer(BufferTarget.UniformBuffer, ubo_id);
-                GL.BufferData(BufferTarget.UniformBuffer, atlas_ubo_buffer_size, IntPtr.Zero, BufferUsageHint.StreamDraw);
+                GL.BufferStorage(BufferTarget.UniformBuffer, atlas_ubo_buffer_size, 
+                    IntPtr.Zero, BufferStorageFlags.MapPersistentBit | BufferStorageFlags.MapWriteBit);
+                //GL.BufferData(BufferTarget.UniformBuffer, atlas_ubo_buffer_size, IntPtr.Zero, BufferUsageHint.StreamDraw);
                 trippleBufferUBOs.Add(ubo_id);
-                trippleBufferSyncStatuses.Add(IntPtr.Zero);
+                trippleBufferSyncStatuses.Add(GL.FenceSync(SyncCondition.SyncGpuCommandsComplete, 0));
             }
 
             
@@ -334,7 +340,7 @@ namespace MVCore
             cpfu.gfTime = gfTime; 
 
             //Upload light information
-            for (int i = 0; i < Math.Min(32, resMgr.GLlights.Count); i++)
+            for (int i = 0; i < Math.Min(128, resMgr.GLlights.Count); i++)
             {
                 Light l = resMgr.GLlights[i];
                 //if (!l.update_changes)
@@ -665,15 +671,16 @@ namespace MVCore
 
             UBOs["_COMMON_PER_MESH"] = trippleBufferUBOs[trippleBufferActiveId];
 
-            WaitSyncStatus result =  GL.ClientWaitSync(trippleBufferSyncStatuses[trippleBufferActiveId], 0, 1000000);
+            WaitSyncStatus result =  GL.ClientWaitSync(trippleBufferSyncStatuses[trippleBufferActiveId], 0, 100);
 
-            if (result == WaitSyncStatus.TimeoutExpired || result == WaitSyncStatus.WaitFailed)
+            while (result == WaitSyncStatus.TimeoutExpired || result == WaitSyncStatus.WaitFailed)
             {
-                Console.WriteLine("Gamithike o dias");
+                //Console.WriteLine("Gamithike o dias");
+                result = GL.ClientWaitSync(trippleBufferSyncStatuses[trippleBufferActiveId], 0, 100);
             }
 
             GL.DeleteSync(trippleBufferSyncStatuses[trippleBufferActiveId]);
-            
+
             //Prepare UBO data
             int ubo_offset = 0;
             int max_ubo_offset = MAX_NUMBER_OF_MESHES * CommonPerMeshUniforms.SizeInBytes;
@@ -690,6 +697,9 @@ namespace MVCore
                 prepareCommonPermeshUBO(m, ref ubo_offset);
             }
 
+            if (ubo_offset == 0)
+                return;
+            
             if (ubo_offset > max_ubo_offset)
                 Console.WriteLine("GAMITHIKE O DIAS");
 
@@ -697,13 +707,13 @@ namespace MVCore
             
             //Upload atlas UBO data
             GL.BindBuffer(BufferTarget.UniformBuffer, UBOs["_COMMON_PER_MESH"]);
-            //METHOD 1: BufferSubData
-            //GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, ubo_offset, atlas_cpmu);
 
             //METHOD 2: Use MAP Buffer
             IntPtr ptr = GL.MapBufferRange(BufferTarget.UniformBuffer, IntPtr.Zero,
-                ubo_offset, BufferAccessMask.MapUnsynchronizedBit | BufferAccessMask.MapWriteBit);
-            
+                ubo_offset, BufferAccessMask.MapUnsynchronizedBit | BufferAccessMask.MapPersistentBit | BufferAccessMask.MapWriteBit);
+
+            //Console.WriteLine(GL.GetError());
+
             unsafe
             {
                 Marshal.Copy(atlas_cpmu, 0, ptr, ubo_offset);
@@ -722,41 +732,8 @@ namespace MVCore
 
             GLSLHelper.GLSLShaderConfig shader = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_DEFERRED_SHADER];
 
-            //Prepare UBO data
-            int ubo_offset = 0;
-            int max_ubo_offset = MAX_NUMBER_OF_MESHES * CommonPerMeshUniforms.SizeInBytes;
-            
-            foreach (GLMeshVao m in staticMeshQueue)
-            {
-                prepareCommonPermeshUBO(m, ref ubo_offset);
-            }
-
-            if (ubo_offset > max_ubo_offset)
-                Console.WriteLine("GAMITHIKE O DIAS");
-
-            //at this point the ubo_offset is the actual size of the atlas buffer
-
-            //Upload atlas UBO data
-            GL.BindBuffer(BufferTarget.UniformBuffer, UBOs["_COMMON_PER_MESH"]);
-            //METHOD 1: BufferSubData
-            //GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, ubo_offset, atlas_cpmu);
-
-            //METHOD 2: Use MAP Buffer
-            IntPtr ptr = GL.MapBuffer(BufferTarget.UniformBuffer, BufferAccess.WriteOnly);
-            unsafe
-            {
-                Marshal.Copy(atlas_cpmu, 0, ptr, ubo_offset);
-            }
-            GL.UnmapBuffer(BufferTarget.UniformBuffer);
-
-
             //Enable the Deferred Mesh Shader
             GL.UseProgram(shader.program_id);
-
-            foreach (GLMeshVao m in staticObjectsQueue)
-            {
-                prepareCommonPermeshUBO(m, ref ubo_offset);
-            }
 
             //Render Static Objects
             foreach (GLMeshVao m in staticObjectsQueue)
@@ -798,35 +775,6 @@ namespace MVCore
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
 
             GLSLHelper.GLSLShaderConfig shader = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER];
-
-            //Prepare UBO data
-            int ubo_offset = 0;
-            int max_ubo_offset = MAX_NUMBER_OF_MESHES * CommonPerMeshUniforms.SizeInBytes;
-            foreach (GLMeshVao m in transparentMeshQueue)
-            {
-                prepareCommonPermeshUBO(m, ref ubo_offset);
-            }
-
-            if (ubo_offset > max_ubo_offset)
-                Console.WriteLine("GAMITHIKE O DIAS");
-
-            //at this point the ubo_offset is the actual size of the atlas buffer
-
-            //Upload atlas UBO data
-            GL.BindBuffer(BufferTarget.UniformBuffer, UBOs["_COMMON_PER_MESH"]);
-            
-            
-            //METHOD 1: Use Buffer Sub Data
-            //GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, ubo_offset, atlas_cpmu);
-
-
-            //METHOD 2: Use MAP Buffer
-            IntPtr ptr = GL.MapBuffer(BufferTarget.UniformBuffer, BufferAccess.WriteOnly);
-            unsafe
-            {
-                Marshal.Copy(atlas_cpmu, 0, ptr, ubo_offset);
-            }
-            GL.UnmapBuffer(BufferTarget.UniformBuffer);
 
             GL.UseProgram(resMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER].program_id);
             
@@ -890,7 +838,11 @@ namespace MVCore
                 LOD_filtering(staticMeshQueue);
                 LOD_filtering(transparentMeshQueue);
             }
-            
+
+
+            //Prepare Mesh UBO
+            prepareCommonPerMeshUBOs();
+                
             //Render Geometry (Deferred)
             renderStaticMeshes();
 
