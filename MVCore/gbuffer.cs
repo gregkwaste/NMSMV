@@ -123,7 +123,7 @@ namespace MVCore
             {
                 GL.Ext.BindTexture(TextureTarget.Texture2D, handle);
 
-                Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+                //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
 
                 //GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent, size[0], size[1], 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
                 //GL.TexImage2DMultisample(TextureTargetMultisample.Texture2DMultisample, msaa_samples, format, size[0], size[1], true);
@@ -133,12 +133,12 @@ namespace MVCore
                 //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
                 //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
 
-                Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+                //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
 
                 GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, attach_to_fbo);
-                Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+                //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
                 GL.Ext.FramebufferTexture2D(FramebufferTarget.FramebufferExt, attachment_id, TextureTarget.Texture2D, handle, 0);
-                Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
+                //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
                 //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
             } else
             {

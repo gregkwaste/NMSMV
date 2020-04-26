@@ -135,7 +135,7 @@ namespace MVCore
         private byte[] atlas_cpmu;
 
         private int MAX_NUMBER_OF_MESHES = 2000;
-        private ulong MAX_OCTREE_WIDTH = 2048;
+        private ulong MAX_OCTREE_WIDTH = 256;
 
 
         public void init(ResourceManager input_resMgr)
@@ -383,8 +383,20 @@ namespace MVCore
 
         private void prepareCommonPermeshUBO(GLMeshVao m, ref int UBO_Offset)
         {
-            if (m.instance_count == 0 )
+            if (m.instance_count == 0)
                 return;
+
+            
+            /*
+            if (m.instanceRefs[0].name == "Buttons1")
+            {
+                for (int i = 0; i < m.instance_count; i++)
+                {
+                    Console.WriteLine("Instance Id {0} Occluded Status: {1} transform matrix: {2}",
+                    i, m.getInstanceOccludedStatus(i), m.getInstanceWorldMat(i));
+                }
+            }*/
+            
 
             //TODO move that shit in the MeshVao Class
             m.UBO.color = m.color;
@@ -558,19 +570,16 @@ namespace MVCore
 
                     //TODO: Fix that shit on instanced transparent meshes
 
-                    Matrix4 l1_instanceMatrix = l1.getInstanceWorldMat(0);
-                    Matrix4 l2_instanceMatrix = l2.getInstanceWorldMat(0);
+                    Vector3 l1_AABBMIN = l1.instanceRefs[0].AABBMIN;
+                    Vector3 l1_AABBMAX = l1.instanceRefs[0].AABBMAX;
 
-                    Vector3 l1_newMinBBox = (new Vector4(l1.metaData.AABBMIN, 1.0f) * l1_instanceMatrix).Xyz;
-                    Vector3 l1_newMaxBBox = (new Vector4(l1.metaData.AABBMAX, 1.0f) * l1_instanceMatrix).Xyz;
-
-                    Vector3 l2_newMinBBox = (new Vector4(l2.metaData.AABBMIN, 1.0f) * l2_instanceMatrix).Xyz;
-                    Vector3 l2_newMaxBBox = (new Vector4(l2.metaData.AABBMAX, 1.0f) * l2_instanceMatrix).Xyz;
+                    Vector3 l2_AABBMIN = l2.instanceRefs[0].AABBMIN;
+                    Vector3 l2_AABBMAX = l2.instanceRefs[0].AABBMAX;
 
                     //Calculate distance from the point to the AABB
                     Vector3 p = RenderState.activeCam.Position;
-                    float d1 = MathUtils.distance_Point_to_AABB(l1_newMinBBox, l1_newMaxBBox, p);
-                    float d2 = MathUtils.distance_Point_to_AABB(l2_newMinBBox, l2_newMaxBBox, p);
+                    float d1 = MathUtils.distance_Point_to_AABB_alt(l1_AABBMIN, l1_AABBMAX, p);
+                    float d2 = MathUtils.distance_Point_to_AABB_alt(l2_AABBMIN, l2_AABBMAX, p);
 
                     //float d1 = MathUtils.distance_Point_to_AABB(l1.Bbox[0], l1.Bbox[1], p);
                     //float d2 = MathUtils.distance_Point_to_AABB(l2.Bbox[0], l2.Bbox[1], p);
@@ -756,6 +765,43 @@ namespace MVCore
                     m.render(shader, RENDERPASS.BHULL);
             }
 
+
+            foreach (GLMeshVao m in transparentMeshQueue)
+            {
+                if (m.instance_count == 0)
+                    continue;
+
+                GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"],
+                    (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+
+                m.render(shader, RENDERPASS.DEFERRED);
+                //if (RenderOptions.RenderBoundHulls)
+                //    m.render(RENDERPASS.BHULL);
+            }
+
+
+
+            /*
+            //TESTING - Render Bound Boxes for the transparent meshes
+            shader = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.BBOX_SHADER];
+            GL.UseProgram(shader.program_id);
+
+            //I don't expect any other object type here
+            foreach (GLMeshVao m in transparentMeshQueue)
+            {
+                if (m.instance_count == 0)
+                    continue;
+
+                //GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"],
+                //    (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+
+                m.render(shader, RENDERPASS.BHULL);
+                //if (RenderOptions.RenderBoundHulls)
+                //    m.render(RENDERPASS.BHULL);
+            }
+            */
+
+
         }
 
         private void renderTransparent(int pass)
@@ -777,6 +823,7 @@ namespace MVCore
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             //GL.BlendFunc(BlendingFactor.Src1Alpha, BlendingFactor.ONem);
 
+
             GLSLHelper.GLSLShaderConfig shader = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER];
 
             GL.UseProgram(resMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER].program_id);
@@ -794,27 +841,6 @@ namespace MVCore
                 //if (RenderOptions.RenderBoundHulls)
                 //    m.render(RENDERPASS.BHULL);
             }
-
-            /*
-            //TESTING - Render Bound Boxes for the transparent meshes
-            GL.UseProgram(resMgr.GLShaders[GLSLHelper.SHADER_TYPE.BBOX_SHADER].program_id);
-
-            //I don't expect any other object type here
-            foreach (GLMeshVao m in transparentMeshQueue)
-            {
-                if (m.instance_count == 0)
-                    continue;
-
-                GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"],
-                    (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
-
-                m.render(shader, RENDERPASS.BHULL);
-                //if (RenderOptions.RenderBoundHulls)
-                //    m.render(RENDERPASS.BHULL);
-            }
-
-
-            */
 
             GL.Enable(EnableCap.CullFace);
             GL.Disable(EnableCap.Blend);
@@ -843,7 +869,6 @@ namespace MVCore
 
             gbuf.bind(); //Bing GBuffer
 
-            
             //Prepare UBOs
             prepareCommonPerFrameUBO();
             
@@ -866,7 +891,10 @@ namespace MVCore
 
             //Prepare Mesh UBO
             prepareCommonPerMeshUBOs();
-                
+
+            //Render octree
+            //octree.render(resMgr.GLShaders[GLSLHelper.SHADER_TYPE.BBOX_SHADER].program_id);
+
             //Render Geometry (Deferred)
             renderStaticMeshes();
 
@@ -877,7 +905,7 @@ namespace MVCore
             renderLightPass();
             
             //Light Pass Forward (Transparent/Glowing objects for now
-            renderTransparent(0);
+            //renderTransparent(0);
 
             //Setup FENCE AFTER ALL THE DRAWCALLS ARE DONE
             trippleBufferSyncStatuses[trippleBufferActiveId] = GL.FenceSync(SyncCondition.SyncGpuCommandsComplete, 0);

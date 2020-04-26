@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
-
 using MVCore.GMDL;
 using OpenTK;
-
+using OpenTK.Graphics.OpenGL4;
 
 namespace MVCore
 {
@@ -58,19 +56,26 @@ namespace MVCore
         //Methods
         public void insert(model m)
         {
-            //Transform coordinates
-            IVector3 mincoords = transform_coords(m.AABBMIN, max_width);
-            IVector3 maxcoords = transform_coords(m.AABBMAX, max_width);
+            if (m.type == TYPES.MODEL || m.type == TYPES.REFERENCE)
+            {
+                //Transform coordinates
+                IVector3 mincoords = transform_coords(m.AABBMIN, max_width);
+                IVector3 maxcoords = transform_coords(m.AABBMAX, max_width);
 
-            if (checkIfFits(maxcoords) == 0 && checkIfFits(mincoords) == 0)
-            {
-                root.insert(m, mincoords, maxcoords);
-            } else
-            {
-                //The octree should be expanded
-                Console.WriteLine("WARNING THE CURRENT OCTREE DOES NOT FIT THE OBJECT");
+                if (checkIfFits(maxcoords) == 0 && checkIfFits(mincoords) == 0)
+                {
+                    root.insert(m, mincoords, maxcoords);
+                }
+                else
+                {
+                    //The octree should be expanded
+                    Console.WriteLine("WARNING THE CURRENT OCTREE DOES NOT FIT THE OBJECT");
+                }
             }
-
+            
+            //Look for other scenes
+            foreach (model child in m.children)
+                insert(child);
         }
 
         public int checkIfFits(IVector3 coords)
@@ -104,6 +109,12 @@ namespace MVCore
         public void clear()
         {
             root.clear();
+        }
+
+        public void render(int pass) {
+            
+            root.render(pass);
+            
         }
 
 
@@ -215,14 +226,88 @@ namespace MVCore
                 split();
                 //Add the object to the calculated index
                 children[i_min].insert(m, t_coords_min, t_coords_max);
+                isLeaf = false;
             } else
             {
                 //The object should stay here
                 objects.Add(m);
             }
-
-
         }
+
+        public void render(int pass)
+        {
+            GL.UseProgram(pass);
+
+            Vector3 convAABBMIN = new Vector3(AABBMIN.x, AABBMIN.y, AABBMIN.z) - new Vector3(maxWidth / 2.0f);
+            Vector3 convAABBMAX = new Vector3(AABBMAX.x, AABBMAX.y, AABBMAX.z) - new Vector3(maxWidth / 2.0f);
+
+            //Generate all 8 points from the AABB
+            float[] verts1 = new float[] {  convAABBMIN.X, convAABBMIN.Y, convAABBMIN.Z,
+                                           convAABBMAX.X, convAABBMIN.Y, convAABBMIN.Z,
+                                           convAABBMIN.X, convAABBMAX.Y, convAABBMIN.Z,
+                                           convAABBMAX.X, convAABBMAX.Y, convAABBMIN.Z,
+
+                                           convAABBMIN.X, convAABBMIN.Y, convAABBMAX.Z,
+                                           convAABBMAX.X, convAABBMIN.Y, convAABBMAX.Z,
+                                           convAABBMIN.X, convAABBMAX.Y, convAABBMAX.Z,
+                                           convAABBMAX.X, convAABBMAX.Y, convAABBMAX.Z };
+
+
+            //Indices
+            Int32[] indices = new Int32[] { 0,1,2,
+                                            2,1,3,
+                                            1,5,3,
+                                            5,7,3,
+                                            5,4,6,
+                                            5,6,7,
+                                            0,2,4,
+                                            2,6,4,
+                                            3,6,2,
+                                            7,6,3,
+                                            0,4,5,
+                                            1,0,5};
+            //Generate OpenGL buffers
+            int arraysize = sizeof(float) * verts1.Length;
+            int vb_bbox, eb_bbox;
+            GL.GenBuffers(1, out vb_bbox);
+            GL.GenBuffers(1, out eb_bbox);
+
+            //Upload vertex buffer
+            GL.BindBuffer(BufferTarget.ArrayBuffer, vb_bbox);
+            //Allocate to NULL
+            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)(2 * arraysize), (IntPtr)null, BufferUsageHint.StaticDraw);
+            //Add verts data
+            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts1);
+
+            ////Upload index buffer
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, eb_bbox);
+            GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr)(sizeof(Int32) * indices.Length), indices, BufferUsageHint.StaticDraw);
+
+
+            //Render
+            GL.BindBuffer(BufferTarget.ArrayBuffer, vb_bbox);
+            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, 0);
+            GL.EnableVertexAttribArray(0);
+
+            //Render Elements
+            GL.PointSize(5.0f);
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, eb_bbox);
+
+            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+
+            GL.DrawRangeElements(PrimitiveType.Triangles, 0, verts1.Length,
+                indices.Length, DrawElementsType.UnsignedInt, IntPtr.Zero);
+
+            GL.DisableVertexAttribArray(0);
+
+            GL.DeleteBuffer(vb_bbox);
+            GL.DeleteBuffer(eb_bbox);
+
+            //Render all children recursively
+            foreach (OctNode o in children)
+                o.render(pass);
+        }
+
 
         public void report()
         {

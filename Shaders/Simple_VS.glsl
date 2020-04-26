@@ -66,8 +66,8 @@ void main()
     mat4 lWorldMat;
     
     //Check F02_SKINNED
-    if (mpCommonPerMesh.skinned > 0.0) { 
-    //if (1.0 < 0.0) { 
+    //if (mpCommonPerMesh.skinned > 0.0) { 
+    if (1.0 < 0.0) { 
         ivec4 index;
         
         index.x = int(blendIndices.x);

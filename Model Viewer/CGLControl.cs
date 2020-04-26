@@ -962,15 +962,15 @@ namespace Model_Viewer
             //Explicitly add default light to the rootObject
             rootObject.children.Add(resMgr.GLlights[0]);
 
-            //Populate RenderManager
-            renderMgr.populate(rootObject);
-            
             //find Animation Capable nodes
             findAnimScenes(rootObject);
 
             rootObject.updateLODDistances();
             rootObject.update(); //Refresh all transforms
             rootObject.updateMeshInfo(); //Update all mesh info
+
+            //Populate RenderManager
+            renderMgr.populate(rootObject);
 
             //Restart anim worker if it was active
             if (!RenderOptions.ToggleAnimations)

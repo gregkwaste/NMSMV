@@ -175,7 +175,7 @@ namespace MVCore.GMDL
                 updated = true;
                 foreach (var child in Children)
                     child.IsRenderable = value;
-                meshVao?.setInstanceOccludedStatus(instanceId, !renderable);
+                //meshVao?.setInstanceOccludedStatus(instanceId, !renderable);
                 NotifyPropertyChanged("IsRenderable"); //Make sure to update the UI because of the subsequent changes
             }
         }
@@ -204,6 +204,15 @@ namespace MVCore.GMDL
             foreach (model child in children)
             {
                 child.updateMeshInfo();
+                
+
+                AABBMIN.X = Math.Min(AABBMIN.X, child.AABBMIN.X);
+                AABBMIN.Y = Math.Min(AABBMIN.Y, child.AABBMIN.Y);
+                AABBMIN.Z = Math.Min(AABBMIN.Z, child.AABBMIN.Z);
+
+                AABBMAX.X = Math.Max(AABBMAX.X, child.AABBMAX.X);
+                AABBMAX.Y = Math.Max(AABBMAX.Y, child.AABBMAX.Y);
+                AABBMAX.Z = Math.Max(AABBMAX.Z, child.AABBMAX.Z);
             }
         }
 
@@ -304,6 +313,7 @@ namespace MVCore.GMDL
             renderable = true;
             debuggable = false;
             occluded = false;
+            updated = true;
             selected = 0;
             ID = -1;
             name = "";
@@ -339,6 +349,7 @@ namespace MVCore.GMDL
             this.type = input.type;
             this.name = input.name;
             this.ID = input.ID;
+            this.updated = input.updated;
             this.cIndex = input.cIndex;
             //MESHVAO AND INSTANCE IDS SHOULD BE HANDLED EXPLICITLY
             
@@ -544,9 +555,14 @@ namespace MVCore.GMDL
             type = TYPES.REFERENCE;
         }
 
-        public reference(reference input) : base(input)
+        public reference(reference input)
         {
-            ref_scene = input.ref_scene;
+            //Copy info
+            base.copyFrom(input);
+            
+            ref_scene = input.ref_scene.Clone();
+            ref_scene.parent = this;
+            children.Add(ref_scene);
         }
 
         public void copyFrom(reference input)
@@ -984,7 +1000,15 @@ namespace MVCore.GMDL
 
         public int instance_count = 0;
         public List<model> instanceRefs = new List<model>();
-        //public float[] instance_data = new float[(32 + 4) * MAX_INSTANCES]; //Keep track of the different instances through the corresponding worldMatrices
+        public float[] instanceBoneMatrices = new float[300 * 16 * 128];
+        
+        //Animation Properties
+        //TODO : At some point include that shit into the instance data
+        public int BoneRemapIndicesCount;
+        public int[] BoneRemapIndices;
+        public float[] BoneRemapMatrices = new float[16 * 128];
+        public bool skinned = false;
+        
         
         //public static int instance_struct_size_bytes = 144;
         public static int instance_struct_size_floats = 36;
@@ -1012,12 +1036,7 @@ namespace MVCore.GMDL
         public Material material;
         public Vector3 color;
 
-        //Animation Properties
-        //TODO : At some point include that shit into the instance data
-        public int BoneRemapIndicesCount;
-        public int[] BoneRemapIndices;
-        public float[] BoneRemapMatrices = new float[16 * 128];
-        public bool skinned = false;
+        
 
         //Constructor
         public GLMeshVao()
@@ -1068,13 +1087,21 @@ namespace MVCore.GMDL
         {
             GL.UseProgram(pass);
 
+            if (getInstanceOccludedStatus(instance_id))
+                return;
 
             Matrix4 worldMat = getInstanceWorldMat(instance_id);
-            Vector3 color = getInstanceColor(instance_id);
-
+            //worldMat = worldMat.ClearRotation();
+            
             Vector4[] tr_AABB = new Vector4[2];
-            tr_AABB[0] = new Vector4(metaData.AABBMIN, 1.0f) * worldMat;
-            tr_AABB[1] = new Vector4(metaData.AABBMAX, 1.0f) * worldMat;
+            //tr_AABB[0] = new Vector4(metaData.AABBMIN, 1.0f) * worldMat;
+            //tr_AABB[1] = new Vector4(metaData.AABBMAX, 1.0f) * worldMat;
+
+            tr_AABB[0] = new Vector4(instanceRefs[instance_id].AABBMIN, 1.0f);
+            tr_AABB[1] = new Vector4(instanceRefs[instance_id].AABBMAX, 1.0f);
+
+            //tr_AABB[0] = new Vector4(metaData.AABBMIN, 0.0f);
+            //tr_AABB[1] = new Vector4(metaData.AABBMAX, 0.0f);
 
             //Generate all 8 points from the AABB
             float[] verts1 = new float[] {  tr_AABB[0].X, tr_AABB[0].Y, tr_AABB[0].Z,
@@ -1087,26 +1114,6 @@ namespace MVCore.GMDL
                                            tr_AABB[0].X, tr_AABB[1].Y, tr_AABB[1].Z,
                                            tr_AABB[1].X, tr_AABB[1].Y, tr_AABB[1].Z };
 
-
-            float[] verts = new float[] { metaData.AABBMIN.X, metaData.AABBMIN.Y, metaData.AABBMIN.Z,
-                                           metaData.AABBMAX.X, metaData.AABBMIN.Y, metaData.AABBMIN.Z,
-                                           metaData.AABBMIN.X, metaData.AABBMAX.Y, metaData.AABBMIN.Z,
-                                           metaData.AABBMAX.X, metaData.AABBMAX.Y, metaData.AABBMIN.Z,
-
-                                           metaData.AABBMIN.X, metaData.AABBMIN.Y, metaData.AABBMAX.Z,
-                                           metaData.AABBMAX.X, metaData.AABBMIN.Y, metaData.AABBMAX.Z,
-                                           metaData.AABBMIN.X, metaData.AABBMAX.Y, metaData.AABBMAX.Z,
-                                           metaData.AABBMAX.X, metaData.AABBMAX.Y, metaData.AABBMAX.Z };
-
-
-            float[] colors = new float[] { color.X,color.Y,color.Z,
-                                                color.X,color.Y,color.Z,
-                                                color.X,color.Y,color.Z,
-                                                color.X,color.Y,color.Z,
-                                                color.X,color.Y,color.Z,
-                                                color.X,color.Y,color.Z,
-                                                color.X,color.Y,color.Z,
-                                                color.X,color.Y,color.Z};
 
             //Indices
             Int32[] indices = new Int32[] { 0,1,2,
@@ -1133,9 +1140,7 @@ namespace MVCore.GMDL
             GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)(2 * arraysize), (IntPtr)null, BufferUsageHint.StaticDraw);
             //Add verts data
             GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts1);
-            //Add vert color data
-            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)arraysize, (IntPtr)arraysize, colors);
-
+            
             ////Upload index buffer
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, eb_bbox);
             GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr)(sizeof(Int32) * indices.Length), indices, BufferUsageHint.StaticDraw);
@@ -1152,23 +1157,13 @@ namespace MVCore.GMDL
             //loc = GL.GetUniformLocation(shader_program, "invBMs");
             //GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.vbo.invBMats);
 
-            //Reset
-            //Upload Default Color
-            loc = GL.GetUniformLocation(pass, "color");
-            GL.Uniform3(loc, color);
-
-            //Program changed so I ahve to reupload the model matrices
-            loc = GL.GetUniformLocation(pass, "worldMat");
-            Matrix4 wMat = Matrix4.Identity;
-            GL.UniformMatrix4(loc, false, ref wMat);
-
             //Render Elements
             GL.PointSize(5.0f);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, eb_bbox);
 
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
 
-            GL.DrawRangeElements(PrimitiveType.Triangles, 0, verts.Length,
+            GL.DrawRangeElements(PrimitiveType.Triangles, 0, verts1.Length,
                 indices.Length, DrawElementsType.UnsignedInt, IntPtr.Zero);
 
             GL.DisableVertexAttribArray(0);
@@ -1696,7 +1691,7 @@ namespace MVCore.GMDL
             new_m.copyFrom(this);
 
             new_m.meshVao = this.meshVao;
-            new_m.instanceId = new_m.meshVao.addInstance(this);
+            new_m.instanceId = new_m.meshVao.addInstance(new_m);
             
             //Clone children
             foreach (model child in children)
@@ -1705,7 +1700,7 @@ namespace MVCore.GMDL
                 new_child.parent = new_m;
                 new_m.children.Add(new_child);
             }
-                
+            
             return new_m;
         }
 
@@ -1718,6 +1713,7 @@ namespace MVCore.GMDL
 
         public override void updateMeshInfo()
         {
+
             if (!updated)
             {
                 base.updateMeshInfo();
@@ -1726,49 +1722,97 @@ namespace MVCore.GMDL
                 
             if (!renderable)
             {
-                base.updateMeshInfo();
-                return;
-            }
-
-            bool occluded_status = meshVao.getInstanceOccludedStatus(instanceId);
-            //Apply frustum culling
-            if (!Common.RenderState.activeCam.frustum_occlude(meshVao.metaData.AABBMIN,
-                meshVao.metaData.AABBMAX, worldMat))
-            {
-                Common.RenderStats.occludedNum++;
                 meshVao.setInstanceOccludedStatus(instanceId, true);
-                base.updateMeshInfo();
-                return;
-            }
-
-            //Apply LOD filtering
-            if (hasLOD && Common.RenderOptions.LODFiltering)
-            //if (false)
+            } else
             {
-                //Console.WriteLine("Active LoD {0}", parentScene.activeLOD);
-                if (parentScene.activeLOD != LodLevel)
+                //Apply frustum culling
+                /*
+                if (!Common.RenderState.activeCam.frustum_occlude(meshVao.metaData.AABBMIN,
+                    meshVao.metaData.AABBMAX, worldMat))
                 {
+                    Common.RenderStats.occludedNum++;
                     meshVao.setInstanceOccludedStatus(instanceId, true);
                     base.updateMeshInfo();
                     return;
                 }
+
+                //Apply LOD filtering
+                if (hasLOD && Common.RenderOptions.LODFiltering)
+                //if (false)
+                {
+                    //Console.WriteLine("Active LoD {0}", parentScene.activeLOD);
+                    if (parentScene.activeLOD != LodLevel)
+                    {
+                        meshVao.setInstanceOccludedStatus(instanceId, true);
+                        base.updateMeshInfo();
+                        return;
+                    }
+                }
+                */
+
+                meshVao.setInstanceOccludedStatus(instanceId, false);
+                meshVao.setInstanceWorldMat(instanceId, worldMat);
+                meshVao.setInstanceNormalMat(instanceId, normMat);
+
+                if (Skinned)
+                {
+                    //Update the mesh remap matrices and continue with the transform updates
+                    meshVao.setSkinMatrices(parentScene);
+
+                    //Fallback
+                    //main_Vao.setDefaultSkinMatrices();
+                }
+
+                recalculateAABB(); //Update AABB
             }
 
-            meshVao.setInstanceOccludedStatus(instanceId, false);
-            meshVao.setInstanceWorldMat(instanceId, worldMat);
-            meshVao.setInstanceNormalMat(instanceId, normMat);
-
-            if (Skinned)
-            {
-                //Update the mesh remap matrices and continue with the transform updates
-                meshVao.setSkinMatrices(parentScene);
-
-                //Fallback
-                //main_Vao.setDefaultSkinMatrices();
-            }
-            
             base.updateMeshInfo();
             updated = false; //All done
+        }
+
+
+        public void recalculateAABB()
+        {
+
+            //Revert back to the original values
+            AABBMIN = meshVao.metaData.AABBMIN;
+            AABBMAX = meshVao.metaData.AABBMAX;
+
+            //Generate all 8 points from the AABB
+            List<Vector4> vecs = new List<Vector4>();
+            vecs.Add(new Vector4(AABBMIN.X, AABBMIN.Y, AABBMIN.Z, 1.0f));
+            vecs.Add(new Vector4(AABBMAX.X, AABBMIN.Y, AABBMIN.Z, 1.0f));
+            vecs.Add(new Vector4(AABBMIN.X, AABBMAX.Y, AABBMIN.Z, 1.0f));
+            vecs.Add(new Vector4(AABBMAX.X, AABBMAX.Y, AABBMIN.Z, 1.0f));
+            
+            vecs.Add(new Vector4(AABBMIN.X, AABBMIN.Y, AABBMAX.Z, 1.0f));
+            vecs.Add(new Vector4(AABBMAX.X, AABBMIN.Y, AABBMAX.Z, 1.0f));
+            vecs.Add(new Vector4(AABBMIN.X, AABBMAX.Y, AABBMAX.Z, 1.0f));
+            vecs.Add(new Vector4(AABBMAX.X, AABBMAX.Y, AABBMAX.Z, 1.0f));
+
+
+            //Transform all Vectors using the worldMat
+            for (int i = 0; i < 8; i++)
+                vecs[i] = vecs[i] * worldMat;
+
+            //Init vectors to max
+            AABBMIN = new Vector3(float.MaxValue);
+            AABBMAX = new Vector3(float.MinValue);
+            
+            //Align values
+            
+            for (int i = 0; i < 8; i++)
+            {
+                AABBMIN.X = Math.Min(AABBMIN.X, vecs[i].X);
+                AABBMIN.Y = Math.Min(AABBMIN.Y, vecs[i].Y);
+                AABBMIN.Z = Math.Min(AABBMIN.Z, vecs[i].Z);
+
+                AABBMAX.X = Math.Max(AABBMAX.X, vecs[i].X);
+                AABBMAX.Y = Math.Max(AABBMAX.Y, vecs[i].Y);
+                AABBMAX.Z = Math.Max(AABBMAX.Z, vecs[i].Z);
+            }
+
+
         }
 
 
@@ -2022,7 +2066,7 @@ namespace MVCore.GMDL
             new_m.copyFrom(this);
 
             new_m.meshVao = this.meshVao;
-            new_m.instanceId = new_m.meshVao.addInstance(this);
+            new_m.instanceId = new_m.meshVao.addInstance(new_m);
 
             //Clone children
             foreach (model child in children)
@@ -4110,7 +4154,6 @@ namespace MVCore.GMDL
             this.invBMat = input.invBMat;
             this.color = input.color;
 
-
             meshVao = new GLMeshVao();
             instanceId = meshVao.addInstance(this);
             meshVao.setInstanceWorldMat(instanceId, Matrix4.Identity); //This does not change 
@@ -4125,7 +4168,7 @@ namespace MVCore.GMDL
         {
             
             //We do not apply frustum occlusion on joint objects
-            if (Common.RenderOptions.RenderJoints && renderable)
+            if (Common.RenderOptions.RenderJoints && renderable && (children.Count > 0))
             {
                 //Update Vertex Buffer based on the new positions
                 float[] verts = new float[2 * children.Count * 3];
@@ -4156,7 +4199,32 @@ namespace MVCore.GMDL
 
         public override model Clone()
         {
-            return new Joint(this);
+            Joint j = new Joint();
+            j.copyFrom(this);
+
+            j.jointIndex = this.jointIndex;
+            j.BindMat = this.BindMat;
+            j.invBMat = this.invBMat;
+            j.color = this.color;
+
+            j.meshVao = new GLMeshVao();
+            j.instanceId = j.meshVao.addInstance(j);
+            j.meshVao.setInstanceWorldMat(j.instanceId, Matrix4.Identity); //This does not change 
+            j.meshVao.type = TYPES.JOINT;
+            j.meshVao.metaData = new MeshMetaData();
+            //TODO: Find a place to keep references from the joint GLMeshVAOs
+            j.meshVao.vao = new MVCore.Primitives.LineSegment(this.children.Count, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
+            j.meshVao.material = Common.RenderState.activeResMgr.GLmaterials["jointMat"];
+
+            //Clone children
+            foreach (model child in children)
+            {
+                model new_child = child.Clone();
+                new_child.parent = j;
+                j.children.Add(new_child);
+            }
+
+            return j;
         }
 
         //DIsposal
@@ -4212,8 +4280,6 @@ namespace MVCore.GMDL
         public float intensity = 1.0f;
         public Vector3 direction = new Vector3();
         
-        private int vertex_buffer_object;
-        private int element_buffer_object;
         public bool update_changes = false; //Used to prevent unecessary uploads to the UBO
 
         //Light Projection + View Matrices
@@ -4314,11 +4380,7 @@ namespace MVCore.GMDL
             fov = 360;
             intensity = 1.0f;
             falloff = ATTENUATION_TYPE.CONSTANT;
-            GL.GenBuffers(1, out vertex_buffer_object);
-            GL.GenBuffers(1, out element_buffer_object);
-            if (GL.GetError() != ErrorCode.NoError)
-                Console.WriteLine(GL.GetError());
-
+            
             //Init projection Matrix
             lightProjectionMatrix = Matrix4.CreatePerspectiveFieldOfView(MathUtils.radians(90), 1.0f, 1.0f, 300f);
             
@@ -4340,10 +4402,16 @@ namespace MVCore.GMDL
             intensity = input.intensity;
             falloff = input.falloff;
             fov = input.fov;
-            vertex_buffer_object = input.vertex_buffer_object;
-            element_buffer_object = input.element_buffer_object;
             strct = input.strct;
-            meshVao = input.meshVao;
+            
+            //Initialize new MeshVao
+            meshVao = new GLMeshVao();
+            meshVao.type = TYPES.LIGHT;
+            meshVao.vao = new MVCore.Primitives.LineSegment(1, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
+            meshVao.metaData = new MeshMetaData();
+            meshVao.metaData.batchcount = 2;
+            meshVao.material = Common.RenderState.activeResMgr.GLmaterials["lightMat"];
+            instanceId = meshVao.addInstance(this); //Add instance
 
             //Copy Matrices
             lightProjectionMatrix = input.lightProjectionMatrix;
@@ -4351,13 +4419,18 @@ namespace MVCore.GMDL
             for (int i = 0; i < 6; i++)
                 lightSpaceMatrices[i] = input.lightSpaceMatrices[i];
 
+            update_struct();
+            Common.RenderState.activeResMgr.GLlights.Add(this);
         }
 
         public override void updateMeshInfo()
         {
             if (!updated)
+            {
                 base.updateMeshInfo();
-
+                return;
+            }
+                
             if (Common.RenderOptions.RenderLights && renderable)
             {
                 //End Point
@@ -4401,11 +4474,12 @@ namespace MVCore.GMDL
                 //Uplod worldMat to the meshVao
                 meshVao.setInstanceWorldMat(instanceId, Matrix4.Identity);
                 meshVao.setInstanceOccludedStatus(instanceId, false);
+                //Console.WriteLine("Updating Light");
             } else
                 meshVao.setInstanceOccludedStatus(instanceId, true);
 
-            
             base.updateMeshInfo();
+            updated = false; //All done
         }
 
         public override void update()
@@ -4485,8 +4559,6 @@ namespace MVCore.GMDL
 
             if (disposing)
             {
-                GL.DeleteBuffer(vertex_buffer_object);
-                GL.DeleteBuffer(element_buffer_object);
                 //Free other resources here
                 base.Dispose(true);
             }

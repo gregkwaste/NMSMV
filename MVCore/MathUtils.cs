@@ -254,8 +254,82 @@ namespace MVCore
             float dy = Math.Max(Math.Max(aabb_min.Y - p.Y, 0), aabb_max.Y);
             float dz = Math.Max(Math.Max(aabb_min.Z - p.Z, 0), aabb_max.Z);
 
-            return (float) Math.Sqrt(dx * dx + dy * dy + dz * dz);
-        
+            //return (float) Math.Sqrt(dx * dx + dy * dy + dz * dz);
+            return dx * dx + dy * dy + dz * dz;
+
+        }
+
+
+        public static float distance_Point_to_AABB_alt(Vector3 aabb_min, Vector3 aabb_max, Vector3 p)
+        {
+            float dx = Math.Min(Math.Abs(aabb_min.X - p.X), Math.Abs(aabb_max.X - p.X));
+            float dy = Math.Min(Math.Abs(aabb_min.Y - p.Y), Math.Abs(aabb_max.Y - p.Y));
+            float dz = Math.Min(Math.Abs(aabb_min.Z - p.Z), Math.Abs(aabb_max.Z - p.Z));
+
+            //Triggers
+            bool is_in_x = (p.X <= aabb_max.X) && (p.X >= aabb_min.X);
+            bool is_in_y = (p.Y <= aabb_max.Y) && (p.Y >= aabb_min.Y);
+            bool is_in_z = (p.Z <= aabb_max.Z) && (p.Z >= aabb_min.Z);
+
+            //Cases
+
+            if (is_in_x)
+            {
+                if (is_in_y)
+                {
+                    if (is_in_z)
+                    {
+                        return Math.Min(dx, Math.Min(dy, dz));
+                    }
+                    else
+                    {
+                        return dz;
+                    }
+                } else
+                {
+                    if (is_in_z)
+                    {
+                        return dy;
+                    }
+                    else
+                    {
+                        return (float) Math.Sqrt(dz * dz + dy * dy);
+                    }
+                }
+
+            } else
+            {
+                if (is_in_y)
+                {
+                    if (is_in_z)
+                    {
+                        return dx;
+                    }
+                    else
+                    {
+                        return (float)Math.Sqrt(dx * dx + dz * dz);
+                    }
+                } else
+                {
+                    if (is_in_z)
+                    {
+                        return (float)Math.Sqrt(dx * dx + dy * dy);
+                    }
+                    else
+                    {
+                        return (float)Math.Sqrt(dx * dx + dy * dy + dz * dz);
+                    }
+                }
+            }
+
+
+
+
+
+
+
+
+
         }
 
 

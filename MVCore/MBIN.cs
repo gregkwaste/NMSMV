@@ -852,7 +852,7 @@ namespace MVCore
                 so.gobject = gobject; //Store the gobject for easier access of uniforms
                 so.init(transforms); //Init object transforms
 
-                //PASS AABB info to the main object
+                //PASS AABB info to the main object, The information in the metadata of the mesh regarding AABB SHOULD NOT BE TOUCHED
                 so.AABBMIN = so.metaData.AABBMIN;
                 so.AABBMAX = so.metaData.AABBMAX;
 
