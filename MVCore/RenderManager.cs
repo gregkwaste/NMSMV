@@ -71,19 +71,16 @@ namespace MVCore
     public unsafe struct CommonPerMeshUniformsInstanced
     {
         [FieldOffset(0)]
-        public fixed float skinMats[80 * 16]; //This is mapped to mat4 //5120 bytes
-        [FieldOffset(5120)]
         public Vector4 gUserDataVec4;
-        [FieldOffset(5136)]
+        [FieldOffset(16)]
         public Vector3 color; //12 bytes
-        [FieldOffset(5148)]
+        [FieldOffset(28)]
         public float skinned; //4 bytes (aligns to 4 bytes)
-        [FieldOffset(5152)]
+        [FieldOffset(32)]
         public fixed float instanceData[300 * 36];
-        [FieldOffset(48352)]
-        public fixed byte padding[32]; //Extra padding to match the UBO aligment
-
-        public static readonly int SizeInBytes = 48384;
+        [FieldOffset(43232)]
+        public fixed byte padding[32];
+        public static readonly int SizeInBytes = 43264;
     };
 
     [StructLayout(LayoutKind.Explicit)]
@@ -402,26 +399,22 @@ namespace MVCore
             m.UBO.color = m.color;
             m.UBO.skinned = m.skinned ? 1.0f : 0.0f;
             
-            if (m.skinned)
-            {
-                unsafe
-                {
-                    //Again try to think of a better way to copy this shit
-                    for (int i = 0; i < m.BoneRemapIndicesCount * 16; i++)
-                    { 
-                        m.UBO.skinMats[i] = m.BoneRemapMatrices[i];
-                    }
-                }
-            }
 
+            if (m.skinned)
+                m.uploadSkinningData();
+            
             //Copy custom mesh parameters
             //TODO: Move that to instance data as well
             //cpmu.gUserDataVec4 = m.PgUserDataVec4.Vec.Vec;
             m.UBO.gUserDataVec4 = new Vector4(0.0f);
 
             //Calculate aligned size
-            m.UBO_aligned_size = 5152 + m.instance_count * GLMeshVao.instance_struct_size_floats * 4;
+            m.UBO_aligned_size = 32 + m.instance_count * GLMeshVao.instance_struct_size_floats * 4;
             m.UBO_aligned_size = ((m.UBO_aligned_size >> 8) + 1) * 256;
+
+
+            if (m.UBO_aligned_size > CommonPerMeshUniformsInstanced.SizeInBytes)
+                Console.WriteLine("WOOOOOOOOOOOOT");
 
             if (m.UBO_aligned_size + UBO_Offset > atlas_cpmu.Length)
             {
@@ -692,7 +685,7 @@ namespace MVCore
 
             //Prepare UBO data
             int ubo_offset = 0;
-            int max_ubo_offset = MAX_NUMBER_OF_MESHES * CommonPerMeshUniforms.SizeInBytes;
+            int max_ubo_offset = MAX_NUMBER_OF_MESHES * CommonPerMeshUniformsInstanced.SizeInBytes;
             
             //Upload StaticMeshes
             foreach (GLMeshVao m in staticMeshQueue)

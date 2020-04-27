@@ -198,7 +198,14 @@ namespace MVCore.GMDL
             foreach (model s in children)
                 s.updateLODDistances();
         }
-        
+
+        public virtual void setupSkinMatrixArrays()
+        {
+            foreach (model s in children)
+                s.setupSkinMatrixArrays();
+        }
+
+
         public virtual void updateMeshInfo()
         {
             foreach (model child in children)
@@ -1000,13 +1007,15 @@ namespace MVCore.GMDL
 
         public int instance_count = 0;
         public List<model> instanceRefs = new List<model>();
-        public float[] instanceBoneMatrices = new float[300 * 16 * 128];
-        
+        public float[] instanceBoneMatrices;
+        private int instanceBoneMatricesTex;
+        private int instanceBoneMatricesTexTBO;
+
         //Animation Properties
         //TODO : At some point include that shit into the instance data
         public int BoneRemapIndicesCount;
         public int[] BoneRemapIndices;
-        public float[] BoneRemapMatrices = new float[16 * 128];
+        //public float[] BoneRemapMatrices = new float[16 * 128];
         public bool skinned = false;
         
         
@@ -1113,7 +1122,6 @@ namespace MVCore.GMDL
                                            tr_AABB[1].X, tr_AABB[0].Y, tr_AABB[1].Z,
                                            tr_AABB[0].X, tr_AABB[1].Y, tr_AABB[1].Z,
                                            tr_AABB[1].X, tr_AABB[1].Y, tr_AABB[1].Z };
-
 
             //Indices
             Int32[] indices = new Int32[] { 0,1,2,
@@ -1299,7 +1307,16 @@ namespace MVCore.GMDL
                 }
             }
 
-
+            //BIND TEXTURE Buffer
+            if (skinned)
+            {
+                GL.Uniform1(shader.uniformLocations["mpCustomPerMaterial.skinMatsTex"], 6);
+                GL.ActiveTexture(TextureUnit.Texture6);
+                GL.BindTexture(TextureTarget.TextureBuffer, instanceBoneMatricesTex);
+                GL.TexBuffer(TextureBufferTarget.TextureBuffer,
+                    SizedInternalFormat.Rgba32f, instanceBoneMatricesTexTBO);
+            }
+            
             //if (instance_count > 100)
             //    Console.WriteLine("Increase the buffers");
 
@@ -1521,21 +1538,61 @@ namespace MVCore.GMDL
         }
 
 
-        public void setSkinMatrices(scene animScene)
+        public void setSkinMatrices(scene animScene, int instance_id)
         {
+            int instance_offset = 128 * 16 * instance_id;
+
+
+            if (instance_id < 0)
+                Console.WriteLine("test");
+            if (instance_id >= instance_count)
+                Console.WriteLine("test");
+
+            if (BoneRemapIndicesCount > 128)
+                Console.WriteLine("test");
+
             for (int i = 0; i < BoneRemapIndicesCount; i++)
             {
-                Array.Copy(animScene.skinMats, BoneRemapIndices[i] * 16, BoneRemapMatrices, i * 16, 16);
+                Array.Copy(animScene.skinMats, BoneRemapIndices[i] * 16, instanceBoneMatrices, instance_offset + i * 16, 16);
             }
         }
 
-        public void setDefaultSkinMatrices()
+        public void setDefaultSkinMatrices(int instance_id)
         {
+            int instance_offset = 128 * 16 * instance_id;
             for (int i = 0; i < BoneRemapIndicesCount; i++)
             {
-                MathUtils.insertMatToArray16(BoneRemapMatrices, i * 16, Matrix4.Identity);
+                MathUtils.insertMatToArray16(instanceBoneMatrices, instance_offset + i * 16, Matrix4.Identity);
             }
                 
+        }
+
+        public void initializeSkinMatrices()
+        {
+            if (instance_count == 0)
+                return;
+            //Re-initialize the array based on the number of instances
+            instanceBoneMatrices = new float[instance_count * 128 * 16];
+            int bufferSize = instance_count * 128 * 16 * 4;
+
+            //Setup the TBO
+            instanceBoneMatricesTex = GL.GenTexture();
+            instanceBoneMatricesTexTBO = GL.GenBuffer();
+
+            GL.BindBuffer(BufferTarget.TextureBuffer, instanceBoneMatricesTexTBO);
+            GL.BufferData(BufferTarget.TextureBuffer, bufferSize, instanceBoneMatrices, BufferUsageHint.StreamDraw);
+            GL.TexBuffer(TextureBufferTarget.TextureBuffer, SizedInternalFormat.Rgba32f, instanceBoneMatricesTexTBO);
+            GL.BindBuffer(BufferTarget.TextureBuffer, 0);
+
+        }
+
+        public void uploadSkinningData()
+        {
+            GL.BindBuffer(BufferTarget.TextureBuffer, instanceBoneMatricesTexTBO);
+            int bufferSize = instance_count * 128 * 16 * 4;
+            GL.BufferSubData(BufferTarget.TextureBuffer, IntPtr.Zero, bufferSize, instanceBoneMatrices);
+            //Console.WriteLine(GL.GetError());
+            GL.BindBuffer(BufferTarget.TextureBuffer, 0);
         }
 
 
@@ -1556,9 +1613,15 @@ namespace MVCore.GMDL
                 {
                     // TODO: dispose managed state (managed objects).
                     BoneRemapIndices = null;
-                    BoneRemapMatrices = null;
+                    instanceBoneMatrices = null;
                     
                     vao?.Dispose();
+
+                    if (instanceBoneMatricesTex > 0)
+                    {
+                        GL.DeleteTexture(instanceBoneMatricesTex);
+                        GL.DeleteBuffer(instanceBoneMatricesTexTBO);
+                    }
                 }
 
                 // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
@@ -1711,15 +1774,30 @@ namespace MVCore.GMDL
             normMat = Matrix4.Transpose(worldMat.Inverted());
         }
 
+        public override void setupSkinMatrixArrays()
+        {
+            meshVao?.initializeSkinMatrices();
+
+            base.setupSkinMatrixArrays();
+            
+        }
+
         public override void updateMeshInfo()
         {
-
             if (!updated)
             {
                 base.updateMeshInfo();
                 return;
             }
-                
+
+            if (instanceId < 0)
+                Console.WriteLine("test");
+            if (instanceId >= meshVao.instance_count)
+                Console.WriteLine("test");
+            if (meshVao.BoneRemapIndicesCount > 128)
+                Console.WriteLine("test");
+
+
             if (!renderable)
             {
                 meshVao.setInstanceOccludedStatus(instanceId, true);
@@ -1756,8 +1834,9 @@ namespace MVCore.GMDL
 
                 if (Skinned)
                 {
+                    
                     //Update the mesh remap matrices and continue with the transform updates
-                    meshVao.setSkinMatrices(parentScene);
+                    meshVao.setSkinMatrices(parentScene, instanceId);
 
                     //Fallback
                     //main_Vao.setDefaultSkinMatrices();
@@ -2128,6 +2207,14 @@ namespace MVCore.GMDL
 
         public Decal(meshModel input):base(input) { }
         public Decal(Decal input) : base(input) { }
+
+        public override model Clone()
+        {
+            Decal new_d = (Decal) base.Clone();
+            new_d.type = TYPES.DECAL;
+
+            return new_d;
+        }
 
         //Deconstructor
         protected override void Dispose(bool disposing)
@@ -4380,7 +4467,17 @@ namespace MVCore.GMDL
             fov = 360;
             intensity = 1.0f;
             falloff = ATTENUATION_TYPE.CONSTANT;
-            
+
+
+            //Initialize new MeshVao
+            meshVao = new GLMeshVao();
+            meshVao.type = TYPES.LIGHT;
+            meshVao.vao = new MVCore.Primitives.LineSegment(1, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
+            meshVao.metaData = new MeshMetaData();
+            meshVao.metaData.batchcount = 2;
+            meshVao.material = Common.RenderState.activeResMgr.GLmaterials["lightMat"];
+            instanceId = meshVao.addInstance(this); //Add instance
+
             //Init projection Matrix
             lightProjectionMatrix = Matrix4.CreatePerspectiveFieldOfView(MathUtils.radians(90), 1.0f, 1.0f, 300f);
             

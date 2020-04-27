@@ -20,6 +20,7 @@ layout(location=6) in vec4 blendWeights;
 
 uniform CustomPerMaterialUniforms mpCustomPerMaterial;
 
+
 //Uniform Blocks
 layout (std140, binding=0) uniform _COMMON_PER_FRAME
 {
@@ -40,6 +41,16 @@ out vec3 N;
 out vec2 uv0;
 out mat3 TBN;
 
+/*
+** Returns matrix4x4 from texture cache.
+*/
+mat4 get_skin_matrix(int offset)
+{
+    return (mat4(texelFetch(mpCustomPerMaterial.skinMatsTex, offset),
+                 texelFetch(mpCustomPerMaterial.skinMatsTex, offset + 1),
+                 texelFetch(mpCustomPerMaterial.skinMatsTex, offset + 2),
+                 texelFetch(mpCustomPerMaterial.skinMatsTex, offset + 3)));
+}
 
 
 //Bool checks for material flags
@@ -66,8 +77,7 @@ void main()
     mat4 lWorldMat;
     
     //Check F02_SKINNED
-    //if (mpCommonPerMesh.skinned > 0.0) { 
-    if (1.0 < 0.0) { 
+    if (mpCommonPerMesh.skinned > 0.0) { 
         ivec4 index;
         
         index.x = int(blendIndices.x);
@@ -75,10 +85,14 @@ void main()
 	    index.z = int(blendIndices.z);
 	    index.w = int(blendIndices.w);
 
-        lWorldMat =  blendWeights.x * mpCommonPerMesh.skinMats[index.x];
-        lWorldMat += blendWeights.y * mpCommonPerMesh.skinMats[index.y];
-        lWorldMat += blendWeights.z * mpCommonPerMesh.skinMats[index.z];
-        lWorldMat += blendWeights.w * mpCommonPerMesh.skinMats[index.w];
+        //Assemble matrices from 
+
+
+        int instanceMatOffset = gl_InstanceID * 128 * 4;
+        lWorldMat =  blendWeights.x * get_skin_matrix(instanceMatOffset + 4 * index.x);
+        lWorldMat += blendWeights.y * get_skin_matrix(instanceMatOffset + 4 * index.y);
+        lWorldMat += blendWeights.z * get_skin_matrix(instanceMatOffset + 4 * index.z);
+        lWorldMat += blendWeights.w * get_skin_matrix(instanceMatOffset + 4 * index.w);
     } else {
         lWorldMat = mpCommonPerMesh.instanceData[gl_InstanceID].worldMat;
     }

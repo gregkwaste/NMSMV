@@ -19,11 +19,10 @@ struct MeshInstance
 //Common Per Mesh Struct
 struct CommonPerMeshUniforms
 {
-    mat4 skinMats[80];
     vec4 gUserDataVec4;
     vec3 color; //Mesh Default Color
     float skinned;
-    MeshInstance instanceData[300]; //World Matrices
+    MeshInstance instanceData[300]; //Instance world matrices, normal matrices, occlusion and selection status
 };
 
 //Custom Per Frame Struct
@@ -56,6 +55,7 @@ struct CustomPerMaterialUniforms  //locations:73
     sampler2DArray gDiffuse2Map;
     sampler2DArray gMasksMap;
     sampler2DArray gNormalMap;
+    samplerBuffer skinMatsTex;
 
     vec4 gMaterialColourVec4;
     vec4 gMaterialParamsVec4;

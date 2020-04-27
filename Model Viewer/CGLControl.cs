@@ -967,6 +967,7 @@ namespace Model_Viewer
 
             rootObject.updateLODDistances();
             rootObject.update(); //Refresh all transforms
+            rootObject.setupSkinMatrixArrays();
             rootObject.updateMeshInfo(); //Update all mesh info
 
             //Populate RenderManager

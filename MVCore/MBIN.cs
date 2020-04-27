@@ -1370,14 +1370,6 @@ namespace MVCore
                                                                          Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
                                                                          Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
 
-                so.meshVao = new GLMeshVao();
-                so.meshVao.type = TYPES.LIGHT;
-                so.meshVao.vao = new MVCore.Primitives.LineSegment(1, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
-                so.meshVao.metaData = new MeshMetaData();
-                so.meshVao.metaData.batchcount = 2;
-                so.meshVao.material = Common.RenderState.activeResMgr.GLmaterials["lightMat"];
-                so.instanceId = so.meshVao.addInstance(so); //Add instance
-
                 //Add Light to the resource Manager
                 so.update_struct();
                 Common.RenderState.activeResMgr.GLlights.Add(so);
