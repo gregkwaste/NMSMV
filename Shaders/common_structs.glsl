@@ -12,6 +12,7 @@ struct MeshInstance
 {
     mat4 worldMat;
     mat4 normalMat;
+    mat4 worldMatInv;
     float isOccluded;
     float isSelected;
 };
@@ -31,9 +32,13 @@ struct CommonPerFrameUniforms
     float diffuseFlag; //Enable Textures //floats align to 16 bytes
     float use_lighting; //Enable lighting
     float gfTime; //Time
+    float MSAA_SAMPLES; //MSAA Samples
+    vec2 frameDim; //Dimensions of the render frame
     //Rendering Options
     mat4 rotMat;
     mat4 mvp;
+    mat4 lookMatInv;
+    mat4 projMatInv;
     vec3 cameraPosition;
     float cameraFarPlane;
     vec3 cameraDirection;

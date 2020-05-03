@@ -16,9 +16,6 @@ namespace MVCore.Common
         //Force Procgen
         public static bool forceProcGen;
 
-        //Keep the mvp matrix
-        public static Matrix4 mvp;
-
         //Keep the view rotation Matrix
         public static Matrix4 rotMat;
 

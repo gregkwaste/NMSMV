@@ -29,9 +29,7 @@ namespace MVCore
         public Dictionary<string, GLVao> GLVaos = new Dictionary<string, GLVao>();
         public Dictionary<string, GLMeshVao> GLPrimitiveMeshVaos = new Dictionary<string, GLMeshVao>();
         
-
         public List<GMDL.Light> GLlights = new List<GMDL.Light>();
-        public List<GMDL.Decal> GLDecals = new List<GMDL.Decal>();
         public List<Camera> GLCameras = new List<Camera>();
         //public Dictionary<string, int> GLShaders = new Dictionary<string, int>();
         public Dictionary<GLSLHelper.SHADER_TYPE, GLSLHelper.GLSLShaderConfig> GLShaders = new Dictionary<GLSLHelper.SHADER_TYPE, GLSLHelper.GLSLShaderConfig>();
@@ -77,7 +75,6 @@ namespace MVCore
             {
                 name = "Default Light",
                 intensity = 50,
-                shader_programs = new GLSLHelper.GLSLShaderConfig[] { this.GLShaders[GLSLHelper.SHADER_TYPE.LIGHT_SHADER] },
                 localPosition = new Vector3(100.0f, 100.0f, 100.0f)
             };
         
@@ -222,11 +219,6 @@ namespace MVCore
             
             //Cleanup Animations
             Animations.Clear();
-
-            //Cleanup Decals
-            foreach (GMDL.model p in GLDecals)
-                p.Dispose();
-            GLDecals.Clear();
 
             //Cleanup Materials
             foreach (GMDL.Material p in GLmaterials.Values)

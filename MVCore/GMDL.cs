@@ -34,6 +34,7 @@ namespace MVCore.GMDL
     {
         DEFERRED = 0x0,
         FORWARD,
+        DECAL,
         BHULL,
         BBOX,
         DEBUG,
@@ -58,7 +59,7 @@ namespace MVCore.GMDL
         public bool occluded;
         public bool debuggable;
         public int selected;
-        public GLSLHelper.GLSLShaderConfig[] shader_programs;
+        //public GLSLHelper.GLSLShaderConfig[] shader_programs;
         public int ID;
         public TYPES type;
         public string name;
@@ -352,7 +353,6 @@ namespace MVCore.GMDL
             this.renderable = input.renderable; //Override Renderability
             this.debuggable = input.debuggable;
             this.selected = 0;
-            this.shader_programs = input.shader_programs;
             this.type = input.type;
             this.name = input.name;
             this.ID = input.ID;
@@ -627,11 +627,6 @@ namespace MVCore.GMDL
             //Init Animation Stuff
             skinMats = new float[256 * 16];
             jointDict = new Dictionary<string, Joint>();
-
-            //Set Shader Program
-            shader_programs = new GLSLHelper.GLSLShaderConfig[]{Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.LOCATOR_SHADER],
-                                        Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
-                                        Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
         }
 
         
@@ -801,11 +796,6 @@ namespace MVCore.GMDL
             //Assemble geometry in the constructor
             meshVao = MVCore.Common.RenderState.activeResMgr.GLPrimitiveMeshVaos["default_cross"];
             instanceId = meshVao.addInstance(this);
-            
-            //Add shaders
-            shader_programs = new GLSLHelper.GLSLShaderConfig[] { MVCore.Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.LOCATOR_SHADER],
-                MVCore.Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
-                MVCore.Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
         }
 
         public void copyFrom(locator input)
@@ -839,6 +829,22 @@ namespace MVCore.GMDL
             base.update();
         }
 
+        public override void updateMeshInfo()
+        {
+            if (Common.RenderOptions.RenderLocators && renderable)
+            {
+                //Uplod worldMat to the meshVao
+                meshVao.setInstanceWorldMat(instanceId, worldMat);
+                meshVao.setInstanceOccludedStatus(instanceId, false);
+                //Console.WriteLine("Updating Light");
+            }
+            else
+                meshVao.setInstanceOccludedStatus(instanceId, true);
+
+            base.updateMeshInfo();
+            updated = false; //All done
+        }
+
 
         #region IDisposable Support
         protected override void Dispose(bool disposing)
@@ -848,7 +854,6 @@ namespace MVCore.GMDL
                 if (disposing)
                 {
                     meshVao = null; //VAO will be deleted from the resource manager since it is a common mesh
-                    shader_programs = null;
                     base.Dispose(disposing);
                 }
                 disposed = true;
@@ -1006,6 +1011,7 @@ namespace MVCore.GMDL
         public int UBO_offset = 0; //Ofset 
 
         public int instance_count = 0;
+        public int visible_instances = 0;
         public List<model> instanceRefs = new List<model>();
         public float[] instanceBoneMatrices;
         private int instanceBoneMatricesTex;
@@ -1019,18 +1025,20 @@ namespace MVCore.GMDL
         public bool skinned = false;
         
         
-        //public static int instance_struct_size_bytes = 144;
-        public static int instance_struct_size_floats = 36;
         //public static int instance_worldMat_Offset = 0;
         public static int instance_worldMat_Float_Offset = 0;
         //public static int instance_normalMat_Offset = 64;
         public static int instance_normalMat_Float_Offset = 16;
-        //public static int instance_isOccluded_Offset = 128;
-        public static int instance_isOccluded_Float_Offset = 32;
-        //public static int instance_isSelected_Offset = 132;
-        public static int instance_isSelected_Float_Offset = 33;
-        //public static int instance_color_Offset = 136; //TODO make that a vec4
-        public static int instance_color_Float_Offset = 34;
+        //public static int instance_worldMatInv_Offset = 128;
+        public static int instance_worldMatInv_Float_Offset = 32;
+        //public static int instance_isOccluded_Offset = 192;
+        public static int instance_isOccluded_Float_Offset = 48;
+        //public static int instance_isSelected_Offset = 196;
+        public static int instance_isSelected_Float_Offset = 49;
+        //public static int instance_color_Offset = 200; //TODO make that a vec4
+        public static int instance_color_Float_Offset = 50;
+        //public static int instance_struct_size_bytes = 204;
+        public static int instance_struct_size_floats = 52; //Aligned 208 Bytes
 
         //Instance Data Format:
         //0-16 : instance WorldMatrix
@@ -1161,7 +1169,6 @@ namespace MVCore.GMDL
             GL.EnableVertexAttribArray(0);
 
             //InverseBind Matrices
-            int loc;
             //loc = GL.GetUniformLocation(shader_program, "invBMs");
             //GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.vbo.invBMats);
 
@@ -1209,10 +1216,8 @@ namespace MVCore.GMDL
             //Step 2 Bind & Render Vao
             //Render Elements
             GL.BindVertexArray(vao.vao_id);
-            GL.PolygonMode(MaterialFace.FrontAndBack, Common.RenderOptions.RENDERMODE);
-
+            
             //GL.DrawElements(PrimitiveType.Triangles, batchcount, indicesLength, IntPtr.Zero);
-
             //Use Instancing
             GL.DrawElementsInstanced(PrimitiveType.Triangles, metaData.batchcount, indicesLength,
                 IntPtr.Zero, instance_count);
@@ -1259,15 +1264,15 @@ namespace MVCore.GMDL
 
             }
 
+            GL.PolygonMode(MaterialFace.FrontAndBack, Common.RenderOptions.RENDERMODE);
+
             GL.BindVertexArray(0);
         }
 
         private void renderLocator()
         {
             GL.BindVertexArray(vao.vao_id);
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
             GL.DrawElements(PrimitiveType.Lines, 6, DrawElementsType.UnsignedInt, (IntPtr)0);
-            //GL.PolygonMode(MaterialFace.FrontAndBack, MVCore.RenderOptions.RENDERMODE);
             GL.BindVertexArray(0);
         }
 
@@ -1279,11 +1284,11 @@ namespace MVCore.GMDL
             GL.DrawArrays(PrimitiveType.Points, 0, 1); //Draw only yourself
             GL.BindVertexArray(0);
         }
-        
+
         public virtual void renderMain(GLSLHelper.GLSLShaderConfig shader)
         {
             //Upload Material Information
-            
+
             //Step 1 Upload uniform variables
             GL.Uniform1(shader.uniformLocations["mpCustomPerMaterial.matflags[0]"], 64, material.material_flags); //Upload Material Flags
 
@@ -1316,11 +1321,11 @@ namespace MVCore.GMDL
                 GL.TexBuffer(TextureBufferTarget.TextureBuffer,
                     SizedInternalFormat.Rgba32f, instanceBoneMatricesTexTBO);
             }
-            
+
             //if (instance_count > 100)
             //    Console.WriteLine("Increase the buffers");
 
-           
+
             switch (type)
             {
                 case TYPES.MESH:
@@ -1340,6 +1345,16 @@ namespace MVCore.GMDL
                     renderLight();
                     break;
             }
+        }
+
+        public virtual void renderDecals(GLSLHelper.GLSLShaderConfig shader, GBuffer gbuf)
+        {
+            //Bind Depth Buffer
+            GL.Uniform1(shader.uniformLocations["depthTex"], 6);
+            GL.ActiveTexture(TextureUnit.Texture6);
+            GL.BindTexture(TextureTarget.Texture2DMultisample, gbuf.dump_depth);
+
+            renderMain(shader);
         }
 
         private void renderBHull(GLSLHelper.GLSLShaderConfig shader)
@@ -1393,7 +1408,7 @@ namespace MVCore.GMDL
 
 
         //Default render method
-        public bool render(GLSLHelper.GLSLShaderConfig shader, RENDERPASS pass)
+        public bool render(GLSLHelper.GLSLShaderConfig shader, RENDERPASS pass, GBuffer gbuf = null)
         {
             if (instance_count == 0)
                 return false;
@@ -1405,6 +1420,9 @@ namespace MVCore.GMDL
                 case RENDERPASS.DEFERRED:
                 case RENDERPASS.FORWARD:
                     renderMain(shader);
+                    break;
+                case RENDERPASS.DECAL:
+                    renderDecals(shader, gbuf);
                     break;
                 case RENDERPASS.BBOX:
                 case RENDERPASS.BHULL:
@@ -1458,6 +1476,7 @@ namespace MVCore.GMDL
 
         public void setInstanceOccludedStatus(int instance_id, bool status)
         {
+            visible_instances += (status ? -1 : 1);
             unsafe
             {
                 UBO.instanceData[instance_id * instance_struct_size_floats + instance_isOccluded_Float_Offset] = status ? 1.0f : 0.0f;
@@ -1522,6 +1541,17 @@ namespace MVCore.GMDL
                 fixed (float* ar = UBO.instanceData)
                 {
                     MathUtils.insertMatToArray16(ar, instance_id * instance_struct_size_floats + instance_worldMat_Float_Offset, mat);
+                }
+            }
+        }
+
+        public void setInstanceWorldMatInv(int instance_id, Matrix4 mat)
+        {
+            unsafe
+            {
+                fixed (float* ar = UBO.instanceData)
+                {
+                    MathUtils.insertMatToArray16(ar, instance_id * instance_struct_size_floats + instance_worldMatInv_Float_Offset, mat);
                 }
             }
         }
@@ -1830,6 +1860,7 @@ namespace MVCore.GMDL
 
                 meshVao.setInstanceOccludedStatus(instanceId, false);
                 meshVao.setInstanceWorldMat(instanceId, worldMat);
+                meshVao.setInstanceWorldMatInv(instanceId, worldMat.Inverted());
                 meshVao.setInstanceNormalMat(instanceId, normMat);
 
                 if (Skinned)
@@ -2200,29 +2231,6 @@ namespace MVCore.GMDL
 
     }
 
-    public class Decal : meshModel
-    {
-        //Custom constructor
-        public Decal() { }
-
-        public Decal(meshModel input):base(input) { }
-        public Decal(Decal input) : base(input) { }
-
-        public override model Clone()
-        {
-            Decal new_d = (Decal) base.Clone();
-            new_d.type = TYPES.DECAL;
-
-            return new_d;
-        }
-
-        //Deconstructor
-        protected override void Dispose(bool disposing)
-        {
-            base.Dispose(disposing);
-        }
-
-    }
 
     public class GeomObject : IDisposable
     {
@@ -2806,18 +2814,19 @@ namespace MVCore.GMDL
             GL.GenerateMipmap(GenerateMipmapTarget.Texture2DArray);
         }
 
-        public static void setupTextureParameters(int texture, int wrapMode, int magFilter, int minFilter, float af_amount)
+        public static void setupTextureParameters(TextureTarget texTarget, int texture, int wrapMode, int magFilter, int minFilter, float af_amount)
         {
-            GL.BindTexture(TextureTarget.Texture2D, texture);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, wrapMode);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, wrapMode);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, magFilter);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, minFilter);
+
+            GL.BindTexture(texTarget, texture);
+            GL.TexParameter(texTarget, TextureParameterName.TextureWrapS, wrapMode);
+            GL.TexParameter(texTarget, TextureParameterName.TextureWrapT, wrapMode);
+            GL.TexParameter(texTarget, TextureParameterName.TextureMagFilter, magFilter);
+            GL.TexParameter(texTarget, TextureParameterName.TextureMinFilter, minFilter);
             //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 4.0f);
 
             //Use anisotropic filtering
             af_amount = Math.Max(af_amount, GL.GetFloat((GetPName)All.MaxTextureMaxAnisotropy));
-            GL.TexParameter(TextureTarget.Texture2D, (TextureParameterName)0x84FE, af_amount);
+            GL.TexParameter(texTarget, (TextureParameterName)0x84FE, af_amount);
         }
 
 
@@ -3557,7 +3566,7 @@ namespace MVCore.GMDL
             //Diffuse Output
             fbo_tex = Sampler.generate2DTexture(PixelInternalFormat.Rgba, texWidth, texHeight, PixelFormat.Rgba, PixelType.UnsignedByte, 1);
             Console.WriteLine(GL.GetError());
-            Sampler.setupTextureParameters(fbo_tex, (int)TextureWrapMode.Repeat,
+            Sampler.setupTextureParameters(TextureTarget.Texture2D, fbo_tex, (int)TextureWrapMode.Repeat,
                 (int)TextureMagFilter.Linear, (int)TextureMinFilter.LinearMipmapLinear, 4.0f);
             Console.WriteLine(GL.GetError());
 
@@ -3567,6 +3576,7 @@ namespace MVCore.GMDL
 
             //Attach Textures to this FBO
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, fbo_tex, 0);
+            Console.WriteLine(GL.GetError());
 
             //Check
             Debug.Assert(GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer) == FramebufferErrorCode.FramebufferComplete);
@@ -3685,7 +3695,7 @@ namespace MVCore.GMDL
 
             //Console.WriteLine("MixTextures5, Last GL Error: " + GL.GetError());
             int out_tex_2darray_diffuse = Sampler.generateTexture2DArray(PixelInternalFormat.Rgba8, texWidth, texHeight, 1, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
-            Sampler.setupTextureParameters(out_tex_2darray_diffuse, (int)TextureWrapMode.Repeat,
+            Sampler.setupTextureParameters(TextureTarget.Texture2DArray, out_tex_2darray_diffuse, (int)TextureWrapMode.Repeat,
                 (int)TextureMagFilter.Linear, (int)TextureMinFilter.LinearMipmapLinear, 4.0f);
 
             //Copy the read buffers to the 
@@ -3807,7 +3817,7 @@ namespace MVCore.GMDL
 
             //Console.WriteLine("MixTextures5, Last GL Error: " + GL.GetError());
             int out_tex_2darray_mask = Sampler.generateTexture2DArray(PixelInternalFormat.Rgba8, texWidth, texHeight, 1, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
-            Sampler.setupTextureParameters(out_tex_2darray_mask, (int)TextureWrapMode.Repeat,
+            Sampler.setupTextureParameters(TextureTarget.Texture2DArray, out_tex_2darray_mask, (int)TextureWrapMode.Repeat,
                 (int)TextureMagFilter.Linear, (int)TextureMinFilter.LinearMipmapLinear, 4.0f);
 
             //Copy the read buffers to the 
@@ -3928,7 +3938,7 @@ namespace MVCore.GMDL
 
             //Console.WriteLine("MixTextures5, Last GL Error: " + GL.GetError());
             int out_tex_2darray_mask = Sampler.generateTexture2DArray(PixelInternalFormat.Rgba8, texWidth, texHeight, 1, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
-            Sampler.setupTextureParameters(out_tex_2darray_mask, (int)TextureWrapMode.Repeat,
+            Sampler.setupTextureParameters(TextureTarget.Texture2DArray, out_tex_2darray_mask, (int)TextureWrapMode.Repeat,
                 (int)TextureMagFilter.Linear, (int)TextureMinFilter.LinearMipmapLinear, 4.0f);
 
             //Copy the read buffers to the 
@@ -4202,8 +4212,6 @@ namespace MVCore.GMDL
 
         private void DecompressBlockDXT1(ulong x, ulong y, ulong width, byte[] blockStorage, byte[] image)
         {
-
-            long temp;
 
         }
 
@@ -4522,12 +4530,6 @@ namespace MVCore.GMDL
 
         public override void updateMeshInfo()
         {
-            if (!updated)
-            {
-                base.updateMeshInfo();
-                return;
-            }
-                
             if (Common.RenderOptions.RenderLights && renderable)
             {
                 //End Point

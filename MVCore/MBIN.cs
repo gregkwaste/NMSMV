@@ -534,10 +534,6 @@ namespace MVCore
                 dummy.name = "DUMMY_SCENE";
                 dummy.nms_template = null;
                 dummy.type = TYPES.MODEL;
-                dummy.shader_programs = new GLSLHelper.GLSLShaderConfig[] {Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.LOCATOR_SHADER],
-                                              Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
-                                              Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
-
                 return dummy;
             }
 
@@ -838,13 +834,6 @@ namespace MVCore
                     attachment_data = NMSUtils.LoadNMSFile(attachment_path) as TkAttachmentData;
                 }
 
-                so.shader_programs = new GLSLHelper.GLSLShaderConfig[(int) RENDERPASS.COUNT];
-                so.shader_programs[(int) RENDERPASS.DEFERRED] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_DEFERRED_SHADER];
-                so.shader_programs[(int) RENDERPASS.FORWARD] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER];
-                so.shader_programs[(int) RENDERPASS.DEBUG] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER];
-                so.shader_programs[(int) RENDERPASS.BHULL] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.BBOX_SHADER];
-                so.shader_programs[(int) RENDERPASS.PICK] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER];
-
                 //so.Bbox = gobject.bboxes[iid]; //Use scene parameters
                 //so.setupBSphere();
                 so.parent = parent;
@@ -964,21 +953,6 @@ namespace MVCore
                     }
                 }
 
-                //Check if it is a decal object
-                if (mat.has_flag((TkMaterialFlags.MaterialFlagEnum) TkMaterialFlags.UberFlagEnum._F51_DECAL_DIFFUSE) ||
-                    mat.has_flag((TkMaterialFlags.MaterialFlagEnum) TkMaterialFlags.UberFlagEnum._F52_DECAL_NORMAL))
-                {
-                    Decal newso = new Decal(so);
-                    so.Dispose(); //Through away the old object
-                    //Change object type
-                    newso.type = TYPES.DECAL;
-                    newso.parentScene = scene;
-                    newso.shader_programs[0] = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DECAL_SHADER];
-                
-                    Common.RenderState.activeResMgr.GLDecals.Add(newso);
-                    return newso;
-                }
-
                 //Finally Order children by name
                 so.children.OrderBy(i => i.Name);
                 return so;
@@ -1046,10 +1020,6 @@ namespace MVCore
                 so.nameHash = nameHash;
                 so.nms_template = node;
                 
-                //Set Shader Program
-                so.shader_programs = new GLSLHelper.GLSLShaderConfig[]{Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.LOCATOR_SHADER],
-                                               Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
-                                               Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
                 //Get Transformation
                 so.parent = parent;
                 so.parentScene = scene;
@@ -1083,9 +1053,6 @@ namespace MVCore
                 joint.name = name;
                 joint.nameHash = nameHash;
                 joint.nms_template = node;
-                joint.shader_programs = new GLSLHelper.GLSLShaderConfig[]{ Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.JOINT_SHADER],
-                                                   Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
-                                                   Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
                 //Get Transformation
                 joint.parent = parent;
                 joint.parentScene = scene;
@@ -1182,10 +1149,6 @@ namespace MVCore
                 //Create model
                 Collision so = new Collision();
 
-                //Remove that after implemented all the different collision types
-                so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER],
-                                                  Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
-                                                  Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]}; //Use Mesh program for collisions
                 so.debuggable = true;
                 so.name = name + "_COLLISION";
                 so.nameHash = nameHash;
@@ -1365,11 +1328,6 @@ namespace MVCore
                 if (!Enum.TryParse<ATTENUATION_TYPE>(attenuation.ToUpper(), out so.falloff))
                     throw new Exception("Light attenuation Type " + attenuation + " Not supported");
 
-                //Set Shader Program
-                so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.LIGHT_SHADER],
-                                                                         Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
-                                                                         Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
-
                 //Add Light to the resource Manager
                 so.update_struct();
                 Common.RenderState.activeResMgr.GLlights.Add(so);
@@ -1401,10 +1359,6 @@ namespace MVCore
                 so.nameHash = nameHash;
                 so.nms_template = node;
 
-                //Set Shader Program
-                so.shader_programs = new GLSLHelper.GLSLShaderConfig[]{Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.LOCATOR_SHADER],
-                                               Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
-                                               Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
                 //Get Transformation
                 so.parent = parent;
                 so.init(transforms);
@@ -1437,10 +1391,6 @@ namespace MVCore
                 so.nameHash = nameHash;
                 so.type = TYPES.UNKNOWN;
                 so.nms_template = node;
-                //Set Shader Program
-                so.shader_programs = new GLSLHelper.GLSLShaderConfig[] { Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.LOCATOR_SHADER],
-                                                                         Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER],
-                                                                         Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.PICKING_SHADER]};
                 //Locator Objects don't have options
 
                 //take care of children

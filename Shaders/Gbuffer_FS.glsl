@@ -24,42 +24,44 @@ in vec2 uv0;
 uniform CommonPerFrameSamplers mpCommonPerFrameSamplers;
 
 //Uniform Blocks
-layout (std140) uniform Uniforms
+layout (std140, binding=0) uniform _COMMON_PER_FRAME
 {
     CommonPerFrameUniforms mpCommonPerFrame;
+};
+
+layout (std140, binding=1) uniform _COMMON_PER_MESH
+{
     CommonPerMeshUniforms mpCommonPerMesh;
 };
 
 
-vec4 worldfromDepth()
+vec4 worldfromDepth(out float depth)
 {
 	vec4 world;
-	//world.xy = clipPos.xy / clipPos.w; //tick
-	vec2 depth_uv = uv0;
-	//depth_uv.y = 1.0 - depth_uv.y;
-	//world.z = 0.5 * texture2D(depthTex, depth_uv).r + 1.0; //wrong
-	//world.z += 0.5;
-	float zNear = 2.0;
-	float zFar = 1000.0;
+	world.xy = gl_FragCoord.xy;
 	
-	vec4 texelValue = texelFetch(depthTex, ivec2(gl_FragCoord.xy), 0);
-	world.z = 2.0 * texelValue.z;
-	//world.z = 2.0 * zNear * zFar / (zFar + zNear - world.z * (zFar - zNear));
+	vec2 depth_uv = 0.5 * world.xy + 0.5; //Convert to (0:1) range
 	
-	world.xy = 2.0 * uv0 - 1.0;
-	//world.xy = uv0;
-	//world.z = 2.0 * texture2D(depthTex, depth_uv).r - 1.0;
+
+	depth = 0.0;
+	for (int i=0; i<8; i++){
+		depth += texelFetch(depthTex, ivec2(depth_uv), i).x;
+	}
+
+	depth *= 0.125;
+	
+	//Fetch the value from the depth Texture (0:1) and convert it back to (-1:1)
+	world.xy = gl_FragCoord.xy;
+	world.z = 2.0 * depth - 1.0; 
 	world.w = 1.0f;
 
-	//world = vec4(world.xyz / world.w, world.w);
-
-	//My way
-	world = inverse(mvp) * world;
-	world.xyz /= world.w;
+	world = mpCommonPerFrame.projMatInv * world;
+	world /= world.w;
+	world = mpCommonPerFrame.lookMatInv * world;
+	world /= world.w;
 
 	return world;
 }
-
 
 
 void main()
@@ -75,7 +77,7 @@ void main()
 	
 	
 	//Gather MS
-	for (int i=0; i<8; i++){
+	for (int i=0; i< int(mpCommonPerFrame.MSAA_SAMPLES); i++){
 		albedoColor += texelFetch(albedoTex, ivec2(gl_FragCoord.xy), i);	
 		depthColor += texelFetch(depthTex, ivec2(gl_FragCoord.xy), i);
 		fragPos    += texelFetch(positionTex, ivec2(gl_FragCoord.xy), i);	
@@ -83,15 +85,17 @@ void main()
 		fragParams += texelFetch(parameterTex, ivec2(gl_FragCoord.xy), i);
 		fragParams2 += texelFetch(parameter2Tex, ivec2(gl_FragCoord.xy), i);
 	}
+
+	float ratio = 1.0 / int(mpCommonPerFrame.MSAA_SAMPLES);
 	
 	//Normalize Values
-	albedoColor = 0.125 * albedoColor;
-	fragPos = 0.125 * fragPos;
-	fragNormal = 0.125 * fragNormal;
-	depthColor = 0.125 * depthColor;
-	bloomColor = 0.125 * bloomColor;
-	fragParams = 0.125 * fragParams;
-	fragParams2 = 0.125 * fragParams2;
+	albedoColor = ratio * albedoColor;
+	fragPos = ratio * fragPos;
+	fragNormal = ratio * fragNormal;
+	depthColor = ratio * depthColor;
+	bloomColor = ratio * bloomColor;
+	fragParams = ratio * fragParams;
+	fragParams2 = ratio * fragParams2;
 
 	vec3 clearColor = vec3(0.13, 0.13, 0.13);
 	

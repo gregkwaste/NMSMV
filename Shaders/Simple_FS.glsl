@@ -196,7 +196,7 @@ void pbr_lighting(){
 
 	//Final Light/Normal vector calculations
 	vec4 diffTexColor;
-	float difftTex2Factor = 1.0;
+	float diffTex2Factor = 1.0;
 	vec3 normal; //Fragment normal
 	float lfRoughness = 1.0;
 	float lfMetallic = 0.0;
@@ -210,7 +210,7 @@ void pbr_lighting(){
 		float mipmaplevel = get_mipmap_level();
 		
 		//Fetch albedo
-		diffTexColor = calcDiffuseColor(mipmaplevel, lHighAlpha, lLowAlpha, difftTex2Factor);
+		diffTexColor = calcDiffuseColor(mipmaplevel, lHighAlpha, lLowAlpha, diffTex2Factor);
 		
 		//Fetch roughness value
 		lfRoughness = calcRoughness(mipmaplevel);
@@ -265,7 +265,7 @@ void pbr_lighting(){
 	}
 
 	if (mesh_has_matflag(_F17_MULTIPLYDIFFUSE2MAP)){
-		diffTexColor.rgb *= difftTex2Factor;
+		diffTexColor.rgb *= diffTex2Factor;
 	}
 
 	//Get Glow

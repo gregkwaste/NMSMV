@@ -28,7 +28,9 @@ namespace MVCore.GMDL
 
         //Matrices
         public Matrix4 projMat;
+        public Matrix4 projMatInv;
         public Matrix4 lookMat;
+        public Matrix4 lookMatInv;
         public Matrix4 viewMat = Matrix4.Identity;
         public int type;
         public bool culling;
@@ -60,6 +62,7 @@ namespace MVCore.GMDL
         public void updateViewMatrix()
         {
             lookMat = Matrix4.LookAt(Position, Position + Orientation, Vector3.UnitY);
+            
             //lookMat = Matrix4.LookAt(new Vector3(0.0f,0.0f,0.0f), lookat, Vector3.UnitY);
 
             if (type == 0) {
@@ -86,6 +89,9 @@ namespace MVCore.GMDL
                 viewMat = scaleMat * lookMat * projMat;
             }
 
+            //Calculate invert Matrices
+            lookMatInv = Matrix4.Invert(lookMat);
+            projMatInv = Matrix4.Invert(projMat);
 
             updateFrustumPlanes();
         }
@@ -521,6 +527,8 @@ namespace MVCore.GMDL
 
             
             
+            /*
+
             //Find Frustum Points by solving all the systems
             float[] p;
             p = solvePlaneSystem((int)ClippingPlane.Back, (int)ClippingPlane.Left, (int)ClippingPlane.Bottom);
@@ -540,6 +548,7 @@ namespace MVCore.GMDL
             p = solvePlaneSystem((int)ClippingPlane.Front, (int)ClippingPlane.Right, (int)ClippingPlane.Top);
             _frustum_points[7, 0] = p[0]; _frustum_points[7, 1] = p[1]; _frustum_points[7, 2] = p[2];
 
+            */
             
         }
 

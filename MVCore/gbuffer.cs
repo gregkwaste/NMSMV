@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using libMBIN.NMS.Toolkit;
 using OpenTK;
-using OpenTK.Graphics.OpenGL;
+using OpenTK.Graphics.OpenGL4;
 
 
 namespace MVCore
@@ -36,7 +36,7 @@ namespace MVCore
         public int quad_vao;
         public int program = -1;
         public int[] size;
-        private int msaa_samples = 8;
+        public int msaa_samples = 8;
 
         public GBuffer(ResourceManager mgr, int x, int y)
         {
@@ -51,13 +51,13 @@ namespace MVCore
         public void setup()
         {
             //Init the main FBO
-            fbo = GL.Ext.GenFramebuffer();
+            fbo = GL.GenFramebuffer();
             
             //Init the 
             //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
             
             //Check
-            if (GL.Ext.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
+            if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
                 Console.WriteLine("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
             //Setup diffuse texture
@@ -76,12 +76,12 @@ namespace MVCore
             setup_texture(ref depth, TextureTarget.Texture2DMultisample, fbo, FramebufferAttachment.DepthAttachmentExt, PixelInternalFormat.DepthComponent);
 
             //Check
-            if (GL.Ext.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
+            if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
                 Console.WriteLine("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
 
             //Setup dump_fbo
-            dump_fbo = GL.Ext.GenFramebuffer();
+            dump_fbo = GL.GenFramebuffer();
             
             setup_texture(ref dump_rgba8_1, TextureTarget.Texture2DMultisample, dump_fbo, FramebufferAttachment.ColorAttachment0, PixelInternalFormat.Rgba8);
             setup_texture(ref dump_rgba16f_1, TextureTarget.Texture2DMultisample, dump_fbo, FramebufferAttachment.ColorAttachment1, PixelInternalFormat.Rgba16f);
@@ -92,22 +92,22 @@ namespace MVCore
 
 
             //Check
-            if (GL.Ext.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
+            if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
                 Console.WriteLine("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
             //Revert Back the default fbo
-            GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, 0);
+            GL.BindFramebuffer(FramebufferTarget.FramebufferExt, 0);
         }
 
         //TODO: Organize this function a bit
         public void setup_texture(ref int handle, TextureTarget textarget, int attach_to_fbo, FramebufferAttachment attachment_id, PixelInternalFormat format)
         {
-            handle = GL.Ext.GenTexture();
+            handle = GL.GenTexture();
 
 
             if (textarget == TextureTarget.Texture2DMultisample)
             {
-                GL.Ext.BindTexture(TextureTarget.Texture2DMultisample, handle);
+                GL.BindTexture(TextureTarget.Texture2DMultisample, handle);
 
                 //GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent, size[0], size[1], 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
                 GL.TexImage2DMultisample(TextureTargetMultisample.Texture2DMultisample, msaa_samples, format, size[0], size[1], true);
@@ -116,12 +116,12 @@ namespace MVCore
                 //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
                 //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
 
-                GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, attach_to_fbo);
-                GL.Ext.FramebufferTexture2D(FramebufferTarget.FramebufferExt, attachment_id, TextureTarget.Texture2DMultisample, handle, 0);
+                GL.BindFramebuffer(FramebufferTarget.FramebufferExt, attach_to_fbo);
+                GL.FramebufferTexture2D(FramebufferTarget.FramebufferExt, attachment_id, TextureTarget.Texture2DMultisample, handle, 0);
                 //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
             } else if (textarget == TextureTarget.Texture2D)
             {
-                GL.Ext.BindTexture(TextureTarget.Texture2D, handle);
+                GL.BindTexture(TextureTarget.Texture2D, handle);
 
                 //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
 
@@ -135,9 +135,9 @@ namespace MVCore
 
                 //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
 
-                GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, attach_to_fbo);
+                GL.BindFramebuffer(FramebufferTarget.FramebufferExt, attach_to_fbo);
                 //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
-                GL.Ext.FramebufferTexture2D(FramebufferTarget.FramebufferExt, attachment_id, TextureTarget.Texture2D, handle, 0);
+                GL.FramebufferTexture2D(FramebufferTarget.FramebufferExt, attachment_id, TextureTarget.Texture2D, handle, 0);
                 //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
                 //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
             } else
@@ -168,7 +168,7 @@ namespace MVCore
         public void bind()
         {
             //Bind Gbuffer fbo
-            GL.Ext.BindFramebuffer(FramebufferTarget.DrawFramebuffer, fbo);
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, fbo);
             GL.DrawBuffers(6, new DrawBuffersEnum[] { DrawBuffersEnum.ColorAttachment0,
                                                       DrawBuffersEnum.ColorAttachment1,
                                                       DrawBuffersEnum.ColorAttachment2,
@@ -180,9 +180,16 @@ namespace MVCore
             if (err != ErrorCode.NoError)
                 Console.WriteLine(err);
 #endif
+        }
 
-            GL.ClearColor(0.0f, 0.0f, 0.0f, 0.0f); //Transparent Clear color
-            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+        public void clearColor(Vector4 col)
+        {
+            GL.ClearColor(col.X, col.Y, col.Z, col.W);
+        }
+
+        public void clear(ClearBufferMask mask)
+        {
+            GL.Clear(mask);
         }
 
         public void stop()
@@ -190,10 +197,10 @@ namespace MVCore
             //Blit can replace the render & stop funtions
             //Simply resolves and copies the ms offscreen fbo to the default framebuffer without any need to render the textures and to any other post proc effects
             //I guess that I don't need the textures as well, when I'm rendering like this
-            GL.Ext.BindFramebuffer(FramebufferTarget.ReadFramebuffer, fbo);
-            GL.Ext.BindFramebuffer(FramebufferTarget.DrawFramebuffer, 0);
+            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, fbo);
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, 0);
             //Blit
-            GL.Ext.BlitFramebuffer(0, 0, size[0], size[1],
+            GL.BlitFramebuffer(0, 0, size[0], size[1],
                                    0, 0, size[0], size[1],
                                    ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit,
                                    BlitFramebufferFilter.Nearest);
@@ -202,15 +209,15 @@ namespace MVCore
         public void dump_blit()
         {
             //Setup View
-            GL.Ext.BindFramebuffer(FramebufferTarget.FramebufferExt, dump_fbo);
+            GL.BindFramebuffer(FramebufferTarget.FramebufferExt, dump_fbo);
             GL.Viewport(0, 0, size[0], size[1]);
             GL.DrawBuffers(2, new DrawBuffersEnum[] { DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1 });
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
             //Resolving Buffers
-            GL.Ext.BindFramebuffer(FramebufferTarget.ReadFramebuffer, fbo);
-            GL.Ext.BindFramebuffer(FramebufferTarget.DrawFramebuffer, dump_fbo);
-            GL.Ext.BlitFramebuffer(0, 0, size[0], size[1],
+            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, fbo);
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, dump_fbo);
+            GL.BlitFramebuffer(0, 0, size[0], size[1],
                                    0, 0, size[0], size[1],
                                    ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit,
                                    BlitFramebufferFilter.Nearest);

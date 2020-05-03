@@ -195,7 +195,12 @@ namespace Model_Viewer
         {
             //Update per frame data
             frameUpdate();
+            
+            SwapBuffers();
+
             renderMgr.render(); //Render Everything
+            
+            Thread.Sleep(1);
         }
         
         public void findAnimScenes(model node)
@@ -275,7 +280,6 @@ namespace Model_Viewer
             Matrix4 Roty = Matrix4.CreateRotationY(MathUtils.radians(rot[1]));
             Matrix4 Rotz = Matrix4.CreateRotationZ(MathUtils.radians(rot[2]));
             RenderState.rotMat = Rotz * Rotx * Roty;
-            RenderState.mvp = RenderState.activeCam.viewMat; //Full mvp matrix
             
             resMgr.GLCameras[0].updateViewMatrix();
             resMgr.GLCameras[1].updateViewMatrix();
@@ -390,9 +394,6 @@ namespace Model_Viewer
                     rt_render();
                 }
 
-                Thread.Sleep(1);
-                SwapBuffers();
-
             }
         }
 
@@ -425,6 +426,7 @@ namespace Model_Viewer
         {
             //TODO: Should I add more stuff in here?
             //SwapBuffers();
+            Console.WriteLine("Painting");
         }
 
         private void genericLoad(object sender, EventArgs e)
@@ -729,22 +731,6 @@ namespace Model_Viewer
             compileShader(decal_shader_vs, decal_shader_fs, null,null,null,
                             GLSLHelper.SHADER_TYPE.DECAL_SHADER, ref log);
 
-            //Locator Shaders
-            GLSLShaderText locator_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText locator_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            locator_shader_vs.addString(ProjProperties.Resources.locator_vert);
-            locator_shader_fs.addString(ProjProperties.Resources.locator_frag);
-            compileShader(locator_shader_vs, locator_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.LOCATOR_SHADER, ref log);
-
-            //Joint Shaders
-            GLSLShaderText joint_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText joint_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            joint_shader_vs.addString(ProjProperties.Resources.joint_vert);
-            joint_shader_fs.addString(ProjProperties.Resources.joint_frag);
-            compileShader(joint_shader_vs, joint_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.JOINT_SHADER, ref log);
-
             //Text Shaders
             GLSLShaderText text_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
             GLSLShaderText text_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
@@ -752,14 +738,6 @@ namespace Model_Viewer
             text_shader_fs.addString(ProjProperties.Resources.text_frag);
             compileShader(text_shader_vs, text_shader_fs, null, null, null,
                             GLSLHelper.SHADER_TYPE.TEXT_SHADER, ref log);
-
-            //Light Shaders
-            GLSLShaderText light_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText light_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            light_shader_vs.addString(ProjProperties.Resources.text_vert);
-            light_shader_fs.addString(ProjProperties.Resources.text_frag);
-            compileShader(light_shader_vs, light_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.LIGHT_SHADER, ref log);
 
             //Camera Shaders
             GLSLShaderText camera_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
