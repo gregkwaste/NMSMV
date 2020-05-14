@@ -25,6 +25,9 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Input;
 using System.Runtime.InteropServices;
+using GLSLHelper;
+using System.Windows.Forms;
+using System.Security.Permissions;
 //using Matrix4 = MathNet.Numerics.LinearAlgebra.Matrix<float>;
 
 
@@ -205,7 +208,6 @@ namespace MVCore.GMDL
             foreach (model s in children)
                 s.setupSkinMatrixArrays();
         }
-
 
         public virtual void updateMeshInfo()
         {
@@ -833,13 +835,10 @@ namespace MVCore.GMDL
         {
             if (Common.RenderOptions.RenderLocators && renderable)
             {
-                //Uplod worldMat to the meshVao
-                meshVao.setInstanceWorldMat(instanceId, worldMat);
-                meshVao.setInstanceOccludedStatus(instanceId, false);
+                //Upload worldMat to the meshVao
+                instanceId = meshVao.addInstance(this);
                 //Console.WriteLine("Updating Light");
             }
-            else
-                meshVao.setInstanceOccludedStatus(instanceId, true);
 
             base.updateMeshInfo();
             updated = false; //All done
@@ -1188,6 +1187,7 @@ namespace MVCore.GMDL
 
         }
 
+
         public void renderBSphere(GLSLHelper.GLSLShaderConfig shader)
         {
             for (int i = 0; i < instance_count; i++)
@@ -1216,12 +1216,10 @@ namespace MVCore.GMDL
             //Step 2 Bind & Render Vao
             //Render Elements
             GL.BindVertexArray(vao.vao_id);
-            
             //GL.DrawElements(PrimitiveType.Triangles, batchcount, indicesLength, IntPtr.Zero);
             //Use Instancing
             GL.DrawElementsInstanced(PrimitiveType.Triangles, metaData.batchcount, indicesLength,
                 IntPtr.Zero, instance_count);
-
             GL.BindVertexArray(0);
         }
 
@@ -1261,18 +1259,16 @@ namespace MVCore.GMDL
                     GL.DrawElementsInstanced(PrimitiveType.Triangles, metaData.batchcount,
                         DrawElementsType.UnsignedInt, IntPtr.Zero, instance_count);
                     break;
-
             }
 
             GL.PolygonMode(MaterialFace.FrontAndBack, Common.RenderOptions.RENDERMODE);
-
             GL.BindVertexArray(0);
         }
 
         private void renderLocator()
         {
             GL.BindVertexArray(vao.vao_id);
-            GL.DrawElements(PrimitiveType.Lines, 6, DrawElementsType.UnsignedInt, (IntPtr)0);
+            GL.DrawElementsInstanced(PrimitiveType.Lines, 6, indicesLength, IntPtr.Zero, instance_count); //Use Instancing
             GL.BindVertexArray(0);
         }
 
@@ -1290,7 +1286,7 @@ namespace MVCore.GMDL
             //Upload Material Information
 
             //Step 1 Upload uniform variables
-            GL.Uniform1(shader.uniformLocations["mpCustomPerMaterial.matflags[0]"], 64, material.material_flags); //Upload Material Flags
+            //GL.Uniform1(shader.uniformLocations["mpCustomPerMaterial.matflags[0]"], 64, material.material_flags); //Upload Material Flags
 
             //Upload Custom Per Material Uniforms
             foreach (Uniform un in material.CustomPerMaterialUniforms.Values)
@@ -1308,7 +1304,7 @@ namespace MVCore.GMDL
                 {
                     GL.Uniform1(shader.uniformLocations[s.Name], MyTextureUnit.MapTexUnitToSampler[s.Name]);
                     GL.ActiveTexture(s.texUnit.texUnit);
-                    GL.BindTexture(s.tex.target, s.tex.bufferID);
+                    GL.BindTexture(s.tex.target, s.tex.texID);
                 }
             }
 
@@ -1324,7 +1320,6 @@ namespace MVCore.GMDL
 
             //if (instance_count > 100)
             //    Console.WriteLine("Increase the buffers");
-
 
             switch (type)
             {
@@ -1352,7 +1347,7 @@ namespace MVCore.GMDL
             //Bind Depth Buffer
             GL.Uniform1(shader.uniformLocations["depthTex"], 6);
             GL.ActiveTexture(TextureUnit.Texture6);
-            GL.BindTexture(TextureTarget.Texture2DMultisample, gbuf.dump_depth);
+            GL.BindTexture(TextureTarget.Texture2D, gbuf.depth_dump);
 
             renderMain(shader);
         }
@@ -1410,9 +1405,6 @@ namespace MVCore.GMDL
         //Default render method
         public bool render(GLSLHelper.GLSLShaderConfig shader, RENDERPASS pass, GBuffer gbuf = null)
         {
-            if (instance_count == 0)
-                return false;
-
             //Render Object
             switch (pass)
             {
@@ -1457,13 +1449,44 @@ namespace MVCore.GMDL
                 //Uplod worldMat to the meshVao
                 instance_id = instance_count;
 
+                Matrix4 worldMatInv = m.worldMat.Inverted();
                 setInstanceWorldMat(instance_id, m.worldMat);
-                setInstanceNormalMat(instance_id, Matrix4.Transpose(m.worldMat.Inverted()));
+                setInstanceWorldMatInv(instance_id, worldMatInv);
+                setInstanceNormalMat(instance_id, Matrix4.Transpose(worldMatInv));
+
                 instanceRefs.Add(m); //Keep reference
                 instance_count++;
             }
 
             return instance_id;
+        }
+
+        //Overload with transform overrides
+        public int addInstance(model m, Matrix4 worldMat, Matrix4 worldMatInv, Matrix4 normMat)
+        {
+            //Set instance id
+            int instance_id = instance_count;
+
+            if (instance_id < MAX_INSTANCES)
+            {
+                //Uplod worldMat to the meshVao
+                instance_id = instance_count;
+
+                setInstanceWorldMat(instance_id, worldMat);
+                setInstanceWorldMatInv(instance_id, worldMatInv);
+                setInstanceNormalMat(instance_id, normMat);
+
+                instanceRefs.Add(m); //Keep reference
+                instance_count++;
+            }
+
+            return instance_id;
+        }
+
+        public void clearInstances()
+        {
+            instanceRefs.Clear();
+            instance_count = 0;
         }
 
         public void removeInstance(model m)
@@ -1572,14 +1595,6 @@ namespace MVCore.GMDL
         {
             int instance_offset = 128 * 16 * instance_id;
 
-
-            if (instance_id < 0)
-                Console.WriteLine("test");
-            if (instance_id >= instance_count)
-                Console.WriteLine("test");
-
-            if (BoneRemapIndicesCount > 128)
-                Console.WriteLine("test");
 
             for (int i = 0; i < BoneRemapIndicesCount; i++)
             {
@@ -1801,7 +1816,7 @@ namespace MVCore.GMDL
         {
             base.update();
             //Calculate transfomration matrix for the normals
-            normMat = Matrix4.Transpose(worldMat.Inverted());
+            //normMat = Matrix4.Transpose(worldMat.Inverted()); (This is immediately calculated during instance initialization
         }
 
         public override void setupSkinMatrixArrays()
@@ -1814,36 +1829,27 @@ namespace MVCore.GMDL
 
         public override void updateMeshInfo()
         {
-            if (!updated)
-            {
-                base.updateMeshInfo();
-                return;
-            }
-
             if (instanceId < 0)
-                Console.WriteLine("test");
-            if (instanceId >= meshVao.instance_count)
                 Console.WriteLine("test");
             if (meshVao.BoneRemapIndicesCount > 128)
                 Console.WriteLine("test");
 
-
             if (!renderable)
             {
-                meshVao.setInstanceOccludedStatus(instanceId, true);
-            } else
-            {
-                //Apply frustum culling
-                /*
-                if (!Common.RenderState.activeCam.frustum_occlude(meshVao.metaData.AABBMIN,
-                    meshVao.metaData.AABBMAX, worldMat))
-                {
-                    Common.RenderStats.occludedNum++;
-                    meshVao.setInstanceOccludedStatus(instanceId, true);
-                    base.updateMeshInfo();
-                    return;
-                }
+                base.updateMeshInfo();
+                Common.RenderStats.occludedNum += 1;
+                return;
+            }
 
+            bool fr_status = Common.RenderState.activeCam.frustum_occlude(this);
+            bool occluded_status = !fr_status && Common.RenderOptions.UseFrustumCulling;
+                
+            //Recalculations && Data uploads
+            if (!occluded_status)
+            {
+                recalculateAABB(); //Update AABB
+
+                /*
                 //Apply LOD filtering
                 if (hasLOD && Common.RenderOptions.LODFiltering)
                 //if (false)
@@ -1858,26 +1864,23 @@ namespace MVCore.GMDL
                 }
                 */
 
-                meshVao.setInstanceOccludedStatus(instanceId, false);
-                meshVao.setInstanceWorldMat(instanceId, worldMat);
-                meshVao.setInstanceWorldMatInv(instanceId, worldMat.Inverted());
-                meshVao.setInstanceNormalMat(instanceId, normMat);
+                instanceId = meshVao.addInstance(this);
 
                 if (Skinned)
                 {
-                    
                     //Update the mesh remap matrices and continue with the transform updates
                     meshVao.setSkinMatrices(parentScene, instanceId);
-
                     //Fallback
                     //main_Vao.setDefaultSkinMatrices();
                 }
 
-                recalculateAABB(); //Update AABB
+            } else
+            {
+                Common.RenderStats.occludedNum += 1;
             }
 
+            //meshVao.setInstanceOccludedStatus(instanceId, occluded_status);
             base.updateMeshInfo();
-            updated = false; //All done
         }
 
 
@@ -2203,27 +2206,11 @@ namespace MVCore.GMDL
 
         public override void updateMeshInfo()
         {
-            if (!renderable || !Common.RenderOptions.RenderCollisions)
+            if (renderable && Common.RenderOptions.RenderCollisions)
             {
-                meshVao.setInstanceOccludedStatus(instanceId, true);
+                instanceId = meshVao.addInstance(this);
                 base.updateMeshInfo();
                 return;
-            }
-
-            //Apply frustum culling
-            if (!Common.RenderState.activeCam.frustum_occlude(meshVao.metaData.AABBMIN,
-                meshVao.metaData.AABBMAX, worldMat))
-            {
-                Common.RenderStats.occludedNum++;
-                meshVao.setInstanceOccludedStatus(instanceId, true);
-                base.updateMeshInfo();
-                return;
-            }
-            else
-            {
-                meshVao.setInstanceOccludedStatus(instanceId, false);
-                meshVao.setInstanceWorldMat(instanceId, worldMat);
-                meshVao.setInstanceNormalMat(instanceId, Matrix4.Transpose(worldMat.Inverted()));
             }
 
             base.updateMeshInfo();
@@ -2390,7 +2377,11 @@ namespace MVCore.GMDL
             GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize,
                 out size);
             if (size != vx_size * (so.metaData.vertrend_graphics + 1))
-                throw new ApplicationException(String.Format("Problem with vertex buffer"));
+            {
+                //throw new ApplicationException(String.Format("Problem with vertex buffer"));
+                System.Windows.Forms.MessageBox.Show("Mesh metadata does not match the vertex buffer size from the geometry file", "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+            }
+                
 
             MVCore.Common.RenderStats.vertNum += so.metaData.vertrend_graphics + 1; //Accumulate settings
 
@@ -2411,8 +2402,10 @@ namespace MVCore.GMDL
                 out size);
             Console.WriteLine(GL.GetError());
             if (size != meshMetaDataDict[so.metaData.Hash].is_size)
-                throw new ApplicationException(String.Format("Problem with vertex buffer"));
-
+            {
+                System.Windows.Forms.MessageBox.Show("Mesh metadata does not match the index buffer size from the geometry file", "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                //throw new ApplicationException(String.Format("Problem with vertex buffer"));
+            }
 
             MVCore.Common.RenderStats.trisNum += (int) (so.metaData.batchcount / 3); //Accumulate settings
 
@@ -2873,8 +2866,28 @@ namespace MVCore.GMDL
         public float[] material_flags = new float[64];
         public string name_key = "";
         public textureManager texMgr;
+        public int shaderHash = int.MaxValue;
 
-        public string PName
+        public static List<string> supported_flags = new List<string>() {
+                "_F01_DIFFUSEMAP",
+                "_F02_SKINNED",
+                "_F03_NORMALMAP",
+                "_F07_UNLIT",
+                "_F09_TRANSPARENT",
+                "_F11_ALPHACUTOUT",
+                "_F14_UVSCROLL",
+                "_F16_DIFFUSE2MAP",
+                "_F17_MULTIPLYDIFFUSE2MAP",
+                "_F21_VERTEXCOLOUR",
+                "_F22_TRANSPARENT_SCALAR",
+                "_F24_AOMAP",
+                "_F34_GLOW",
+                "_F35_GLOW_MASK",
+                "_F39_METALLIC_MASK",
+                "_F43_NORMAL_TILING",
+                "_F55_MULTITEXTURE"};
+
+    public string PName
         {
             get
             {
@@ -3002,7 +3015,7 @@ namespace MVCore.GMDL
             foreach (TkMaterialFlags f in Flags)
             {
                 material_flags[(int) f.MaterialFlag] = 1.0f;
-                MVCore.Common.CallBacks.Log(((TkMaterialFlags.MaterialFlagEnum)f.MaterialFlag).ToString() + " ");
+                //MVCore.Common.CallBacks.Log(((TkMaterialFlags.MaterialFlagEnum)f.MaterialFlag).ToString() + " ");
             }
 
             //Get Uniforms
@@ -3056,17 +3069,21 @@ namespace MVCore.GMDL
                 }
             }
 
-            //EXPLICIT FIXES TO MATERIAL PARAMETERS
-            /*
-            if (has_flag(TkMaterialFlags.MaterialFlagEnum._F22_))
+            //Calculate material hash
+            List<string> includes = new List<string>();
+            for (int i = 0; i < MaterialFlags.Count; i++)
             {
-                CustomPerMaterialUniforms["mpCustomPerMaterial.gMaterialColourVec4"].Vec.W = 
-                    Math.Min(CustomPerMaterialUniforms["mpCustomPerMaterial.gMaterialColourVec4"].Vec.W, 0.1f);
+                if (Material.supported_flags.Contains(MaterialFlags[i]))
+                    includes.Add(MaterialFlags[i]);
             }
-            */
-            
 
-                
+            shaderHash = GLSLHelper.GLShaderHelper.calculateShaderHash(includes);
+            
+            
+            if (!Common.RenderState.activeResMgr.shaderExistsForMaterial(this))
+                compileMaterialShader();
+            
+            
             MVCore.Common.CallBacks.Log("\n");
         }
 
@@ -3133,6 +3150,78 @@ namespace MVCore.GMDL
         ~Material()
         {
             Dispose(false);
+        }
+
+        public static int calculateShaderHash(List<TkMaterialFlags> flags)
+        {
+            string hash = "";
+
+            for (int i = 0; i < flags.Count; i++)
+            {
+                string s_flag = ((TkMaterialFlags.UberFlagEnum) flags[i].MaterialFlag).ToString();
+                if (supported_flags.Contains(s_flag))
+                    hash += "_" + s_flag;
+            }
+
+            if (hash == "")
+                hash = "DEFAULT";
+            
+            Console.WriteLine(hash);
+            return hash.GetHashCode();
+        }
+
+        private void compileMaterialShader()
+        {
+            Dictionary<int, GLSLShaderConfig> shaderDict;
+            Dictionary<int, List<GLMeshVao>>  meshList;
+
+            List<string> includes = new List<string>();
+            List<string> defines = new List<string>();
+            
+            //Save shader to resource Manager
+            if (MaterialFlags.Contains("_F51_DECAL_DIFFUSE") ||
+                MaterialFlags.Contains("_F52_DECAL_NORMAL"))
+            {
+                shaderDict = Common.RenderState.activeResMgr.GLForwardShaderMapDecal;
+                meshList = Common.RenderState.activeResMgr.decalMeshList;
+            }
+            else if (MaterialFlags.Contains("_F09_TRANSPARENT") ||
+                     MaterialFlags.Contains("_F22_TRANSPARENT_SCALAR") ||
+                     MaterialFlags.Contains("_F11_ALPHACUTOUT"))
+            {
+                shaderDict = Common.RenderState.activeResMgr.GLForwardShaderMapTransparent;
+                meshList = Common.RenderState.activeResMgr.transparentMeshList;
+            }
+            else if (MaterialFlags.Contains("_F07_UNLIT"))
+            {
+                shaderDict = Common.RenderState.activeResMgr.GLDeferredUNLITShaderMap;
+                meshList = Common.RenderState.activeResMgr.opaqueMeshList;
+                defines.Add("_D_DEFERRED_RENDERING");
+            }
+            else
+            {
+                shaderDict = Common.RenderState.activeResMgr.GLDeferredLITShaderMap;
+                meshList = Common.RenderState.activeResMgr.opaqueMeshList;
+                defines.Add("_D_DEFERRED_RENDERING");
+            }
+
+            for (int i=0; i < MaterialFlags.Count; i++)
+            {
+                if (supported_flags.Contains(MaterialFlags[i]))
+                    includes.Add(MaterialFlags[i]);
+            }
+
+            GLSLShaderConfig shader =  GLShaderHelper.compileShader("Shaders/Simple_VS.glsl", "Shaders/Simple_FS.glsl", null, null, null,
+                defines, includes, SHADER_TYPE.MATERIAL_SHADER, ref Common.RenderState.shaderCompilationLog);
+
+
+            //Attach UBO binding Points
+            GLShaderHelper.attachUBOToShaderBindingPoint(shader, "_COMMON_PER_FRAME", 0);
+            GLShaderHelper.attachUBOToShaderBindingPoint(shader, "_COMMON_PER_MESH", 1);
+            
+            //Save shader to the resource Manager
+            shaderDict[shader.shaderHash] = shader;
+            meshList[shader.shaderHash] = new List<GLMeshVao>(); //Init list
         }
 
     }
@@ -3651,7 +3740,7 @@ namespace MVCore.GMDL
                     int tex0Id = (int)TextureUnit.Texture0;
 
                     GL.ActiveTexture((TextureUnit)(tex0Id + i));
-                    GL.BindTexture(tex.target, tex.bufferID);
+                    GL.BindTexture(tex.target, tex.texID);
                 }
             }
 
@@ -3713,7 +3802,7 @@ namespace MVCore.GMDL
             Texture new_tex = new Texture();
             new_tex.width = texWidth;
             new_tex.height = texHeight;
-            new_tex.bufferID = out_tex_2darray_diffuse;
+            new_tex.texID = out_tex_2darray_diffuse;
             new_tex.target = TextureTarget.Texture2DArray;
             
 #if (DUMP_TEXTURES)
@@ -3779,7 +3868,7 @@ namespace MVCore.GMDL
                     int tex0Id = (int)TextureUnit.Texture0;
 
                     GL.ActiveTexture((TextureUnit)(tex0Id + i));
-                    GL.BindTexture(tex.target, tex.bufferID);
+                    GL.BindTexture(tex.target, tex.texID);
                 }
             }
 
@@ -3800,7 +3889,7 @@ namespace MVCore.GMDL
                     int tex0Id = (int)TextureUnit.Texture8;
 
                     GL.ActiveTexture((TextureUnit)(tex0Id + i));
-                    GL.BindTexture(tex.target, tex.bufferID);
+                    GL.BindTexture(tex.target, tex.texID);
                 }
             }
 
@@ -3833,7 +3922,7 @@ namespace MVCore.GMDL
 
             //Store Diffuse Texture to material
             Texture new_tex = new Texture();
-            new_tex.bufferID = out_tex_2darray_mask;
+            new_tex.texID = out_tex_2darray_mask;
             new_tex.target = TextureTarget.Texture2DArray;
 
 #if (DUMP_TEXTURESNONO)
@@ -3900,7 +3989,7 @@ namespace MVCore.GMDL
                     int tex0Id = (int)TextureUnit.Texture0;
 
                     GL.ActiveTexture((TextureUnit)(tex0Id + i));
-                    GL.BindTexture(tex.target, tex.bufferID);
+                    GL.BindTexture(tex.target, tex.texID);
                 }
             }
 
@@ -3921,7 +4010,7 @@ namespace MVCore.GMDL
                     int tex0Id = (int)TextureUnit.Texture8;
 
                     GL.ActiveTexture((TextureUnit)(tex0Id + i));
-                    GL.BindTexture(tex.target, tex.bufferID);
+                    GL.BindTexture(tex.target, tex.texID);
                 }
             }
 
@@ -3954,7 +4043,7 @@ namespace MVCore.GMDL
 
             //Store Diffuse Texture to material
             Texture new_tex = new Texture();
-            new_tex.bufferID = out_tex_2darray_mask;
+            new_tex.texID = out_tex_2darray_mask;
             new_tex.target = TextureTarget.Texture2DArray;
 
 #if (DUMP_TEXTURES)
@@ -3988,7 +4077,8 @@ namespace MVCore.GMDL
     public class Texture : IDisposable
     {
         private bool disposed = false;
-        public int bufferID = -1;
+        public int texID = -1;
+        public int pboID = -1;
         public TextureTarget target;
         public string name;
         public int width;
@@ -4015,8 +4105,6 @@ namespace MVCore.GMDL
             }
             
             ddsImage = new DDSImage(File.ReadAllBytes(path));
-
-
             MVCore.Common.RenderStats.texturesNum += 1; //Accumulate settings
 
             Console.WriteLine("Sampler Name Path " + path + " Width {0} Height {1}", ddsImage.header.dwWidth, ddsImage.header.dwHeight);
@@ -4047,7 +4135,6 @@ namespace MVCore.GMDL
                             default:
                                 throw new ApplicationException("Unimplemented DX10 Texture Pixel format");
                         }
-                        
                         break;
                     }
                 default:
@@ -4061,26 +4148,29 @@ namespace MVCore.GMDL
             int depth_count = Math.Max(1, ddsImage.header.dwDepth); //Fix the counter to 1 to fit the texture in a 3D container
             int temp_size = ddsImage.header.dwPitchOrLinearSize;
 
+
+            //Generate PBO
+            pboID = GL.GenBuffer();
+            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, pboID);
+            GL.BufferData(BufferTarget.PixelUnpackBuffer, ddsImage.bdata.Length, ddsImage.bdata, BufferUsageHint.StaticDraw);
+            //GL.BufferSubData(BufferTarget.PixelUnpackBuffer, IntPtr.Zero, ddsImage.bdata.Length, ddsImage.bdata);
+
             //Upload to GPU
-            bufferID = GL.GenTexture();
+            texID = GL.GenTexture();
             target = TextureTarget.Texture2DArray;
-            
-            GL.BindTexture(target, bufferID);
+
+            GL.BindTexture(target, texID);
             
             //When manually loading mipmaps, levels should be loaded first
             GL.TexParameter(target, TextureParameterName.TextureBaseLevel, 0);
             GL.TexParameter(target, TextureParameterName.TextureMaxLevel, mm_count - 1);
-            
+
             int offset = 0;
             for (int i=0; i < mm_count; i++)
             {
-                byte[] tex_data = new byte[temp_size * depth_count];
-                Array.Copy(ddsImage.bdata, offset, tex_data, 0, temp_size * depth_count);
-                GL.CompressedTexImage3D(target, i, pif, w, h, depth_count, 0, temp_size * depth_count, tex_data);
-                
+                GL.CompressedTexImage3D(target, i, pif, w, h, depth_count, 0, temp_size * depth_count, IntPtr.Zero + offset);
                 //GL.TexImage3D(target, i, PixelInternalFormat.Rgba8, w, h, depth_count, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
-                //Console.WriteLine(GL.GetError());
-
+                
                 offset += temp_size * depth_count;
 
                 w = Math.Max(w >> 1, 1);
@@ -4090,7 +4180,6 @@ namespace MVCore.GMDL
                 //This works only for square textures
                 //temp_size = Math.Max(temp_size/4, blocksize);
             }
-
 
             //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureLodBias, -0.2f);
             GL.TexParameter(target, TextureParameterName.TextureWrapS, (int) TextureWrapMode.Repeat);
@@ -4132,6 +4221,7 @@ namespace MVCore.GMDL
 #endif
             //avgColor = getAvgColor(pixels);
             ddsImage = null;
+            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0); //Unbind texture PBO
         }
 
         public void Dispose()
@@ -4147,8 +4237,10 @@ namespace MVCore.GMDL
 
             if (disposing)
             {
-                if (bufferID != -1) GL.DeleteTexture(bufferID);
                 //Free other resources here
+                if (texID != -1) GL.DeleteTexture(texID);
+                GL.DeleteBuffer(pboID);
+                
             }
 
             //Free unmanaged resources
@@ -4261,7 +4353,6 @@ namespace MVCore.GMDL
 
         public override void updateMeshInfo()
         {
-            
             //We do not apply frustum occlusion on joint objects
             if (Common.RenderOptions.RenderJoints && renderable && (children.Count > 0))
             {
@@ -4285,10 +4376,9 @@ namespace MVCore.GMDL
                 GL.BindBuffer(BufferTarget.ArrayBuffer, meshVao.vao.vertex_buffer_object);
                 //Add verts data, color data should stay the same
                 GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
-                meshVao.setInstanceOccludedStatus(instanceId, false);
-            } else
-                meshVao.setInstanceOccludedStatus(instanceId, true);
-
+                instanceId = meshVao.addInstance(this, Matrix4.Identity, Matrix4.Identity, Matrix4.Identity);
+            }
+            
             base.updateMeshInfo();
         }
 
@@ -4535,7 +4625,7 @@ namespace MVCore.GMDL
                 //End Point
                 Vector4 ep;
                 //Lights with 360 FOV are points
-                if (FOV - 360.0f <= 1e-4)
+                if (Math.Abs(FOV - 360.0f) <= 1e-4)
                 {
                     ep = new Vector4(0.0f, 0.0f, 0.0f, 1.0f);
                     light_type = LIGHT_TYPE.POINT;
@@ -4569,13 +4659,10 @@ namespace MVCore.GMDL
                 GL.BindBuffer(BufferTarget.ArrayBuffer, meshVao.vao.vertex_buffer_object);
                 //Add verts data, color data should stay the same
                 GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
-                
+
                 //Uplod worldMat to the meshVao
-                meshVao.setInstanceWorldMat(instanceId, Matrix4.Identity);
-                meshVao.setInstanceOccludedStatus(instanceId, false);
-                //Console.WriteLine("Updating Light");
-            } else
-                meshVao.setInstanceOccludedStatus(instanceId, true);
+                instanceId = meshVao.addInstance(this, Matrix4.Identity, Matrix4.Identity, Matrix4.Identity);
+            }
 
             base.updateMeshInfo();
             updated = false; //All done
@@ -4588,7 +4675,7 @@ namespace MVCore.GMDL
             //End Point
             Vector4 ep;
             //Lights with 360 FOV are points
-            if (FOV - 360.0f <= 1e-4)
+            if (Math.Abs(FOV - 360.0f) <= 1e-4)
             {
                 ep = new Vector4(0.0f, 0.0f, 0.0f, 1.0f);
                 light_type = LIGHT_TYPE.POINT;
@@ -4859,7 +4946,8 @@ namespace MVCore.GMDL
 
         public AnimPoseComponent(TkAnimPoseComponentData apcd)
         {
-            _poseFrameData = (TkAnimMetadata) NMSUtils.LoadNMSFile(Path.GetFullPath(Path.Combine(FileUtils.dirpath, apcd.Filename)));
+            _poseFrameData = (TkAnimMetadata) NMSUtils.LoadNMSTemplate(apcd.Filename, 
+                ref Common.RenderState.activeResMgr);
 
             //Load PoseAnims
             for (int i = 0; i < apcd.PoseAnims.Count; i++)
@@ -5045,25 +5133,24 @@ namespace MVCore.GMDL
             AnimFrameData = amd.AnimFrameData;
             StillFrameData = amd.StillFrameData;
 
-            anim_rotations = new Dictionary<string, Quaternion[]>();
-            anim_positions = new Dictionary<string, Vector3[]>();
-            anim_scales = new Dictionary<string, Vector3[]>();
-
             duration = FrameCount * 1000.0f / MVCore.Common.RenderOptions.animFPS;
             interval = duration / FrameCount;
-
-            //Fetch animation data
-            loadData();
         }
 
         public AnimMetadata()
         {
             duration = 0.0f;
+        }
+
+        public void load()
+        {
+            //Init dictionaries
             anim_rotations = new Dictionary<string, Quaternion[]>();
             anim_positions = new Dictionary<string, Vector3[]>();
             anim_scales = new Dictionary<string, Vector3[]>();
-        }
 
+            loadData();
+        }
 
         private void loadData()
         {
@@ -5072,23 +5159,15 @@ namespace MVCore.GMDL
                 TkAnimNodeData node = NodeData[j];
                 //Init dictionary entries
 
-                if (anim_rotations.ContainsKey(node.Node))
-                    Console.WriteLine("This shoult not happen");
-
                 anim_rotations[node.Node] = new Quaternion[FrameCount];
                 anim_positions[node.Node] = new Vector3[FrameCount];
                 anim_scales[node.Node] = new Vector3[FrameCount];
 
                 for (int i = 0; i < FrameCount; i++)
                 {
-                    Quaternion q = NMSUtils.fetchRotQuaternion(node, this, i);
-                    Vector3 s = NMSUtils.fetchScaleVector(node, this, i);
-                    Vector3 p = NMSUtils.fetchTransVector(node, this, i);
-
-                    //Save Info
-                    anim_rotations[node.Node][i] = q;
-                    anim_positions[node.Node][i] = p;
-                    anim_scales[node.Node][i] = s;
+                    NMSUtils.fetchRotQuaternion(node, this, i, ref anim_rotations[node.Node][i]); //use Ref
+                    NMSUtils.fetchTransVector(node, this, i, ref anim_positions[node.Node][i]); //use Ref
+                    NMSUtils.fetchScaleVector(node, this, i, ref anim_scales[node.Node][i]); //use Ref
                 }
             }
         }
@@ -5102,7 +5181,8 @@ namespace MVCore.GMDL
         private int prevFrameIndex = 0;
         private int nextFrameIndex = 0;
         private float LERP_coeff = 0.0f;
-
+        public bool loaded = false;
+        
         public event PropertyChangedEventHandler PropertyChanged;
 
         //Constructors
@@ -5115,10 +5195,6 @@ namespace MVCore.GMDL
             AnimType = ad.AnimType;
             Speed = ad.Speed;
             Additive = ad.Additive;
-            
-            //Load Animation File
-            if (Filename != "")
-                fetchAnimMetaData();
         }
 
         public AnimData()
@@ -5161,7 +5237,7 @@ namespace MVCore.GMDL
         {
             get { return _animationToggle; }
             set { _animationToggle = value;
-                NotifyPropertyChanged("AnimationToggle"); 
+                NotifyPropertyChanged("AnimationToggle");
             }
         }
 
@@ -5196,6 +5272,12 @@ namespace MVCore.GMDL
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(info));
         }
 
+        public void loadData()
+        {
+            if (Filename != "")
+                fetchAnimMetaData();
+        }
+
 
         private void fetchAnimMetaData()
         {
@@ -5205,8 +5287,10 @@ namespace MVCore.GMDL
             }
             else
             {
-                TkAnimMetadata amd = NMSUtils.LoadNMSFile(Path.GetFullPath(Path.Combine(FileUtils.dirpath, Filename))) as TkAnimMetadata;
+                TkAnimMetadata amd = NMSUtils.LoadNMSTemplate(Filename,
+                    ref Common.RenderState.activeResMgr) as TkAnimMetadata;
                 animMeta = new AnimMetadata(amd);
+                animMeta.load(); //Load data as well
                 MVCore.Common.RenderState.activeResMgr.Animations[Filename] = animMeta;
             }
         }
@@ -5214,6 +5298,12 @@ namespace MVCore.GMDL
 
         public void animate(float dt)
         {
+            if (!loaded)
+            {
+                fetchAnimMetaData();
+                loaded = true;
+            }
+                
             if (animMeta != null)
             {
                 float activeAnimDuration = animMeta.duration / Speed;
@@ -5274,7 +5364,7 @@ namespace MVCore.GMDL
         public Matrix4 invBindMatrix = Matrix4.Identity;
         public Matrix4 BindMatrix = Matrix4.Identity;
 
-        public void Load(FileStream fs)
+        public void Load(Stream fs)
         {
             //Binary Reader
             BinaryReader br = new BinaryReader(fs);

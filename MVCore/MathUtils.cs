@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text;
 using OpenTK;
 
@@ -94,66 +96,67 @@ namespace MVCore
         //Add matrix to JMArray
         public static void insertMatToArray16(float[] array, int offset, Matrix4 mat)
         {
-            //mat.Transpose();//Transpose Matrix Testing
-            array[offset + 0] = mat.M11;
-            array[offset + 1] = mat.M12;
-            array[offset + 2] = mat.M13;
-            array[offset + 3] = mat.M14;
-            array[offset + 4] = mat.M21;
-            array[offset + 5] = mat.M22;
-            array[offset + 6] = mat.M23;
-            array[offset + 7] = mat.M24;
-            array[offset + 8] = mat.M31;
-            array[offset + 9] = mat.M32;
-            array[offset + 10] = mat.M33;
-            array[offset + 11] = mat.M34;
-            array[offset + 12] = mat.M41;
-            array[offset + 13] = mat.M42;
-            array[offset + 14] = mat.M43;
-            array[offset + 15] = mat.M44;
+            array[offset + 0] = mat.Row0.X;
+            array[offset + 1] = mat.Row0.Y;
+            array[offset + 2] = mat.Row0.Z;
+            array[offset + 3] = mat.Row0.W;
+            array[offset + 4] = mat.Row1.X;
+            array[offset + 5] = mat.Row1.Y;
+            array[offset + 6] = mat.Row1.Z;
+            array[offset + 7] = mat.Row1.W;
+            array[offset + 8] = mat.Row2.X;
+            array[offset + 9] = mat.Row2.Y;
+            array[offset + 10] = mat.Row2.Z;
+            array[offset + 11] = mat.Row2.W;
+            array[offset + 12] = mat.Row3.X;
+            array[offset + 13] = mat.Row3.Y;
+            array[offset + 14] = mat.Row3.Z;
+            array[offset + 15] = mat.Row3.W;
+        
         }
 
         public unsafe static void insertMatToArray16(float* array, int offset, Matrix4 mat)
         {
             //mat.Transpose();//Transpose Matrix Testing
-            array[offset + 0] = mat.M11;
-            array[offset + 1] = mat.M12;
-            array[offset + 2] = mat.M13;
-            array[offset + 3] = mat.M14;
-            array[offset + 4] = mat.M21;
-            array[offset + 5] = mat.M22;
-            array[offset + 6] = mat.M23;
-            array[offset + 7] = mat.M24;
-            array[offset + 8] = mat.M31;
-            array[offset + 9] = mat.M32;
-            array[offset + 10] = mat.M33;
-            array[offset + 11] = mat.M34;
-            array[offset + 12] = mat.M41;
-            array[offset + 13] = mat.M42;
-            array[offset + 14] = mat.M43;
-            array[offset + 15] = mat.M44;
+            array[offset + 0] = mat.Row0.X;
+            array[offset + 1] = mat.Row0.Y;
+            array[offset + 2] = mat.Row0.Z;
+            array[offset + 3] = mat.Row0.W;
+            array[offset + 4] = mat.Row1.X;
+            array[offset + 5] = mat.Row1.Y;
+            array[offset + 6] = mat.Row1.Z;
+            array[offset + 7] = mat.Row1.W;
+            array[offset + 8] = mat.Row2.X;
+            array[offset + 9] = mat.Row2.Y;
+            array[offset + 10] = mat.Row2.Z;
+            array[offset + 11] = mat.Row2.W;
+            array[offset + 12] = mat.Row3.X;
+            array[offset + 13] = mat.Row3.Y;
+            array[offset + 14] = mat.Row3.Z;
+            array[offset + 15] = mat.Row3.W;
+
         }
 
         public unsafe static Matrix4 Matrix4FromArray(float* array, int offset)
         {
             Matrix4 mat = Matrix4.Identity;
 
-            mat.M11 = array[offset + 0];
-            mat.M12 = array[offset + 1];
-            mat.M13 = array[offset + 2];
-            mat.M14 = array[offset + 3];
-            mat.M21 = array[offset + 4];
-            mat.M22 = array[offset + 5];
-            mat.M23 = array[offset + 6];
-            mat.M24 = array[offset + 7];
-            mat.M31 = array[offset + 8];
-            mat.M32 = array[offset + 9];
-            mat.M33 = array[offset + 10];
-            mat.M34 = array[offset + 11];
-            mat.M41 = array[offset + 12];
-            mat.M42 = array[offset + 13];
-            mat.M43 = array[offset + 14];
-            mat.M44 = array[offset + 15];
+            mat.Row0.X = array[offset + 0];
+            mat.Row0.Y = array[offset + 1];
+            mat.Row0.Z = array[offset + 2];
+            mat.Row0.W = array[offset + 3];
+            mat.Row1.X = array[offset + 4];
+            mat.Row1.Y = array[offset + 5];
+            mat.Row1.Z = array[offset + 6];
+            mat.Row1.W = array[offset + 7];
+            mat.Row2.X = array[offset + 8];
+            mat.Row2.Y = array[offset + 9];
+            mat.Row2.Z = array[offset + 10];
+            mat.Row2.W = array[offset + 11];
+            mat.Row3.X = array[offset + 12];
+            mat.Row3.Y = array[offset + 13];
+            mat.Row3.Z = array[offset + 14];
+            mat.Row3.W = array[offset + 15];
 
             return mat;
         }

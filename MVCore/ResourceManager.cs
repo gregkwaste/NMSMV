@@ -5,6 +5,8 @@ using MVCore.GMDL;
 using libMBIN.NMS.Toolkit;
 using OpenTK;
 using System.IO;
+using GLSLHelper;
+using libPSARC;
 
 namespace MVCore
 {
@@ -32,9 +34,27 @@ namespace MVCore
         public List<GMDL.Light> GLlights = new List<GMDL.Light>();
         public List<Camera> GLCameras = new List<Camera>();
         //public Dictionary<string, int> GLShaders = new Dictionary<string, int>();
-        public Dictionary<GLSLHelper.SHADER_TYPE, GLSLHelper.GLSLShaderConfig> GLShaders = new Dictionary<GLSLHelper.SHADER_TYPE, GLSLHelper.GLSLShaderConfig>();
-        //public int[] shader_programs;
+        public Dictionary<GLSLHelper.SHADER_TYPE, GLSLHelper.GLSLShaderConfig> GLShaders = new Dictionary<GLSLHelper.SHADER_TYPE, GLSLHelper.GLSLShaderConfig>(); //Generic Shaders
+        
+        public Dictionary<int, GLSLHelper.GLSLShaderConfig> GLDeferredLITShaderMap = new Dictionary<int, GLSLHelper.GLSLShaderConfig>();
+        public Dictionary<int, GLSLHelper.GLSLShaderConfig> GLDeferredUNLITShaderMap = new Dictionary<int, GLSLHelper.GLSLShaderConfig>();
+        public Dictionary<int, GLSLHelper.GLSLShaderConfig> GLForwardShaderMapTransparent = new Dictionary<int, GLSLHelper.GLSLShaderConfig>();
+        public Dictionary<int, GLSLHelper.GLSLShaderConfig> GLForwardShaderMapDecal = new Dictionary<int, GLSLHelper.GLSLShaderConfig>();
 
+        public List<GLSLHelper.GLSLShaderConfig> activeGLDeferredLITShaders = new List<GLSLHelper.GLSLShaderConfig>();
+        public List<GLSLHelper.GLSLShaderConfig> activeGLDeferredUNLITShaders = new List<GLSLHelper.GLSLShaderConfig>();
+        public List<GLSLHelper.GLSLShaderConfig> activeGLForwardTransparentShaders = new List<GLSLHelper.GLSLShaderConfig>();
+        public List<GLSLHelper.GLSLShaderConfig> activeGLForwardDecalShaders = new List<GLSLHelper.GLSLShaderConfig>();
+
+        public Dictionary<int, List<GLMeshVao>> opaqueMeshList = new Dictionary<int, List<GLMeshVao>>();
+        public Dictionary<int, List<GLMeshVao>> transparentMeshList = new Dictionary<int, List<GLMeshVao>>();
+        public Dictionary<int, List<GLMeshVao>> decalMeshList = new Dictionary<int, List<GLMeshVao>>();
+
+        //Global NMS File Archive handles
+        public Dictionary<string, libPSARC.PSARC.Archive> NMSFileToArchiveMap = new Dictionary<string, libPSARC.PSARC.Archive>();
+        public Dictionary<string, libPSARC.PSARC.Archive> NMSArchiveMap = new Dictionary<string, libPSARC.PSARC.Archive>();
+
+        //public int[] shader_programs;
         public textureManager texMgr = new textureManager();
 
         //Procedural Generation Options
@@ -107,7 +127,7 @@ namespace MVCore
             mat.Uniforms.Add(uf);
             mat.init();
             GLmaterials["crossMat"] = mat;
-
+            
             //Joint Material
             mat = new Material();
             mat.Name = "jointMat";
@@ -157,6 +177,12 @@ namespace MVCore
 
         }
 
+        public void addMaterial(Material mat)
+        {
+            GLmaterials[mat.name_key] = mat;
+            //Assign material to shaders
+        }
+
         public void addDefaultPrimitives()
         {
             //Setup Primitive Vaos
@@ -196,6 +222,33 @@ namespace MVCore
             GLPrimitiveMeshVaos["default_sphere"].vao = GLPrimitiveVaos["default_sphere"];
         }
 
+        public bool shaderExistsForMaterial(Material mat)
+        {
+            Dictionary<int, GLSLShaderConfig> shaderDict;
+            
+            //Save shader to resource Manager
+            if (mat.MaterialFlags.Contains("_F51_DECAL_DIFFUSE") ||
+                mat.MaterialFlags.Contains("_F52_DECAL_NORMAL"))
+            {
+                shaderDict = Common.RenderState.activeResMgr.GLForwardShaderMapDecal;
+            }
+            else if (mat.MaterialFlags.Contains("_F09_TRANSPARENT") ||
+                     mat.MaterialFlags.Contains("_F22_TRANSPARENT_SCALAR") ||
+                     mat.MaterialFlags.Contains("_F11_ALPHACUTOUT"))
+            {
+                shaderDict = Common.RenderState.activeResMgr.GLForwardShaderMapTransparent;
+            }
+            else if (mat.MaterialFlags.Contains("_F07_UNLIT"))
+            {
+                shaderDict = Common.RenderState.activeResMgr.GLDeferredUNLITShaderMap;
+            }
+            else
+            {
+                shaderDict = Common.RenderState.activeResMgr.GLDeferredLITShaderMap;
+            }
+
+            return shaderDict.ContainsKey(mat.shaderHash);
+        }
 
         public void Cleanup()
         {
@@ -224,6 +277,21 @@ namespace MVCore
             foreach (GMDL.Material p in GLmaterials.Values)
                 p.Dispose();
             GLmaterials.Clear();
+
+            //Cleanup Material Shaders
+            opaqueMeshList.Clear();
+            transparentMeshList.Clear();
+            decalMeshList.Clear();
+
+            activeGLDeferredLITShaders.Clear();
+            activeGLDeferredUNLITShaders.Clear();
+            activeGLForwardDecalShaders.Clear();
+            activeGLForwardTransparentShaders.Clear();
+
+            GLDeferredLITShaderMap.Clear();
+            GLDeferredUNLITShaderMap.Clear();
+            GLForwardShaderMapTransparent.Clear();
+            GLForwardShaderMapDecal.Clear();
 
             //Cleanup Lights
             foreach (GMDL.Light p in GLlights)

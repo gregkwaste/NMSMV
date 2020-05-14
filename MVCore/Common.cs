@@ -5,6 +5,7 @@ using OpenTK;
 using OpenTK.Graphics.OpenGL4;
 using MVCore.GMDL;
 using MVCore;
+using GLSLHelper;
 
 namespace MVCore.Common
 {
@@ -27,6 +28,8 @@ namespace MVCore.Common
 
         public static RenderOptions renderOpts = new RenderOptions();
 
+        public static bool enableShaderCompilationLog = false;
+        public static string shaderCompilationLog;
 
     }
 
@@ -39,6 +42,8 @@ namespace MVCore.Common
         public static float _useLighting = 1.0f;
         public static bool _useFrustumCulling = true;
         public static bool _useLODFiltering = true;
+        public static bool _useFXAA = true;
+        public static bool _useBLOOM = true;
         public static bool _toggleAnimations = true;
         public static bool _renderLights = true;
         public static bool _renderInfo = true;
@@ -48,6 +53,7 @@ namespace MVCore.Common
         public static bool _renderBoundHulls = false;
         public static bool _renderDebug = false;
         public static int animFPS = 60;
+        public static float _HDRExposure = 1.0f;
 
         //Add properties
         public static bool UseTextures
@@ -107,7 +113,33 @@ namespace MVCore.Common
                 _useLODFiltering = value;
             }
         }
-        
+
+        public static bool UseFXAA
+        {
+            get
+            {
+                return _useFXAA;
+            }
+
+            set
+            {
+                _useFXAA = value;
+            }
+        }
+
+        public static bool UseBLOOM
+        {
+            get
+            {
+                return _useBLOOM;
+            }
+
+            set
+            {
+                _useBLOOM = value;
+            }
+        }
+
 
         public static bool ToggleWireframe
         {
@@ -229,6 +261,19 @@ namespace MVCore.Common
             }
         }
 
+        public static string HDRExposure
+        {
+            get
+            {
+                return _HDRExposure.ToString();
+            }
+
+            set
+            {
+                float.TryParse(value, out _HDRExposure);
+            }
+        }
+
     }
 
     public static class RenderStats
@@ -253,8 +298,8 @@ namespace MVCore.Common
     public delegate void OpenAnimCallBack(string filepath, MVCore.GMDL.model animScene);
     public delegate void OpenPoseCallBack(string filepath, MVCore.GMDL.model animScene);
     public delegate void LogCallBack(string msg);
-    public delegate void SendRequestCallBack(ThreadRequest req);
-
+    public delegate void SendRequestCallBack(ref ThreadRequest req);
+    
     public static class CallBacks
     {
         public static UpdateStatusCallBack updateStatus = null;

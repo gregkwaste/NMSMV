@@ -15,7 +15,7 @@ namespace WPFModelViewer
 {
     public static class Util
     {
-        public static string Version = "v0.86.5-Test-Version";
+        public static string Version = "v0.88.5-Test-Version";
         public static readonly Random randgen = new Random();
         
         //Current GLControl Handle
@@ -56,7 +56,7 @@ namespace WPFModelViewer
             loggingSr.Flush();
         }
 
-        public static void sendRequest(ThreadRequest req)
+        public static void sendRequest(ref ThreadRequest req)
         {
             //This function simply issues the request for handling from the active GL Control
             //It is the senders responsibility to handle and keep track of any results if necessary

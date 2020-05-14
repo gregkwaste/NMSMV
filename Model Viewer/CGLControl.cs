@@ -22,6 +22,8 @@ using System.ComponentModel;
 using System.Threading;
 using QuickFont;
 using ProjProperties = WPFModelViewer.Properties;
+using libMBIN.NMS.Toolkit;
+using System.Windows.Ink;
 
 namespace Model_Viewer
 {
@@ -134,7 +136,7 @@ namespace Model_Viewer
             //Input Polling Timer
             inputPollTimer = new System.Timers.Timer();
             inputPollTimer.Elapsed += new System.Timers.ElapsedEventHandler(input_poller);
-            inputPollTimer.Interval = 5;
+            inputPollTimer.Interval = 1;
             
             //Resize Timer
             resizeTimer = new System.Timers.Timer();
@@ -224,52 +226,27 @@ namespace Model_Viewer
             //Reset Stats
             RenderStats.occludedNum = 0;
 
-            //rootObject?.update();
-            rootObject?.updateLODDistances();
-            rootObject?.updateMeshInfo();
-
             //Update moving queue
             while (modelUpdateQueue.Count > 0)
             {
                 model m = modelUpdateQueue.Dequeue();
                 m.update();
-                m.updateMeshInfo();
             }
 
+            //rootObject?.update(); //Update Distances from camera
+            rootObject?.updateLODDistances(); //Update Distances from camera
+            renderMgr.clearInstances(); //Clear All mesh instances
+            rootObject?.updateMeshInfo(); //Reapply frustum culling and re-setup visible instances
+
+            //Identify dynamic Objects
+            foreach (model s in animScenes)
+            {
+                modelUpdateQueue.Enqueue(s.parentScene);
+            }
+            
             //Progress animations
             if (RenderOptions.ToggleAnimations)
-            {
-                //Update active animations
-                foreach (model anim_model in animScenes)
-                {
-                    AnimComponent ac = anim_model._components[anim_model.hasComponent(typeof(AnimComponent))] as AnimComponent;
-                    bool found_first_active_anim = false;
-
-                    foreach (AnimData ad in ac.Animations)
-                    {
-                        if (ad._animationToggle)
-                        {
-                            found_first_active_anim = true;
-                            modelUpdateQueue.Enqueue(anim_model.parentScene);
-                            //Load updated local joint transforms
-                            foreach (libMBIN.NMS.Toolkit.TkAnimNodeData node in ad.animMeta.NodeData)
-                            {
-                                if (!anim_model.parentScene.jointDict.ContainsKey(node.Node))
-                                    continue;
-
-                                Joint tj = anim_model.parentScene.jointDict[node.Node];
-                                ad.applyNodeTransform(tj, node.Node);
-                            }
-
-                            //Once the current frame data is fetched, progress to the next frame
-                            ad.animate((float) dt);
-                        }
-                        //TODO: For now I'm just using the first active animation. Blending should be kinda more sophisticated
-                        if (found_first_active_anim)
-                            break; 
-                    }
-                }
-            }
+                progressAnimations();
             
             //Camera & Light Positions
             //Update common transforms
@@ -287,6 +264,43 @@ namespace Model_Viewer
             //Update Frame Counter
             fps();
         }
+
+        private void progressAnimations()
+        {
+            //Update active animations
+            foreach (model anim_model in animScenes)
+            {
+                AnimComponent ac = anim_model._components[anim_model.hasComponent(typeof(AnimComponent))] as AnimComponent;
+                bool found_first_active_anim = false;
+
+                foreach (AnimData ad in ac.Animations)
+                {
+                    if (ad._animationToggle)
+                    {
+                        if (!ad.loaded)
+                            ad.loadData();
+
+                        found_first_active_anim = true;
+                        //Load updated local joint transforms
+                        foreach (libMBIN.NMS.Toolkit.TkAnimNodeData node in ad.animMeta.NodeData)
+                        {
+                            if (!anim_model.parentScene.jointDict.ContainsKey(node.Node))
+                                continue;
+
+                            Joint tj = anim_model.parentScene.jointDict[node.Node];
+                            ad.applyNodeTransform(tj, node.Node);
+                        }
+
+                        //Once the current frame data is fetched, progress to the next frame
+                        ad.animate((float)dt);
+                    }
+                    //TODO: For now I'm just using the first active animation. Blending should be kinda more sophisticated
+                    if (found_first_active_anim)
+                        break;
+                }
+            }
+        }
+
 
         //Main Rendering Routines
         private void ControlLoop()
@@ -307,7 +321,7 @@ namespace Model_Viewer
             renderMgr.setupGBuffer(ClientSize.Width, ClientSize.Height);
             
             bool renderFlag = true; //Toggle rendering on/off
-
+            
             //Rendering Loop
             while (!rt_exit)
             {
@@ -341,7 +355,6 @@ namespace Model_Viewer
                             case THREAD_REQUEST_TYPE.CHANGE_MODEL_PARENT_REQUEST:
                                 model source = (model) req.arguments[0];
                                 model target = (model) req.arguments[1];
-
 
                                 System.Windows.Application.Current.Dispatcher.Invoke((Action)(() =>
                                 {
@@ -436,7 +449,7 @@ namespace Model_Viewer
             MakeCurrent();
 
             //Once the context is initialized compile the shaders
-            compileShaders();
+            compileMainShaders();
 
             //Initialize the render manager (Does some pretty lame shit for now)
             renderMgr.init(resMgr);
@@ -609,32 +622,9 @@ namespace Model_Viewer
 
         #region ShaderMethods
 
-        public void issuemodifyShaderRequest(GLSLShaderConfig config, GLSLShaderText shaderText)
-        {
-            Console.WriteLine("Sending Shader Modification Request");
-            ThreadRequest req = new ThreadRequest();
-            req.type = THREAD_REQUEST_TYPE.MODIFY_SHADER_REQUEST;
-            req.arguments.Add(config);
-            req.arguments.Add(shaderText);
-            
-            //Send request
-            issueRequest(ref req);
-        }
+        #endregion ShaderMethods
 
-        //GLPreparation
-        private void compileShader(GLSLShaderText vs, GLSLShaderText fs, GLSLShaderText gs, GLSLShaderText tes, GLSLShaderText tcs, SHADER_TYPE type, ref string log)
-        {
-            GLSLShaderConfig shader_conf = new GLSLShaderConfig(vs, fs, gs, tcs, tes, type);
-            //Set modify Shader delegate
-            shader_conf.modifyShader = issuemodifyShaderRequest;
-
-            compileShader(shader_conf);
-            resMgr.GLShaders[type] = shader_conf;
-            log += shader_conf.log; //Append log
-        }
-
-
-        private void compileShaders()
+        private void compileMainShaders()
         {
 
 #if(DEBUG)
@@ -657,6 +647,7 @@ namespace Model_Viewer
 
             //Populate shader list
             string log = "";
+            GLSLHelper.GLSLShaderConfig shader_conf;
 
             //Geometry Shader
             //Compile Object Shaders
@@ -667,7 +658,7 @@ namespace Model_Viewer
             geometry_shader_fs.addStringFromFile("Shaders/Simple_FSEmpty.glsl");
             geometry_shader_gs.addStringFromFile("Shaders/Simple_GS.glsl");
 
-            compileShader(geometry_shader_vs, geometry_shader_fs, geometry_shader_gs,null,null,
+            GLShaderHelper.compileShader(geometry_shader_vs, geometry_shader_fs, geometry_shader_gs, null, null,
                             GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER, ref log);
 
             //Picking Shaders
@@ -675,36 +666,17 @@ namespace Model_Viewer
             GLSLShaderText picking_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
             picking_shader_vs.addString(ProjProperties.Resources.pick_vert);
             picking_shader_fs.addString(ProjProperties.Resources.pick_frag);
-            compileShader(picking_shader_vs, picking_shader_fs, null, null, null,
+            GLShaderHelper.compileShader(picking_shader_vs, picking_shader_fs, null, null, null,
                 GLSLHelper.SHADER_TYPE.PICKING_SHADER, ref log);
 
-
-            //Main Object Shader - Deferred Shading
-            GLSLShaderText main_deferred_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText main_deferred_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            main_deferred_shader_vs.addString("#define _DEFERRED_RENDERING\n");
-            main_deferred_shader_vs.addStringFromFile("Shaders/Simple_VS.glsl");
-            main_deferred_shader_fs.addString("#define _DEFERRED_RENDERING\n");
-            main_deferred_shader_fs.addStringFromFile("Shaders/Simple_FS.glsl");
+            //Compile Default Shaders
             
-            compileShader(main_deferred_shader_vs, main_deferred_shader_fs, null, null, null,
-                GLSLHelper.SHADER_TYPE.MESH_DEFERRED_SHADER, ref log);
-
-            //Main Object Shader - Deferred Shading
-            GLSLShaderText main_forward_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText main_forward_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            main_forward_shader_vs.addStringFromFile("Shaders/Simple_VS.glsl");
-            main_forward_shader_fs.addStringFromFile("Shaders/Simple_FS.glsl");
-
-            compileShader(main_forward_shader_vs, main_forward_shader_fs, null, null, null,
-                GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER, ref log);
-
             //BoundBox Shader
             GLSLShaderText bbox_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
             GLSLShaderText bbox_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
             bbox_shader_vs.addStringFromFile("Shaders/Bound_VS.glsl");
             bbox_shader_fs.addStringFromFile("Shaders/Bound_FS.glsl");
-            compileShader(bbox_shader_vs, bbox_shader_fs, null, null, null,
+            GLShaderHelper.compileShader(bbox_shader_vs, bbox_shader_fs, null, null, null,
                 GLSLHelper.SHADER_TYPE.BBOX_SHADER, ref log);
 
             //Texture Mixing Shader
@@ -712,31 +684,95 @@ namespace Model_Viewer
             GLSLShaderText texture_mixing_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
             texture_mixing_shader_vs.addStringFromFile("Shaders/texture_mixer_VS.glsl");
             texture_mixing_shader_fs.addStringFromFile("Shaders/texture_mixer_FS.glsl");
-            compileShader(texture_mixing_shader_vs, texture_mixing_shader_fs, null, null, null,
+            shader_conf = GLShaderHelper.compileShader(texture_mixing_shader_vs, texture_mixing_shader_fs, null, null, null,
                             GLSLHelper.SHADER_TYPE.TEXTURE_MIX_SHADER, ref log);
+            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.TEXTURE_MIX_SHADER] = shader_conf;
 
             //GBuffer Shaders
+
+            //UNLIT
             GLSLShaderText gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
             GLSLShaderText gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
             gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
             gbuffer_shader_fs.addStringFromFile("Shaders/Gbuffer_FS.glsl");
-            compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.GBUFFER_SHADER, ref log);
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.GBUFFER_UNLIT_SHADER, ref log);
+            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_UNLIT_SHADER] = shader_conf;
+
+            //LIT
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gbuffer_shader_fs.addString("#define _D_LIGHTING");
+            gbuffer_shader_fs.addStringFromFile("Shaders/Gbuffer_FS.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.GBUFFER_LIT_SHADER, ref log);
+            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_LIT_SHADER] = shader_conf;
+
+
+            //GAUSSIAN HORIZONTAL BLUR SHADER
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText gaussian_blur_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gaussian_blur_shader_fs.addStringFromFile("Shaders/gaussian_horizontalBlur_FS.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gaussian_blur_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.GAUSSIAN_HORIZONTAL_BLUR_SHADER, ref log);
+            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GAUSSIAN_HORIZONTAL_BLUR_SHADER] = shader_conf;
+
+
+            //GAUSSIAN VERTICAL BLUR SHADER
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            gaussian_blur_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gaussian_blur_shader_fs.addStringFromFile("Shaders/gaussian_verticalBlur_FS.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gaussian_blur_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.GAUSSIAN_VERTICAL_BLUR_SHADER, ref log);
+            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GAUSSIAN_VERTICAL_BLUR_SHADER] = shader_conf;
+
+            
+            //BRIGHTNESS EXTRACTION SHADER
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gbuffer_shader_fs.addStringFromFile("Shaders/brightness_extract_shader_fs.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.BRIGHTNESS_EXTRACT_SHADER, ref log);
+            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.BRIGHTNESS_EXTRACT_SHADER] = shader_conf;
+
+
+            //ADDITIVE BLEND
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gbuffer_shader_fs.addStringFromFile("Shaders/additive_blend_fs.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.ADDITIVE_BLEND_SHADER, ref log);
+            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.ADDITIVE_BLEND_SHADER] = shader_conf;
+
+            //ADDITIVE BLEND
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gbuffer_shader_fs.addStringFromFile("Shaders/fxaa_shader_fs.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.FXAA_SHADER, ref log);
+            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.FXAA_SHADER] = shader_conf;
 
             //Decal Shaders
             GLSLShaderText decal_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
             GLSLShaderText decal_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
             decal_shader_vs.addStringFromFile("Shaders/decal_VS.glsl");
             decal_shader_fs.addStringFromFile("Shaders/Decal_FS.glsl");
-            compileShader(decal_shader_vs, decal_shader_fs, null,null,null,
+            GLShaderHelper.compileShader(decal_shader_vs, decal_shader_fs, null, null, null,
                             GLSLHelper.SHADER_TYPE.DECAL_SHADER, ref log);
+
 
             //Text Shaders
             GLSLShaderText text_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
             GLSLShaderText text_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
             text_shader_vs.addString(ProjProperties.Resources.text_vert);
             text_shader_fs.addString(ProjProperties.Resources.text_frag);
-            compileShader(text_shader_vs, text_shader_fs, null, null, null,
+            GLShaderHelper.compileShader(text_shader_vs, text_shader_fs, null, null, null,
                             GLSLHelper.SHADER_TYPE.TEXT_SHADER, ref log);
 
             //Camera Shaders
@@ -744,35 +780,23 @@ namespace Model_Viewer
             GLSLShaderText camera_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
             camera_shader_vs.addString(ProjProperties.Resources.camera_vert);
             camera_shader_fs.addString(ProjProperties.Resources.camera_frag);
-            compileShader(camera_shader_vs, camera_shader_fs, null, null, null,
+            GLShaderHelper.compileShader(camera_shader_vs, camera_shader_fs, null, null, null,
                             GLSLHelper.SHADER_TYPE.CAMERA_SHADER, ref log);
+            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.CAMERA_SHADER] = shader_conf;
 
             //FILTERS - EFFECTS
 
             //Pass Shader
             GLSLShaderText passthrough_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
             passthrough_shader_fs.addStringFromFile("Shaders/PassThrough_FS.glsl");
-            compileShader(gbuffer_shader_vs, passthrough_shader_fs, null, null, null,
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, passthrough_shader_fs, null, null, null,
                             GLSLHelper.SHADER_TYPE.PASSTHROUGH_SHADER, ref log);
+            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.PASSTHROUGH_SHADER] = shader_conf;
 
-            //Gaussian Blur Shaders
-            GLSLShaderText gaussian_blur_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            passthrough_shader_fs.addStringFromFile("Shaders/gaussian_blur_FS.glsl");
-            compileShader(gbuffer_shader_vs, gaussian_blur_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.GAUSSIAN_BLUR_SHADER, ref log);
-        
+            
+
         }
 
-        public void compileShader(GLSLShaderConfig config)
-        {
-            if (config.program_id != -1)
-                GL.DeleteProgram(config.program_id);
-
-            GLShaderHelper.CreateShaders(config);
-        }
-
-        
-        #endregion ShaderMethods
 
         #region ContextMethods
 
@@ -879,7 +903,7 @@ namespace Model_Viewer
         private void addCamera(bool cull = true)
         {
             //Set Camera position
-            Camera cam = new Camera(90, resMgr.GLShaders[SHADER_TYPE.BBOX_SHADER].program_id, 0, cull);
+            Camera cam = new Camera(90, resMgr.GLShaders[SHADER_TYPE.CAMERA_SHADER].program_id, 0, cull);
             for (int i = 0; i < 20; i++)
                 cam.Move(0.0f, -0.1f, 0.0f);
             cam.isActive = false;
@@ -935,7 +959,9 @@ namespace Model_Viewer
             setActiveCam(0);
 
             //Setup new object
-            rootObject = GEOMMBIN.LoadObjects(filename, false);
+            string relpath = filename.Replace(FileUtils.dirpath, "");
+            relpath = relpath.TrimStart('\\');
+            rootObject = GEOMMBIN.LoadObjects(relpath);
 
             //Explicitly add default light to the rootObject
             rootObject.children.Add(resMgr.GLlights[0]);
@@ -946,10 +972,13 @@ namespace Model_Viewer
             rootObject.updateLODDistances();
             rootObject.update(); //Refresh all transforms
             rootObject.setupSkinMatrixArrays();
-            rootObject.updateMeshInfo(); //Update all mesh info
-
+            
             //Populate RenderManager
             renderMgr.populate(rootObject);
+
+            //Clear Instances
+            renderMgr.clearInstances();
+            rootObject.updateMeshInfo(); //Update all mesh info
 
             //Restart anim worker if it was active
             if (!RenderOptions.ToggleAnimations)

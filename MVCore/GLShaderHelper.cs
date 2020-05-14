@@ -4,6 +4,7 @@ using OpenTK.Graphics.OpenGL4;
 using System.Collections.Generic;
 using System.Reflection;
 using MVCore;
+using MVCore.Common;
 
 namespace GLSLHelper { 
 
@@ -27,8 +28,14 @@ namespace GLSLHelper {
         PASSTHROUGH_SHADER,
         LIGHT_SHADER,
         TEXT_SHADER,
-        GBUFFER_SHADER,
-        GAUSSIAN_BLUR_SHADER
+        MATERIAL_SHADER,
+        GBUFFER_LIT_SHADER,
+        GBUFFER_UNLIT_SHADER,
+        BRIGHTNESS_EXTRACT_SHADER,
+        GAUSSIAN_HORIZONTAL_BLUR_SHADER,
+        GAUSSIAN_VERTICAL_BLUR_SHADER,
+        ADDITIVE_BLEND_SHADER,
+        FXAA_SHADER
     }
 
     public class GLSLShaderText
@@ -37,7 +44,7 @@ namespace GLSLHelper {
         public int[] string_lengths;
         public string[] filepaths;
         public int string_num = 0;
-        private int max_strings_num = 10;
+        private int max_strings_num = 20;
         public string resolved_text = ""; //Full shader text after resolving
         public int shader_object_id;
         public ShaderType shader_type;
@@ -265,6 +272,7 @@ namespace GLSLHelper {
         
         //Program ID
         public int program_id = -1;
+        public int shaderHash = -1; //Should contain the hashcode of all the material related preprocessor flags (is set externally)
         //Shader Compilation log
         public string log = "";
 
@@ -324,7 +332,98 @@ namespace GLSLHelper {
             
             return n_s;
         }
+
+        //Shader Compilation
+
+        public static void issuemodifyShaderRequest(GLSLShaderConfig config, GLSLShaderText shaderText)
+        {
+            Console.WriteLine("Sending Shader Modification Request");
+            ThreadRequest req = new ThreadRequest();
+            req.type = THREAD_REQUEST_TYPE.MODIFY_SHADER_REQUEST;
+            req.arguments.Add(config);
+            req.arguments.Add(shaderText);
+
+            //Send request
+            CallBacks.issueRequestToGLControl(ref req);
+        }
+
+        //GLPreparation
+        public static GLSLShaderConfig compileShader(GLSLShaderText vs, GLSLShaderText fs, GLSLShaderText gs, GLSLShaderText tes, GLSLShaderText tcs, SHADER_TYPE type, ref string log)
+        {
+            GLSLShaderConfig shader_conf = new GLSLShaderConfig(vs, fs, gs, tcs, tes, type);
+            //Set modify Shader delegate
+            shader_conf.modifyShader = issuemodifyShaderRequest;
+
+            compileShader(shader_conf);
+            log += shader_conf.log; //Append log
+
+            return shader_conf;
+        }
+
+        public static int calculateShaderHash(List<string> includes)
+        {
+            string hash = "";
+            
+            for (int i = 0; i < includes.Count; i++)
+                hash += includes[i].ToString();
+            
+            if (hash == "")
+                hash = "DEFAULT";
+
+            Console.WriteLine(hash);
+            return hash.GetHashCode();
+        }
+
+        public static GLSLShaderConfig compileShader(string vs_path, string fs_path, string gs_path, string tcs_path, string tes_path,
+            List<string> directives, List<string> includes, SHADER_TYPE type, ref string log)
+        {
+            List<string> defines = new List<string>();
+
+            //General Directives are provided here
+            foreach (string d in directives)
+                defines.Add(d);
+
+            //Material Flags are provided here
+            foreach (string  f in includes)
+                defines.Add("_" + f);
+            
+            //Main Object Shader - Deferred Shading
+            GLSLShaderText main_deferred_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText main_deferred_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+
+            foreach (string s in defines)
+                main_deferred_shader_vs.addString("#define " + s + "\n");
+            main_deferred_shader_vs.addStringFromFile(vs_path);
+            foreach (string s in defines)
+                main_deferred_shader_fs.addString("#define " + s + "\n");
+            main_deferred_shader_fs.addStringFromFile(fs_path);
+
+            GLSLShaderConfig conf = compileShader(main_deferred_shader_vs, main_deferred_shader_fs, null, null, null,
+                type, ref log);
+
+            conf.shaderHash = calculateShaderHash(includes);
+            
+            return conf;
+        }
+
+        //This method attaches UBOs to shader binding points
+        public static void attachUBOToShaderBindingPoint(GLSLHelper.GLSLShaderConfig shader_conf, string var_name, int binding_point)
+        {
+            //Binding Position 0 - Matrices UBO
+            int shdr_program_id = shader_conf.program_id;
+            int ubo_index = GL.GetUniformBlockIndex(shdr_program_id, var_name);
+            GL.UniformBlockBinding(shdr_program_id, ubo_index, binding_point);
+        }
         
+
+        public static void compileShader(GLSLShaderConfig config)
+        {
+            if (config.program_id != -1)
+                GL.DeleteProgram(config.program_id);
+            CreateShaders(config);
+        }
+
+
         //Shader Creation
         static public void CreateShaders(GLSLShaderConfig config)
         {
@@ -341,31 +440,36 @@ namespace GLSLHelper {
             if (config.vs_text != null)
             {
                 config.vs_text.compile();
-                config.log += NumberLines(config.vs_text.resolved_text) + "\n";
+                if (RenderState.enableShaderCompilationLog)
+                    config.log += NumberLines(config.vs_text.resolved_text) + "\n";
             }
 
             if (config.fs_text != null)
             {
                 config.fs_text.compile();
-                config.log += NumberLines(config.fs_text.resolved_text) + "\n";
+                if (RenderState.enableShaderCompilationLog)
+                    config.log += NumberLines(config.fs_text.resolved_text) + "\n";
             }
 
             if (config.gs_text != null)
             {
                 config.gs_text.compile();
-                config.log += NumberLines(config.gs_text.resolved_text) + "\n";
+                if (RenderState.enableShaderCompilationLog)
+                    config.log += NumberLines(config.gs_text.resolved_text) + "\n";
             }
 
             if (config.tes_text != null)
             {
                 config.tes_text.compile();
-                config.log += NumberLines(config.tes_text.resolved_text) + "\n";
+                if (RenderState.enableShaderCompilationLog)
+                    config.log += NumberLines(config.tes_text.resolved_text) + "\n";
             }
 
             if (config.tcs_text != null)
             {
                 config.tcs_text.compile();
-                config.log += NumberLines(config.tcs_text.resolved_text) + "\n";
+                if (RenderState.enableShaderCompilationLog)
+                    config.log += NumberLines(config.tcs_text.resolved_text) + "\n";
             }
             
             //Create new program
@@ -385,10 +489,14 @@ namespace GLSLHelper {
             }
 
             GL.LinkProgram(config.program_id);
-            
+
             //Check Linking
-            GL.GetProgramInfoLog(config.program_id, out info);
-            config.log += info + "\n";
+            if (RenderState.enableShaderCompilationLog)
+            {
+                GL.GetProgramInfoLog(config.program_id, out info);
+                config.log += info + "\n";
+            }
+                
             GL.GetProgram(config.program_id, GetProgramParameterName.LinkStatus, out status_code);
             if (status_code != 1)
                 throwCompilationError(config.log);
@@ -415,11 +523,14 @@ namespace GLSLHelper {
 
                 GL.GetActiveUniform(shader_conf.program_id, i, bufSize, out size, out length, out type, out name);
                 loc = GL.GetUniformLocation(shader_conf.program_id, name);
-                string info_string = String.Format("Uniform # {0} Location: {1} Type: {2} Name: {3} Length: {4} Size: {5}",
-                    i, loc, type.ToString(), name, length, size);
-
                 shader_conf.uniformLocations[name] = loc; //Store location
-                shader_conf.log += info_string + "\n";
+                
+                if (RenderState.enableShaderCompilationLog)
+                {
+                    string info_string = String.Format("Uniform # {0} Location: {1} Type: {2} Name: {3} Length: {4} Size: {5}",
+                    i, loc, type.ToString(), name, length, size);
+                    shader_conf.log += info_string + "\n";
+                }
             }
         }
         

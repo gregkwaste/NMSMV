@@ -3,9 +3,8 @@
  *  Applies the transformation matrix to vertex position.
  */
 
-
 //Diffuse Textures
-uniform sampler2DMS diffuseTex;
+uniform sampler2D diffuseTex;
 
 vec3 gaussianBlur(){
 	float offset = 3.9;  
@@ -29,7 +28,7 @@ vec3 gaussianBlur(){
 	);
 
 	vec3 result = vec3(0.0);
-    for (int i=0; i<9; i++){
+    for (int i=0; i<9; i++) { 
 		result += kernel[i] * texelFetch(diffuseTex, ivec2(gl_FragCoord.xy + offsets[i]), 0).rgb;
 	}
 	return result;

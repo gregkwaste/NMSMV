@@ -1,9 +1,14 @@
-//static const vec3 kGammaOutVec3 = vec3( 1.0 / 2.2 );
-//static const vec3 kGammaInVec3  = vec3( 2.2 );
+//const vec3 kGammaOutVec3 = vec3( 1.0 / 2.2 );
+//const vec3 kGammaInVec3  = vec3( 2.2 );
 //static const vec4 RGBToHSV_K    = vec4( 0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0 );
 //static const vec4 HSVToRGB_K    = vec4( 1.0,  2.0 / 3.0, 1.0 / 3.0,  3.0 );
 
 #define PI 3.14159265359
+
+
+//These defines are used for quick reference on the material flags.
+//For ease of use all the includes will be the same flags with an underscore 
+
 
 #define _F01_DIFFUSEMAP 0
 #define _F02_SKINNED 1
@@ -49,6 +54,17 @@ vec3 fixColorGamma(vec3 color){
     return pow(color.rgb, vec3(1.0 / gamma));
 }
 
+vec3 
+GammaCorrectOutput(
+    in vec3 lColourVec3 )
+{
+    vec3 kGammaOutVec3 = vec3( 1.0 / 2.2 );
+
+    vec3 lCorrectColourVec3;
+    lCorrectColourVec3 = pow( lColourVec3, kGammaOutVec3 );
+    return lCorrectColourVec3;
+}
+
 //Saturate Function
 vec3 saturate(in vec3 color){
 	return min(max(color, 0.0), 1.0);
@@ -57,6 +73,15 @@ vec3 saturate(in vec3 color){
 float saturate(in float val){
     return min(max(val, 0.0), 1.0);
 }
+
+//TONEMAPPING FUNCTIONS
+vec3 
+TonemapKodak(
+    in vec3 x )
+{
+    return (( x * ( 0.22 * x + 0.10 * 0.30 ) + 0.20 * 0.01 ) / ( x * ( 0.22 * x + 0.30 ) + 0.20 * 0.30 ) ) - 0.01 / 0.30 ;
+}
+
 
 //-----------------------------------------------------------------------------
 ///

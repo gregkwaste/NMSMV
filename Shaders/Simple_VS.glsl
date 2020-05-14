@@ -64,12 +64,12 @@ void main()
     uv0 = uvPosition0;
     vertColor = bPosition;
 
-    if (mesh_has_matflag(_F14_UVSCROLL)) {
+    #ifdef __F14_UVSCROLL
         vec4 lFlippedScrollingUVVec4 = mpCustomPerMaterial.gUVScrollStepVec4;
         //TODO: Convert uvs to vec4 for diffuse2maps
         uv0 += lFlippedScrollingUVVec4.xy * mpCommonPerFrame.gfTime;
-    }
-
+    #endif
+    
     //Load Per Instance data
     isOccluded = mpCommonPerMesh.instanceData[gl_InstanceID].isOccluded;
     isSelected = mpCommonPerMesh.instanceData[gl_InstanceID].isSelected;
@@ -77,26 +77,24 @@ void main()
     mat4 lWorldMat;
     
     //Check F02_SKINNED
-    if (mpCommonPerMesh.skinned > 0.0) { 
+    #ifdef __F02_SKINNED
         ivec4 index;
         
         index.x = int(blendIndices.x);
-	    index.y = int(blendIndices.y);
-	    index.z = int(blendIndices.z);
-	    index.w = int(blendIndices.w);
+        index.y = int(blendIndices.y);
+        index.z = int(blendIndices.z);
+        index.w = int(blendIndices.w);
 
         //Assemble matrices from 
-
-
         int instanceMatOffset = gl_InstanceID * 128 * 4;
         lWorldMat =  blendWeights.x * get_skin_matrix(instanceMatOffset + 4 * index.x);
         lWorldMat += blendWeights.y * get_skin_matrix(instanceMatOffset + 4 * index.y);
         lWorldMat += blendWeights.z * get_skin_matrix(instanceMatOffset + 4 * index.z);
         lWorldMat += blendWeights.w * get_skin_matrix(instanceMatOffset + 4 * index.w);
-    } else {
+    #else
         lWorldMat = mpCommonPerMesh.instanceData[gl_InstanceID].worldMat;
-    }
-
+    #endif
+    
     vec4 wPos = lWorldMat * vPosition; //Calculate world Position
     fragPos = wPos; //Export world position to the fragment shader
     gl_Position = mpCommonPerFrame.mvp * wPos;
@@ -104,7 +102,6 @@ void main()
     //Construct TBN matrix
     //Nullify w components
     vec4 lLocalTangentVec4 = tPosition;
-    vec4 lLocalBitangentVec4 = vec4(bPosition.xyz, 0.0);
     vec4 lLocalNormalVec4 = nPosition;
     
     mat4 nMat = mpCommonPerMesh.instanceData[gl_InstanceID].normalMat;
@@ -121,6 +118,7 @@ void main()
 
     //Send world normal to fragment shader
     N = normalize(lWorldNormalVec4).xyz;
+
 }
 
 

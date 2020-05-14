@@ -77,6 +77,7 @@ namespace MVCore.GMDL
                 //projMat = Matrix4.CreatePerspectiveOffCenter(-w, w, -h, h, zNear, zFar);
                 Matrix4.CreatePerspectiveFieldOfView(fov, aspect, zNear, zFar, out projMat);
                 
+
                 viewMat = lookMat * projMat;
             }
             else
@@ -88,11 +89,11 @@ namespace MVCore.GMDL
                 Matrix4 scaleMat = Matrix4.CreateScale(0.8f * fov);
                 viewMat = scaleMat * lookMat * projMat;
             }
-
+            
             //Calculate invert Matrices
             lookMatInv = Matrix4.Invert(lookMat);
             projMatInv = Matrix4.Invert(projMat);
-
+            
             updateFrustumPlanes();
         }
 
@@ -183,18 +184,7 @@ namespace MVCore.GMDL
 
         }
 
-        public bool frustum_occlude(GMDL.GLMeshVao meshVao, int instance_id)
-        {
-            if (!culling) return true;
-
-            //Fetch worldMat from meshVao using the instance_id
-            Matrix4 wMat = meshVao.getInstanceWorldMat(instance_id);
-
-            //Run the actual frustum_occlude method
-            return frustum_occlude(meshVao.metaData.AABBMIN, meshVao.metaData.AABBMAX, wMat);
-        }
-
-        public bool frustum_occlude(Vector3 AABBMIN, Vector3 AABBMAX, Matrix4 transform)
+        public bool frustum_occlude(Vector3 AABBMIN, Vector3 AABBMAX)
         {
             if (!Common.RenderOptions.UseFrustumCulling)
                 return true;
@@ -203,7 +193,7 @@ namespace MVCore.GMDL
             Vector3 bsh_center = AABBMIN + 0.5f * (AABBMAX - AABBMIN);
 
             //Move sphere to object's root position
-            bsh_center = (new Vector4(bsh_center, 1.0f) * transform).Xyz;
+            bsh_center = (new Vector4(bsh_center, 1.0f)).Xyz;
 
             //This is not accurate for some fucking reason
             //return extFrustum.AABBVsFrustum(cand.Bbox, cand.worldMat * transform);
@@ -217,12 +207,7 @@ namespace MVCore.GMDL
         {
             if (!culling) return true;
 
-            return frustum_occlude(cand.meshVao.metaData.AABBMIN, cand.meshVao.metaData.AABBMAX, cand.worldMat);
-        }
-
-        public bool frustum_occlude(GMDL.meshModel cand, Matrix4 transform)
-        {
-            return frustum_occlude(cand.meshVao.metaData.AABBMIN, cand.meshVao.metaData.AABBMAX, cand.worldMat * transform);
+            return frustum_occlude(cand.AABBMIN, cand.AABBMAX);
         }
 
         public void render()
@@ -300,7 +285,7 @@ namespace MVCore.GMDL
     public class Frustum
     {
         private float[] _clipMatrix = new float[16];
-        private float[,] _frustum = new float[6, 4];
+        private Vector4[] _frustum = new Vector4[6];
         public float[,] _frustum_points = new float[8, 3];
         
         public const int A = 0;
@@ -328,13 +313,13 @@ namespace MVCore.GMDL
             frustum[side, 3] *= magnitude;
         }
 
-        public bool PointVsFrustum(float x, float y, float z)
+        public bool PointVsFrustum(Vector4 point)
         {
-            for (int p = 0; p < 6; p++)
+            for (int i = 0; i < 6; i++)
             {
-                if (_frustum[p, 0] * x + _frustum[p, 1] * y + _frustum[p, 2] * z + _frustum[p, 3] <= 0.0f)
+                if (Vector4.Dot(_frustum[i],point) <= 0.0f)
                 {
-                    Console.WriteLine("Point vs Frustum, Plane {0} Failed. Failed Vector {1} {2} {3}", (ClippingPlane)p, x, y, z);
+                    //Console.WriteLine("Point vs Frustum, Plane {0} Failed. Failed Vector {1} {2} {3}", (ClippingPlane)p, x, y, z);
                     return false;
                 }
                     
@@ -344,29 +329,30 @@ namespace MVCore.GMDL
 
         public bool PointVsFrustum(Vector3 location)
         {
-            return PointVsFrustum(location.X, location.Y, location.Z);
+            return PointVsFrustum(new Vector4(location, 1.0f));
         }
 
 
-        public bool AABBVsFrustum(Vector3[] AABB, Matrix4 transform)
+        public bool AABBVsFrustum(Vector3[] AABB)
         {
             //Transform points from local to model space
             Vector4[] tr_AABB = new Vector4[2];
 
-            tr_AABB[0] = new Vector4(AABB[0], 1.0f) * transform;
-            tr_AABB[1] = new Vector4(AABB[1], 1.0f) * transform;
+            tr_AABB[0] = new Vector4(AABB[0], 1.0f);
+            tr_AABB[1] = new Vector4(AABB[1], 1.0f);
 
-            //Generate all 8 points from the AABB
-            float[] verts = new float[] {  tr_AABB[0].X, tr_AABB[0].Y, tr_AABB[0].Z,
-                                           tr_AABB[1].X, tr_AABB[0].Y, tr_AABB[0].Z,
-                                           tr_AABB[0].X, tr_AABB[1].Y, tr_AABB[0].Z,
-                                           tr_AABB[1].X, tr_AABB[1].Y, tr_AABB[0].Z,
 
-                                           tr_AABB[0].X, tr_AABB[0].Y, tr_AABB[1].Z,
-                                           tr_AABB[1].X, tr_AABB[0].Y, tr_AABB[1].Z,
-                                           tr_AABB[0].X, tr_AABB[1].Y, tr_AABB[1].Z,
-                                           tr_AABB[1].X, tr_AABB[1].Y, tr_AABB[1].Z };
+            Vector4[] verts = new Vector4[8];
+            verts[0] = new Vector4(tr_AABB[0].X, tr_AABB[0].Y, tr_AABB[0].Z, 1.0f);
+            verts[1] = new Vector4(tr_AABB[1].X, tr_AABB[0].Y, tr_AABB[0].Z, 1.0f);
+            verts[2] = new Vector4(tr_AABB[0].X, tr_AABB[1].Y, tr_AABB[0].Z, 1.0f);
+            verts[3] = new Vector4(tr_AABB[1].X, tr_AABB[1].Y, tr_AABB[0].Z, 1.0f);
+            verts[4] = new Vector4(tr_AABB[0].X, tr_AABB[0].Y, tr_AABB[1].Z, 1.0f);
+            verts[5] = new Vector4(tr_AABB[1].X, tr_AABB[0].Y, tr_AABB[1].Z, 1.0f);
+            verts[6] = new Vector4(tr_AABB[0].X, tr_AABB[1].Y, tr_AABB[1].Z, 1.0f);
+            verts[7] = new Vector4(tr_AABB[1].X, tr_AABB[1].Y, tr_AABB[1].Z, 1.0f);
 
+            
             //Check if all points are outside one of the planes
             for (int p = 0; p < 6; p++)
             {
@@ -374,28 +360,22 @@ namespace MVCore.GMDL
                 int i;
                 for (i = 0; i < 8; i++)
                 {
-                    if (_frustum[p, 0] * verts[3 * i] + _frustum[p, 1] * verts[3 * i + 1] + _frustum[p, 2] * verts[3 * i + 2] + _frustum[p, 3] > 0.0f)
-                        break;
+                    if (Vector4.Dot(_frustum[p], verts[i]) > 0.0f)
+                        return true;
                 }
 
-                if (i == 8)
-                {
-                    Console.WriteLine("Plane {0} failed", (ClippingPlane) p);
-                    return false;
-                }
-                    
             }
 
-            return true;
+            return false;
         }
 
 
-        public bool SphereVsFrustum(float x, float y, float z, float radius)
+        public bool SphereVsFrustum(Vector4 center, float radius)
         {
             float d = 0;
             for (int p = 0; p < 6; p++)
             {
-                d = _frustum[p, 0] * x + _frustum[p, 1] * y + _frustum[p, 2] * z + _frustum[p, 3];
+                d = Vector4.Dot(_frustum[p], center);
                 if (d <= -radius)
                 {
                     //Console.WriteLine("Plane {0} Failed. Failed Vector {1} {2} {3}", (ClippingPlane)p,
@@ -408,11 +388,12 @@ namespace MVCore.GMDL
 
         public bool SphereVsFrustum(Vector3 location, float radius)
         {
-            return SphereVsFrustum(location.X, location.Y, location.Z, radius);
+            return SphereVsFrustum(new Vector4(location, 1.0f), radius);
         }
 
         public bool VolumeVsFrustum(float x, float y, float z, float width, float height, float length)
         {
+            /* TO BE REPAIRED
             for (int i = 0; i < 6; i++)
             {
                 if (_frustum[i, A] * (x - width) + _frustum[i, B] * (y - height) + _frustum[i, C] * (z - length) + _frustum[i, D] > 0)
@@ -433,6 +414,7 @@ namespace MVCore.GMDL
                     continue;
                 return false;
             }
+            */
             return true;
         }
 
@@ -443,6 +425,7 @@ namespace MVCore.GMDL
 
         public bool CubeVsFrustum(float x, float y, float z, float size)
         {
+            /*
             for (int i = 0; i < 6; i++)
             {
                 if (_frustum[i, A] * (x - size) + _frustum[i, B] * (y - size) + _frustum[i, C] * (z - size) + _frustum[i, D] > 0)
@@ -463,70 +446,54 @@ namespace MVCore.GMDL
                     continue;
                 return false;
             }
+            */
             return true;
         }
 
-        public float distanceFromPlane(int id, Vector3 point)
+        public float distanceFromPlane(int id, Vector4 point)
         {
-            Vector3 planeNormal = new Vector3(_frustum[id, 0], _frustum[id, 1], _frustum[id, 2]);
-            return Vector3.Dot(planeNormal, point) / planeNormal.Length;
+            return Vector4.Dot(_frustum[id], point) / _frustum[id].Length;
         }
 
 
         public void CalculateFrustum(Matrix4 mvp)
         {
             //Front Plane
-            this._frustum[(int)ClippingPlane.Front, 0] = -mvp.M13; //mvp.M14 + mvp.M13;
-            this._frustum[(int)ClippingPlane.Front, 1] = -mvp.M23; //mvp.M24 + mvp.M23;
-            this._frustum[(int)ClippingPlane.Front, 2] = -mvp.M33; //mvp.M34 + mvp.M33;
-            this._frustum[(int)ClippingPlane.Front, 3] = -mvp.M43; //mvp.M44 + mvp.M43;
+            _frustum[(int)ClippingPlane.Front] = new Vector4(-mvp.M13, -mvp.M23, -mvp.M33, -mvp.M43);
 
             //Back Plane
-            this._frustum[(int)ClippingPlane.Back, 0] = mvp.M13 - mvp.M14;
-            this._frustum[(int)ClippingPlane.Back, 1] = mvp.M23 - mvp.M24;
-            this._frustum[(int)ClippingPlane.Back, 2] = mvp.M33 - mvp.M34;
-            this._frustum[(int)ClippingPlane.Back, 3] = mvp.M43 - mvp.M44;
+            _frustum[(int)ClippingPlane.Back] = new Vector4(mvp.M13 - mvp.M14, mvp.M23 - mvp.M24, mvp.M33 - mvp.M34,
+                mvp.M43 - mvp.M44);
 
             //Left Plane
-            this._frustum[(int)ClippingPlane.Left, 0] = -mvp.M14 - mvp.M11;
-            this._frustum[(int)ClippingPlane.Left, 1] = -mvp.M24 - mvp.M21;
-            this._frustum[(int)ClippingPlane.Left, 2] = -mvp.M34 - mvp.M31;
-            this._frustum[(int)ClippingPlane.Left, 3] = -mvp.M44 - mvp.M41;
+            _frustum[(int)ClippingPlane.Left] = new Vector4(-mvp.M14 - mvp.M11, -mvp.M24 - mvp.M21,
+                                                            -mvp.M34 - mvp.M31,
+                                                            -mvp.M44 - mvp.M41);
 
             //Right Plane
-            this._frustum[(int)ClippingPlane.Right, 0] = mvp.M11 - mvp.M14;
-            this._frustum[(int)ClippingPlane.Right, 1] = mvp.M21 - mvp.M24;
-            this._frustum[(int)ClippingPlane.Right, 2] = mvp.M31 - mvp.M34;
-            this._frustum[(int)ClippingPlane.Right, 3] = mvp.M41 - mvp.M44;
+            _frustum[(int)ClippingPlane.Right] = new Vector4(mvp.M11 - mvp.M14, mvp.M21 - mvp.M24,
+                                                             mvp.M31 - mvp.M34,
+                                                             mvp.M41 - mvp.M44);
 
             //Top Plane
-            this._frustum[(int)ClippingPlane.Top, 0] = mvp.M12 - mvp.M14;
-            this._frustum[(int)ClippingPlane.Top, 1] = mvp.M22 - mvp.M24;
-            this._frustum[(int)ClippingPlane.Top, 2] = mvp.M32 - mvp.M34;
-            this._frustum[(int)ClippingPlane.Top, 3] = mvp.M42 - mvp.M44;
+            _frustum[(int)ClippingPlane.Top] = new Vector4(mvp.M12 - mvp.M14, mvp.M22 - mvp.M24,
+                                                             mvp.M32 - mvp.M34,
+                                                             mvp.M42 - mvp.M44);
 
             //Bottom Plane
-            this._frustum[(int)ClippingPlane.Bottom, 0] = -mvp.M14 - mvp.M12;
-            this._frustum[(int)ClippingPlane.Bottom, 1] = -mvp.M24 - mvp.M22;
-            this._frustum[(int)ClippingPlane.Bottom, 2] = -mvp.M34 - mvp.M32;
-            this._frustum[(int)ClippingPlane.Bottom, 3] = -mvp.M44 - mvp.M42;
-
-            
+            _frustum[(int)ClippingPlane.Bottom] = new Vector4(  -mvp.M14 - mvp.M12,
+                                                                -mvp.M24 - mvp.M22,
+                                                                -mvp.M34 - mvp.M32,
+                                                                -mvp.M44 - mvp.M42);
 
             //Invert everything to bring it to the original values
             for (int i = 0; i < 6; i++)
-                for (int j = 0; j < 4; j++)
-                    _frustum[i, j] = -_frustum[i, j];
-            
-            NormalizePlane(_frustum, (int)ClippingPlane.Right);
-            NormalizePlane(_frustum, (int)ClippingPlane.Left);
-            NormalizePlane(_frustum, (int)ClippingPlane.Top);
-            NormalizePlane(_frustum, (int)ClippingPlane.Bottom);
-            NormalizePlane(_frustum, (int)ClippingPlane.Front);
-            NormalizePlane(_frustum, (int)ClippingPlane.Back);
+                _frustum[i] *= -1.0f;
 
-            
-            
+            //Normalize planes (NOT SURE IF I NEED THAT)
+            for (int i = 0; i < 6; i++)
+                _frustum[i].Normalize();
+
             /*
 
             //Find Frustum Points by solving all the systems
@@ -552,144 +519,20 @@ namespace MVCore.GMDL
             
         }
 
-
-        public void CalculateFrustum(Matrix4 projectionMatrix, Matrix4 modelViewMatrix)
-        {
-            _clipMatrix[0] = (modelViewMatrix.M11 * projectionMatrix.M11) + (modelViewMatrix.M12 * projectionMatrix.M21) + (modelViewMatrix.M13 * projectionMatrix.M31) + (modelViewMatrix.M14 * projectionMatrix.M41);
-            _clipMatrix[1] = (modelViewMatrix.M11 * projectionMatrix.M12) + (modelViewMatrix.M12 * projectionMatrix.M22) + (modelViewMatrix.M13 * projectionMatrix.M32) + (modelViewMatrix.M14 * projectionMatrix.M42);
-            _clipMatrix[2] = (modelViewMatrix.M11 * projectionMatrix.M13) + (modelViewMatrix.M12 * projectionMatrix.M23) + (modelViewMatrix.M13 * projectionMatrix.M33) + (modelViewMatrix.M14 * projectionMatrix.M43);
-            _clipMatrix[3] = (modelViewMatrix.M11 * projectionMatrix.M14) + (modelViewMatrix.M12 * projectionMatrix.M24) + (modelViewMatrix.M13 * projectionMatrix.M34) + (modelViewMatrix.M14 * projectionMatrix.M44);
-
-            _clipMatrix[4] = (modelViewMatrix.M21 * projectionMatrix.M11) + (modelViewMatrix.M22 * projectionMatrix.M21) + (modelViewMatrix.M23 * projectionMatrix.M31) + (modelViewMatrix.M24 * projectionMatrix.M41);
-            _clipMatrix[5] = (modelViewMatrix.M21 * projectionMatrix.M12) + (modelViewMatrix.M22 * projectionMatrix.M22) + (modelViewMatrix.M23 * projectionMatrix.M32) + (modelViewMatrix.M24 * projectionMatrix.M42);
-            _clipMatrix[6] = (modelViewMatrix.M21 * projectionMatrix.M13) + (modelViewMatrix.M22 * projectionMatrix.M23) + (modelViewMatrix.M23 * projectionMatrix.M33) + (modelViewMatrix.M24 * projectionMatrix.M43);
-            _clipMatrix[7] = (modelViewMatrix.M21 * projectionMatrix.M14) + (modelViewMatrix.M22 * projectionMatrix.M24) + (modelViewMatrix.M23 * projectionMatrix.M34) + (modelViewMatrix.M24 * projectionMatrix.M44);
-
-            _clipMatrix[8] = (modelViewMatrix.M31 * projectionMatrix.M11) + (modelViewMatrix.M32 * projectionMatrix.M21) + (modelViewMatrix.M33 * projectionMatrix.M31) + (modelViewMatrix.M34 * projectionMatrix.M41);
-            _clipMatrix[9] = (modelViewMatrix.M31 * projectionMatrix.M12) + (modelViewMatrix.M32 * projectionMatrix.M22) + (modelViewMatrix.M33 * projectionMatrix.M32) + (modelViewMatrix.M34 * projectionMatrix.M42);
-            _clipMatrix[10] = (modelViewMatrix.M31 * projectionMatrix.M13) + (modelViewMatrix.M32 * projectionMatrix.M23) + (modelViewMatrix.M33 * projectionMatrix.M33) + (modelViewMatrix.M34 * projectionMatrix.M43);
-            _clipMatrix[11] = (modelViewMatrix.M31 * projectionMatrix.M14) + (modelViewMatrix.M32 * projectionMatrix.M24) + (modelViewMatrix.M33 * projectionMatrix.M34) + (modelViewMatrix.M34 * projectionMatrix.M44);
-
-            _clipMatrix[12] = (modelViewMatrix.M41 * projectionMatrix.M11) + (modelViewMatrix.M42 * projectionMatrix.M21) + (modelViewMatrix.M43 * projectionMatrix.M31) + (modelViewMatrix.M44 * projectionMatrix.M41);
-            _clipMatrix[13] = (modelViewMatrix.M41 * projectionMatrix.M12) + (modelViewMatrix.M42 * projectionMatrix.M22) + (modelViewMatrix.M43 * projectionMatrix.M32) + (modelViewMatrix.M44 * projectionMatrix.M42);
-            _clipMatrix[14] = (modelViewMatrix.M41 * projectionMatrix.M13) + (modelViewMatrix.M42 * projectionMatrix.M23) + (modelViewMatrix.M43 * projectionMatrix.M33) + (modelViewMatrix.M44 * projectionMatrix.M43);
-            _clipMatrix[15] = (modelViewMatrix.M41 * projectionMatrix.M14) + (modelViewMatrix.M42 * projectionMatrix.M24) + (modelViewMatrix.M43 * projectionMatrix.M34) + (modelViewMatrix.M44 * projectionMatrix.M44);
-
-            Matrix4 clipMatrix = modelViewMatrix * projectionMatrix;
-
-            //_frustum[(int)ClippingPlane.Right, 0] = _clipMatrix[3] - _clipMatrix[0];
-            //_frustum[(int)ClippingPlane.Right, 1] = _clipMatrix[7] - _clipMatrix[4];
-            //_frustum[(int)ClippingPlane.Right, 2] = _clipMatrix[11] - _clipMatrix[8];
-            //_frustum[(int)ClippingPlane.Right, 3] = _clipMatrix[15] - _clipMatrix[12];
-            _frustum[(int)ClippingPlane.Right, 0] = clipMatrix.M14 - clipMatrix.M11;
-            _frustum[(int)ClippingPlane.Right, 1] = clipMatrix.M24 - clipMatrix.M21;
-            _frustum[(int)ClippingPlane.Right, 2] = clipMatrix.M34 - clipMatrix.M31;
-            _frustum[(int)ClippingPlane.Right, 3] = clipMatrix.M44 - clipMatrix.M41;
-            NormalizePlane(_frustum, (int)ClippingPlane.Right);
-
-            //_frustum[(int)ClippingPlane.Left, 0] = _clipMatrix[3] + _clipMatrix[0];
-            //_frustum[(int)ClippingPlane.Left, 1] = _clipMatrix[7] + _clipMatrix[4];
-            //_frustum[(int)ClippingPlane.Left, 2] = _clipMatrix[11] + _clipMatrix[8];
-            //_frustum[(int)ClippingPlane.Left, 3] = _clipMatrix[15] + _clipMatrix[12];
-            _frustum[(int)ClippingPlane.Left, 0] = clipMatrix.M14 + clipMatrix.M11;
-            _frustum[(int)ClippingPlane.Left, 1] = clipMatrix.M24 + clipMatrix.M21;
-            _frustum[(int)ClippingPlane.Left, 2] = clipMatrix.M34 + clipMatrix.M31;
-            _frustum[(int)ClippingPlane.Left, 3] = clipMatrix.M44 + clipMatrix.M41;
-            NormalizePlane(_frustum, (int)ClippingPlane.Left);
-
-            //_frustum[(int)ClippingPlane.Bottom, 0] = _clipMatrix[3] + _clipMatrix[1];
-            //_frustum[(int)ClippingPlane.Bottom, 1] = _clipMatrix[7] + _clipMatrix[5];
-            //_frustum[(int)ClippingPlane.Bottom, 2] = _clipMatrix[11] + _clipMatrix[9];
-            //_frustum[(int)ClippingPlane.Bottom, 3] = _clipMatrix[15] + _clipMatrix[13];
-            _frustum[(int)ClippingPlane.Bottom, 0] = clipMatrix.M14 + clipMatrix.M12;
-            _frustum[(int)ClippingPlane.Bottom, 1] = clipMatrix.M24 + clipMatrix.M22;
-            _frustum[(int)ClippingPlane.Bottom, 2] = clipMatrix.M34 + clipMatrix.M32;
-            _frustum[(int)ClippingPlane.Bottom, 3] = clipMatrix.M44 + clipMatrix.M42;
-            NormalizePlane(_frustum, (int)ClippingPlane.Bottom);
-
-            //_frustum[(int)ClippingPlane.Top, 0] = _clipMatrix[3] - _clipMatrix[1];
-            //_frustum[(int)ClippingPlane.Top, 1] = _clipMatrix[7] - _clipMatrix[5];
-            //_frustum[(int)ClippingPlane.Top, 2] = _clipMatrix[11] - _clipMatrix[9];
-            //_frustum[(int)ClippingPlane.Top, 3] = _clipMatrix[15] - _clipMatrix[13];
-            _frustum[(int)ClippingPlane.Top, 0] = clipMatrix.M14 - clipMatrix.M12;
-            _frustum[(int)ClippingPlane.Top, 1] = clipMatrix.M24 - clipMatrix.M22;
-            _frustum[(int)ClippingPlane.Top, 2] = clipMatrix.M34 - clipMatrix.M32;
-            _frustum[(int)ClippingPlane.Top, 3] = clipMatrix.M44 - clipMatrix.M42;
-            NormalizePlane(_frustum, (int)ClippingPlane.Top);
-
-            //_frustum[(int)ClippingPlane.Back, 0] = _clipMatrix[3] - _clipMatrix[2];
-            //_frustum[(int)ClippingPlane.Back, 1] = _clipMatrix[7] - _clipMatrix[6];
-            //_frustum[(int)ClippingPlane.Back, 2] = _clipMatrix[11] - _clipMatrix[10];
-            //_frustum[(int)ClippingPlane.Back, 3] = _clipMatrix[15] - _clipMatrix[14];
-            _frustum[(int)ClippingPlane.Back, 0] = clipMatrix.M14 - clipMatrix.M13;
-            _frustum[(int)ClippingPlane.Back, 1] = clipMatrix.M24 - clipMatrix.M23;
-            _frustum[(int)ClippingPlane.Back, 2] = clipMatrix.M34 - clipMatrix.M33;
-            _frustum[(int)ClippingPlane.Back, 3] = clipMatrix.M44 - clipMatrix.M43;
-            NormalizePlane(_frustum, (int)ClippingPlane.Back);
-
-            //_frustum[(int)ClippingPlane.Front, 0] = _clipMatrix[3] + _clipMatrix[2];
-            //_frustum[(int)ClippingPlane.Front, 1] = _clipMatrix[7] + _clipMatrix[6];
-            //_frustum[(int)ClippingPlane.Front, 2] = _clipMatrix[11] + _clipMatrix[10];
-            //_frustum[(int)ClippingPlane.Front, 3] = _clipMatrix[15] + _clipMatrix[14];
-            _frustum[(int)ClippingPlane.Front, 0] = clipMatrix.M14 + clipMatrix.M13;
-            _frustum[(int)ClippingPlane.Front, 1] = clipMatrix.M24 + clipMatrix.M23;
-            _frustum[(int)ClippingPlane.Front, 2] = clipMatrix.M34 + clipMatrix.M33;
-            _frustum[(int)ClippingPlane.Front, 3] = clipMatrix.M44 + clipMatrix.M43;
-            NormalizePlane(_frustum, (int)ClippingPlane.Front);
-
-            /*
-
-            //Find Frustum Points by solving all the systems
-            float[] p;
-            p = solvePlaneSystem((int)ClippingPlane.Back, (int)ClippingPlane.Left, (int)ClippingPlane.Bottom);
-            _frustum_points[0, 0] = p[0]; _frustum_points[0, 1] = p[1]; _frustum_points[0, 2] = p[2];
-            p = solvePlaneSystem((int)ClippingPlane.Back, (int)ClippingPlane.Left, (int)ClippingPlane.Top);
-            _frustum_points[1, 0] = p[0]; _frustum_points[1, 1] = p[1]; _frustum_points[1, 2] = p[2];
-            p = solvePlaneSystem((int)ClippingPlane.Back, (int)ClippingPlane.Right, (int)ClippingPlane.Bottom);
-            _frustum_points[2, 0] = p[0]; _frustum_points[2, 1] = p[1]; _frustum_points[2, 2] = p[2];
-            p = solvePlaneSystem((int)ClippingPlane.Back, (int)ClippingPlane.Right, (int)ClippingPlane.Top);
-            _frustum_points[3, 0] = p[0]; _frustum_points[3, 1] = p[1]; _frustum_points[3, 2] = p[2];
-            p = solvePlaneSystem((int)ClippingPlane.Front, (int)ClippingPlane.Left, (int)ClippingPlane.Bottom);
-            _frustum_points[4, 0] = p[0]; _frustum_points[4, 1] = p[1]; _frustum_points[4, 2] = p[2];
-            p = solvePlaneSystem((int)ClippingPlane.Front, (int)ClippingPlane.Left, (int)ClippingPlane.Top);
-            _frustum_points[5, 0] = p[0]; _frustum_points[5, 1] = p[1]; _frustum_points[5, 2] = p[2];
-            p = solvePlaneSystem((int)ClippingPlane.Front, (int)ClippingPlane.Right, (int)ClippingPlane.Bottom);
-            _frustum_points[6, 0] = p[0]; _frustum_points[6, 1] = p[1]; _frustum_points[6, 2] = p[2];
-            p = solvePlaneSystem((int)ClippingPlane.Front, (int)ClippingPlane.Right, (int)ClippingPlane.Top);
-            _frustum_points[7, 0] = p[0]; _frustum_points[7, 1] = p[1]; _frustum_points[7, 2] = p[2];
-
-
-            
-            //Print equations and find points on each
-            for (int pl = 0; pl < 6; pl++)
-            {
-                Console.WriteLine("Plane {4} Equation ({0})x + ({1})y + ({2})z + ({3})",
-                    _frustum[pl, 0], _frustum[pl, 1], _frustum[pl, 2], _frustum[pl, 3], pl);
-                Console.WriteLine("Point A ({0}, {1}, {2})",
-                    0,0, -_frustum[pl, 3] / _frustum[pl, 2]);
-                Console.WriteLine("Point B ({0}, {1}, {2})",
-                    0, -_frustum[pl, 3] / _frustum[pl, 1], 0);
-                Console.WriteLine("Point C ({0}, {1}, {2})",
-                    -_frustum[pl, 3] / _frustum[pl, 0], 0, 0);
-            }
-            */
-
-        }
 
         float[] solvePlaneSystem(int p1, int p2, int p3)
         {
             //Setup Matrix
             var A = MathNet.Numerics.LinearAlgebra.Matrix<float>.Build.DenseOfArray(new float[,]
             {
-                { _frustum[p1, 0], _frustum[p1, 1], _frustum[p1, 2] },
-                { _frustum[p2, 0], _frustum[p2, 1], _frustum[p2, 2] },
-                { _frustum[p3, 0], _frustum[p3, 1], _frustum[p3, 2] }
+                { _frustum[p1].X, _frustum[p1].Y, _frustum[p1].Z },
+                { _frustum[p2].X, _frustum[p2].Y, _frustum[p2].Z },
+                { _frustum[p3].X, _frustum[p3].Y, _frustum[p3].Z }
             });
 
             //Setup Right Hand Side
             var b = MathNet.Numerics.LinearAlgebra.Vector<float>.Build.Dense(new float[]
-            { _frustum[p1, 3], _frustum[p2, 3], _frustum[p3, 3] });
-
+            { _frustum[p1].W, _frustum[p2].W, _frustum[p3].W });
 
             var x = A.Solve(b);
 

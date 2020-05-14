@@ -7,6 +7,9 @@ using libMBIN.NMS.Toolkit;
 using MVCore.GMDL;
 using MVCore.Common;
 using System.Runtime.InteropServices;
+using GLSLHelper;
+using System.Windows;
+using System.Windows.Media.Effects;
 
 namespace MVCore
 {
@@ -32,7 +35,11 @@ namespace MVCore
         [FieldOffset(12)]
         public float MSAA_SAMPLES; //MSAA Samples
         [FieldOffset(16)]
-        public Vector2 frameDim; //Fractional Time
+        public Vector2 frameDim; //Frame Dimensions
+        [FieldOffset(24)]
+        public float cameraNearPlane;
+        [FieldOffset(28)]
+        public float cameraFarPlane;
         [FieldOffset(32)]
         public Matrix4 rotMat;
         [FieldOffset(96)]
@@ -44,14 +51,14 @@ namespace MVCore
         [FieldOffset(288)]
         public Vector3 cameraPosition;
         [FieldOffset(300)]
-        public float cameraFarPlane;
+        public float HDRExposure; //HDR Exposure
         [FieldOffset(304)]
         public Vector3 cameraDirection;
         [FieldOffset(316)]
         public int light_number;
         [FieldOffset(320)]
-        public unsafe fixed float lights[128 * 64];
-        public static readonly int SizeInBytes = 33088;
+        public unsafe fixed float lights[32 * 64];
+        public static readonly int SizeInBytes = 2368;
     };
 
     [StructLayout(LayoutKind.Explicit)]
@@ -99,9 +106,12 @@ namespace MVCore
 
     public class renderManager : baseResourceManager, IDisposable
     {
-        List<GLMeshVao> staticMeshQueue = new List<GLMeshVao>();
         List<GLMeshVao> staticObjectsQueue = new List<GLMeshVao>();
         List<GLMeshVao> movingMeshQueue = new List<GLMeshVao>();
+        
+        List<GLMeshVao> globalMeshList = new List<GLMeshVao>();
+        List<GLMeshVao> staticMeshUNLITQueue = new List<GLMeshVao>();
+        List<GLMeshVao> staticMeshLITQueue = new List<GLMeshVao>();
         List<GLMeshVao> transparentMeshQueue = new List<GLMeshVao>();
         List<GLMeshVao> decalMeshQueue = new List<GLMeshVao>();
 
@@ -114,6 +124,9 @@ namespace MVCore
         
 
         private GBuffer gbuf;
+        private PBuffer pbuf;
+        private FBO blur_fbo;
+        private int blur_fbo_scale = 2;
         private float gfTime = 0.0f;
         private Dictionary<string, int> UBOs = new Dictionary<string, int>();
 
@@ -135,7 +148,7 @@ namespace MVCore
         private ulong MAX_OCTREE_WIDTH = 256;
         private int MULTI_BUFFER_COUNT = 3;
 
-
+        
         public void init(ResourceManager input_resMgr)
         {
             //Setup Resource Manager
@@ -157,7 +170,9 @@ namespace MVCore
         public void setupGBuffer(int width, int height)
         {
             //Create gbuffer
-            gbuf = new GBuffer(resMgr, width, height);
+            gbuf = new GBuffer(width, height);
+            pbuf = new PBuffer(width, height);
+            blur_fbo = new FBO(TextureTarget.Texture2D, 3, width / blur_fbo_scale, height / blur_fbo_scale, false);
         }
 
 
@@ -172,12 +187,32 @@ namespace MVCore
             //Just cleanup the queues
             //The resource manager will handle the cleanup of the buffers and shit
 
-            staticMeshQueue.Clear();
+            staticMeshLITQueue.Clear();
+            staticMeshUNLITQueue.Clear();
             staticObjectsQueue.Clear();
             movingMeshQueue.Clear();
             transparentMeshQueue.Clear();
             decalMeshQueue.Clear();
             octree.clear();
+        }
+
+        public void identifyActiveShaders()
+        {
+            RenderState.activeResMgr.activeGLDeferredLITShaders.Clear();
+            RenderState.activeResMgr.activeGLDeferredUNLITShaders.Clear();
+
+            foreach (GLSLShaderConfig conf in RenderState.activeResMgr.GLDeferredLITShaderMap.Values)
+            {
+                if (RenderState.activeResMgr.opaqueMeshList[conf.shaderHash].Count > 0)
+                    RenderState.activeResMgr.activeGLDeferredLITShaders.Add(conf);
+            }
+                
+
+            foreach (GLSLShaderConfig conf in RenderState.activeResMgr.GLDeferredUNLITShaderMap.Values)
+            {
+                if (RenderState.activeResMgr.opaqueMeshList[conf.shaderHash].Count > 0)
+                    RenderState.activeResMgr.activeGLDeferredUNLITShaders.Add(conf);
+            }
         }
 
         public void populate(GMDL.model root)
@@ -190,6 +225,8 @@ namespace MVCore
             
             foreach (scene s in resMgr.GLScenes.Values)
                 process_models(s);
+
+            identifyActiveShaders();
         }
 
         private void process_model(GLMeshVao m)
@@ -197,25 +234,38 @@ namespace MVCore
             if (m == null)
                 return;
 
+            if (m.type == TYPES.LOCATOR)
+                Console.WriteLine("test");
+
+
+            Dictionary<int, List<GLMeshVao>> meshList = RenderState.activeResMgr.opaqueMeshList;
+
             //Check if the model has a transparent material
             if (m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F51_DECAL_DIFFUSE) ||
                      m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F52_DECAL_NORMAL))
             {
-                if (!decalMeshQueue.Contains(m))
-                    decalMeshQueue.Add(m);
+                meshList = MVCore.Common.RenderState.activeResMgr.decalMeshList;
             }
             else if (m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F22_TRANSPARENT_SCALAR) ||
                      m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F09_TRANSPARENT) ||
                      m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F11_ALPHACUTOUT))
             {
-                if (!transparentMeshQueue.Contains(m))
-                    transparentMeshQueue.Add(m);
+                meshList = MVCore.Common.RenderState.activeResMgr.transparentMeshList;
             }
-            else
+
+
+            if (!meshList.ContainsKey(m.material.shaderHash)){
+                Console.WriteLine("WARNING MISSING SHADER");
+            } else
             {
-                if (!staticMeshQueue.Contains(m))
-                    staticMeshQueue.Add(m);
+                if (!meshList[m.material.shaderHash].Contains(m))
+                    meshList[m.material.shaderHash].Add(m);
             }
+
+            //Add to global Mesh List
+            if (!globalMeshList.Contains(m))
+                globalMeshList.Add(m);
+
         }
 
         private void process_models(model root)
@@ -227,6 +277,12 @@ namespace MVCore
             {
                 process_models(child);
             }
+        }
+
+        public void clearInstances()
+        {
+            foreach (GLMeshVao m in globalMeshList)
+                m.clearInstances();
         }
 
         public void setupTextRenderer()
@@ -254,7 +310,7 @@ namespace MVCore
 
             int ubo_id = GL.GenBuffer();
             GL.BindBuffer(BufferTarget.UniformBuffer, ubo_id);
-            GL.BufferData(BufferTarget.UniformBuffer, CommonPerFrameUniforms.SizeInBytes, IntPtr.Zero, BufferUsageHint.StaticRead);
+            GL.BufferData(BufferTarget.UniformBuffer, CommonPerFrameUniforms.SizeInBytes, IntPtr.Zero, BufferUsageHint.StreamRead);
             GL.BindBuffer(BufferTarget.UniformBuffer, 0);
 
             //Store buffer to dictionary
@@ -265,9 +321,9 @@ namespace MVCore
             {
                 ubo_id = GL.GenBuffer();
                 GL.BindBuffer(BufferTarget.UniformBuffer, ubo_id);
-                //GL.BufferStorage(BufferTarget.UniformBuffer, atlas_ubo_buffer_size, 
-                //    IntPtr.Zero, BufferStorageFlags.MapPersistentBit | BufferStorageFlags.MapWriteBit);
-                GL.BufferData(BufferTarget.UniformBuffer, atlas_ubo_buffer_size, IntPtr.Zero, BufferUsageHint.StreamDraw);
+                GL.BufferStorage(BufferTarget.UniformBuffer, atlas_ubo_buffer_size, 
+                    IntPtr.Zero, BufferStorageFlags.MapPersistentBit | BufferStorageFlags.MapWriteBit);
+                //GL.BufferData(BufferTarget.UniformBuffer, atlas_ubo_buffer_size, IntPtr.Zero, BufferUsageHint.StreamDraw); //FOR OLD METHOD
                 multiBufferUBOs.Add(ubo_id);
                 multiBufferSyncStatuses.Add(GL.FenceSync(SyncCondition.SyncGpuCommandsComplete, 0));
             }
@@ -280,29 +336,20 @@ namespace MVCore
             UBOs["_COMMON_PER_MESH"] = multiBufferUBOs[0];
             multiBufferActiveId = 0;
 
-            //Attach programs to UBO and binding point
-            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.MESH_DEFERRED_SHADER, "_COMMON_PER_FRAME", 0);
-            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.MESH_DEFERRED_SHADER, "_COMMON_PER_MESH", 1);
-            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER, "_COMMON_PER_FRAME", 0);
-            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER, "_COMMON_PER_MESH", 1);
-            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.DECAL_SHADER, "_COMMON_PER_FRAME", 0);
-            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.DECAL_SHADER, "_COMMON_PER_MESH", 1);
-            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.GBUFFER_SHADER, "_COMMON_PER_FRAME", 0);
-            attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.GBUFFER_SHADER, "_COMMON_PER_MESH", 1);
+            //UBO Bindings to the generic shaders
+
+            //attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER, "_COMMON_PER_FRAME", 0);
+            //attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER, "_COMMON_PER_MESH", 1);
+            //attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.DECAL_SHADER, "_COMMON_PER_FRAME", 0);
+            //attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.DECAL_SHADER, "_COMMON_PER_MESH", 1);
+            GLShaderHelper.attachUBOToShaderBindingPoint(Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_LIT_SHADER], "_COMMON_PER_FRAME", 0);
+            GLShaderHelper.attachUBOToShaderBindingPoint(Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_UNLIT_SHADER], "_COMMON_PER_FRAME", 0);
+            //attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.GBUFFER_SHADER, "_COMMON_PER_MESH", 1);
 
             //Attach the generated buffers to the binding points
             bindUBOs();
 
             reportUBOs();
-        }
-        
-        //This method attaches UBOs to shader binding points
-        private void attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE shader_type, string var_name, int binding_point)
-        {
-            //Binding Position 0 - Matrices UBO
-            int shdr_program_id = resMgr.GLShaders[shader_type].program_id;
-            int ubo_index = GL.GetUniformBlockIndex(shdr_program_id, var_name);
-            GL.UniformBlockBinding(shdr_program_id, ubo_index, binding_point);
         }
         
         //This method updates UBO data for rendering
@@ -313,19 +360,21 @@ namespace MVCore
             cpfu.use_lighting = RenderOptions._useLighting;
             cpfu.frameDim.X = gbuf.size[0];
             cpfu.frameDim.Y = gbuf.size[1];
+            cpfu.HDRExposure = RenderOptions._HDRExposure;
             cpfu.mvp = RenderState.activeCam.viewMat;
             cpfu.rotMat = RenderState.rotMat;
             cpfu.lookMatInv = RenderState.activeCam.lookMatInv;
             cpfu.projMatInv = RenderState.activeCam.projMatInv;
             cpfu.cameraPosition = RenderState.activeCam.Position;
             cpfu.cameraDirection = RenderState.activeCam.Orientation;
+            cpfu.cameraNearPlane = RenderState.activeCam.zNear;
             cpfu.cameraFarPlane = RenderState.activeCam.zFar;
-            cpfu.light_number = RenderState.activeResMgr.GLlights.Count;
+            cpfu.light_number = Math.Min(32, resMgr.GLlights.Count);
             cpfu.gfTime = gfTime;
             cpfu.MSAA_SAMPLES = gbuf.msaa_samples;
 
             //Upload light information
-            for (int i = 0; i < Math.Min(128, resMgr.GLlights.Count); i++)
+            for (int i = 0; i < Math.Min(32, resMgr.GLlights.Count); i++)
             {
                 Light l = resMgr.GLlights[i];
                 //if (!l.update_changes)
@@ -365,7 +414,9 @@ namespace MVCore
 
         private void prepareCommonPermeshUBO(GLMeshVao m, ref int UBO_Offset)
         {
-            if (m.instance_count == 0 || m.visible_instances == 0)
+
+            //if (m.instance_count == 0 || m.visible_instances == 0) //use the visible_instance if we maintain an occluded status
+            if (m.instance_count == 0)
                 return;
 
             //TODO move that shit in the MeshVao Class
@@ -422,7 +473,7 @@ namespace MVCore
             //Print Debug Information for the UBO
             // Get named blocks info
             int count, info, length;
-            int test_program = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_DEFERRED_SHADER].program_id;
+            int test_program = resMgr.GLShaders[SHADER_TYPE.GBUFFER_LIT_SHADER].program_id;
             GL.GetProgram(test_program, GetProgramParameterName.ActiveUniformBlocks, out count);
             
             for (int i = 0; i < count; ++i)
@@ -483,6 +534,9 @@ namespace MVCore
         public void resize(int w, int h)
         {
             gbuf?.resize(w, h);
+            pbuf?.resize(w, h);
+            blur_fbo?.resize(w / blur_fbo_scale, h / blur_fbo_scale);
+            
             GL.Viewport(0, 0, w, h);
         }
 
@@ -630,22 +684,10 @@ namespace MVCore
 
             //Prepare UBO data
             int ubo_offset = 0;
-            int max_ubo_offset = MAX_NUMBER_OF_MESHES * CommonPerMeshUniformsInstanced.SizeInBytes;
+            int max_ubo_offset = 16 * 1024 * 1024;
 
-            //Upload StaticMeshes
-            foreach (GLMeshVao m in staticMeshQueue)
-            {
-                prepareCommonPermeshUBO(m, ref ubo_offset);
-            }
-
-            //Upload TransparentMeshes
-            foreach (GLMeshVao m in transparentMeshQueue)
-            {
-                prepareCommonPermeshUBO(m, ref ubo_offset);
-            }
-
-            //Upload DecalMeshes
-            foreach (GLMeshVao m in decalMeshQueue)
+            //Upload All Meshes
+            foreach (GLMeshVao m in globalMeshList)
             {
                 prepareCommonPermeshUBO(m, ref ubo_offset);
             }
@@ -686,44 +728,33 @@ namespace MVCore
 
             //Prepare UBO data
             int ubo_offset = 0;
-            int max_ubo_offset = MAX_NUMBER_OF_MESHES * CommonPerMeshUniformsInstanced.SizeInBytes;
+            //int max_ubo_offset = MAX_NUMBER_OF_MESHES * CommonPerMeshUniformsInstanced.SizeInBytes;
+            int max_ubo_offset = 1024 * 1024 * 16;
 
             //METHOD 2: Use MAP Buffer
             IntPtr ptr = GL.MapBufferRange(BufferTarget.UniformBuffer, IntPtr.Zero,
                 max_ubo_offset, BufferAccessMask.MapUnsynchronizedBit | BufferAccessMask.MapPersistentBit | BufferAccessMask.MapWriteBit);
 
-            
-            //Upload StaticMeshes
-            foreach (GLMeshVao m in staticMeshQueue)
-            {
-                prepareCommonPermeshUBO(m, ref ubo_offset);
-            }
-
             //Upload TransparentMeshes
-            foreach (GLMeshVao m in transparentMeshQueue)
+            foreach (GLMeshVao m in globalMeshList)
             {
                 prepareCommonPermeshUBO(m, ref ubo_offset);
             }
 
-            //Upload DecalMeshes
-            foreach (GLMeshVao m in decalMeshQueue)
+            if (ubo_offset != 0)
             {
-                prepareCommonPermeshUBO(m, ref ubo_offset);
-            }
 
-            if (ubo_offset == 0)
-                return;
-            
-            if (ubo_offset > max_ubo_offset)
-                Console.WriteLine("GAMITHIKE O DIAS");
+                if (ubo_offset > max_ubo_offset)
+                    Console.WriteLine("GAMITHIKE O DIAS");
 
-            //at this point the ubo_offset is the actual size of the atlas buffer
-            
-            //Console.WriteLine(GL.GetError());
+                //at this point the ubo_offset is the actual size of the atlas buffer
 
-            unsafe
-            {
-                Marshal.Copy(atlas_cpmu, 0, ptr, ubo_offset);
+                //Console.WriteLine(GL.GetError());
+
+                unsafe
+                {
+                    Marshal.Copy(atlas_cpmu, 0, ptr, ubo_offset);
+                }
             }
 
             GL.UnmapBuffer(BufferTarget.UniformBuffer);
@@ -732,74 +763,89 @@ namespace MVCore
         }
 
 
-        private void renderStaticMeshes()
+       
+        private void renderStaticMeshes(List<GLSLShaderConfig> shaderList)
         {
+            foreach (GLSLShaderConfig shader in shaderList)
+            {
+                GL.UseProgram(shader.program_id); //Set Program
+                
+                //Set polygon mode
+                GL.PolygonMode(MaterialFace.FrontAndBack, Common.RenderOptions.RENDERMODE);
+                
+                //Render static meshes
+                foreach (GLMeshVao m in resMgr.opaqueMeshList[shader.shaderHash])
+                {
+                    if (m.instance_count == 0)
+                        continue;
+
+                    GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"],
+                        (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+
+                    m.render(shader, RENDERPASS.DEFERRED);
+                    if (RenderOptions.RenderBoundHulls)
+                        m.render(shader, RENDERPASS.BHULL);
+                }
+
+                GL.BindBuffer(BufferTarget.UniformBuffer, 0); //Unbind UBOs
+
+
+                /*
+                //TESTING - Render Bound Boxes for the transparent meshes
+                shader = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.BBOX_SHADER];
+                GL.UseProgram(shader.program_id);
+
+                //I don't expect any other object type here
+                foreach (GLMeshVao m in transparentMeshQueue)
+                {
+                    if (m.instance_count == 0)
+                        continue;
+
+                    //GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"],
+                    //    (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+
+                    m.render(shader, RENDERPASS.BHULL);
+                    //if (RenderOptions.RenderBoundHulls)
+                    //    m.render(RENDERPASS.BHULL);
+                }
+                */
+            }
+
+        }
+
+        private void renderGeometry()
+        {
+            //DEFERRED STAGE - STATIC MESHES
+
             //At first render the static meshes
             GL.Enable(EnableCap.DepthTest);
             GL.Enable(EnableCap.CullFace);
 
-            GLSLHelper.GLSLShaderConfig shader = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_DEFERRED_SHADER];
+            gbuf.bind();
+            gbuf.clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            
+            renderStaticMeshes(RenderState.activeResMgr.activeGLDeferredLITShaders); //LIT MESHES
 
-            //Enable the Deferred Mesh Shader
-            GL.UseProgram(shader.program_id);
+            renderDeferredLightPass();
+            
+            //Copy pbuf color to the albedo of the gbuf fbo
+            FBO.copyChannel(pbuf.fbo, gbuf.fbo, pbuf.size[0], pbuf.size[1], gbuf.size[0], gbuf.size[1],
+                ReadBufferMode.ColorAttachment0, DrawBufferMode.ColorAttachment0);
+            
+            gbuf.bind();
+            renderStaticMeshes(RenderState.activeResMgr.activeGLDeferredUNLITShaders);
 
-            //Set polygon mode
-            GL.PolygonMode(MaterialFace.FrontAndBack, Common.RenderOptions.RENDERMODE);
-
-            //Render Static Objects
-            foreach (GLMeshVao m in staticObjectsQueue)
-            {
-                GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"], (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
-                m.render(shader, RENDERPASS.DEFERRED);
-            }
-                
-            //Render static meshes
-            foreach (GLMeshVao m in staticMeshQueue)
-            {
-                if (m.instance_count == 0)
-                    continue;
-                
-                GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"],
-                    (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
-
-                m.render(shader, RENDERPASS.DEFERRED);
-                if (RenderOptions.RenderBoundHulls)
-                    m.render(shader, RENDERPASS.BHULL);
-            }
-
-            GL.BindBuffer(BufferTarget.UniformBuffer, 0); //Unbind UBOs
-
-
-            /*
-            //TESTING - Render Bound Boxes for the transparent meshes
-            shader = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.BBOX_SHADER];
-            GL.UseProgram(shader.program_id);
-
-            //I don't expect any other object type here
-            foreach (GLMeshVao m in transparentMeshQueue)
-            {
-                if (m.instance_count == 0)
-                    continue;
-
-                //GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"],
-                //    (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
-
-                m.render(shader, RENDERPASS.BHULL);
-                //if (RenderOptions.RenderBoundHulls)
-                //    m.render(RENDERPASS.BHULL);
-            }
-            */
-
+            renderDeferredPass();
+            
+            //FORWARD STAGE - TRANSPARENT MESHES
+            renderTransparent();
+            
+            //renderDecalMeshes();
 
         }
-
+        
         private void renderDecalMeshes()
         {
-            //Take a backup of the depth buffer to the dump_fbo
-            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, gbuf.fbo);
-            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, gbuf.dump_fbo);
-            GL.BlitFramebuffer(0, 0, gbuf.size[0], gbuf.size[1], 0, 0, gbuf.size[0], gbuf.size[1], ClearBufferMask.DepthBufferBit, BlitFramebufferFilter.Nearest);
-
             gbuf.bind(); //Rebind FBO
             
             GL.Enable(EnableCap.DepthTest);
@@ -820,20 +866,10 @@ namespace MVCore
                 m.render(shader, RENDERPASS.DECAL, gbuf);
             }
 
-            //Restore depth buffer to the G-buffer
-            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, gbuf.dump_fbo);
-            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, gbuf.fbo);
-            GL.BlitFramebuffer(0, 0, gbuf.size[0], gbuf.size[1], 0, 0, gbuf.size[0], gbuf.size[1], ClearBufferMask.DepthBufferBit, BlitFramebufferFilter.Nearest);
-
         }
 
-        private void renderTransparent(int pass)
+        private void renderTransparent()
         {
-            //Restore depth buffer
-            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, gbuf.dump_fbo);
-            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, gbuf.fbo);
-            GL.BlitFramebuffer(0, 0, gbuf.size[0], gbuf.size[1], 0, 0, gbuf.size[0], gbuf.size[1], ClearBufferMask.DepthBufferBit, BlitFramebufferFilter.Nearest);
-            
             GL.BindFramebuffer(FramebufferTarget.FramebufferExt, gbuf.fbo);
             GL.DrawBuffer(DrawBufferMode.ColorAttachment3);
 
@@ -846,23 +882,30 @@ namespace MVCore
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             //GL.BlendFunc(BlendingFactor.Src1Alpha, BlendingFactor.ONem);
 
-
-            GLSLHelper.GLSLShaderConfig shader = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER];
-
-            GL.UseProgram(resMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER].program_id);
-            
-            //I don't expect any other object type here
-            foreach (GLMeshVao m in transparentMeshQueue)
+            foreach (GLSLHelper.GLSLShaderConfig shader in resMgr.activeGLForwardTransparentShaders)
             {
-                if (m.instance_count == 0)
-                    continue;
-                
-                GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"],
-                    (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+                GL.UseProgram(shader.program_id); //Set Program
 
-                m.render(shader, RENDERPASS.FORWARD);
-                //if (RenderOptions.RenderBoundHulls)
-                //    m.render(RENDERPASS.BHULL);
+                //Set polygon mode
+                GL.PolygonMode(MaterialFace.FrontAndBack, Common.RenderOptions.RENDERMODE);
+
+                //Render transparent meshes
+                foreach (GLMeshVao m in resMgr.transparentMeshList[shader.shaderHash])
+                {
+                    if (m.instance_count == 0)
+                        continue;
+
+                    GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"],
+                        (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+
+                    m.render(shader, RENDERPASS.FORWARD);
+                    //if (RenderOptions.RenderBoundHulls)
+                    //    m.render(shader, RENDERPASS.BHULL);
+                }
+
+                GL.BindBuffer(BufferTarget.UniformBuffer, 0); //Unbind UBOs
+
+
             }
 
             GL.Enable(EnableCap.CullFace);
@@ -876,10 +919,10 @@ namespace MVCore
 
         private void renderFinalPass()
         {
-            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, gbuf.fbo);
-            GL.ReadBuffer(ReadBufferMode.ColorAttachment3);
-            
+            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, pbuf.fbo);
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, 0);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
             GL.BlitFramebuffer(0, 0, gbuf.size[0], gbuf.size[1], 0, 0, gbuf.size[0], gbuf.size[1], 
                 ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Linear);
         }
@@ -887,10 +930,6 @@ namespace MVCore
         //Rendering Mechanism
         public void render()
         {
-            gbuf.bind(); //Bing GBuffer
-            gbuf.clearColor(new Vector4(0.0f));
-            gbuf.clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            
             //Prepare UBOs
             prepareCommonPerFrameUBO();
             
@@ -906,43 +945,28 @@ namespace MVCore
             //LOD filtering
             if (RenderOptions.LODFiltering)
             {
-                LOD_filtering(staticMeshQueue);
-                LOD_filtering(transparentMeshQueue);
+                //LOD_filtering(staticMeshQueue); TODO: FIX
+                //LOD_filtering(transparentMeshQueue); TODO: FIX
             }
 
-
             //Prepare Mesh UBO
-            //prepareCommonPerMeshUBOs();
-            prepareCommonPerMeshUBOs_OLD();
+            prepareCommonPerMeshUBOs();
+            //prepareCommonPerMeshUBOs_OLD();
 
             //Render octree
             //octree.render(resMgr.GLShaders[GLSLHelper.SHADER_TYPE.BBOX_SHADER].program_id);
 
-            //Render Geometry (Deferred)
-            renderStaticMeshes();
+            //Render Geometry
+            renderGeometry();
 
-            //Render Static Objects  (Forward)
-            //renderStaticObjects();
-
-            //Render Decals
-            renderDecalMeshes();
-
-
-            //Light Pass Deferred
-            renderLightPass();
-
-            //Light Pass Forward (Transparent/Glowing objects for now
-            //renderTransparent(0);
-
-            //Setup FENCE AFTER ALL THE DRAWCALLS ARE DONE
+            //Setup FENCE AFTER ALL THE MAIN GEOMETRY DRAWCALLS ARE ISSUED
             multiBufferSyncStatuses[multiBufferActiveId] = GL.FenceSync(SyncCondition.SyncGpuCommandsComplete, 0);
-            
+
             //POST-PROCESSING
-            //post_process();
+            post_process();
 
             //Final Pass
             renderFinalPass();
-            //TODO
             
             //No need to blit without a renderbuffer
             //gbuf?.stop();
@@ -1050,8 +1074,7 @@ namespace MVCore
             GL.Enable(EnableCap.DepthTest);
 
         }
-
-
+        
         private void render_quad(string[] uniforms, float[] uniform_values, string[] sampler_names, int[] texture_ids, GLSLHelper.GLSLShaderConfig shaderConf)
         {
             int quad_vao = resMgr.GLPrimitiveVaos["default_renderquad"].vao_id;
@@ -1063,23 +1086,16 @@ namespace MVCore
             //Upload samplers
             for (int i = 0; i < sampler_names.Length; i++)
             {
-                if (shaderConf.uniformLocations.ContainsKey(sampler_names[i]))
-                {
-                    GL.Uniform1(shaderConf.uniformLocations[sampler_names[i]], i);
-                    GL.ActiveTexture(TextureUnit.Texture0 + i);
-                    GL.BindTexture(TextureTarget.Texture2DMultisample, texture_ids[i]);
-                }
+                
+                GL.Uniform1(shaderConf.uniformLocations[sampler_names[i]], i);
+                GL.ActiveTexture(TextureUnit.Texture0 + i);
+                GL.BindTexture(TextureTarget.Texture2D, texture_ids[i]);
             }
 
             //Upload uniforms - Assuming single float uniforms for now
             for (int i = 0; i < uniforms.Length; i++)
-            {
-                if (shaderConf.uniformLocations.ContainsKey(uniforms[i]))
-                {
-                    GL.Uniform1(shaderConf.uniformLocations[uniforms[i]], i);
-                }
-            }
-
+                GL.Uniform1(shaderConf.uniformLocations[uniforms[i]], i);
+            
             //Render quad
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
             GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, (IntPtr)0);
@@ -1089,62 +1105,167 @@ namespace MVCore
 
         private void bloom()
         {
-
-            //TODO: I THINK THIS IS BROKEN - NEEDS RE-FIX IF ENABLED AT ALL
-            GL.Disable(EnableCap.DepthTest);
+            //Load Programs
+            GLSLShaderConfig gs_horizontal_blur_program = resMgr.GLShaders[SHADER_TYPE.GAUSSIAN_HORIZONTAL_BLUR_SHADER];
+            GLSLShaderConfig gs_vertical_blur_program = resMgr.GLShaders[SHADER_TYPE.GAUSSIAN_VERTICAL_BLUR_SHADER];
+            GLSLShaderConfig br_extract_program = resMgr.GLShaders[SHADER_TYPE.BRIGHTNESS_EXTRACT_SHADER];
+            GLSLShaderConfig add_program = resMgr.GLShaders[SHADER_TYPE.ADDITIVE_BLEND_SHADER];
             
-            //Apply Gaussian Blur Passes
-            GLSLHelper.GLSLShaderConfig pass_through_program = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.PASSTHROUGH_SHADER];
-            GLSLHelper.GLSLShaderConfig gs_program = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GAUSSIAN_BLUR_SHADER];
-            int quad_vao = resMgr.GLPrimitiveVaos["default_renderquad"].vao_id;
+            GL.Disable(EnableCap.DepthTest);
 
-            for (int i=0; i < 10; i++)
+            //Copy Color to blur fbo channel 1
+            FBO.copyChannel(pbuf.fbo, blur_fbo.fbo, gbuf.size[0], gbuf.size[1], blur_fbo.size_x, blur_fbo.size_y,
+                ReadBufferMode.ColorAttachment0, DrawBufferMode.ColorAttachment1);
+
+            //Extract Brightness on the blur buffer and write it to channel 0
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, blur_fbo.fbo);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0); //Write to blur1
+            
+            render_quad(new string[] { }, new float[] { }, new string[] { "inTex" }, new int[] { blur_fbo.channels[1] }, br_extract_program);
+
+
+
+            //Copy Color to blur fbo channel 1
+            //FBO.copyChannel(blur_fbo.fbo, pbuf.fbo, blur_fbo.size_x, blur_fbo.size_y, gbuf.size[0], gbuf.size[1],
+            //    ReadBufferMode.ColorAttachment0, DrawBufferMode.ColorAttachment0);
+
+            //return;
+
+            //Console.WriteLine(GL.GetError()); 
+
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, blur_fbo.fbo);
+            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, blur_fbo.fbo);
+            GL.Viewport(0, 0, blur_fbo.size_x, blur_fbo.size_y); //Change the viewport
+            int blur_amount = 2;
+            for (int i=0; i < blur_amount; i++)
             {
-                //Apply Gaussian Blur Shader
-                GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, gbuf.dump_fbo);
-                GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+                //Step 1- Apply horizontal blur
+                GL.DrawBuffer(DrawBufferMode.ColorAttachment1); //blur2
                 GL.Clear(ClearBufferMask.ColorBufferBit);
                 
-                GL.UseProgram(gs_program.program_id);
+                render_quad(new string[] { }, new float[] { }, new string[] { "diffuseTex" }, new int[] { blur_fbo.channels[0]}, gs_horizontal_blur_program);
 
-
-                render_quad(new string[] { }, new float[] { }, new string[] { "diffuseTex" }, new int[] { gbuf.dump_rgba8_1 }, gs_program);
-                
-                //Use passthrough shader to pass the dump texture back to the bloom
-                GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, gbuf.fbo);
-                GL.DrawBuffer(DrawBufferMode.ColorAttachment3);
+                //Step 2- Apply horizontal blur
+                GL.DrawBuffer(DrawBufferMode.ColorAttachment0); //blur2
                 GL.Clear(ClearBufferMask.ColorBufferBit);
-                
-                render_quad(new string[] { }, new float[] { }, new string[] { "InTex" }, new int[] { gbuf.dump_rgba8_1 }, pass_through_program);
+
+                render_quad(new string[] { }, new float[] { }, new string[] { "diffuseTex" }, new int[] { blur_fbo.channels[1] }, gs_vertical_blur_program);
 
             }
+
+            //Blit to screen
+            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, blur_fbo.fbo);
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment1);
+            GL.Clear(ClearBufferMask.ColorBufferBit); //Clear Screen
+            
+            GL.BlitFramebuffer(0, 0, blur_fbo.size_x, blur_fbo.size_y, 0, 0, pbuf.size[0], pbuf.size[1],
+            ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Linear);
+            
+            GL.Viewport(0, 0, gbuf.size[0], gbuf.size[1]); //Restore viewport
+
+            //Save Color to blur2 so that we can composite on the main channel
+            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, pbuf.fbo);
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment0); //color
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment2); //blur2
+            GL.BlitFramebuffer(0, 0, gbuf.size[0], gbuf.size[1], 0, 0, gbuf.size[0], gbuf.size[1],
+            ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Nearest);
+
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+            render_quad(new string[] { }, new float[] { }, new string[] { "in1Tex", "in2Tex" }, new int[] { pbuf.blur2, pbuf.blur1 }, add_program);
+            //render_quad(new string[] { }, new float[] { }, new string[] { "blurTex" }, new int[] { pbuf.blur1 }, gs_bloom_program);
+
+        }
+
+        private void fxaa()
+        {
+            //Load Programs
+            GLSLShaderConfig fxaa_program = resMgr.GLShaders[SHADER_TYPE.FXAA_SHADER];
+            
+            //Copy Color to first channel
+            FBO.copyChannel(pbuf.fbo, pbuf.fbo, pbuf.size[0], pbuf.size[1], pbuf.size[0], pbuf.size[1],
+                ReadBufferMode.ColorAttachment0, DrawBufferMode.ColorAttachment1);
+
+            //Apply FXAA
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+
+            render_quad(new string[] { }, new float[] { }, new string[] { "diffuseTex" }, new int[] { pbuf.blur1 }, fxaa_program);
+
         }
 
         private void post_process()
         {
-            bloom();
+            if (Common.RenderOptions._useBLOOM)
+                bloom(); //BLOOM + TONE MAPPING
+
+            
+            if (Common.RenderOptions._useFXAA)
+                fxaa(); //FXAA
+                
         }
 
-        private void renderLightPass()
+        private void backupDepth()
         {
-
-            GLSLHelper.GLSLShaderConfig shader_conf = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_SHADER];
-
+            //NOT WORKING
             //Backup the depth buffer to the secondary fbo
             GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, gbuf.fbo);
-            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, gbuf.dump_fbo);
-            GL.BlitFramebuffer(0, 0, gbuf.size[0], gbuf.size[1], 0, 0, gbuf.size[0], gbuf.size[1], 
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, gbuf.fbo);
+            GL.BlitFramebuffer(0, 0, gbuf.size[0], gbuf.size[1], 0, 0, gbuf.size[0], gbuf.size[1],
                 ClearBufferMask.DepthBufferBit, BlitFramebufferFilter.Nearest);
-
-            //Bind default fbo
-            GL.BindFramebuffer(FramebufferTarget.FramebufferExt, gbuf.fbo);
-            GL.DrawBuffer(DrawBufferMode.ColorAttachment3); //Draw to the light color channel only
             
-            GL.ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        }
+
+        private void restoreDepth()
+        {
+            //NOT WORKING
+            //Backup the depth buffer to the secondary fbo
+            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, gbuf.fbo);
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, gbuf.fbo);
+            GL.BlitFramebuffer(0, 0, gbuf.size[0], gbuf.size[1], 0, 0, gbuf.size[0], gbuf.size[1],
+                ClearBufferMask.DepthBufferBit, BlitFramebufferFilter.Nearest);
+        }
+
+        private void renderDeferredLightPass()
+        {
+            GLSLHelper.GLSLShaderConfig shader_conf = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_LIT_SHADER];
+
+            //Bind the color channel of the pbuf for drawing
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0); //Draw to the light color channel only
+
+            //TEST DRAW TO SCREEN
+            //GL.BindFramebuffer(FramebufferTarget.FramebufferExt, 0);
+
+            //GL.ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-            render_quad(new string[] { }, new float[] { }, new string[] { "albedoTex", "positionTex", "normalTex", "depthTex", "parameterTex", "parameter2Tex" }, 
-                                                            new int[] { gbuf.albedo,  gbuf.positions, gbuf.normals, gbuf.dump_depth, gbuf.info, gbuf.info2}, shader_conf);
+            GL.Disable(EnableCap.DepthTest); //Disable Depth test
+            render_quad(new string[] { }, new float[] { }, new string[] { "albedoTex", "depthTex", "normalTex", "parameterTex"}, 
+                                                            new int[] { gbuf.albedo, gbuf.depth, gbuf.normals, gbuf.info}, shader_conf);
+            GL.Enable(EnableCap.DepthTest); //Re-enable Depth test
+
+        }
+
+        private void renderDeferredPass()
+        {
+            GLSLHelper.GLSLShaderConfig shader_conf = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_UNLIT_SHADER];
+
+            //Bind default fbo
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0); //Draw to the light color channel only
+
+            
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
+            GL.Disable(EnableCap.DepthTest); //Disable Depth test
+            render_quad(new string[] { }, new float[] { }, new string[] { "albedoTex", "parameterTex" },
+                                                            new int[] { gbuf.albedo, gbuf.info }, shader_conf);
+            GL.Enable(EnableCap.DepthTest); //Re-enable Depth test
 
         }
 

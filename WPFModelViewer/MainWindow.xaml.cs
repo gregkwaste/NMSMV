@@ -8,13 +8,10 @@ using System.Windows.Controls;
 using GLSLHelper;
 using Microsoft.Win32;
 using Model_Viewer;
-using MVCore.Text;
 using MVCore.Common;
 using MVCore.GMDL;
 using MVCore;
-using OpenTK.Graphics.OpenGL4;
-using QuickFont;
-using QuickFont.Configuration;
+using libPSARC;
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
 using System.Windows.Input;
@@ -71,6 +68,10 @@ namespace WPFModelViewer
             CallBacks.openAnim = Util.loadAnimationFile;
             CallBacks.Log = Util.Log;
             CallBacks.issueRequestToGLControl = Util.sendRequest;
+            
+
+            //Toggle waiting to attach renderdoc
+            //System.Threading.Thread.Sleep(10000);
 
             //Generate CGLControl
             glControl = new CGLControl();
@@ -216,6 +217,7 @@ namespace WPFModelViewer
             //Cleanup GL Context
             glControl.rootObject?.Dispose();
             glControl.resMgr.Cleanup();
+            NMSUtils.unloadNMSArchives(ref glControl.resMgr);
             glControl.Dispose();
         }
 
@@ -344,7 +346,12 @@ namespace WPFModelViewer
             Sliders_OnValueChanged(null, new RoutedPropertyChangedEventArgs<double>(0.0f,0.0f));
 
             this.Dispatcher.UnhandledException += OnDispatcherUnhandledException;
-        
+
+            NMSUtils.loadNMSArchives("NMSmanifest",
+                Path.Combine(FileUtils.dirpath, "PCBANKS"), ref RenderState.activeResMgr);
+
+            CallBacks.updateStatus("Ready");
+
         }
 
         void OnDispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)

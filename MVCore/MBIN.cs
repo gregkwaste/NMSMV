@@ -13,11 +13,10 @@ using System.Windows.Forms;
 using MVCore;
 using MVCore.GMDL;
 using Console = System.Console;
-
+using WPFModelViewer;
 
 namespace MVCore
 {
-    
     public enum TYPES
     {
         MODEL=0x0,
@@ -60,7 +59,7 @@ namespace MVCore
 
     public static class GEOMMBIN {
 
-        public static GeomObject Parse(FileStream fs)
+        public static GeomObject Parse(ref Stream fs, ref Stream gfs)
         {
             BinaryReader br = new BinaryReader(fs);
             Console.WriteLine("Parsing MBIN");
@@ -328,40 +327,25 @@ namespace MVCore
             //Set geom interleaved
             geom.interleaved = true;
 
+
+            //Load streams from the geometry stream file
             
-            //Try to fetch the geometry.data.mbin file in order to fetch the streams
-            string gstream_path = "";
-            MVCore.Common.CallBacks.Log(string.Format("Trying to load GStream {0}", fs.Name));
-            string[] split = fs.Name.Split('.');
-            for (int i = 0; i < split.Length - 2; i++)
-                gstream_path += split[i] + ".";
-            gstream_path += "DATA.MBIN.PC";
-
-            //Check if file exists
-            if (!File.Exists(gstream_path))
-                throw new IOException("Geometry Stream File Missing. Check your fucking files...");
-
-            //Fetch streams from the gstream file based on the metadatafile
-            FileStream gs_fs = new FileStream(gstream_path, FileMode.Open);
-        
             foreach (KeyValuePair<ulong, geomMeshMetaData> pair in geom.meshMetaDataDict)
             {
                 geomMeshMetaData mmd = pair.Value;
                 geomMeshData md = new geomMeshData();
                 md.vs_buffer = new byte[mmd.vs_size];
                 md.is_buffer = new byte[mmd.is_size];
-            
+
                 //Fetch Buffers
-                gs_fs.Seek((int) mmd.vs_abs_offset, SeekOrigin.Begin);
-                gs_fs.Read(md.vs_buffer, 0, (int) mmd.vs_size);
-            
-                gs_fs.Seek((int) mmd.is_abs_offset, SeekOrigin.Begin);
-                gs_fs.Read(md.is_buffer, 0, (int) mmd.is_size);
+                gfs.Seek((int) mmd.vs_abs_offset, SeekOrigin.Begin);
+                gfs.Read(md.vs_buffer, 0, (int) mmd.vs_size);
+
+                gfs.Seek((int) mmd.is_abs_offset, SeekOrigin.Begin);
+                gfs.Read(md.is_buffer, 0, (int) mmd.is_size);
             
                 geom.meshDataDict[mmd.hash] = md;
             }
-
-            gs_fs.Close();
 
             return geom;
 
@@ -478,8 +462,6 @@ namespace MVCore
             return mesh_desc;
         }
 
-
-
         private static textureManager localTexMgr;
         private static List<model> localAnimScenes = new List<model>();
 
@@ -491,17 +473,9 @@ namespace MVCore
         };
 
 
-        public static scene LoadObjects(string path, bool rel)
+        public static scene LoadObjects(string path)
         {
-            string filepath;
-            if (rel)
-            {
-                filepath = Path.GetFullPath(Path.Combine(FileUtils.dirpath, path));
-            }
-            else
-                filepath = path;
-                
-            TkSceneNodeData template = (TkSceneNodeData) NMSUtils.LoadNMSFile(filepath);
+            TkSceneNodeData template = (TkSceneNodeData) NMSUtils.LoadNMSTemplate(path, ref Common.RenderState.activeResMgr);
             
             Console.WriteLine("Loading Objects from MBINFile");
 
@@ -522,48 +496,61 @@ namespace MVCore
             string geomfile = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(template.Attributes, "GEOMETRY");
             int num_lods = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(template.Attributes, "NUMLODS"));
 
-            FileStream fs;
-            if (!File.Exists(Path.Combine(FileUtils.dirpath, geomfile) + ".PC"))
-            {
-                MessageBox.Show("Could not find geometry file " + Path.Combine(FileUtils.dirpath, geomfile));
-                Common.CallBacks.Log(string.Format("Could not find geometry file {0} ",
-                    Path.Combine(FileUtils.dirpath, geomfile)));
-
-                //Create Dummy Scene
-                scene dummy = new scene();
-                dummy.name = "DUMMY_SCENE";
-                dummy.nms_template = null;
-                dummy.type = TYPES.MODEL;
-                return dummy;
-            }
-
-            string geompath = Path.Combine(FileUtils.dirpath, geomfile) + ".PC";
-
-#if DEBUG
-            //Use libMBIN to decompile the file
-            TkGeometryData geomdata = (TkGeometryData) NMSUtils.LoadNMSFile(geompath);
-            //Save NMSTemplate to exml
-            xmlstring = EXmlFile.WriteTemplate(geomdata);
-            File.WriteAllText("Temp\\temp_geom.exml", xmlstring);
-#endif
-
-            fs = new FileStream(geompath, FileMode.Open);
             GeomObject gobject;
-        
-            if (!Common.RenderState.activeResMgr.GLgeoms.ContainsKey(geomfile))
-            {
-                gobject = GEOMMBIN.Parse(fs);
-                Common.RenderState.activeResMgr.GLgeoms[geomfile] = gobject;
-                Common.CallBacks.Log(string.Format("Geometry file {0} successfully parsed",
-                    Path.Combine(FileUtils.dirpath, geomfile)));
-            }
-            else
+            if (Common.RenderState.activeResMgr.GLgeoms.ContainsKey(geomfile))
             {
                 //Load from dict
                 gobject = Common.RenderState.activeResMgr.GLgeoms[geomfile];
+
+            } else
+            {
+
+#if DEBUG
+                //Use libMBIN to decompile the file
+                TkGeometryData geomdata = (TkGeometryData)NMSUtils.LoadNMSTemplate(geomfile + ".PC", ref Common.RenderState.activeResMgr);
+                //Save NMSTemplate to exml
+                xmlstring = EXmlFile.WriteTemplate(geomdata);
+                File.WriteAllText("Temp\\temp_geom.exml", xmlstring);
+#endif
+                //Load Gstream and Create gobject
+
+                Stream fs, gfs;
+                string geompath = Path.Combine(FileUtils.dirpath, geomfile) + ".PC";
+                
+                fs = NMSUtils.LoadNMSFileStream(geomfile + ".PC", ref Common.RenderState.activeResMgr);
+
+                //Try to fetch the geometry.data.mbin file in order to fetch the geometry streams
+                string gstreamfile = "";
+                split = geomfile.Split('.');
+                for (int i = 0; i < split.Length - 1; i++)
+                    gstreamfile += split[i] + ".";
+                gstreamfile += "DATA.MBIN.PC";
+
+                gfs = NMSUtils.LoadNMSFileStream(gstreamfile, ref Common.RenderState.activeResMgr);
+
+
+                if (fs is null)
+                {
+                    MessageBox.Show("Could not find geometry file " + geompath);
+                    Common.CallBacks.Log(string.Format("Could not find geometry file {0} ",
+                        Path.Combine(FileUtils.dirpath, geomfile)));
+
+                    //Create Dummy Scene
+                    scene dummy = new scene();
+                    dummy.name = "DUMMY_SCENE";
+                    dummy.nms_template = null;
+                    dummy.type = TYPES.MODEL;
+                    return dummy;
+                }
+
+                gobject = Parse(ref fs, ref gfs);
+                Common.RenderState.activeResMgr.GLgeoms[geomfile] = gobject;
+                Common.CallBacks.Log(string.Format("Geometry file {0} successfully parsed",
+                    Path.Combine(FileUtils.dirpath, geomfile)));
+                
+                fs.Close();
+                gfs.Close();
             }
-        
-            fs.Close();
 
 
             //Random Generetor for colors
@@ -628,7 +615,7 @@ namespace MVCore
                 string filepath = component.LODModel[i].LODModel.Filename;
                 filepath = Path.Combine(FileUtils.dirpath, filepath);
                 Console.WriteLine("Loading LOD " + filepath);
-                scene so = LoadObjects(filepath, false);
+                scene so = LoadObjects(filepath);
                 so.parent = node; //Set parent
                 node.children.Add(so);
                 //Create LOD Resource
@@ -830,8 +817,7 @@ namespace MVCore
                 TkAttachmentData attachment_data = null;
                 if (attachment != "")
                 {
-                    string attachment_path = Path.GetFullPath(Path.Combine(FileUtils.dirpath, attachment));
-                    attachment_data = NMSUtils.LoadNMSFile(attachment_path) as TkAttachmentData;
+                    attachment_data = NMSUtils.LoadNMSTemplate(attachment, ref Common.RenderState.activeResMgr) as TkAttachmentData;
                 }
 
                 //so.Bbox = gobject.bboxes[iid]; //Use scene parameters
@@ -880,7 +866,7 @@ namespace MVCore
                     //Parse material
                     mat = parseMaterial(matname);
                     //Save Material to the resource manager
-                    Common.RenderState.activeResMgr.GLmaterials[matname] = mat;
+                    Common.RenderState.activeResMgr.addMaterial(mat);
                 }
 
                 //Search for the meshVao in the gobject
@@ -1007,8 +993,13 @@ namespace MVCore
                 TkAttachmentData attachment_data = null;
                 if (attachment != "")
                 {
-                    string attachment_path = Path.GetFullPath(Path.Combine(FileUtils.dirpath, attachment));
-                    attachment_data = NMSUtils.LoadNMSFile(attachment_path) as TkAttachmentData;
+                    try
+                    {
+                        attachment_data = NMSUtils.LoadNMSTemplate(attachment, ref Common.RenderState.activeResMgr) as TkAttachmentData;
+                    } catch (Exception e)
+                    {
+                        attachment_data = null;
+                    }
                 }
                 
                 if (node.Attributes.Count > 1)
@@ -1127,7 +1118,7 @@ namespace MVCore
                 if (!MVCore.Common.RenderState.activeResMgr.GLScenes.ContainsKey(scene_ref))
                 {
                     //Read new Scene
-                    new_so = LoadObjects(scene_ref, true);
+                    new_so = LoadObjects(scene_ref);
                 }
                 else
                 {
@@ -1346,8 +1337,7 @@ namespace MVCore
                 TkAttachmentData attachment_data = null;
                 if (attachment != "")
                 {
-                    string attachment_path = Path.GetFullPath(Path.Combine(FileUtils.dirpath, attachment));
-                    attachment_data = NMSUtils.LoadNMSFile(attachment_path) as TkAttachmentData;
+                    attachment_data = NMSUtils.LoadNMSTemplate(attachment, ref Common.RenderState.activeResMgr) as TkAttachmentData;
                 }
 
                 //TODO: Parse Emitter material and Emission data. from the node attributes

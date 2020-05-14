@@ -34,13 +34,15 @@ struct CommonPerFrameUniforms
     float gfTime; //Time
     float MSAA_SAMPLES; //MSAA Samples
     vec2 frameDim; //Dimensions of the render frame
+    float cameraNearPlane;
+    float cameraFarPlane;
     //Rendering Options
     mat4 rotMat;
     mat4 mvp;
     mat4 lookMatInv;
     mat4 projMatInv;
     vec3 cameraPosition;
-    float cameraFarPlane;
+    float HDRExposure;
     vec3 cameraDirection;
     int light_count;
     Light lights[32];
@@ -54,7 +56,7 @@ struct CommonPerFrameSamplers
 //Custom Per Frame Struct
 struct CustomPerMaterialUniforms  //locations:73
 {
-    float matflags[64];
+    float matflags[64]; //Should not use the matflags
     
     sampler2DArray gDiffuseMap;
     sampler2DArray gDiffuse2Map;

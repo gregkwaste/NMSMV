@@ -54,7 +54,7 @@
                         <ItemsControl ItemsSource="{Binding Components}" IsTextSearchEnabled="False"/>
                     </GroupBox>
                 </Grid>
-                
+
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:Sampler}">
@@ -70,7 +70,7 @@
                     <ContentControl Content="{Binding Vec}" HorizontalAlignment="Right"/>
                 </DockPanel>
             </DataTemplate>
-            
+
             <DataTemplate DataType="{x:Type gmdl:MVector4}">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -115,7 +115,7 @@
                     </GroupBox>
                 </Grid>
             </DataTemplate>
-            
+
             <DataTemplate DataType="{x:Type gmdl:AnimPoseData}">
                 <DockPanel>
                     <TextBlock Text="{Binding PAnim}"/>
@@ -147,7 +147,7 @@
                         </Grid.ColumnDefinitions>
                         <DockPanel Grid.Row="0"  Grid.Column="0"  HorizontalAlignment="Stretch" Height="20">
                             <TextBlock Text="AnimType"></TextBlock >
-                        <TextBlock HorizontalAlignment="Right" Text="{Binding PAnimType}"></TextBlock>
+                            <TextBlock HorizontalAlignment="Right" Text="{Binding PAnimType}"></TextBlock>
                         </DockPanel>
                         <DockPanel Grid.Row="1"  Grid.Column="0" HorizontalAlignment="Stretch" Height="20">
                             <TextBlock Text="Speed"></TextBlock >
@@ -174,7 +174,7 @@
                         </ToggleButton>
                     </Grid>
                 </Expander>
-                
+
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:Material}">
@@ -336,7 +336,7 @@
 
             <DataTemplate DataType="{x:Type mvcore_common:RenderOptions}">
                 <GroupBox Header="RenderOptions">
-                    
+
                 </GroupBox>
             </DataTemplate>
 
@@ -371,7 +371,7 @@
                             ObjectType="{x:Type mvcore_common:RenderOptions}">
             </ObjectDataProvider>
         </ResourceDictionary>
-        
+
     </Window.Resources>
 
     <Grid Margin="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
@@ -396,7 +396,7 @@
                 <ColumnDefinition Width="5"/>
                 <ColumnDefinition Width="2*"/>
             </Grid.ColumnDefinitions>
-            
+
             <WindowsFormsHost Grid.Column="0" x:Name="Host" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
             <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" />
             <Grid Grid.Column="2">
@@ -462,8 +462,51 @@
                             </Grid>
                         </GroupBox>
                     </TabItem>
-                    <TabItem Header="Render" x:Name="RenderInfoOptions">
-                        <GroupBox Header="Render Options">
+                    <TabItem Header="View Options" x:Name="ViewInfoOptions">
+                        <GroupBox Header="Options">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="93*"/>
+                                    <ColumnDefinition Width="148*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
+                                </Grid.RowDefinitions>
+                                <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                    <TextBlock HorizontalAlignment="Left">Show Info</TextBlock>
+                                    <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderInfo}"></CheckBox>
+                                </DockPanel>
+                                <DockPanel Grid.Row="1" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                    <TextBlock HorizontalAlignment="Left">Show Lights</TextBlock>
+                                    <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderLights}"></CheckBox>
+                                </DockPanel>
+                                <DockPanel Grid.Row="2" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                    <TextBlock HorizontalAlignment="Left">Show Joints</TextBlock>
+                                    <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderJoints}"></CheckBox>
+                                </DockPanel>
+                                <DockPanel Grid.Row="3" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                    <TextBlock HorizontalAlignment="Left">Show Locators</TextBlock>
+                                    <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderLocators}"></CheckBox>
+                                </DockPanel>
+                                <DockPanel Grid.Row="4" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                    <TextBlock HorizontalAlignment="Left">Show Collisions</TextBlock>
+                                    <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderCollisions}"></CheckBox>
+                                </DockPanel>
+                                <DockPanel Grid.Row="5" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                    <TextBlock HorizontalAlignment="Left">Show Bound Hulls</TextBlock>
+                                    <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderBoundHulls}"></CheckBox>
+                                </DockPanel>
+                            </Grid>
+                        </GroupBox>
+                    </TabItem>
+                    <TabItem Header="Render Options" x:Name="RenderInfoOptions">
+                        <GroupBox Header="Options">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="93*"/>
@@ -478,13 +521,7 @@
                                     <RowDefinition Height="20"/>
                                     <RowDefinition Height="20"/>
                                     <RowDefinition Height="20"/>
-                                    <RowDefinition Height="20"/>
-                                    <RowDefinition Height="20"/>
-                                    <RowDefinition Height="20"/>
-                                    <RowDefinition Height="20"/>
-                                    <RowDefinition Height="20"/>
                                 </Grid.RowDefinitions>
-                                <ContentControl  x:Name="RenderOptionsPanel"></ContentControl>
                                 <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                                     <TextBlock HorizontalAlignment="Left">Toggle Animations</TextBlock>
                                     <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=ToggleAnimations}"></CheckBox>
@@ -510,30 +547,10 @@
                                     <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=LODFiltering}"></CheckBox>
                                 </DockPanel>
                                 <DockPanel Grid.Row="6" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                                    <TextBlock HorizontalAlignment="Left">Render Info</TextBlock>
-                                    <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderInfo}"></CheckBox>
+                                    <TextBlock HorizontalAlignment="Left">Use FXAA</TextBlock>
+                                    <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=UseFXAA}"></CheckBox>
                                 </DockPanel>
                                 <DockPanel Grid.Row="7" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                                    <TextBlock HorizontalAlignment="Left">Render Lights</TextBlock>
-                                    <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderLights}"></CheckBox>
-                                </DockPanel>
-                                <DockPanel Grid.Row="8" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                                    <TextBlock HorizontalAlignment="Left">Render Joints</TextBlock>
-                                    <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderJoints}"></CheckBox>
-                                </DockPanel>
-                                <DockPanel Grid.Row="9" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                                    <TextBlock HorizontalAlignment="Left">Render Locators</TextBlock>
-                                    <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderLocators}"></CheckBox>
-                                </DockPanel>
-                                <DockPanel Grid.Row="10" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                                    <TextBlock HorizontalAlignment="Left">Render Collisions</TextBlock>
-                                    <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderCollisions}"></CheckBox>
-                                </DockPanel>
-                                <DockPanel Grid.Row="11" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                                    <TextBlock HorizontalAlignment="Left">Render BHulls</TextBlock>
-                                    <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=RenderBoundHulls}"></CheckBox>
-                                </DockPanel>
-                                <DockPanel Grid.Row="12" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                                     <TextBlock HorizontalAlignment="Left">Animation FPS</TextBlock>
                                     <TextBox Width="30" HorizontalAlignment="Right" Text="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=AnimFPS}" AcceptsReturn="False" AcceptsTab="False"/>
                                 </DockPanel>
@@ -557,16 +574,16 @@
                                 </Grid>
                             </GroupBox>
                         </Grid>
-                        
-                        
+
+
                     </TabItem>
                     <TabItem Header="Object Info">
                         <ScrollViewer>
-                            <ContentControl Grid.Row="2"  x:Name="ObjectInfoBox"></ContentControl>    
+                            <ContentControl Grid.Row="2"  x:Name="ObjectInfoBox"></ContentControl>
                         </ScrollViewer>
                     </TabItem>
                 </TabControl>
-            
+
             </Grid>
         </Grid>
 
