@@ -14,6 +14,7 @@ using MVCore;
 using MVCore.GMDL;
 using Console = System.Console;
 using WPFModelViewer;
+using MVCore.Common;
 
 namespace MVCore
 {
@@ -61,6 +62,12 @@ namespace MVCore
 
         public static GeomObject Parse(ref Stream fs, ref Stream gfs)
         {
+            //FileStream testfs = new FileStream("test.geom", FileMode.CreateNew);
+            //byte[] fs_data = new byte[fs.Length];
+            //fs.Read(fs_data, 0, (int) fs.Length);
+            //testfs.Write(fs_data, 0, (int) fs.Length);
+            //testfs.Close();
+
             BinaryReader br = new BinaryReader(fs);
             Console.WriteLine("Parsing MBIN");
 
@@ -692,30 +699,22 @@ namespace MVCore
             MVCore.Common.CallBacks.Log(string.Format("Trying to load Material {0}", matname));
             string matkey = matname; //Use the entire path
 
-            //Parse material file
-            string mat_path = Path.GetFullPath(Path.Combine(FileUtils.dirpath, matname));
-            string mat_exmlPath = Path.GetFullPath(FileUtils.getExmlPath(mat_path));
-            //Console.WriteLine("Loading Scene " + path);
 
-            MVCore.Common.CallBacks.Log(string.Format("Parsing Material File {0}", mat_path));
-
-            //Check if path exists
-            if (File.Exists(mat_path))
-            {
-                //Material mat = MATERIALMBIN.Parse(newXml);
-                mat = Material.Parse(mat_path, localTexMgr);
-                //Load default form palette on init
-                //mat.palette = Model_Viewer.Palettes.paletteSel;
-                mat.name_key = matkey; //Store the material key to the resource manager
-                                        //Store the material to the Resources
-            }
-            else
+            //Material mat = MATERIALMBIN.Parse(newXml);
+            mat = Material.Parse(matname, localTexMgr);
+            
+            //File probably not found not even in the PAKS, 
+            if (mat == null)
             {
                 MVCore.Common.CallBacks.Log(string.Format("Warning Material Missing!!!"));
                 //Generate empty material
                 mat = new Material();
             }
             
+            //Load default form palette on init
+            //mat.palette = Model_Viewer.Palettes.paletteSel;
+            mat.name_key = matkey; //Store the material key to the resource manager
+                                   //Store the material to the Resources
 
             return mat;
         }
@@ -917,7 +916,14 @@ namespace MVCore
                         meshVao.skinned = true;
 
                     //Generate collision mesh vao
-                    meshVao.bHullVao = gobject.getCollisionMeshVao(so.metaData); //Missing data
+                    try
+                    {
+                        meshVao.bHullVao = gobject.getCollisionMeshVao(so.metaData); //Missing data
+                    } catch (Exception ex) {
+                        CallBacks.Log("Error while fetching bHull Collision Mesh");
+                        meshVao.bHullVao = null;
+                    }
+                    
                     //so.setupBSphere(); //Setup Bounding Sphere Mesh
 
                     //Save meshvao to the gobject
@@ -929,16 +935,13 @@ namespace MVCore
 
                 Console.WriteLine("Object {0}, Number of skinmatrices required: {1}", so.name, so.metaData.lastskinmat - so.metaData.firstskinmat);
 
-                if (children.Count > 0)
+                //Console.WriteLine("Children Count {0}", childs.ChildNodes.Count);
+                foreach (TkSceneNodeData child in children)
                 {
-                    //Console.WriteLine("Children Count {0}", childs.ChildNodes.Count);
-                    foreach (TkSceneNodeData child in children)
-                    {
-                        model part = parseNode(child, gobject, so, scene);
-                        so.children.Add(part);
-                    }
+                    model part = parseNode(child, gobject, so, scene);
+                    so.children.Add(part);
                 }
-
+                
                 //Finally Order children by name
                 so.children.OrderBy(i => i.Name);
                 return so;
@@ -970,15 +973,12 @@ namespace MVCore
                 so.texMgr = new textureManager();
                 so.texMgr.setMasterTexManager(Common.RenderState.activeResMgr.texMgr);
                 localTexMgr = so.texMgr; //setup local texMgr
-                
+
                 //Handle Children
-                if (children.Count > 0)
+                foreach (TkSceneNodeData child in children)
                 {
-                    foreach (TkSceneNodeData child in children)
-                    {
-                        model part = parseNode(child, gobject, so, so);
-                        so.children.Add(part);
-                    }
+                    model part = parseNode(child, gobject, so, so);
+                    so.children.Add(part);
                 }
 
                 return so;
@@ -1022,14 +1022,12 @@ namespace MVCore
                 so.animPoseComponentID = so.hasComponent(typeof(AnimPoseComponent));
 
                 //Handle Children
-                if (children.Count > 0)
+                foreach (TkSceneNodeData child in children)
                 {
-                    foreach (TkSceneNodeData child in children)
-                    {
-                        model part = parseNode(child, gobject, so, scene);
-                        so.children.Add(part);
-                    }
+                    model part = parseNode(child, gobject, so, scene);
+                    so.children.Add(part);
                 }
+                
                 //Finally Order children by name
                 so.children.OrderBy(i => i.Name);
                 
@@ -1074,16 +1072,14 @@ namespace MVCore
 
                 //Add joint to scene
                 scene.jointDict[joint.Name] = joint;
-                
+
                 //Handle Children
-                if (children.Count > 0)
+                foreach (TkSceneNodeData child in children)
                 {
-                    foreach (TkSceneNodeData child in children)
-                    {
-                        model part = parseNode(child, gobject, joint, scene);
-                        joint.children.Add(part);
-                    }
+                    model part = parseNode(child, gobject, joint, scene);
+                    joint.children.Add(part);
                 }
+                
                 //Finally Order children by name
                 joint.children.OrderBy(i => i.Name);
                 return joint;
@@ -1102,7 +1098,6 @@ namespace MVCore
                 //Console.WriteLine("Loading Scene " + path);
                 //Parse MBIN to xml
 
-
                 //Generate Reference object
                 reference so = new reference();
                 so.name = name;
@@ -1115,7 +1110,7 @@ namespace MVCore
 
                 scene new_so;
                 //Check if scene has been parsed
-                if (!MVCore.Common.RenderState.activeResMgr.GLScenes.ContainsKey(scene_ref))
+                if (!RenderState.activeResMgr.GLScenes.ContainsKey(scene_ref))
                 {
                     //Read new Scene
                     new_so = LoadObjects(scene_ref);
@@ -1123,16 +1118,21 @@ namespace MVCore
                 else
                 {
                     //Make a shallow copy of the scene
-                    new_so = (scene) MVCore.Common.RenderState.activeResMgr.GLScenes[scene_ref].Clone();
+                    new_so = (scene) RenderState.activeResMgr.GLScenes[scene_ref].Clone();
                 }
                     
                 so.ref_scene = new_so;
                 new_so.parent = so;
                 so.children.Add(new_so); //Keep it also as a child so the rest of pipeline is not affected
 
-                if (node.Children.Count != 0)
-                    Console.WriteLine("Not Expected");
-
+                //Handle Children
+                //Console.WriteLine("Children Count {0}", childs.ChildNodes.Count);
+                foreach (TkSceneNodeData child in children)
+                {
+                    model part = parseNode(child, gobject, so, scene);
+                    so.children.Add(part);
+                }
+                
                 return so;
             }
             else if (typeEnum == TYPES.COLLISION)
@@ -1210,7 +1210,7 @@ namespace MVCore
 
                     float radius = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "RADIUS"));
                     float height = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HEIGHT"));
-                    Common.CallBacks.Log(string.Format("Cylinder Collision r:{0} h:{1}", radius, height));
+                    CallBacks.Log(string.Format("Cylinder Collision r:{0} h:{1}", radius, height));
                     so.meshVao = new GLMeshVao();
                     so.meshVao.vao = (new MVCore.Primitives.Cylinder(radius,height)).getVAO();
                     so.instanceId = so.meshVao.addInstance(so); //Add instance
@@ -1272,7 +1272,7 @@ namespace MVCore
                 else
                 {
                     Console.WriteLine("NEW COLLISION TYPE: " + collisionType);
-                    Common.CallBacks.Log("NEW COLLISION TYPE: " + collisionType);
+                    CallBacks.Log("NEW COLLISION TYPE: " + collisionType);
                 }
 
                 //Set metaData and material to the collision Mesh
@@ -1288,9 +1288,8 @@ namespace MVCore
                 so.init(transforms);
 
                 //Collision probably has no children biut I'm leaving that code here
-                if (children.Count > 0)
-                    foreach (TkSceneNodeData child in children)
-                        so.children.Add(parseNode(child, gobject, so, scene));
+                foreach (TkSceneNodeData child in children)
+                    so.children.Add(parseNode(child, gobject, so, scene));
 
                 return so;
 
@@ -1357,13 +1356,10 @@ namespace MVCore
                 ProcessComponents(so, attachment_data);
 
                 //Handle Children
-                if (children.Count > 0)
+                foreach (TkSceneNodeData child in children)
                 {
-                    foreach (TkSceneNodeData child in children)
-                    {
-                        model part = parseNode(child, gobject, so, scene);
-                        so.children.Add(part);
-                    }
+                    model part = parseNode(child, gobject, so, scene);
+                    so.children.Add(part);
                 }
                 
                 //Do not restore the old AnimScene let them flow

@@ -11,6 +11,7 @@ using System.Drawing.Imaging;
 using libMBIN.NMS.Toolkit;
 using libMBIN.NMS.GameComponents;
 using libMBIN.NMS;
+using MVCore;
 
 namespace Model_Viewer
 {
@@ -106,30 +107,17 @@ namespace Model_Viewer
             Dictionary<string, Dictionary<string, Vector4>> newPal;
             newPal = new Dictionary<string, Dictionary<string, Vector4>>();
 
-            string filepath = System.IO.Path.Combine(MVCore.FileUtils.dirpath, "METADATA\\SIMULATION\\SOLARSYSTEM\\COLOURS\\BASECOLOURPALETTES.MBIN");
-             
-            libMBIN.MBINFile mbinf = null;
-
-            try
-            {
-                mbinf = new libMBIN.MBINFile(filepath);
-                mbinf.Load();
-                
-            } catch (Exception ex)
-            {
-                if (ex is System.IO.DirectoryNotFoundException || ex is System.IO.FileNotFoundException)
-                {
-                    MVCore.Common.CallBacks.Log("Palette file " + filepath + "not found");
-                    MVCore.Common.CallBacks.Log("Using default palettes");
-                    newPal = createPalette();
-                    return newPal;
-                }
+            GcPaletteList template;
+            
+            try {
+                 template = NMSUtils.LoadNMSTemplate("METADATA\\SIMULATION\\SOLARSYSTEM\\COLOURS\\BASECOLOURPALETTES.MBIN",
+                    ref MVCore.Common.RenderState.activeResMgr) as GcPaletteList;
+            } catch (Exception ex) {
+                Console.WriteLine("Using Default Palettes");
+                return createPalette();
             }
-
-
-            GcPaletteList template = (GcPaletteList) mbinf.GetData();
+            
             TkPaletteTexture tkpt = new TkPaletteTexture();
-
             GcPaletteData gcpd = new GcPaletteData();
             
             for (int i = 0; i < template.Palettes.Length; i++)

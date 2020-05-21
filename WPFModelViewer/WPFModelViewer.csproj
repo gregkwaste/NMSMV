@@ -186,6 +186,7 @@
     <Compile Include="AboutDialogWPF.xaml.cs">
       <DependentUpon>AboutDialogWPF.xaml</DependentUpon>
     </Compile>
+    <Compile Include="WorkThreadDispacher.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -232,14 +233,12 @@
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
     <None Include="Resources\camera.frag" />
-    <None Include="Resources\camera.vert" />
     <EmbeddedResource Include="Resources\DroidSansMono.ttf" />
+    <None Include="Resources\camera.vert" />
     <None Include="Resources\pick.frag" />
     <None Include="Resources\pick.vert" />
     <None Include="Resources\tess.tcs" />
     <None Include="Resources\tess.tes" />
-    <None Include="Resources\text.frag" />
-    <None Include="Resources\text.vert" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
@@ -271,10 +270,17 @@
   <ItemGroup>
     <Resource Include="FodyWeavers.xml" />
   </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\default.dds" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\default_mask.dds" />
+  </ItemGroup>
   <Import Project="..\MVCore\MVCore.projitems" Label="Shared" />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>XCOPY "$(SolutionDir)Shaders" "$(TargetDir)Shaders" /s /i /y &amp;&amp; COPY "$(SolutionDir)\Resources\default.dds" "$(TargetDir)\default.dds" &amp;&amp; COPY "$(SolutionDir)Resources\default_mask.dds" "$(TargetDir)\default_mask.dds"</PostBuildEvent>
+    <PostBuildEvent>XCOPY "$(SolutionDir)Shaders" "$(TargetDir)Shaders" /s /i /y</PostBuildEvent>
   </PropertyGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>

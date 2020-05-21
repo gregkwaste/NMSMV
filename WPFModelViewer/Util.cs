@@ -16,6 +16,7 @@ namespace WPFModelViewer
     public static class Util
     {
         public static string Version = "v0.88.5-Test-Version";
+        public static string donateLink = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=4365XYBWGTBSU&currency_code=USD&source=url";
         public static readonly Random randgen = new Random();
         
         //Current GLControl Handle

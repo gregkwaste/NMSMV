@@ -35,7 +35,8 @@ namespace GLSLHelper {
         GAUSSIAN_HORIZONTAL_BLUR_SHADER,
         GAUSSIAN_VERTICAL_BLUR_SHADER,
         ADDITIVE_BLEND_SHADER,
-        FXAA_SHADER
+        FXAA_SHADER,
+        TONE_MAPPING
     }
 
     public class GLSLShaderText
@@ -339,7 +340,7 @@ namespace GLSLHelper {
         {
             Console.WriteLine("Sending Shader Modification Request");
             ThreadRequest req = new ThreadRequest();
-            req.type = THREAD_REQUEST_TYPE.MODIFY_SHADER_REQUEST;
+            req.type = THREAD_REQUEST_TYPE.GL_MODIFY_SHADER_REQUEST;
             req.arguments.Add(config);
             req.arguments.Add(shaderText);
 

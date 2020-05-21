@@ -8,6 +8,12 @@ using System.Security.Permissions;
 using WPFModelViewer;
 using SharpFont;
 using System.Linq;
+using OpenTK.Graphics.OpenGL;
+using Microsoft.Win32;
+using Newtonsoft.Json;
+using System.Windows.Shapes;
+using Path = System.IO.Path;
+using MVCore.Common;
 
 namespace MVCore
 {
@@ -340,7 +346,7 @@ namespace MVCore
             string[] pak_files = Directory.GetFiles(gameDir);
             resMgr.NMSArchiveMap.Clear();
 
-            Common.CallBacks.updateStatus("Loading NMS Archives...");
+            Common.CallBacks.updateStatus("Loading Vanilla NMS Archives...");
 
             foreach (string pak_path in pak_files)
             {
@@ -352,8 +358,30 @@ namespace MVCore
                 
                 resMgr.NMSArchiveMap[pak_path] = psarc;
             }
-    
-            
+
+
+            if (Directory.Exists(Path.Combine(gameDir, "MODS")))
+            {
+                pak_files = Directory.GetFiles(Path.Combine(gameDir, "MODS"));
+                Common.CallBacks.updateStatus("Loading Modded NMS Archives...");
+                foreach (string pak_path in pak_files)
+                {
+                    if (!pak_path.EndsWith(".pak"))
+                        continue;
+
+                    FileStream arc_stream = new FileStream(pak_path, FileMode.Open);
+                    libPSARC.PSARC.Archive psarc = new libPSARC.PSARC.Archive(arc_stream, true);
+                    resMgr.NMSArchiveMap[pak_path] = psarc;
+                }
+            }
+
+            if (resMgr.NMSArchiveMap.Keys.Count == 0)
+            {
+                CallBacks.Log("No pak files found");
+                CallBacks.Log("Not creating/reading manifest file");
+                return;
+            }
+                
             //Check if manifest file exists
             if (File.Exists(filepath))
             {
@@ -395,7 +423,7 @@ namespace MVCore
                 MemoryStream comp_ms = new MemoryStream();
                 StreamWriter sw = new StreamWriter(ms);
 
-                foreach (string arc_path in resMgr.NMSArchiveMap.Keys)
+                foreach (string arc_path in resMgr.NMSArchiveMap.Keys.Reverse())
                 {
                     libPSARC.PSARC.Archive arc = resMgr.NMSArchiveMap[arc_path];
 
@@ -425,6 +453,8 @@ namespace MVCore
                 ms.Close();
             
             }
+
+            Common.CallBacks.updateStatus("Ready");
         }
 
         public static void unloadNMSArchives(ref ResourceManager resMgr)
@@ -433,6 +463,111 @@ namespace MVCore
             {
                 arc.Dispose();
             }
+        }
+
+        public static string getGameInstallationDir()
+        {
+            //Try to fetch the installation dir
+            string steam_keyname = @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 275850";
+            string steam_keyval = "InstallLocation";
+
+            string gog32_keyname = @"HKEY_LOCAL_MACHINE\SOFTWARE\GOG.com\Games\1446213994";
+            string gog32_keyval = "PATH";
+
+            string gog64_keyname = @"HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\GOG.com\Games\1446213994";
+            string gog64_keyval = "PATH";
+
+            //Check Steam
+            string val;
+            
+            
+            try
+            {
+                val = fetchSteamGameInstallationDir();
+            } catch (Exception e) {
+                val = "";
+                Common.CallBacks.Log("Fucked up Steam Installation");
+            }
+
+            if (val != "")  
+                return val;
+
+            //Check GOG32
+            val = Registry.GetValue(gog32_keyname, gog32_keyval, "") as string;
+            if (val != "")
+                return val;
+
+            //Check GOG64
+            val = Registry.GetValue(gog64_keyname, gog64_keyval, "") as string;
+            if (val != "")
+                return val;
+            
+            return "";
+        }
+
+        private static string fetchSteamGameInstallationDir()
+        {
+            //At first try to find the steam installation folder
+
+            //Try to fetch the installation dir
+            string steam_keyname = @"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Valve\Steam";
+            string steam_keyval = "InstallPath";
+            string nms_id = "275850";
+
+            //Fetch Steam Installation Folder
+            string steam_path = Registry.GetValue(steam_keyname, steam_keyval, "") as string;
+            
+            //At first try to find acf entries in steam installation dir
+            foreach(string path in Directory.GetFiles(steam_path))
+            {
+                if (!path.EndsWith(".acf"))
+                    continue;
+
+                if (path.Contains(nms_id))
+                    return Path.Combine(steam_path, @"steamapps\common\No Man's Sky\GAMEDATA");
+            }
+
+            //If that did't work try to load the libraryfolders.vdf
+            StreamReader sr = new StreamReader(Path.Combine(steam_path, @"steamapps\libraryfolders.vdf"));
+            List<string> libraryPaths = new List<string>();
+
+            int line_count = 0;
+            while (!sr.EndOfStream)
+            {
+                string line = sr.ReadLine();
+                if (line_count < 4)
+                {
+                    line_count++;
+                    continue;
+                }
+
+                if (!line.StartsWith("\t"))
+                    continue;
+                    
+                string[] split = line.Split('\t');
+                string path = split[split.Length - 1];
+                path = path.Trim('\"');
+                path = path.Replace("\\\\", "\\");
+                libraryPaths.Add(Path.Combine(path, "steamapps"));
+            }
+            
+            //Check all library paths for the acf file
+
+            foreach (string path in libraryPaths)
+            {
+                foreach (string filepath in Directory.GetFiles(path))
+                {
+                    if (!filepath.EndsWith(".acf"))
+                        continue;
+
+                    if (filepath.Contains(nms_id))
+                        return Path.Combine(path, @"common\No Man's Sky\GAMEDATA");
+                }
+            }
+
+
+            
+            return "";
         }
 
     }

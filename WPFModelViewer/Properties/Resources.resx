@@ -119,48 +119,18 @@
   </resheader>
   <assembly alias="System.Windows.Forms" name="System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" />
   <data name="camera_frag" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\camera.frag;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;utf-8</value>
+    <value>..\Resources\camera.frag;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
   </data>
   <data name="camera_vert" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\camera.vert;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;utf-8</value>
+    <value>..\Resources\camera.vert;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
   </data>
-  <data name="locator_vert" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\locator.vert;System.String, mscorlib, Version=4.0.0.0, Culture=neutral;utf-8</value>
-  </data>
-  <data name="locator_frag" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\locator.frag;System.String, mscorlib, Version=4.0.0.0, Culture=neutral;utf-8</value>
+  <data name="default_mask" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\default_mask.dds;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
   <data name="ianm32logo_border" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\ianm32logo_border.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
-  <data name="joint_frag" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\joint.frag;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
-  </data>
-  <data name="joint_vert" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\joint.vert;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
-  </data>
-  <data name="light_frag" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\light.frag;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;utf-8</value>
-  </data>
-  <data name="light_vert" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\light.vert;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;utf-8</value>
-  </data>
-  <data name="pick_frag" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\pick.frag;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
-  </data>
-  <data name="pick_vert" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\pick.vert;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
-  </data>
-  <data name="tess_tcs" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\tess.tcs;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
-  </data>
-  <data name="tess_tes" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\tess.tes;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;utf-8</value>
-  </data>
-  <data name="text_frag" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\text.frag;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
-  </data>
-  <data name="text_vert" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\text.vert;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
+  <data name="_default" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\default.dds;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
 </root>

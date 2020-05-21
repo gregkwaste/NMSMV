@@ -119,13 +119,7 @@ void main()
 	//Add ambient lighting
 	finalColor += ambient;
 
-	// Exposure tone mapping
-	//finalColor.rgb = vec3(1.0) - exp(-finalColor.rgb * mpCommonPerFrame.HDRExposure);
-    
-    //finalColor.rgb = TonemapKodak(finalColor.rgb) / TonemapKodak( vec3(1.0,1.0,1.0) );
-    //finalColor.rgb = GammaCorrectOutput(finalColor.rgb);
-
-    //vec3 lumcoeff = vec3(0.299,0.587,0.114);
+	//vec3 lumcoeff = vec3(0.299,0.587,0.114);
     
 	//TODO: Add glow depending on the material parameters cached in the gbuffer (normalmap.a) if necessary
 	

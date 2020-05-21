@@ -8,8 +8,7 @@ using MVCore.GMDL;
 using MVCore.Common;
 using System.Runtime.InteropServices;
 using GLSLHelper;
-using System.Windows;
-using System.Windows.Media.Effects;
+
 
 namespace MVCore
 {
@@ -344,6 +343,7 @@ namespace MVCore
             //attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.DECAL_SHADER, "_COMMON_PER_MESH", 1);
             GLShaderHelper.attachUBOToShaderBindingPoint(Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_LIT_SHADER], "_COMMON_PER_FRAME", 0);
             GLShaderHelper.attachUBOToShaderBindingPoint(Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_UNLIT_SHADER], "_COMMON_PER_FRAME", 0);
+            GLShaderHelper.attachUBOToShaderBindingPoint(Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.TONE_MAPPING], "_COMMON_PER_FRAME", 0);
             //attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.GBUFFER_SHADER, "_COMMON_PER_MESH", 1);
 
             //Attach the generated buffers to the binding points
@@ -434,7 +434,6 @@ namespace MVCore
             //Calculate aligned size
             m.UBO_aligned_size = 32 + m.instance_count * GLMeshVao.instance_struct_size_floats * 4;
             m.UBO_aligned_size = ((m.UBO_aligned_size >> 8) + 1) * 256;
-
 
             if (m.UBO_aligned_size > CommonPerMeshUniformsInstanced.SizeInBytes)
                 Console.WriteLine("WOOOOOOOOOOOOT");
@@ -1086,7 +1085,6 @@ namespace MVCore
             //Upload samplers
             for (int i = 0; i < sampler_names.Length; i++)
             {
-                
                 GL.Uniform1(shaderConf.uniformLocations[sampler_names[i]], i);
                 GL.ActiveTexture(TextureUnit.Texture0 + i);
                 GL.BindTexture(TextureTarget.Texture2D, texture_ids[i]);
@@ -1198,15 +1196,31 @@ namespace MVCore
 
         }
 
+        private void tone_mapping()
+        {
+            //Load Programs
+            GLSLShaderConfig tone_mapping_program = resMgr.GLShaders[SHADER_TYPE.TONE_MAPPING];
+
+            //Copy Color to first channel
+            FBO.copyChannel(pbuf.fbo, pbuf.size[0], pbuf.size[1], ReadBufferMode.ColorAttachment0, DrawBufferMode.ColorAttachment1);
+
+            //Apply Tone Mapping
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+            
+            render_quad(new string[] { }, new float[] { }, new string[] { "inTex" }, new int[] { pbuf.blur1 }, tone_mapping_program);
+        }
+
         private void post_process()
         {
-            if (Common.RenderOptions._useBLOOM)
-                bloom(); //BLOOM + TONE MAPPING
+            if (Common.RenderOptions.UseBLOOM)
+                bloom(); //BLOOM
 
-            
-            if (Common.RenderOptions._useFXAA)
+            if (Common.RenderOptions.UseFXAA)
                 fxaa(); //FXAA
-                
+
+            tone_mapping(); //TONE MAPPING, INCLUDES GAMMA CORRECTION
+        
         }
 
         private void backupDepth()

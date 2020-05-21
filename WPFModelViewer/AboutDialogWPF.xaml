@@ -39,8 +39,8 @@
         </StackPanel>
             
         <StackPanel Orientation="Horizontal" Grid.Column="1" Grid.Row="1" Grid.ColumnSpan="1">
-            <TextBlock FontSize="20" Width="250" TextAlignment="Center"> <Hyperlink NavigateUri="https://bitbucket.org/gregkwaste/nms-viewer/wiki/Home" Click="Hyperlink_Click">Tool Wiki</Hyperlink> </TextBlock>
-            <TextBlock FontSize="20" Width="250" TextAlignment="Center"> <Hyperlink NavigateUri="https%3A%2F%2Fwww.paypal.com%2Fcgi-bin%2Fwebscr%3Fcmd%3D_donations%26business%3Darianos10%40gmail.com%26lc%3DGR%26item_name%3D3dgamedevblog%26currency_code%3DEUR%26bn%3DPP-DonationsBF%3Abtn_donateCC_LG.gif%3ANonHosted"  Click="Hyperlink_Click">Donate</Hyperlink></TextBlock>
+            <TextBlock FontSize="20" Width="250" TextAlignment="Center"> <Hyperlink NavigateUri="https://bitbucket.org/gregkwaste/nms-viewer/wiki/Home" Click="Hyperlink_Click">Tool Wiki(outdated)</Hyperlink> </TextBlock>
+            <TextBlock FontSize="20" Width="250" TextAlignment="Center"> <Hyperlink x:Name="DonateLink" NavigateUri ="" Click="Hyperlink_Click">Donate</Hyperlink> </TextBlock>
             <TextBlock FontSize="20" Width="250" TextAlignment="Center"> <Hyperlink NavigateUri="https://bitbucket.org/gregkwaste/nms-viewer"  Click="Hyperlink_Click">Repository</Hyperlink></TextBlock>
         </StackPanel>
 

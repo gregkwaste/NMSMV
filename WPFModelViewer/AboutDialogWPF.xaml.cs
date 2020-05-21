@@ -25,6 +25,7 @@ namespace WPFModelViewer
 
             //Override version
             Version.Text = Util.Version;
+            DonateLink.NavigateUri =  new Uri(Util.donateLink);
         }
 
         private void Hyperlink_Click(object sender, RoutedEventArgs e)

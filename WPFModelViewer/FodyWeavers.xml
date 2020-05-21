@@ -2,7 +2,6 @@
   <Costura>
     <IncludeAssemblies>
       libPSARC
-      libMBIN
       zlib.net
       OpenTK
       OpenTK.GLControl

@@ -56,8 +56,6 @@ struct CommonPerFrameSamplers
 //Custom Per Frame Struct
 struct CustomPerMaterialUniforms  //locations:73
 {
-    float matflags[64]; //Should not use the matflags
-    
     sampler2DArray gDiffuseMap;
     sampler2DArray gDiffuse2Map;
     sampler2DArray gMasksMap;

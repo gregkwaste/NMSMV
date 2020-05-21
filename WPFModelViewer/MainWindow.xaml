@@ -382,7 +382,8 @@
         </Grid.RowDefinitions>
         <Menu Grid.Row="0" Width="Auto" Height="20" VerticalAlignment="Top">
             <MenuItem Header="File">
-                <MenuItem Header ="Open File" Click="OpenFile"/>
+                <MenuItem x:Name="OpenFileHandle" Header ="Open File" Click="OpenFile"/>
+                <MenuItem x:Name="OpenFilePAKHandle" Header ="Open File from .pak" Click="OpenFilePAK"/>
                 <MenuItem Header ="Settings" Click="showSettingsDialog"/>
                 <MenuItem Header ="Close" Click="FormClose"/>
             </MenuItem>
@@ -521,6 +522,8 @@
                                     <RowDefinition Height="20"/>
                                     <RowDefinition Height="20"/>
                                     <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
+                                    <RowDefinition Height="20"/>
                                 </Grid.RowDefinitions>
                                 <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                                     <TextBlock HorizontalAlignment="Left">Toggle Animations</TextBlock>
@@ -551,8 +554,16 @@
                                     <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=UseFXAA}"></CheckBox>
                                 </DockPanel>
                                 <DockPanel Grid.Row="7" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                    <TextBlock HorizontalAlignment="Left">Use VSYNC</TextBlock>
+                                    <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=UseVSYNC}"></CheckBox>
+                                </DockPanel>
+                                <DockPanel Grid.Row="8" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                                     <TextBlock HorizontalAlignment="Left">Animation FPS</TextBlock>
-                                    <TextBox Width="30" HorizontalAlignment="Right" Text="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=AnimFPS}" AcceptsReturn="False" AcceptsTab="False"/>
+                                    <TextBox Width="50" TextAlignment="Right" HorizontalAlignment="Right" Text="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=AnimFPS}" KeyUp="TextBox_KeyUp" AcceptsReturn="False" AcceptsTab="False"/>
+                                </DockPanel>
+                                <DockPanel Grid.Row="9" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                                    <TextBlock HorizontalAlignment="Left">HDR Exposure</TextBlock>
+                                    <TextBox Width="50" TextAlignment="Right" HorizontalAlignment="Right" Text="{Binding Source={StaticResource ResourceKey=renderOptions}, Path=HDRExposure}" KeyUp="TextBox_KeyUp" AcceptsReturn="False" AcceptsTab="False"/>
                                 </DockPanel>
                             </Grid>
                         </GroupBox>
@@ -592,7 +603,7 @@
                 <TextBlock x:Name="StatusLabel" >Ready</TextBlock>
             </StatusBarItem>
             <StatusBarItem HorizontalAlignment="Right" VerticalContentAlignment="Bottom">
-                Created by gregkwaste
+                Created by gregkwaste™
             </StatusBarItem>
         </StatusBar>
 

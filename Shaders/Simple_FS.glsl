@@ -42,11 +42,6 @@ vec3 DecodeNormalMap(vec4 lNormalTexVec4 ){
     return ( vec3( lNormalTexVec4.r, lNormalTexVec4.g, sqrt( max( 1.0 - lNormalTexVec4.r*lNormalTexVec4.r - lNormalTexVec4.g*lNormalTexVec4.g, 0.0 ) ) ) );
 }
 
-//Bool checks for material flags
-bool mesh_has_matflag(int FLAG){
-	return (mpCustomPerMaterial.matflags[FLAG] > 0.0);
-}
-
 //Fetches the mipmap level
 float get_mipmap_level(){
 	float mipmaplevel = 0.0;
@@ -55,8 +50,6 @@ float get_mipmap_level(){
 	#endif
 	return mipmaplevel;
 }
-
-
 
 //Calculates the diffuse color
 vec4 calcDiffuseColor(float mipmaplevel, out float lHighAlpha, out float lLowAlpha, out float difftTex2Factor){

@@ -53,11 +53,6 @@ mat4 get_skin_matrix(int offset)
 }
 
 
-//Bool checks for material flags
-bool mesh_has_matflag(int FLAG){
-    return (mpCustomPerMaterial.matflags[FLAG] > 0.0);
-}
-
 void main()
 {
     //Pass uv to fragment shader

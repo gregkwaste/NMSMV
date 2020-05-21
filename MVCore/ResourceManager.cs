@@ -13,7 +13,6 @@ namespace MVCore
     public interface baseResourceManager
     {
         void cleanup();
-        
     }
     
 
@@ -52,7 +51,7 @@ namespace MVCore
 
         //Global NMS File Archive handles
         public Dictionary<string, libPSARC.PSARC.Archive> NMSFileToArchiveMap = new Dictionary<string, libPSARC.PSARC.Archive>();
-        public Dictionary<string, libPSARC.PSARC.Archive> NMSArchiveMap = new Dictionary<string, libPSARC.PSARC.Archive>();
+        public SortedDictionary<string, libPSARC.PSARC.Archive> NMSArchiveMap = new SortedDictionary<string, libPSARC.PSARC.Archive>();
 
         //public int[] shader_programs;
         public textureManager texMgr = new textureManager();
@@ -61,7 +60,7 @@ namespace MVCore
         //TODO: This is 99% NOT correct
         //public Dictionary<string, int> procTextureLayerSelections = new Dictionary<string, int>();
         
-        //public DebugForm DebugWin;
+            //public DebugForm DebugWin;
 
         public void Init()
         {
@@ -77,13 +76,13 @@ namespace MVCore
             string execpath = Path.GetDirectoryName(System.Reflection.Assembly.GetEntryAssembly().Location);
             //Add Default textures
             //White tex
-            string texpath = Path.Combine(execpath, "default.dds");
-            Texture tex = new Texture(texpath);
+            string texpath = "default.dds";
+            Texture tex = new Texture(texpath, true);
             tex.name = "default.dds";
             texMgr.addTexture(tex);
             //Transparent Mask
             texpath = Path.Combine(execpath, "default_mask.dds");
-            tex = new Texture(texpath);
+            tex = new Texture(texpath, true);
             tex.name = "default_mask.dds";
             texMgr.addTexture(tex);
         }

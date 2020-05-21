@@ -161,6 +161,18 @@ namespace MVCore
             GL.BlitFramebuffer(0, 0, sourceSizeX, sourceSizeY, 0, 0, destSizeX, destSizeY,
             ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Linear);
         }
+        
+        public static void copyChannel(int fbo, int sourceSizeX, int sourceSizeY, ReadBufferMode from_channel, DrawBufferMode to_channel)
+        {
+            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, fbo);
+            GL.ReadBuffer(from_channel); //Read color
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, fbo);
+            GL.DrawBuffer(to_channel); //Write to blur1
+
+            //Method 1: Use Blitbuffer
+            GL.BlitFramebuffer(0, 0, sourceSizeX, sourceSizeY, 0, 0, sourceSizeX, sourceSizeY,
+            ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Linear);
+        }
 
     }
 

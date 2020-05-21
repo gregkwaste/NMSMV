@@ -12,23 +12,41 @@
             <RowDefinition/>
             <RowDefinition/>
             <RowDefinition/>
+            <RowDefinition/>
+            <RowDefinition/>
+            <RowDefinition/>
         </Grid.RowDefinitions>
 
         <DockPanel Grid.Row="0" LastChildFill="True">
-            <TextBlock Width="300" FontSize="20">No Man's Sky UNPACKED Folder</TextBlock>
-            <TextBox x:Name="dirpath" Width="300" FontSize="20" GotFocus="Dirpath_OnGotFocus"></TextBox>
+            <TextBlock Width="250" FontSize="14">No Man's Sky UNPACKED Folder</TextBlock>
+            <TextBox x:Name="dirpath" HorizontalAlignment="Right" Width="400" FontSize="14" GotFocus="Dirpath_OnGotFocus"></TextBox>
         </DockPanel>
         <DockPanel Grid.Row="1" LastChildFill="True">
-            <TextBlock Width="300" FontSize="20">ProcGen Window Number</TextBlock>
-            <TextBox x:Name="procGenWinNum" Width="300"></TextBox>
+            <TextBlock Width="250" FontSize="14">ProcGen Window Number</TextBlock>
+            <TextBox x:Name="procGenWinNum" HorizontalAlignment="Right" Width="400"></TextBox>
         </DockPanel>
 
         <DockPanel Grid.Row="2" LastChildFill="True">
-            <TextBlock Width="300" FontSize="20">Force ProcGen</TextBlock>
-            <TextBox x:Name="forceProcGen" Width="300"></TextBox>
+            <TextBlock Width="250" FontSize="14">Force ProcGen</TextBlock>
+            <TextBox x:Name="forceProcGen" HorizontalAlignment="Right" Width="400"></TextBox>
         </DockPanel>
 
         <DockPanel Grid.Row="3" LastChildFill="True">
+            <TextBlock Width="250" FontSize="14">HDR Exposure</TextBlock>
+            <TextBox x:Name="HDRExposure" HorizontalAlignment="Right" Width="400"></TextBox>
+        </DockPanel>
+
+        <DockPanel Grid.Row="4" LastChildFill="True">
+            <TextBlock Width="250" FontSize="14">Animation FPS</TextBlock>
+            <TextBox x:Name="AnimFPS" HorizontalAlignment="Right" Width="400"></TextBox>
+        </DockPanel>
+
+        <DockPanel Grid.Row="5" LastChildFill="True">
+            <TextBlock Width="250" FontSize="14">VSYNC</TextBlock>
+            <TextBox x:Name="VSYNC" HorizontalAlignment="Right" Width="400"></TextBox>
+        </DockPanel>
+
+        <DockPanel Grid.Row="6" Grid.ColumnSpan="2">
             <Button Click="saveSettings">Save Settings</Button>
         </DockPanel>
 

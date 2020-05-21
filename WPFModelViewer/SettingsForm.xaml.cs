@@ -58,22 +58,32 @@ namespace WPFModelViewer
             }
             catch (FileNotFoundException)
             {
-                MessageBox.Show("Settings File Missing. Please choose your unpacked files folder...", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                //Generating new settings file
 
-                FolderBrowserDialog openFileDlg = new FolderBrowserDialog();
-                var res = openFileDlg.ShowDialog();
+                string gamedir = NMSUtils.getGameInstallationDir();
 
-                if (res == System.Windows.Forms.DialogResult.Cancel)
-                    lSettings.dirpath = "";
-                else
-                    lSettings.dirpath = openFileDlg.SelectedPath;
-                
-                    
+                if (gamedir == "")
+                {
+                    MessageBox.Show("NMS Installation not found. Please choose your unpacked files folder...", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                    FolderBrowserDialog openFileDlg = new FolderBrowserDialog();
+                    var res = openFileDlg.ShowDialog();
+
+                    if (res == System.Windows.Forms.DialogResult.Cancel)
+                        gamedir = "";
+                    else
+                        gamedir = openFileDlg.SelectedPath;
+                    openFileDlg.Dispose();
+                }
+
+                lSettings.dirpath = gamedir;
                 lSettings.forceProcGen = 1;
                 lSettings.procGenWinNum = 15;
-
+                lSettings.animFPS = 60;
+                lSettings.HDRExposure = 0.15f;
+                lSettings.useVSYNC = 0;
+                
                 saveSettingsStatic(lSettings); //Save Settings right away
-                openFileDlg.Dispose();
+                
             }
 
             return lSettings;
@@ -85,6 +95,9 @@ namespace WPFModelViewer
             dirpath.Text = settings.dirpath;
             forceProcGen.Text = settings.forceProcGen.ToString();
             procGenWinNum.Text = settings.procGenWinNum.ToString();
+            AnimFPS.Text = settings.animFPS.ToString();
+            HDRExposure.Text = settings.HDRExposure.ToString();
+            VSYNC.Text = settings.useVSYNC.ToString();
         }
 
         public static void saveSettingsToEnv(Settings settings)
@@ -92,7 +105,10 @@ namespace WPFModelViewer
             //Load values to the environment
             FileUtils.dirpath = settings.dirpath;
             Util.procGenNum = settings.procGenWinNum;
-            MVCore.Common.RenderState.forceProcGen = (settings.forceProcGen > 0) ? true : false;
+            RenderState.forceProcGen = (settings.forceProcGen > 0) ? true : false;
+            MVCore.Common.RenderOptions._HDRExposure = settings.HDRExposure;
+            MVCore.Common.RenderOptions.animFPS = settings.animFPS;
+            MVCore.Common.RenderOptions.UseVSYNC = (settings.useVSYNC > 0) ? true : false;
         }
 
         public static void saveSettingsStatic(Settings settings)
@@ -107,9 +123,11 @@ namespace WPFModelViewer
         {
             //Read values from control
             settings.dirpath = dirpath.Text;
-            settings.forceProcGen = Int32.Parse(forceProcGen.Text.ToString());
-            settings.procGenWinNum = Int32.Parse(procGenWinNum.Text.ToString());
-
+            settings.forceProcGen = int.Parse(forceProcGen.Text.ToString());
+            settings.procGenWinNum = int.Parse(procGenWinNum.Text.ToString());
+            settings.HDRExposure = float.Parse(HDRExposure.Text.ToString());
+            settings.animFPS = int.Parse(AnimFPS.Text.ToString());
+            
             saveSettingsStatic(settings);
 
             MessageBox.Show("Settings Saved", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -135,5 +153,8 @@ namespace WPFModelViewer
         public string dirpath;
         public int procGenWinNum;
         public int forceProcGen;
+        public int useVSYNC;
+        public int animFPS;
+        public float HDRExposure;
     }
 }

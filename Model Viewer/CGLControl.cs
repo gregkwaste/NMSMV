@@ -217,6 +217,8 @@ namespace Model_Viewer
         //Per Frame Updates
         private void frameUpdate()
         {
+            VSync = RenderOptions.UseVSYNC; //Update Vsync 
+
             //Update movement
             keyboardController();
 
@@ -373,11 +375,11 @@ namespace Model_Viewer
                                 req_scn.update();
                                 req.status = THREAD_REQUEST_STATUS.FINISHED;
                                 break;
-                            case THREAD_REQUEST_TYPE.RESIZE_REQUEST:
+                            case THREAD_REQUEST_TYPE.GL_RESIZE_REQUEST:
                                 rt_ResizeViewport((int)req.arguments[0], (int)req.arguments[1]);
                                 req.status = THREAD_REQUEST_STATUS.FINISHED;
                                 break;
-                            case THREAD_REQUEST_TYPE.MODIFY_SHADER_REQUEST:
+                            case THREAD_REQUEST_TYPE.GL_MODIFY_SHADER_REQUEST:
                                 GLShaderHelper.modifyShader((GLSLShaderConfig) req.arguments[0],
                                              (GLSLShaderText) req.arguments[1]);
                                 req.status = THREAD_REQUEST_STATUS.FINISHED;
@@ -388,11 +390,11 @@ namespace Model_Viewer
                                 inputPollTimer.Stop();
                                 req.status = THREAD_REQUEST_STATUS.FINISHED;
                                 break;
-                            case THREAD_REQUEST_TYPE.PAUSE_RENDER_REQUEST:
+                            case THREAD_REQUEST_TYPE.GL_PAUSE_RENDER_REQUEST:
                                 renderFlag = false;
                                 req.status = THREAD_REQUEST_STATUS.FINISHED;
                                 break;
-                            case THREAD_REQUEST_TYPE.RESUME_RENDER_REQUEST:
+                            case THREAD_REQUEST_TYPE.GL_RESUME_RENDER_REQUEST:
                                 renderFlag = true;
                                 req.status = THREAD_REQUEST_STATUS.FINISHED;
                                 break;
@@ -549,7 +551,7 @@ namespace Model_Viewer
             
             //Make new request
             ThreadRequest req = new ThreadRequest();
-            req.type = THREAD_REQUEST_TYPE.RESIZE_REQUEST;
+            req.type = THREAD_REQUEST_TYPE.GL_RESIZE_REQUEST;
             req.arguments.Clear();
             req.arguments.Add(ClientSize.Width);
             req.arguments.Add(ClientSize.Height);
@@ -570,16 +572,13 @@ namespace Model_Viewer
             this.components = new System.ComponentModel.Container();
             this.contextMenuStrip1 = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.exportToObjToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.loadAnimationToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
             this.contextMenuStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
             // contextMenuStrip1
             // 
-            this.contextMenuStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.exportToObjToolStripMenuItem,
-            this.loadAnimationToolStripMenuItem});
+            this.contextMenuStrip1.Items.Add(this.exportToObjToolStripMenuItem);
             this.contextMenuStrip1.Name = "contextMenuStrip1";
             this.contextMenuStrip1.Size = new System.Drawing.Size(181, 70);
             // 
@@ -661,14 +660,6 @@ namespace Model_Viewer
             GLShaderHelper.compileShader(geometry_shader_vs, geometry_shader_fs, geometry_shader_gs, null, null,
                             GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER, ref log);
 
-            //Picking Shaders
-            GLSLShaderText picking_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText picking_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            picking_shader_vs.addString(ProjProperties.Resources.pick_vert);
-            picking_shader_fs.addString(ProjProperties.Resources.pick_frag);
-            GLShaderHelper.compileShader(picking_shader_vs, picking_shader_fs, null, null, null,
-                GLSLHelper.SHADER_TYPE.PICKING_SHADER, ref log);
-
             //Compile Default Shaders
             
             //BoundBox Shader
@@ -749,7 +740,7 @@ namespace Model_Viewer
                             GLSLHelper.SHADER_TYPE.ADDITIVE_BLEND_SHADER, ref log);
             resMgr.GLShaders[GLSLHelper.SHADER_TYPE.ADDITIVE_BLEND_SHADER] = shader_conf;
 
-            //ADDITIVE BLEND
+            //FXAA
             gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
             gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
             gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
@@ -758,34 +749,35 @@ namespace Model_Viewer
                             GLSLHelper.SHADER_TYPE.FXAA_SHADER, ref log);
             resMgr.GLShaders[GLSLHelper.SHADER_TYPE.FXAA_SHADER] = shader_conf;
 
+            //TONE MAPPING + GAMMA CORRECTION
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gbuffer_shader_fs.addStringFromFile("Shaders/tone_mapping_fs.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.TONE_MAPPING, ref log);
+            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.TONE_MAPPING] = shader_conf;
+
+
+            //TODO_REPAIR
             //Decal Shaders
-            GLSLShaderText decal_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText decal_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            decal_shader_vs.addStringFromFile("Shaders/decal_VS.glsl");
-            decal_shader_fs.addStringFromFile("Shaders/Decal_FS.glsl");
-            GLShaderHelper.compileShader(decal_shader_vs, decal_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.DECAL_SHADER, ref log);
+            //GLSLShaderText decal_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            //GLSLShaderText decal_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            //decal_shader_vs.addStringFromFile("Shaders/decal_VS.glsl");
+            //decal_shader_fs.addStringFromFile("Shaders/Decal_FS.glsl");
+            //GLShaderHelper.compileShader(decal_shader_vs, decal_shader_fs, null, null, null,
+            //                GLSLHelper.SHADER_TYPE.DECAL_SHADER, ref log);
 
 
             //Text Shaders
-            GLSLShaderText text_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText text_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            text_shader_vs.addString(ProjProperties.Resources.text_vert);
-            text_shader_fs.addString(ProjProperties.Resources.text_frag);
-            GLShaderHelper.compileShader(text_shader_vs, text_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.TEXT_SHADER, ref log);
+            //TODO: CHECK IF A TEXT SHADER WILL BE REQUIRED FOR CUSTOM TEXT RENDERING
 
             //Camera Shaders
-            GLSLShaderText camera_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText camera_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            camera_shader_vs.addString(ProjProperties.Resources.camera_vert);
-            camera_shader_fs.addString(ProjProperties.Resources.camera_frag);
-            GLShaderHelper.compileShader(camera_shader_vs, camera_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.CAMERA_SHADER, ref log);
-            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.CAMERA_SHADER] = shader_conf;
+            //TODO: Add Camera Shaders if required
+            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.CAMERA_SHADER] = null;
 
             //FILTERS - EFFECTS
-
+            
             //Pass Shader
             GLSLShaderText passthrough_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
             passthrough_shader_fs.addStringFromFile("Shaders/PassThrough_FS.glsl");
@@ -903,7 +895,7 @@ namespace Model_Viewer
         private void addCamera(bool cull = true)
         {
             //Set Camera position
-            Camera cam = new Camera(90, resMgr.GLShaders[SHADER_TYPE.CAMERA_SHADER].program_id, 0, cull);
+            Camera cam = new Camera(90, -1, 0, cull);
             for (int i = 0; i < 20; i++)
                 cam.Move(0.0f, -0.1f, 0.0f);
             cam.isActive = false;

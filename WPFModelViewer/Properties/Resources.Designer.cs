@@ -61,12 +61,17 @@ namespace WPFModelViewer.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
-        /// *  Copies incoming vertex color without change.
-        /// *  Applies the transformation matrix to vertex position.
-        /// */
-        ///
-        ///void main()
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] _default {
+            get {
+                object obj = ResourceManager.GetObject("_default", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to void main()
         ///{	
         ///	gl_FragColor = vec4(0.8, 0.0, 0.0, 1.0);	
         ///}.
@@ -78,11 +83,9 @@ namespace WPFModelViewer.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
-        /// *  Copies incoming vertex color without change.
-        /// *  Applies the transformation matrix to vertex position.
+        ///   Looks up a localized string similar to /* Copies incoming vertex color without change.
+        /// * Applies the transformation matrix to vertex position.
         /// */
-        ///
         ///layout(location=0) in vec4 vPosition;
         ///layout(location=1) in vec4 nPosition; //normals
         ///uniform mat4 self_mvp, mvp;
@@ -97,11 +100,22 @@ namespace WPFModelViewer.Properties {
         ///    gl_Position = mvp * inv_pos;
         ///
         ///	//gl_Position = mvp * vPosition;
-        ///	gl_Position = gl_Position * 1.0f [rest of string was truncated]&quot;;.
+        ///	gl_Position = gl_Position * 1.0f/gl_Position.w;
+        ///}.
         /// </summary>
         internal static string camera_vert {
             get {
                 return ResourceManager.GetString("camera_vert", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] default_mask {
+            get {
+                object obj = ResourceManager.GetObject("default_mask", resourceCulture);
+                return ((byte[])(obj));
             }
         }
         
@@ -112,342 +126,6 @@ namespace WPFModelViewer.Properties {
             get {
                 object obj = ResourceManager.GetObject("ianm32logo_border", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
-        /// *  Copies incoming vertex color without change.
-        /// *  Applies the transformation matrix to vertex position.
-        /// */
-        ///
-        ////* Copies incoming fragment color without change. */
-        ///in vec3 color;
-        ///
-        ///out vec4 outcolors[3];
-        ///void main()
-        ///{	
-        ///	outcolors[0] = vec4(color, 1.0);
-        ///	outcolors[1] = vec4(1.0, 1.0, 1.0, 1.0);
-        ///	outcolors[2] = vec4(1.0, 1.0, 1.0, 1.0);
-        ///}.
-        /// </summary>
-        internal static string joint_frag {
-            get {
-                return ResourceManager.GetString("joint_frag", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
-        /// *  Copies incoming vertex color without change.
-        /// *  Applies the transformation matrix to vertex position.
-        /// */
-        ///
-        ///
-        ///#include &quot;/common_structs.glsl&quot;
-        ///
-        ///layout(location=0) in vec4 vPosition;
-        ///layout(location=1) in vec3 vcolor;
-        ///
-        /////Uniform Blocks
-        ///layout (std140) uniform Uniforms
-        ///{
-        ///    CommonPerFrameUniforms mpCommonPerFrame;
-        ///    CommonPerMeshUniforms mpCommonPerMesh;
-        ///};
-        ///
-        ///out vec3 color;
-        ///
-        ///void main()
-        ///{
-        ///    //Set color
-        ///    color = vcolor;
-        /// [rest of string was truncated]&quot;;.
-        /// </summary>
-        internal static string joint_vert {
-            get {
-                return ResourceManager.GetString("joint_vert", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to #version 330
-        ////* Copies incoming vertex color without change.
-        ///*/
-        ///
-        ///out vec4 outcolors[3];
-        ///void main()
-        ///{	
-        ///	outcolors[0] = vec4(1.0, 1.0, 0.0, 1.0);
-        ///	outcolors[1] = vec4(1.0, 1.0, 1.0, 1.0);
-        ///	outcolors[2] = vec4(1.0, 1.0, 1.0, 1.0);
-        ///}.
-        /// </summary>
-        internal static string light_frag {
-            get {
-                return ResourceManager.GetString("light_frag", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to #version 330
-        ///
-        ///#include &quot;/common_structs.glsl&quot;
-        ///
-        ///layout(location=0) in vec4 vPosition;
-        ///
-        /////Uniform Blocks
-        ///layout (std140) uniform Uniforms
-        ///{
-        ///    CommonPerFrameUniforms mpCommonPerFrame;
-        ///    CommonPerMeshUniforms mpCommonPerMesh;
-        ///};
-        ///
-        ///void main()
-        ///{
-        ///	gl_Position = mpCommonPerFrame.mvp * vPosition;
-        ///}.
-        /// </summary>
-        internal static string light_vert {
-            get {
-                return ResourceManager.GetString("light_vert", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
-        /// *  Copies incoming vertex color without change.
-        /// *  Applies the transformation matrix to vertex position.
-        /// */
-        ///
-        ////* Copies incoming fragment color without change. */
-        ///in vec3 color;
-        ///in vec4 finalPos;
-        ///
-        ///out vec4 outcolors[3];
-        ///void main()
-        ///{	
-        ///	outcolors[0] = vec4(color, 1.0);
-        ///	outcolors[1] = finalPos;
-        ///	outcolors[2] = vec4(1.0, 1.0, 1.0, 1.0);
-        ///
-        ///}.
-        /// </summary>
-        internal static string locator_frag {
-            get {
-                return ResourceManager.GetString("locator_frag", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
-        /// *  Copies incoming vertex color without change.
-        /// *  Applies the transformation matrix to vertex position.
-        /// */
-        ///
-        ///
-        ///#include &quot;/Shaders/common_structs.glsl&quot;
-        ///
-        ///layout(location=0) in vec4 vPosition;
-        ///layout(location=1) in vec3 vcolor;
-        ///
-        ///uniform float scale;
-        ///
-        /////Uniform Blocks
-        ///layout (std140) uniform Uniforms
-        ///{
-        ///    CommonPerFrameUniforms mpCommonPerFrame;
-        ///    CommonPerMeshUniforms mpCommonPerMesh;
-        ///};
-        ///
-        ///out vec3 color;
-        ///out vec4 finalPos;
-        ///
-        ///vo [rest of string was truncated]&quot;;.
-        /// </summary>
-        internal static string locator_vert {
-            get {
-                return ResourceManager.GetString("locator_vert", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
-        /// *  Copies incoming vertex color without change.
-        /// *  Applies the transformation matrix to vertex position.
-        /// */
-        ///
-        ///
-        ///flat in int object_id;
-        /////flat int object_id;
-        ///layout(location=0) out vec4 outcolor;
-        ///
-        ///void main()
-        ///{	
-        ///	
-        ///	//Calculate fragcolor from object_id
-        ///	vec4 color = vec4(0.0, 0.0, 0.0, 1.0);
-        ///
-        ///	color.r = float(object_id &amp; 0xFF) /255.0;
-        ///	color.g = float((object_id&gt;&gt;8) &amp; 0xFF) /255.0;
-        ///	color.b = 0.0;
-        ///
-        ///	//pickColor = color;
-        ///	outcolor = [rest of string was truncated]&quot;;.
-        /// </summary>
-        internal static string pick_frag {
-            get {
-                return ResourceManager.GetString("pick_frag", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
-        /// *  Copies incoming vertex color without change.
-        /// *  Applies the transformation matrix to vertex position.
-        /// */
-        ///
-        ///layout(location=0) in vec4 vPosition;
-        ///layout(location=1) in vec2 uvPosition0;
-        ///layout(location=2) in vec4 nPosition; //normals
-        ///layout(location=3) in vec4 tPosition; //tangents
-        ///layout(location=4) in vec4 bPosition; //bitangents
-        ///layout(location=5) in vec4 blendIndices;
-        ///layout(location=6) in vec4 blendWeights;
-        ///
-        ///layout(location=7) un [rest of string was truncated]&quot;;.
-        /// </summary>
-        internal static string pick_vert {
-            get {
-                return ResourceManager.GetString("pick_vert", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to #version 400 core
-        /////-- TessControl
-        ///
-        ///layout(vertices = 3) out;
-        ///in vec4 finalPos[];
-        ///in vec4 finalNormal[];
-        ///in vec2 uv0[];
-        ///out vec4 tcPosition[];
-        ///out vec4 tcNormal[];
-        ///out vec2 tcUVPosition[];
-        ///
-        ///#define ID gl_InvocationID
-        ///
-        ///void main()
-        ///{
-        ///    tcPosition[ID] = finalPos[ID];
-        ///	tcNormal[ID] = finalNormal[ID];
-        ///	tcUVPosition[ID] = uv0[ID];
-        ///    if (ID == 0) {
-        ///        gl_TessLevelInner[0] = 2;
-        ///        gl_TessLevelOuter[0] = 1;
-        ///        gl_TessLevelOuter[1] = 1;
-        ///        gl_TessLevelOuter[2] = 1;
-        ///    } [rest of string was truncated]&quot;;.
-        /// </summary>
-        internal static string tess_tcs {
-            get {
-                return ResourceManager.GetString("tess_tcs", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to #version 400 core
-        /////-- TessEval
-        ///
-        ///layout(triangles, equal_spacing, cw) in;
-        ///in vec4 tcPosition[];
-        ///in vec4 tcNormal[];
-        ///in vec2 tcUVPosition[];
-        ///out vec4 tePosition;
-        ///out vec3 tePatchDistance;
-        ///
-        ///layout(location=7) uniform mat4 mvp;
-        ///layout(location=8) uniform mat4 nMat;
-        ///layout(location=9) uniform mat4 rotMat;
-        ///layout(location=10) uniform mat4 worldMat;
-        ///
-        ///
-        /////Outputs to fragment Shader
-        ///out vec2 teUV;
-        ///
-        ///void main()
-        ///{
-        ///	float u = gl_TessCoord.x;
-        ///	float v = gl_TessCoord.y;
-        ///	float t = gl_TessCoord.z;
-        /// [rest of string was truncated]&quot;;.
-        /// </summary>
-        internal static string tess_tes {
-            get {
-                return ResourceManager.GetString("tess_tes", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
-        /// *  Copies incoming vertex color without change.
-        /// *  Applies the transformation matrix to vertex position.
-        /// */
-        ///
-        ///
-        ////* Copies incoming fragment color without change. */
-        ///uniform sampler2D diffuseTex;
-        ///in vec2 uv0;
-        ///in float dx,dy;
-        ///
-        ///out vec4 outcolors[3];
-        ///
-        ///void main()
-        ///{	
-        ///	
-        ///	/*
-        ///		Character Maps are usually full white textures with
-        ///		black characters. The Shader should invert the colors
-        ///		and use the input color to recolour the letters
-        ///	*/        /// [rest of string was truncated]&quot;;.
-        /// </summary>
-        internal static string text_frag {
-            get {
-                return ResourceManager.GetString("text_frag", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to /*  Version and extension are added during preprocessing
-        /// *  Copies incoming vertex color without change.
-        /// *  Applies the transformation matrix to vertex position.
-        /// */
-        ///
-        ///
-        ////* Simple Quad Rendering Shader
-        /// */
-        ///attribute vec4 vPosition;
-        ///attribute vec4 uvPosition;
-        ///
-        ///uniform mat4 projMat;
-        ///uniform float w, h;
-        /////Text Transforms
-        ///uniform vec2 pos;
-        ///uniform float scale;
-        ///
-        /////Outputs
-        ///out vec2 uv0;
-        ///out float dx, dy;
-        ///
-        ///void main()
-        ///{
-        ///    //uv0 = vPosition.xy * vec2(0.5, 0.5) + vec2(0.5, 0.5);
-        ///    uv0 = u [rest of string was truncated]&quot;;.
-        /// </summary>
-        internal static string text_vert {
-            get {
-                return ResourceManager.GetString("text_vert", resourceCulture);
             }
         }
     }

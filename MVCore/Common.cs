@@ -40,20 +40,21 @@ namespace MVCore.Common
         public static System.Drawing.Color clearColor = System.Drawing.Color.FromArgb(255, 33, 33, 33);
         public static float _useTextures = 1.0f;
         public static float _useLighting = 1.0f;
-        public static bool _useFrustumCulling = true;
-        public static bool _useLODFiltering = true;
-        public static bool _useFXAA = true;
-        public static bool _useBLOOM = true;
-        public static bool _toggleAnimations = true;
-        public static bool _renderLights = true;
-        public static bool _renderInfo = true;
-        public static bool _renderJoints = true;
-        public static bool _renderLocators = true;
-        public static bool _renderCollisions = false;
-        public static bool _renderBoundHulls = false;
-        public static bool _renderDebug = false;
+        private static bool _useFrustumCulling = true;
+        private static bool _useLODFiltering = true;
+        private static bool _useFXAA = true;
+        private static bool _useVSYNC = false;
+        private static bool _useBLOOM = true;
+        private static bool _toggleAnimations = true;
+        private static bool _renderLights = true;
+        private static bool _renderInfo = true;
+        private static bool _renderJoints = true;
+        private static bool _renderLocators = true;
+        private static bool _renderCollisions = false;
+        private static bool _renderBoundHulls = false;
+        private static bool _renderDebug = false;
         public static int animFPS = 60;
-        public static float _HDRExposure = 1.0f;
+        public static float _HDRExposure = 0.2f;
 
         //Add properties
         public static bool UseTextures
@@ -90,64 +91,38 @@ namespace MVCore.Common
 
         public static bool UseFrustumCulling
         {
-            get
-            {
-                return _useFrustumCulling;
-            }
-
-            set
-            {
-                _useFrustumCulling = value;
-            }
+            get => _useFrustumCulling;
+            set => _useFrustumCulling = value;
         }
 
         public static bool LODFiltering
         {
-            get
-            {
-                return _useLODFiltering;
-            }
-
-            set
-            {
-                _useLODFiltering = value;
-            }
+            get => _useLODFiltering;
+            set => _useLODFiltering = value;
         }
 
         public static bool UseFXAA
         {
-            get
-            {
-                return _useFXAA;
-            }
-
-            set
-            {
-                _useFXAA = value;
-            }
+            get => _useFXAA;
+            set => _useFXAA = value;
         }
 
         public static bool UseBLOOM
         {
-            get
-            {
-                return _useBLOOM;
-            }
+            get => _useBLOOM;
+            set => _useBLOOM = value;
+        }
 
-            set
-            {
-                _useBLOOM = value;
-            }
+        public static bool UseVSYNC
+        {
+            get => _useVSYNC;
+            set => _useVSYNC = value;
         }
 
 
         public static bool ToggleWireframe
         {
-            get
-            {
-                return (RENDERMODE == PolygonMode.Line);
-            }
-
+            get => (RENDERMODE == PolygonMode.Line);
             set
             {
                 if (value)
@@ -159,102 +134,50 @@ namespace MVCore.Common
 
         public static bool ToggleAnimations
         {
-            get
-            {
-                return _toggleAnimations;
-            }
-
-            set
-            {
-                _toggleAnimations = value;
-            }
+            get => _toggleAnimations;
+            set => _toggleAnimations = value;
         }
 
         public static bool RenderInfo
         {
-            get
-            {
-                return _renderInfo;
-            }
-
-            set
-            {
-                _renderInfo = value;
-            }
+            get => _renderInfo;
+            set => _renderInfo = value;
         }
 
         public static bool RenderLights
         {
-            get
-            {
-                return _renderLights;
-            }
-
-            set
-            {
-                _renderLights = value;
-            }
+            get => _renderLights;
+            set => _renderLights = value;
         }
 
 
         public static bool RenderJoints
         {
-            get
-            {
-                return _renderJoints;
-            }
-
-            set
-            {
-                _renderJoints = value;
-            }
+            get => _renderJoints;
+            set => _renderJoints = value;
         }
 
         public static bool RenderLocators
         {
-            get
-            {
-                return _renderLocators;
-            }
-
-            set
-            {
-                _renderLocators = value;
-            }
+            get => _renderLocators;
+            set => _renderLocators = value;
+            
         }
 
         public static bool RenderCollisions {
-            get
-            {
-                return _renderCollisions;
-            }
-
-            set
-            {
-                _renderCollisions = value;
-            }
+            get => _renderCollisions;
+            set => _renderCollisions = value;
         }
 
         public static bool RenderBoundHulls
         {
-            get
-            {
-                return _renderBoundHulls;
-            }
-
-            set
-            {
-                _renderBoundHulls = value;
-            }
+            get => _renderBoundHulls;
+            set => _renderBoundHulls = value;
         }
 
         public static string AnimFPS
         {
-            get
-            {
-                return animFPS.ToString();
-            }
-
+            get => animFPS.ToString();
             set
             {
                 int.TryParse(value, out animFPS);
@@ -263,11 +186,7 @@ namespace MVCore.Common
 
         public static string HDRExposure
         {
-            get
-            {
-                return _HDRExposure.ToString();
-            }
-
+            get => _HDRExposure.ToString();
             set
             {
                 float.TryParse(value, out _HDRExposure);

@@ -15,6 +15,13 @@ using libPSARC;
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
 using System.Windows.Input;
+using System.Windows.Data;
+using System.Threading;
+using OpenTK.Graphics.ES10;
+using System.Reflection;
+using MathNet.Numerics.Optimization;
+using System.Runtime.CompilerServices;
+using libMBIN.NMS.GameComponents;
 
 namespace WPFModelViewer
 {
@@ -33,10 +40,12 @@ namespace WPFModelViewer
 
         private int itemCounter = 0;
 
-        //Handle Async Requests
-        private List<ThreadRequest> issuedRequests= new List<ThreadRequest>();
-        private System.Timers.Timer requestHandler = new System.Timers.Timer();
 
+        //Async Request Handler
+        private WorkThreadDispacher workDispatcher = new WorkThreadDispacher();
+        private System.Timers.Timer requestHandler = new System.Timers.Timer();
+        private List<ThreadRequest> issuedRequests = new List<ThreadRequest>();
+        
         private const int WmExitSizeMove = 0x232; //Custom Windows Messages
         private const int WmEnterSizeMove = 0x231;
 
@@ -46,9 +55,13 @@ namespace WPFModelViewer
         model init_drag;
         model target_drag;
 
+        
+
         public MainWindow()
         {
             InitializeComponent();
+
+            //override_assemblies();
 
             //Override Window Title
             Title += " " + Util.Version;
@@ -57,6 +70,7 @@ namespace WPFModelViewer
             requestHandler.Interval = 10;
             requestHandler.Elapsed += queryRequests;
             requestHandler.Start();
+            workDispatcher.Start();
 
             Console.WriteLine("Testing");
 
@@ -69,7 +83,6 @@ namespace WPFModelViewer
             CallBacks.Log = Util.Log;
             CallBacks.issueRequestToGLControl = Util.sendRequest;
             
-
             //Toggle waiting to attach renderdoc
             //System.Threading.Thread.Sleep(10000);
 
@@ -86,34 +99,38 @@ namespace WPFModelViewer
             System.Diagnostics.PresentationTraceSources.DataBindingSource.Listeners.Add(new BindingErrorTraceListener());
         }
 
-        //Open File
-        private void OpenFile(object sender, RoutedEventArgs e)
+        private void override_assemblies()
         {
-            Console.WriteLine("Opening File");
-            OpenFileDialog openFileDlg = new OpenFileDialog();
-            openFileDlg.Filter = "SCENE Files (*.SCENE.MBIN, *.SCENE.EXML)|*.SCENE.MBIN;*.SCENE.EXML";
-            var res = openFileDlg.ShowDialog();
-
-            if (res == false)
-                return;
+            //BULLSHIT
+            string execpath = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
             
-            var filename = openFileDlg.FileName;
+            Assembly[] l = AppDomain.CurrentDomain.GetAssemblies();
+
+            if (File.Exists(Path.Combine(execpath, "libMBIN.dll")))
+            {
+                //Unload existing libMBIN
+                string ass_path = Path.Combine(execpath, "libMBIN.dll");
+                Assembly.Load(@ass_path);
+                //AppDomain.CurrentDomain.Load();
+            }
+        }
+
+        //Open File
+        private void OpenFile(string filename)
+        {
             Console.WriteLine("Importing " + filename);
-
-
             ThreadRequest req;
-
 
             //Pause renderer
             req = new ThreadRequest();
-            req.type = THREAD_REQUEST_TYPE.PAUSE_RENDER_REQUEST;
+            req.type = THREAD_REQUEST_TYPE.GL_PAUSE_RENDER_REQUEST;
             req.arguments.Clear();
 
             //Send request
             glControl.issueRequest(ref req);
 
             while (req.status != THREAD_REQUEST_STATUS.FINISHED)
-                System.Threading.Thread.Sleep(10);
+                Thread.Sleep(10);
 
             //Clear treeview
             Application.Current.Dispatcher.BeginInvoke((Action)(() =>
@@ -121,7 +138,7 @@ namespace WPFModelViewer
                 SceneTreeView.Items.Clear();
                 glControl.rootObject.Dispose();
             }));
-            
+
             //Generate Request for rendering thread
             req = new ThreadRequest();
             req.type = THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST;
@@ -133,12 +150,98 @@ namespace WPFModelViewer
 
             //Generate Request for resuming rendering
             req = new ThreadRequest();
-            req.type = THREAD_REQUEST_TYPE.RESUME_RENDER_REQUEST;
+            req.type = THREAD_REQUEST_TYPE.GL_RESUME_RENDER_REQUEST;
             req.arguments.Clear();
-            
+
             glControl.issueRequest(ref req);
             issuedRequests.Add(req);
+        }
 
+        private void OpenFile(object sender, RoutedEventArgs e)
+        {
+            Console.WriteLine("Opening File");
+            OpenFileDialog openFileDlg = new OpenFileDialog();
+            openFileDlg.Filter = "SCENE Files (*.SCENE.MBIN, *.SCENE.EXML)|*.SCENE.MBIN;*.SCENE.EXML";
+            var res = openFileDlg.ShowDialog();
+
+            if (res == false)
+                return;
+            
+            var filename = openFileDlg.FileName;
+            OpenFile(filename);
+        }
+
+        private void OpenFilePAK(object sender, RoutedEventArgs e)
+        {
+            //I need to make a custom window for previewing the entire list of SCENE Files from the PAK files
+            List<string> paths = new List<string>();
+            
+            foreach(string path in RenderState.activeResMgr.NMSFileToArchiveMap.Keys)
+            {
+                if (path.EndsWith(".SCENE.MBIN"))
+                    paths.Add(path);
+            }
+            paths.Sort();
+                
+            Window win = new Window();
+            win.Title = "Select SCENE file from List";
+            //Add a default grid
+            Grid grid = new Grid();
+            grid.RowDefinitions.Add(new RowDefinition());
+            grid.RowDefinitions.Add(new RowDefinition());
+            grid.ColumnDefinitions.Add(new ColumnDefinition());
+            grid.ColumnDefinitions.Add(new ColumnDefinition());
+            grid.RowDefinitions[1].Height = new GridLength(20);
+            grid.ColumnDefinitions[0].Width = new GridLength(50);
+
+            ListView lb = new ListView(); //Item listbox
+
+            //Add items
+            lb.ItemsSource = paths;
+            lb.MouseDoubleClick += delegate
+            {
+                string selected = (string)lb.SelectedItem;
+                Console.WriteLine(selected);
+                win.Close();
+                OpenFile(selected);
+            };
+
+            CollectionView viewSource = (CollectionView)CollectionViewSource.GetDefaultView(lb.ItemsSource);
+            
+
+            //Search box
+            TextBox searchBox = new TextBox();
+            searchBox.TextChanged += delegate
+            {
+                viewSource.Refresh();
+            };
+
+            viewSource.Filter = (object obj) => {
+
+                if (String.IsNullOrEmpty(searchBox.Text))
+                    return true;
+                else
+                    return (obj as String).IndexOf(searchBox.Text, StringComparison.OrdinalIgnoreCase) >= 0;
+            };
+
+            //SearchBox Label
+            TextBlock searchLabel = new TextBlock();
+            searchLabel.Text = "Search:";
+
+            //Setup Grid
+            grid.Children.Add(lb);
+            lb.SetValue(Grid.RowProperty, 0);
+            Grid.SetColumnSpan(lb, 2);
+            grid.Children.Add(searchBox);
+            searchBox.SetValue(Grid.RowProperty, 1);
+            searchBox.SetValue(Grid.ColumnProperty, 1);
+            grid.Children.Add(searchLabel);
+            searchLabel.SetValue(Grid.ColumnProperty, 0);
+            searchLabel.SetValue(Grid.RowProperty, 1);
+
+            win.Content = grid;
+            win.Show();
+        
         }
 
         //Request Handler
@@ -165,12 +268,14 @@ namespace WPFModelViewer
                                     }));
                                     Util.setStatus("Ready");
                                     break;
-                                case THREAD_REQUEST_TYPE.COMPILE_SHADER_REQUEST:
-                                    //Add Shader to resource manager
-                                    GLSLHelper.GLSLShaderConfig shader_conf = (GLSLShaderConfig)req.arguments[0];
-                                    RenderState.activeResMgr.GLShaders[shader_conf.shader_type] = shader_conf;
-                                    File.WriteAllText("shader_compilation_" + Enum.GetName(typeof(SHADER_TYPE), shader_conf.shader_type) + ".log", shader_conf.log);
-                                    Util.setStatus("Shader Compiled Successfully!");
+                                case THREAD_REQUEST_TYPE.LOAD_NMS_ARCHIVES_REQUEST:
+                                    //Enable Open File Functions
+                                    Application.Current.Dispatcher.BeginInvoke((Action)(() =>
+                                    {
+                                        OpenFileHandle.IsEnabled = true;
+                                        OpenFilePAKHandle.IsEnabled = true;
+                                    }));
+                                    Util.setStatus("Ready");
                                     break;
                                 default:
                                     break;
@@ -184,9 +289,7 @@ namespace WPFModelViewer
             }
         }
 
-
         //Close Form
-
         private void FormClose(object sender, RoutedEventArgs e)
         {
             Console.WriteLine("Bye bye :'(");
@@ -201,7 +304,6 @@ namespace WPFModelViewer
             //Send Terminate Rendering request to the rt_thread
             ThreadRequest req = new ThreadRequest();
             req.type = THREAD_REQUEST_TYPE.TERMINATE_REQUEST;
-            req.arguments.Clear();
             glControl.issueRequest(ref req);
 
             //Wait for the request to finish
@@ -229,7 +331,6 @@ namespace WPFModelViewer
             Util.loggingSr.Close();
         }
 
-
         private IntPtr HwndMessageHook(IntPtr wnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
             switch (msg)
@@ -238,8 +339,7 @@ namespace WPFModelViewer
                     {
                         //Send resizing request
                         ThreadRequest req = new ThreadRequest();
-                        req.type = THREAD_REQUEST_TYPE.RESIZE_REQUEST;
-                        req.arguments.Clear();
+                        req.type = THREAD_REQUEST_TYPE.GL_RESIZE_REQUEST;
                         req.arguments.Add(glControl.Width);
                         req.arguments.Add(glControl.Height);
 
@@ -249,9 +349,8 @@ namespace WPFModelViewer
 
                         //Send Unpause rendering requenst
                         req = new ThreadRequest();
-                        req.type = THREAD_REQUEST_TYPE.RESUME_RENDER_REQUEST;
-                        req.arguments.Clear();
-
+                        req.type = THREAD_REQUEST_TYPE.GL_RESUME_RENDER_REQUEST;
+                        
                         //Send request
                         glControl.issueRequest(ref req);
                         issuedRequests.Add(req);
@@ -264,7 +363,7 @@ namespace WPFModelViewer
                     {
                         //Send Unpause rendering requenst
                         ThreadRequest req = new ThreadRequest();
-                        req.type = THREAD_REQUEST_TYPE.PAUSE_RENDER_REQUEST;
+                        req.type = THREAD_REQUEST_TYPE.GL_PAUSE_RENDER_REQUEST;
                         req.arguments.Clear();
 
                         //Send request
@@ -278,7 +377,6 @@ namespace WPFModelViewer
             }
             return IntPtr.Zero;
         }
-
 
         //Do stuff once the GUI is ready
         private void MainWindow_OnLoaded(object sender, RoutedEventArgs e)
@@ -341,17 +439,24 @@ namespace WPFModelViewer
             sliderlightDistance.ValueChanged += Sliders_OnValueChanged;
             sliderMovementSpeed.ValueChanged += Sliders_OnValueChanged;
 
-
             //Invoke the method in order to setup the control at startup
             Sliders_OnValueChanged(null, new RoutedPropertyChangedEventArgs<double>(0.0f,0.0f));
-
             this.Dispatcher.UnhandledException += OnDispatcherUnhandledException;
 
-            NMSUtils.loadNMSArchives("NMSmanifest",
-                Path.Combine(FileUtils.dirpath, "PCBANKS"), ref RenderState.activeResMgr);
 
-            CallBacks.updateStatus("Ready");
+            //Disable Open File Functions
+            OpenFileHandle.IsEnabled = false;
+            OpenFilePAKHandle.IsEnabled = false;
 
+            //Issue work request 
+            ThreadRequest rq = new ThreadRequest();
+            rq.arguments.Add("NMSmanifest");
+            rq.arguments.Add(Path.Combine(FileUtils.dirpath, "PCBANKS"));
+            rq.arguments.Add(RenderState.activeResMgr);
+            rq.type = THREAD_REQUEST_TYPE.LOAD_NMS_ARCHIVES_REQUEST;
+            workDispatcher.sendRequest(rq);
+
+            issuedRequests.Add(rq);
         }
 
         void OnDispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
@@ -379,8 +484,6 @@ namespace WPFModelViewer
 
 
         //Event Handlers
-
-
 
         private void Sliders_OnValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
@@ -537,6 +640,18 @@ namespace WPFModelViewer
         
         }
 
+        //Updates textBox values on enter
+        private void TextBox_KeyUp(object sender, KeyEventArgs e)
+        {
+            TextBox tb = (TextBox)sender;
+            DependencyProperty prop = TextBox.TextProperty;
+
+            if (e.Key == Key.Enter)
+            {
+                BindingExpression bind = BindingOperations.GetBindingExpression(tb, prop);
+                if (bind != null) bind.UpdateSource();
+            }
+        }
 
 
         [DllImport("user32.dll")]
@@ -549,6 +664,8 @@ namespace WPFModelViewer
             public Int32 X;
             public Int32 Y;
         };
+
+        
     }
 
 

@@ -28,6 +28,7 @@ using System.Runtime.InteropServices;
 using GLSLHelper;
 using System.Windows.Forms;
 using System.Security.Permissions;
+using SharpFont;
 //using Matrix4 = MathNet.Numerics.LinearAlgebra.Matrix<float>;
 
 
@@ -1281,12 +1282,9 @@ namespace MVCore.GMDL
             GL.BindVertexArray(0);
         }
 
-        public virtual void renderMain(GLSLHelper.GLSLShaderConfig shader)
+        public virtual void renderMain(GLSLShaderConfig shader)
         {
             //Upload Material Information
-
-            //Step 1 Upload uniform variables
-            //GL.Uniform1(shader.uniformLocations["mpCustomPerMaterial.matflags[0]"], 64, material.material_flags); //Upload Material Flags
 
             //Upload Custom Per Material Uniforms
             foreach (Uniform un in material.CustomPerMaterialUniforms.Values)
@@ -1297,7 +1295,6 @@ namespace MVCore.GMDL
 
             //BIND TEXTURES
             //Diffuse Texture
-
             foreach (Sampler s in material.PSamplers.Values)
             {
                 if (shader.uniformLocations.ContainsKey(s.Name) && s.Map != "")
@@ -1641,7 +1638,7 @@ namespace MVCore.GMDL
         }
 
 
-        #region IDisposable Support
+#region IDisposable Support
         private bool disposedValue = false; // To detect redundant calls
 
 
@@ -1691,7 +1688,7 @@ namespace MVCore.GMDL
             // TODO: uncomment the following line if the finalizer is overridden above.
             // GC.SuppressFinalize(this);
         }
-        #endregion
+#endregion
 
     }
 
@@ -2112,7 +2109,7 @@ namespace MVCore.GMDL
 
 
 
-        #region IDisposable Support
+#region IDisposable Support
 
         protected override void Dispose(bool disposing)
         {
@@ -2129,7 +2126,7 @@ namespace MVCore.GMDL
             }
         }
 
-        #endregion
+#endregion
 
     }
 
@@ -2709,10 +2706,9 @@ namespace MVCore.GMDL
                 //Construct main filename
 
                 string texMbin = temp + "TEXTURE.MBIN";
-                texMbin = Path.GetFullPath(Path.Combine(FileUtils.dirpath, texMbin));
-
+                
                 //Detect Procedural Texture
-                if (File.Exists(texMbin))
+                if (Common.RenderState.activeResMgr.NMSFileToArchiveMap.Keys.Contains(texMbin))
                 {
                     TextureMixer.combineTextures(Map, Palettes.paletteSel, ref texMgr);
                     //Override Map
@@ -2746,10 +2742,8 @@ namespace MVCore.GMDL
                 //At this point this should be a common texture. Store it to the master texture manager
                 Common.RenderState.activeResMgr.texMgr.addTexture(tex);
             }
-
         }
-
-
+        
         public static void dump_texture(string name, int width, int height)
         {
             var pixels = new byte[4 * width * height];
@@ -2824,7 +2818,7 @@ namespace MVCore.GMDL
 
 
 
-        #region IDisposable Support
+#region IDisposable Support
         private bool disposedValue = false; // To detect redundant calls
 
 
@@ -2854,7 +2848,7 @@ namespace MVCore.GMDL
             // TODO: uncomment the following line if the finalizer is overridden above.
             // GC.SuppressFinalize(this);
         }
-        #endregion
+#endregion
 
 
     }
@@ -2988,11 +2982,7 @@ namespace MVCore.GMDL
         {
             //Load template
             //Try to use libMBIN to load the Material files
-            libMBIN.MBINFile mbinf = new libMBIN.MBINFile(path);
-            mbinf.Load();
-            TkMaterialData template = (TkMaterialData)mbinf.GetData();
-            mbinf.Dispose();
-
+            TkMaterialData template = NMSUtils.LoadNMSTemplate(path, ref Common.RenderState.activeResMgr) as TkMaterialData;
 #if DEBUG
             //Save NMSTemplate to exml
             template.WriteToExml("Temp\\" + template.Name + ".exml");
@@ -3463,12 +3453,8 @@ namespace MVCore.GMDL
             Console.WriteLine("Procedural Texture Detected: " + texMbin);
             MVCore.Common.CallBacks.Log(string.Format("Parsing Procedural Texture"));
 
-            libMBIN.MBINFile mbinf = new libMBIN.MBINFile(texMbin);
-            mbinf.Load();
-            TkProceduralTextureList template = (TkProceduralTextureList)mbinf.GetData();
-            mbinf.Dispose();
-
-
+            TkProceduralTextureList template = NMSUtils.LoadNMSTemplate(path, ref Common.RenderState.activeResMgr) as TkProceduralTextureList;
+    
             List<TkProceduralTexture> texList = new List<TkProceduralTexture>(8);
             for (int i = 0; i < 8; i++) texList.Add(null);
             ModelProcGen.parse_procTexture(ref texList, template, ref Common.RenderState.activeResMgr);
@@ -4091,20 +4077,37 @@ namespace MVCore.GMDL
         //Empty Initializer
         public Texture() {}
         //Path Initializer
-        public Texture(string path)
+        public Texture(string path, bool isCustom=false)
         {
             DDSImage ddsImage;
             name = path;
 
-            path = Path.Combine(FileUtils.dirpath, path);
-            if (!File.Exists(path))
+            Stream fs;
+            if (!isCustom)
+                fs = NMSUtils.LoadNMSFileStream(path, ref Common.RenderState.activeResMgr);
+            else
+                fs = new FileStream(path, FileMode.Open);
+            
+            byte[] image_data;
+            int data_length;
+
+            if (fs == null)
             {
                 //throw new System.IO.FileNotFoundException();
                 Console.WriteLine("Texture {0} Missing. Using default.dds", path);
-                path = "default.dds";
+
+                //Load default.dds from resources
+                image_data = File.ReadAllBytes("default.dds");
+                data_length = image_data.Length;
+            } else
+            {
+                data_length = (int) fs.Length;
+                image_data = new byte[data_length];
             }
             
-            ddsImage = new DDSImage(File.ReadAllBytes(path));
+            fs.Read(image_data, 0, data_length);
+
+            ddsImage = new DDSImage(image_data);
             MVCore.Common.RenderStats.texturesNum += 1; //Accumulate settings
 
             Console.WriteLine("Sampler Name Path " + path + " Width {0} Height {1}", ddsImage.header.dwWidth, ddsImage.header.dwHeight);
@@ -4763,7 +4766,7 @@ namespace MVCore.GMDL
     {
         public abstract Component Clone();
         
-        #region IDisposable Support
+#region IDisposable Support
         private bool disposedValue = false; // To detect redundant calls
 
         protected virtual void Dispose(bool disposing)
@@ -4784,7 +4787,7 @@ namespace MVCore.GMDL
         {
             Dispose(true);
         }
-        #endregion
+#endregion
     };
 
     
@@ -4851,7 +4854,7 @@ namespace MVCore.GMDL
             this.copyFrom(input);
         }
 
-        #region IDisposable Support
+#region IDisposable Support
         private bool disposed = false; // To detect redundant calls
         protected override void Dispose(bool disposing)
         {
@@ -4865,7 +4868,7 @@ namespace MVCore.GMDL
             }
         }
         
-        #endregion
+#endregion
 
     }
 
@@ -5119,7 +5122,6 @@ namespace MVCore.GMDL
     public class AnimMetadata: TkAnimMetadata
     {
         public float duration;
-        public float interval;
         public Dictionary<string, Quaternion[]> anim_rotations;
         public Dictionary<string, Vector3[]> anim_positions;
         public Dictionary<string, Vector3[]> anim_scales;
@@ -5133,8 +5135,7 @@ namespace MVCore.GMDL
             AnimFrameData = amd.AnimFrameData;
             StillFrameData = amd.StillFrameData;
 
-            duration = FrameCount * 1000.0f / MVCore.Common.RenderOptions.animFPS;
-            interval = duration / FrameCount;
+            duration = FrameCount * 1000.0f;
         }
 
         public AnimMetadata()
@@ -5243,7 +5244,7 @@ namespace MVCore.GMDL
 
         public bool isValid
         {
-            get { return animMeta != null;}
+            get { return Filename != "";}
         }
 
         public string PAnimType
@@ -5296,7 +5297,7 @@ namespace MVCore.GMDL
         }
 
 
-        public void animate(float dt)
+        public void animate(float dt) //time in milliseconds
         {
             if (!loaded)
             {
@@ -5307,8 +5308,8 @@ namespace MVCore.GMDL
             if (animMeta != null)
             {
                 float activeAnimDuration = animMeta.duration / Speed;
-                float activeAnimInterval = animMeta.interval / Speed;
-
+                float activeAnimInterval = activeAnimDuration / (Common.RenderOptions.animFPS * animMeta.FrameCount);
+                
                 animationTime += dt; //Progress time
 
                 if ((AnimType == AnimTypeEnum.OneShot) && animationTime > activeAnimDuration)
@@ -5323,7 +5324,7 @@ namespace MVCore.GMDL
 
                 
                 //Find frames
-                prevFrameIndex = (int) Math.Floor((double) (animationTime / activeAnimInterval));
+                prevFrameIndex = (int) Math.Floor(animationTime / activeAnimInterval) % animMeta.FrameCount;
                 nextFrameIndex = (prevFrameIndex + 1) % animMeta.FrameCount;
 
                 float prevFrameTime = prevFrameIndex * activeAnimInterval;
