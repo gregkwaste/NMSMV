@@ -50,8 +50,7 @@
         </DockPanel>
 
         <DockPanel Grid.Row="3" Grid.Column="1" LastChildFill="True">
-            <TextBlock TextAlignment="Center" FontSize="20" Width="400">Contact</TextBlock>
-            <TextBlock TextAlignment="Center" FontSize="20" Width="Auto"><Hyperlink NavigateUri="mailto:gregkwaste@gmail.com"  Click="Hyperlink_Click">gregkwaste@gmail.com</Hyperlink></TextBlock>
+            <TextBlock TextAlignment="Center" FontSize="20" Width="Auto">Contact: <Hyperlink NavigateUri="mailto:gregkwaste@gmail.com"  Click="Hyperlink_Click">gregkwaste@gmail.com</Hyperlink></TextBlock>
         </DockPanel>
     </Grid>
 

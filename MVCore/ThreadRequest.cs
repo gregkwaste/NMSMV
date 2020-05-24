@@ -33,11 +33,13 @@ namespace MVCore
         public List<object> arguments;
         public THREAD_REQUEST_TYPE type;
         public THREAD_REQUEST_STATUS status;
+        public int response;
         public ThreadRequest()
         {
             type = THREAD_REQUEST_TYPE.NULL;
             status = THREAD_REQUEST_STATUS.ACTIVE;
             arguments = new List<object>();
+            response = 0;
         }
     }
 }

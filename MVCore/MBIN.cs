@@ -522,7 +522,6 @@ namespace MVCore
                 //Load Gstream and Create gobject
 
                 Stream fs, gfs;
-                string geompath = Path.Combine(FileUtils.dirpath, geomfile) + ".PC";
                 
                 fs = NMSUtils.LoadNMSFileStream(geomfile + ".PC", ref Common.RenderState.activeResMgr);
 
@@ -538,9 +537,8 @@ namespace MVCore
 
                 if (fs is null)
                 {
-                    MessageBox.Show("Could not find geometry file " + geompath);
-                    Common.CallBacks.Log(string.Format("Could not find geometry file {0} ",
-                        Path.Combine(FileUtils.dirpath, geomfile)));
+                    MessageBox.Show("Could not find geometry file " + geomfile + ".PC");
+                    Common.CallBacks.Log(string.Format("Could not find geometry file {0} ", geomfile + ".PC"));
 
                     //Create Dummy Scene
                     scene dummy = new scene();
@@ -553,7 +551,7 @@ namespace MVCore
                 gobject = Parse(ref fs, ref gfs);
                 Common.RenderState.activeResMgr.GLgeoms[geomfile] = gobject;
                 Common.CallBacks.Log(string.Format("Geometry file {0} successfully parsed",
-                    Path.Combine(FileUtils.dirpath, geomfile)));
+                    geomfile + ".PC"));
                 
                 fs.Close();
                 gfs.Close();
@@ -620,7 +618,6 @@ namespace MVCore
             for (int i = 0; i < component.LODModel.Count; i++)
             {
                 string filepath = component.LODModel[i].LODModel.Filename;
-                filepath = Path.Combine(FileUtils.dirpath, filepath);
                 Console.WriteLine("Loading LOD " + filepath);
                 scene so = LoadObjects(filepath);
                 so.parent = node; //Set parent
@@ -1090,8 +1087,7 @@ namespace MVCore
                 Console.WriteLine("Reference Detected");
 
                 string scene_ref = node.Attributes.FirstOrDefault(item => item.Name == "SCENEGRAPH").Value;
-                Common.CallBacks.Log(string.Format("Loading Reference {0}",
-                    Path.Combine(FileUtils.dirpath, scene_ref)));
+                Common.CallBacks.Log(string.Format("Loading Reference {0}", scene_ref));
 
                 //Getting Scene MBIN file
                 //string exmlPath = Path.GetFullPath(Util.getFullExmlPath(path));
@@ -1211,14 +1207,17 @@ namespace MVCore
                     float radius = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "RADIUS"));
                     float height = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HEIGHT"));
                     CallBacks.Log(string.Format("Cylinder Collision r:{0} h:{1}", radius, height));
-                    so.meshVao = new GLMeshVao();
-                    so.meshVao.vao = (new MVCore.Primitives.Cylinder(radius,height)).getVAO();
-                    so.instanceId = so.meshVao.addInstance(so); //Add instance
-                    so.collisionType = COLLISIONTYPES.CYLINDER;
+                    
                     metaData.batchstart_graphics = 0;
                     metaData.batchcount = 120;
                     metaData.vertrstart_graphics = 0;
                     metaData.vertrend_graphics = 22 - 1;
+                    so.metaData = metaData;
+                    so.meshVao = new GLMeshVao(so.metaData);
+                    so.meshVao.vao = (new MVCore.Primitives.Cylinder(radius,height)).getVAO();
+                    so.instanceId = so.meshVao.addInstance(so); //Add instance
+                    so.collisionType = COLLISIONTYPES.CYLINDER;
+                    
                 }
                 else if (collisionType == "BOX")
                 {
@@ -1227,17 +1226,19 @@ namespace MVCore
                     float width = MathUtils.FloatParse(node.Attributes.FirstOrDefault(item => item.Name == "WIDTH").Value);
                     float height = MathUtils.FloatParse(node.Attributes.FirstOrDefault(item => item.Name == "HEIGHT").Value);
                     float depth = MathUtils.FloatParse(node.Attributes.FirstOrDefault(item => item.Name == "DEPTH").Value);
-
                     Common.CallBacks.Log(string.Format("Sphere Collision w:{0} h:{0} d:{0}", width, height, depth));
-                    so.meshVao = new GLMeshVao(so.metaData);
-                    so.meshVao.vao = (new MVCore.Primitives.Box(width, height, depth)).getVAO();
-                    so.instanceId = so.meshVao.addInstance(so); //Add instance
-                    so.collisionType = COLLISIONTYPES.BOX;
                     //Set general vao properties
                     metaData.batchstart_graphics = 0;
                     metaData.batchcount = 36;
                     metaData.vertrstart_graphics = 0;
-                    metaData.vertrend_graphics = 8-1;
+                    metaData.vertrend_graphics = 8 - 1;
+                    so.metaData = metaData;
+                    
+                    so.meshVao = new GLMeshVao(so.metaData);
+                    so.meshVao.vao = (new MVCore.Primitives.Box(width, height, depth)).getVAO();
+                    so.instanceId = so.meshVao.addInstance(so); //Add instance
+                    so.collisionType = COLLISIONTYPES.BOX;
+                    
 
                 }
                 else if (collisionType == "CAPSULE")
@@ -1246,28 +1247,31 @@ namespace MVCore
                     float radius = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "RADIUS"));
                     float height = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HEIGHT"));
                     Common.CallBacks.Log(string.Format("Capsule Collision r:{0} h:{1}", radius, height));
-                    so.meshVao = new GLMeshVao(so.metaData);
-                    so.meshVao.vao = (new MVCore.Primitives.Capsule(new Vector3(), height, radius)).getVAO();
-                    so.instanceId = so.meshVao.addInstance(so); //Add instance
-                    so.collisionType = COLLISIONTYPES.CAPSULE;
                     metaData.batchstart_graphics = 0;
                     metaData.batchcount = 726;
                     metaData.vertrstart_graphics = 0;
                     metaData.vertrend_graphics = 144 - 1;
+                    so.metaData = metaData;
+                    so.meshVao = new GLMeshVao(so.metaData);
+                    so.meshVao.vao = (new MVCore.Primitives.Capsule(new Vector3(), height, radius)).getVAO();
+                    so.instanceId = so.meshVao.addInstance(so); //Add instance
+                    so.collisionType = COLLISIONTYPES.CAPSULE;
+                    
                 }
                 else if (collisionType == "SPHERE")
                 {
                     //Set cvbo
                     float radius = MathUtils.FloatParse(node.Attributes.FirstOrDefault(item => item.Name == "RADIUS").Value);
                     Common.CallBacks.Log(string.Format("Sphere Collision r:{0}", radius));
-                    so.meshVao = new GLMeshVao(so.metaData);
-                    so.meshVao.vao = (new MVCore.Primitives.Sphere(new Vector3(), radius)).getVAO();
-                    so.instanceId = so.meshVao.addInstance(so); //Add instance
-                    so.collisionType = COLLISIONTYPES.SPHERE;
                     metaData.batchstart_graphics = 0;
                     metaData.batchcount = 600;
                     metaData.vertrstart_graphics = 0;
                     metaData.vertrend_graphics = 121 - 1;
+                    so.metaData = metaData;
+                    so.meshVao = new GLMeshVao(so.metaData);
+                    so.meshVao.vao = (new MVCore.Primitives.Sphere(new Vector3(), radius)).getVAO();
+                    so.instanceId = so.meshVao.addInstance(so); //Add instance
+                    so.collisionType = COLLISIONTYPES.SPHERE;
                 }
                 else
                 {

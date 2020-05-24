@@ -7,11 +7,11 @@
 /* Copies incoming fragment color without change. */
 
 //Diffuse Textures
-uniform sampler2DMS InTex;
+uniform sampler2D InTex;
 
 out vec4 fragColour; 
 
 void main()
 {
-	fragColour = vec4(texelFetch(InTex, ivec2(gl_FragCoord.xy), 0).rgb, 1.0);
+	fragColour = texelFetch(InTex, ivec2(gl_FragCoord.xy), 0);
 }

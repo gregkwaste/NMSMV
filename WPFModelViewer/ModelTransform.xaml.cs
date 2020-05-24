@@ -3,6 +3,8 @@ using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using libMBIN;
+using libMBIN.NMS.Toolkit;
 using MVCore;
 using MVCore.GMDL;
 using OpenTK;
@@ -181,7 +183,10 @@ namespace WPFModelViewer
                 //Fetch scene name
                 string[] split = _mdl.nms_template.Name.Split('\\');
                 string scnName = split[split.Length - 1];
-                _mdl.nms_template.WriteToExml(scnName + ".SCENE.EXML");
+
+                TkSceneNodeData temp = _mdl.ExportTemplate(true);
+                
+                temp.WriteToExml(scnName + ".SCENE.EXML");
                 MessageBox.Show("Scene successfully exported to " + scnName + ".exml");
             }
         }
@@ -194,7 +199,9 @@ namespace WPFModelViewer
                 //Fetch scene name
                 string[] split = _mdl.nms_template.Name.Split('\\');
                 string scnName = split[split.Length - 1];
-                _mdl.nms_template.WriteToMbin(scnName.ToUpper() + ".SCENE.MBIN");
+                
+                TkSceneNodeData temp = _mdl.ExportTemplate(true);
+                temp.WriteToMbin(scnName.ToUpper() + ".SCENE.MBIN");
                 MessageBox.Show("Scene successfully exported to " + scnName.ToUpper() + ".MBIN");
             }
         }

@@ -24,7 +24,7 @@ namespace WPFModelViewer
             InitializeComponent();
 
             //Override version
-            Version.Text = Util.Version;
+            Version.Text = Util.getVersion();
             DonateLink.NavigateUri =  new Uri(Util.donateLink);
         }
 

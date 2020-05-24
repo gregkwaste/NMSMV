@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using GLSLHelper;
 using libMBIN.NMS.Toolkit;
 using OpenTK;
 using OpenTK.Graphics.OpenGL4;
@@ -157,11 +159,20 @@ namespace MVCore
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, to_fbo);
             GL.DrawBuffer(to_channel); //Write to blur1
 
-            //Method 1: Use Blitbuffer
             GL.BlitFramebuffer(0, 0, sourceSizeX, sourceSizeY, 0, 0, destSizeX, destSizeY,
             ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Linear);
+            
         }
-        
+
+        public static void copyDepthChannel(int from_fbo, int to_fbo, int sourceSizeX, int sourceSizeY, int destSizeX, int destSizeY)
+        {
+            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, from_fbo);
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, to_fbo);
+            
+            GL.BlitFramebuffer(0, 0, sourceSizeX, sourceSizeY, 0, 0, destSizeX, destSizeY,
+            ClearBufferMask.DepthBufferBit, BlitFramebufferFilter.Nearest);
+        }
+
         public static void copyChannel(int fbo, int sourceSizeX, int sourceSizeY, ReadBufferMode from_channel, DrawBufferMode to_channel)
         {
             GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, fbo);
@@ -171,7 +182,7 @@ namespace MVCore
 
             //Method 1: Use Blitbuffer
             GL.BlitFramebuffer(0, 0, sourceSizeX, sourceSizeY, 0, 0, sourceSizeX, sourceSizeY,
-            ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Linear);
+            ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Nearest);
         }
 
     }
@@ -185,6 +196,7 @@ namespace MVCore
         public int blur1 = -1;
         public int blur2 = -1;
         public int composite = -1;
+        public int depth = -1;
 
         //Buffer Specs
         public int[] size;
@@ -210,14 +222,22 @@ namespace MVCore
                 Console.WriteLine("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
             //Setup color texture
-            setup_texture(ref color, TextureTarget.Texture2D, fbo, FramebufferAttachment.ColorAttachment0, PixelInternalFormat.Rgba16f);
+            setup_texture(ref color, TextureTarget.Texture2D, PixelInternalFormat.Rgba16f, false);
+            bindTextureToFBO(color, TextureTarget.Texture2D, fbo, FramebufferAttachment.ColorAttachment0);
             //Setup blur1 texture
-            setup_texture(ref blur1, TextureTarget.Texture2D, fbo, FramebufferAttachment.ColorAttachment1, PixelInternalFormat.Rgba16f);
+            setup_texture(ref blur1, TextureTarget.Texture2D, PixelInternalFormat.Rgba16f, false);
+            bindTextureToFBO(blur1, TextureTarget.Texture2D, fbo, FramebufferAttachment.ColorAttachment1);
             //Setup blur2 texture
-            setup_texture(ref blur2, TextureTarget.Texture2D, fbo, FramebufferAttachment.ColorAttachment2, PixelInternalFormat.Rgba16f);
+            setup_texture(ref blur2, TextureTarget.Texture2D, PixelInternalFormat.Rgba16f, false);
+            bindTextureToFBO(blur2, TextureTarget.Texture2D, fbo, FramebufferAttachment.ColorAttachment2);
             //Setup composite texture
-            setup_texture(ref composite, TextureTarget.Texture2D, fbo, FramebufferAttachment.ColorAttachment3, PixelInternalFormat.Rgba16f);
+            setup_texture(ref composite, TextureTarget.Texture2D, PixelInternalFormat.Rgba16f, false);
+            bindTextureToFBO(composite, TextureTarget.Texture2D, fbo, FramebufferAttachment.ColorAttachment3);
             
+            //Setup depth texture
+            setup_texture(ref depth, TextureTarget.Texture2D, PixelInternalFormat.DepthComponent, true);
+            bindTextureToFBO(depth, TextureTarget.Texture2D, fbo, FramebufferAttachment.DepthAttachment);
+
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
                 Console.WriteLine("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
@@ -227,14 +247,13 @@ namespace MVCore
         }
 
 
-        public void setup_texture(ref int handle, TextureTarget textarget, int attach_to_fbo, FramebufferAttachment attachment_id, PixelInternalFormat format)
+        public void setup_texture(ref int handle, TextureTarget textarget, PixelInternalFormat format, bool isDepth)
         {
             handle = GL.GenTexture();
+            GL.BindTexture(textarget, handle);
 
             if (textarget == TextureTarget.Texture2DMultisample)
             {
-                GL.BindTexture(TextureTarget.Texture2DMultisample, handle);
-
                 //GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent, size[0], size[1], 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
                 GL.TexImage2DMultisample(TextureTargetMultisample.Texture2DMultisample, msaa_samples, format, size[0], size[1], true);
                 //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
@@ -242,47 +261,32 @@ namespace MVCore
                 //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
                 //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
 
-                GL.BindFramebuffer(FramebufferTarget.FramebufferExt, attach_to_fbo);
-                GL.FramebufferTexture2D(FramebufferTarget.FramebufferExt, attachment_id, TextureTarget.Texture2DMultisample, handle, 0);
-                //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
             }
             else if (textarget == TextureTarget.Texture2D)
             {
-                GL.BindTexture(TextureTarget.Texture2D, handle);
+                if (isDepth)
+                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent, size[0], size[1], 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
+                else
+                    GL.TexImage2D(TextureTarget.Texture2D, 0, format, size[0], size[1], 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
 
-                //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
-
-                //GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent, size[0], size[1], 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
-                //GL.TexImage2DMultisample(TextureTargetMultisample.Texture2DMultisample, msaa_samples, format, size[0], size[1], true);
-
-                switch (format)
-                {
-                    case PixelInternalFormat.DepthComponent:
-                        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent, size[0], size[1], 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
-                        break;
-                    default:
-                        GL.TexImage2D(TextureTarget.Texture2D, 0, format, size[0], size[1], 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
-                        break;
-                }
 
                 GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
                 GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
                 GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
                 GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
 
-                GL.BindFramebuffer(FramebufferTarget.FramebufferExt, attach_to_fbo);
-                //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
-                GL.FramebufferTexture2D(FramebufferTarget.FramebufferExt, attachment_id, TextureTarget.Texture2D, handle, 0);
-                //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
-                //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
             }
             else
             {
                 throw new Exception("Unsupported texture target " + textarget);
             }
+        }
 
-
-
+        //TODO: Organize this function a bit
+        public void bindTextureToFBO(int texHandle, TextureTarget textarget, int attach_to_fbo, FramebufferAttachment attachment_id)
+        {
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, attach_to_fbo);
+            GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, attachment_id, textarget, texHandle, 0);
         }
 
         public void Cleanup()
@@ -397,8 +401,8 @@ namespace MVCore
                     GL.TexImage2D(TextureTarget.Texture2D, 0, format, size[0], size[1], 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
 
 
-                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int) TextureMagFilter.Nearest);
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int) TextureMinFilter.Nearest);
                 GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
                 GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
 

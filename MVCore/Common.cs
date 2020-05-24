@@ -6,6 +6,10 @@ using OpenTK.Graphics.OpenGL4;
 using MVCore.GMDL;
 using MVCore;
 using GLSLHelper;
+using WPFModelViewer;
+using System.Windows.Controls;
+using System.ComponentModel;
+using System.Windows.Forms;
 
 namespace MVCore.Common
 {
@@ -14,50 +18,108 @@ namespace MVCore.Common
         //Add a random generator just for the procgen procedures
         public static Random randgen = new Random();
 
-        //Force Procgen
-        public static bool forceProcGen;
-
         //Keep the view rotation Matrix
         public static Matrix4 rotMat;
 
+        //RenderSettings
+        public static RenderSettings renderSettings = new RenderSettings();
+
+        //renderViewSettings
+        public static RenderViewSettings renderViewSettings = new RenderViewSettings();
+
+        //App Settings
+        public static Settings settings = new Settings();
+
         //Keep the main camera global
         public static Camera activeCam;
-
-        //ResourceManager
-        public static MVCore.ResourceManager activeResMgr;
-
-        public static RenderOptions renderOpts = new RenderOptions();
+        //Active ResourceManager
+        public static ResourceManager activeResMgr;
 
         public static bool enableShaderCompilationLog = false;
         public static string shaderCompilationLog;
 
     }
 
-    public class RenderOptions
+    public class RenderViewSettings: INotifyPropertyChanged
     {
+        //Properties
+        
+        public bool RenderInfo { get; set; } = true;
+
+        public bool RenderLights { get; set; } = true;
+
+        public bool RenderJoints { get; set; } = true;
+
+        public bool RenderLocators { get; set; } = true;
+
+        public bool RenderCollisions { get; set; } = false;
+
+        public bool RenderBoundHulls { get; set; } = false;
+
+        
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        private void NotifyPropertyChanged(String info)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(info));
+        }
+
+    }
+
+    public class RenderSettings: INotifyPropertyChanged
+    {
+        public int animFPS = 60;
+        public bool _useVSYNC = false;
+        public float _HDRExposure = 0.2f;
         //Set Full rendermode by default
-        public static PolygonMode RENDERMODE = PolygonMode.Fill;
-        public static System.Drawing.Color clearColor = System.Drawing.Color.FromArgb(255, 33, 33, 33);
-        public static float _useTextures = 1.0f;
-        public static float _useLighting = 1.0f;
-        private static bool _useFrustumCulling = true;
-        private static bool _useLODFiltering = true;
-        private static bool _useFXAA = true;
-        private static bool _useVSYNC = false;
-        private static bool _useBLOOM = true;
-        private static bool _toggleAnimations = true;
-        private static bool _renderLights = true;
-        private static bool _renderInfo = true;
-        private static bool _renderJoints = true;
-        private static bool _renderLocators = true;
-        private static bool _renderCollisions = false;
-        private static bool _renderBoundHulls = false;
-        private static bool _renderDebug = false;
-        public static int animFPS = 60;
-        public static float _HDRExposure = 0.2f;
+        public PolygonMode RENDERMODE = PolygonMode.Fill;
+        public System.Drawing.Color clearColor = System.Drawing.Color.FromArgb(255, 33, 33, 33);
+        public float _useTextures = 1.0f;
+        public float _useLighting = 1.0f;
+        
+        //Properties
+
+        public bool UseFXAA { get; set; } = true;
+
+        public bool UseBLOOM { get; set; } = true;
+
+        public bool UseVSYNC
+        {
+            get
+            {
+                return _useVSYNC;
+            }
+            set
+            {
+                _useVSYNC = value;
+                NotifyPropertyChanged("UseVSYNC");
+            }
+        }
+
+        
+        public string AnimFPS
+        {
+            get => animFPS.ToString();
+            set
+            {
+                int.TryParse(value, out animFPS);
+                NotifyPropertyChanged("AnimFPS");
+            }
+        }
+
+        public string HDRExposure
+        {
+            get => _HDRExposure.ToString();
+            set
+            {
+                float.TryParse(value, out _HDRExposure);
+                NotifyPropertyChanged("HDRExposure");
+            }
+        }
 
         //Add properties
-        public static bool UseTextures
+        public bool UseTextures
         {
             get
             {
@@ -70,10 +132,11 @@ namespace MVCore.Common
                     _useTextures = 1.0f;
                 else
                     _useTextures = 0.0f;
+                NotifyPropertyChanged("UseTextures");
             }
         }
 
-        public static bool UseLighting
+        public bool UseLighting
         {
             get
             {
@@ -86,41 +149,15 @@ namespace MVCore.Common
                     _useLighting = 1.0f;
                 else
                     _useLighting = 0.0f;
+                NotifyPropertyChanged("UseLighting");
             }
         }
 
-        public static bool UseFrustumCulling
-        {
-            get => _useFrustumCulling;
-            set => _useFrustumCulling = value;
-        }
+        public bool UseFrustumCulling { get; set; } = true;
 
-        public static bool LODFiltering
-        {
-            get => _useLODFiltering;
-            set => _useLODFiltering = value;
-        }
+        public bool LODFiltering { get; set; } = true;
 
-        public static bool UseFXAA
-        {
-            get => _useFXAA;
-            set => _useFXAA = value;
-        }
-
-        public static bool UseBLOOM
-        {
-            get => _useBLOOM;
-            set => _useBLOOM = value;
-        }
-
-        public static bool UseVSYNC
-        {
-            get => _useVSYNC;
-            set => _useVSYNC = value;
-        }
-
-
-        public static bool ToggleWireframe
+        public bool ToggleWireframe
         {
             get => (RENDERMODE == PolygonMode.Line);
             set
@@ -132,67 +169,87 @@ namespace MVCore.Common
             }
         }
 
-        public static bool ToggleAnimations
+        public bool ToggleAnimations { get; set; }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        private void NotifyPropertyChanged(String info)
         {
-            get => _toggleAnimations;
-            set => _toggleAnimations = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(info));
         }
 
-        public static bool RenderInfo
+    }
+
+
+
+    public class Settings : INotifyPropertyChanged
+    {
+        private int forceProcGen;
+        private string gamedir;
+        private string unpackdir;
+        private int _procGenWinNum;
+
+        public string GameDir
         {
-            get => _renderInfo;
-            set => _renderInfo = value;
-        }
+            get
+            {
+                return gamedir;
+            }
 
-        public static bool RenderLights
-        {
-            get => _renderLights;
-            set => _renderLights = value;
-        }
-
-
-        public static bool RenderJoints
-        {
-            get => _renderJoints;
-            set => _renderJoints = value;
-        }
-
-        public static bool RenderLocators
-        {
-            get => _renderLocators;
-            set => _renderLocators = value;
-            
-        }
-
-        public static bool RenderCollisions {
-            get => _renderCollisions;
-            set => _renderCollisions = value;
-        }
-
-        public static bool RenderBoundHulls
-        {
-            get => _renderBoundHulls;
-            set => _renderBoundHulls = value;
-        }
-
-        public static string AnimFPS
-        {
-            get => animFPS.ToString();
             set
             {
-                int.TryParse(value, out animFPS);
+                gamedir = value;
+                NotifyPropertyChanged("GameDir");
             }
         }
 
-        public static string HDRExposure
+        public string UnpackDir
         {
-            get => _HDRExposure.ToString();
+
+            get
+            {
+                return unpackdir;
+            }
+
             set
             {
-                float.TryParse(value, out _HDRExposure);
+                unpackdir = value;
+                NotifyPropertyChanged("UnpackDir");
+            }
+
+        }
+
+        public int ProcGenWinNum {
+            get
+            {
+                return _procGenWinNum;
+            }
+            set
+            {
+                _procGenWinNum = value;
+                NotifyPropertyChanged("ProcGenWinNum");
             }
         }
 
+        public int ForceProcGen
+        {
+            get => forceProcGen;
+            set
+            {
+                if (value > 0)
+                    forceProcGen = 1;
+                else
+                    forceProcGen = 0;
+                NotifyPropertyChanged("ForceProcGen");
+            }
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+        
+        private void NotifyPropertyChanged(String info)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(info));
+        }
     }
 
     public static class RenderStats

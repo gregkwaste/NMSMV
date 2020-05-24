@@ -29,6 +29,7 @@ using GLSLHelper;
 using System.Windows.Forms;
 using System.Security.Permissions;
 using SharpFont;
+using WPFModelViewer.Properties;
 //using Matrix4 = MathNet.Numerics.LinearAlgebra.Matrix<float>;
 
 
@@ -401,6 +402,34 @@ namespace MVCore.GMDL
                 this.children.Add(nChild);
             }
         }
+
+        //NMSTEmplate Export
+
+        public virtual TkSceneNodeData ExportTemplate(bool keepRenderable)
+        {
+            //Copy main info
+            TkSceneNodeData cpy = new TkSceneNodeData();
+            
+            cpy.Transform = nms_template.Transform;
+            cpy.Attributes = nms_template.Attributes;
+            cpy.Type = nms_template.Type;
+            cpy.Name = nms_template.Name;
+            cpy.NameHash = nms_template.NameHash;
+
+            if (children.Count > 0)
+                cpy.Children = new List<TkSceneNodeData>();
+            
+            foreach (model child in children)
+            {
+                if (!child.renderable && keepRenderable)
+                    continue;
+                else if (child.nms_template != null)
+                    cpy.Children.Add(child.ExportTemplate(keepRenderable));
+            }
+
+            return cpy;
+        }
+
 
 
         #region ComponentQueries
@@ -834,7 +863,7 @@ namespace MVCore.GMDL
 
         public override void updateMeshInfo()
         {
-            if (Common.RenderOptions.RenderLocators && renderable)
+            if (renderable)
             {
                 //Upload worldMat to the meshVao
                 instanceId = meshVao.addInstance(this);
@@ -1102,8 +1131,6 @@ namespace MVCore.GMDL
 
         public void renderBbox(int pass, int instance_id)
         {
-            GL.UseProgram(pass);
-
             if (getInstanceOccludedStatus(instance_id))
                 return;
 
@@ -1176,8 +1203,6 @@ namespace MVCore.GMDL
             GL.PointSize(5.0f);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, eb_bbox);
 
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
-
             GL.DrawRangeElements(PrimitiveType.Triangles, 0, verts1.Length,
                 indices.Length, DrawElementsType.UnsignedInt, IntPtr.Zero);
 
@@ -1214,11 +1239,7 @@ namespace MVCore.GMDL
 
         private void renderMesh()
         {
-            //Step 2 Bind & Render Vao
-            //Render Elements
             GL.BindVertexArray(vao.vao_id);
-            //GL.DrawElements(PrimitiveType.Triangles, batchcount, indicesLength, IntPtr.Zero);
-            //Use Instancing
             GL.DrawElementsInstanced(PrimitiveType.Triangles, metaData.batchcount, indicesLength,
                 IntPtr.Zero, instance_count);
             GL.BindVertexArray(0);
@@ -1226,8 +1247,6 @@ namespace MVCore.GMDL
 
         private void renderLight()
         {
-            //Step 2 Bind & Render Vao
-            //Render Elements
             GL.BindVertexArray(vao.vao_id);
             GL.PointSize(5.0f);
             GL.DrawArraysInstanced(PrimitiveType.Lines, 0, 2, instance_count);
@@ -1238,10 +1257,9 @@ namespace MVCore.GMDL
         private void renderCollision()
         {
             //Step 2: Render Elements
-            GL.PointSize(10.0f);
+            GL.PointSize(8.0f);
             GL.BindVertexArray(vao.vao_id);
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
-
+            
             switch (collisionType)
             {
                 //Rendering based on the original mesh buffers
@@ -1257,12 +1275,13 @@ namespace MVCore.GMDL
                 case COLLISIONTYPES.CYLINDER:
                 case COLLISIONTYPES.CAPSULE:
                 case COLLISIONTYPES.SPHERE:
+                    GL.DrawElementsInstanced(PrimitiveType.Points, metaData.batchcount,
+                        DrawElementsType.UnsignedInt, IntPtr.Zero, instance_count);
                     GL.DrawElementsInstanced(PrimitiveType.Triangles, metaData.batchcount,
                         DrawElementsType.UnsignedInt, IntPtr.Zero, instance_count);
                     break;
             }
 
-            GL.PolygonMode(MaterialFace.FrontAndBack, Common.RenderOptions.RENDERMODE);
             GL.BindVertexArray(0);
         }
 
@@ -1339,27 +1358,13 @@ namespace MVCore.GMDL
             }
         }
 
-        public virtual void renderDecals(GLSLHelper.GLSLShaderConfig shader, GBuffer gbuf)
-        {
-            //Bind Depth Buffer
-            GL.Uniform1(shader.uniformLocations["depthTex"], 6);
-            GL.ActiveTexture(TextureUnit.Texture6);
-            GL.BindTexture(TextureTarget.Texture2D, gbuf.depth_dump);
-
-            renderMain(shader);
-        }
-
         private void renderBHull(GLSLHelper.GLSLShaderConfig shader)
         {
-            GL.UseProgram(shader.program_id);
-
-            GL.Uniform1(shader.uniformLocations["scale"], 1.0f);
-
+            if (bHullVao == null) return;
             //I ASSUME THAT EVERYTHING I NEED IS ALREADY UPLODED FROM A PREVIOUS PASS
-            GL.PointSize(10.0f);
+            GL.PointSize(8.0f);
             GL.BindVertexArray(bHullVao.vao_id);
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
-
+            
             GL.DrawElementsBaseVertex(PrimitiveType.Points, metaData.batchcount,
                         indicesLength, IntPtr.Zero, -metaData.vertrstart_physics);
             GL.DrawElementsBaseVertex(PrimitiveType.Triangles, metaData.batchcount,
@@ -1400,7 +1405,7 @@ namespace MVCore.GMDL
 
 
         //Default render method
-        public bool render(GLSLHelper.GLSLShaderConfig shader, RENDERPASS pass, GBuffer gbuf = null)
+        public bool render(GLSLShaderConfig shader, RENDERPASS pass)
         {
             //Render Object
             switch (pass)
@@ -1408,16 +1413,14 @@ namespace MVCore.GMDL
                 //Render Main
                 case RENDERPASS.DEFERRED:
                 case RENDERPASS.FORWARD:
-                    renderMain(shader);
-                    break;
                 case RENDERPASS.DECAL:
-                    renderDecals(shader, gbuf);
+                    renderMain(shader);
                     break;
                 case RENDERPASS.BBOX:
                 case RENDERPASS.BHULL:
-                    renderBbox(shader.program_id, 0);
+                    //renderBbox(shader.program_id, 0);
                     //renderBSphere(shader);
-                    //renderBHull(shader);
+                    renderBHull(shader);
                     break;
                 //Render Debug
                 case RENDERPASS.DEBUG:
@@ -1839,7 +1842,7 @@ namespace MVCore.GMDL
             }
 
             bool fr_status = Common.RenderState.activeCam.frustum_occlude(this);
-            bool occluded_status = !fr_status && Common.RenderOptions.UseFrustumCulling;
+            bool occluded_status = !fr_status && Common.RenderState.renderSettings.UseFrustumCulling;
                 
             //Recalculations && Data uploads
             if (!occluded_status)
@@ -2203,7 +2206,7 @@ namespace MVCore.GMDL
 
         public override void updateMeshInfo()
         {
-            if (renderable && Common.RenderOptions.RenderCollisions)
+            if (renderable)
             {
                 instanceId = meshVao.addInstance(this);
                 base.updateMeshInfo();
@@ -2879,6 +2882,8 @@ namespace MVCore.GMDL
                 "_F35_GLOW_MASK",
                 "_F39_METALLIC_MASK",
                 "_F43_NORMAL_TILING",
+                "_F51_DECAL_DIFFUSE",
+                "_F52_DECAL_NORMAL",
                 "_F55_MULTITEXTURE"};
 
     public string PName
@@ -3000,14 +3005,9 @@ namespace MVCore.GMDL
         {
             
             //Get MaterialFlags
-            MVCore.Common.CallBacks.Log("Material Flags: ");
-            
             foreach (TkMaterialFlags f in Flags)
-            {
                 material_flags[(int) f.MaterialFlag] = 1.0f;
-                //MVCore.Common.CallBacks.Log(((TkMaterialFlags.MaterialFlagEnum)f.MaterialFlag).ToString() + " ");
-            }
-
+            
             //Get Uniforms
             foreach (TkMaterialUniform un in Uniforms)
             {
@@ -3067,14 +3067,12 @@ namespace MVCore.GMDL
                     includes.Add(MaterialFlags[i]);
             }
 
-            shaderHash = GLSLHelper.GLShaderHelper.calculateShaderHash(includes);
-            
+            shaderHash = GLShaderHelper.calculateShaderHash(includes);
             
             if (!Common.RenderState.activeResMgr.shaderExistsForMaterial(this))
                 compileMaterialShader();
             
-            
-            MVCore.Common.CallBacks.Log("\n");
+            Common.CallBacks.Log("\n");
         }
 
         //Wrapper to support uberflags
@@ -3167,31 +3165,40 @@ namespace MVCore.GMDL
 
             List<string> includes = new List<string>();
             List<string> defines = new List<string>();
-            
+
             //Save shader to resource Manager
-            if (MaterialFlags.Contains("_F51_DECAL_DIFFUSE") ||
+            //Check for explicit materials
+            if (Name == "collisionMat" || Name == "jointMat" || Name == "crossMat")
+            {
+                shaderDict = Common.RenderState.activeResMgr.GLDefaultShaderMap;
+                meshList = Common.RenderState.activeResMgr.defaultMeshShaderMap;
+                defines.Add("_D_DEFERRED_RENDERING");
+            }
+            else if (MaterialFlags.Contains("_F51_DECAL_DIFFUSE") ||
                 MaterialFlags.Contains("_F52_DECAL_NORMAL"))
             {
-                shaderDict = Common.RenderState.activeResMgr.GLForwardShaderMapDecal;
-                meshList = Common.RenderState.activeResMgr.decalMeshList;
+                shaderDict = Common.RenderState.activeResMgr.GLDeferredShaderMapDecal;
+                meshList = Common.RenderState.activeResMgr.decalMeshShaderMap;
+                defines.Add("_D_DEFERRED_RENDERING");
             }
             else if (MaterialFlags.Contains("_F09_TRANSPARENT") ||
                      MaterialFlags.Contains("_F22_TRANSPARENT_SCALAR") ||
                      MaterialFlags.Contains("_F11_ALPHACUTOUT"))
             {
                 shaderDict = Common.RenderState.activeResMgr.GLForwardShaderMapTransparent;
-                meshList = Common.RenderState.activeResMgr.transparentMeshList;
+                meshList = Common.RenderState.activeResMgr.transparentMeshShaderMap;
             }
+            
             else if (MaterialFlags.Contains("_F07_UNLIT"))
             {
                 shaderDict = Common.RenderState.activeResMgr.GLDeferredUNLITShaderMap;
-                meshList = Common.RenderState.activeResMgr.opaqueMeshList;
+                meshList = Common.RenderState.activeResMgr.opaqueMeshShaderMap;
                 defines.Add("_D_DEFERRED_RENDERING");
             }
             else
             {
                 shaderDict = Common.RenderState.activeResMgr.GLDeferredLITShaderMap;
-                meshList = Common.RenderState.activeResMgr.opaqueMeshList;
+                meshList = Common.RenderState.activeResMgr.opaqueMeshShaderMap;
                 defines.Add("_D_DEFERRED_RENDERING");
             }
 
@@ -3408,8 +3415,6 @@ namespace MVCore.GMDL
             string temp = split[0] + ".";
             
             string mbinPath = temp + "TEXTURE.MBIN";
-            mbinPath = Path.GetFullPath(Path.Combine(FileUtils.dirpath, mbinPath));
-
             prepareTextures(texMgr, mbinPath);
 
             //Init framebuffer
@@ -3448,9 +3453,7 @@ namespace MVCore.GMDL
         {
             //At this point, at least one sampler exists, so for now I assume that the first sampler
             //is always the diffuse sampler and I can initiate the mixing process
-            string texMbin = Path.GetFullPath(Path.Combine(FileUtils.dirpath, path));
-
-            Console.WriteLine("Procedural Texture Detected: " + texMbin);
+            Console.WriteLine("Procedural Texture Detected: " + path);
             MVCore.Common.CallBacks.Log(string.Format("Parsing Procedural Texture"));
 
             TkProceduralTextureList template = NMSUtils.LoadNMSTemplate(path, ref Common.RenderState.activeResMgr) as TkProceduralTextureList;
@@ -3458,7 +3461,6 @@ namespace MVCore.GMDL
             List<TkProceduralTexture> texList = new List<TkProceduralTexture>(8);
             for (int i = 0; i < 8; i++) texList.Add(null);
             ModelProcGen.parse_procTexture(ref texList, template, ref Common.RenderState.activeResMgr);
-
 
             Common.CallBacks.Log("Proc Texture Selection");
             for (int i = 0; i < 8; i++)
@@ -3555,7 +3557,6 @@ namespace MVCore.GMDL
                 }
                 else if (!texMgr.hasTexture(partNameMask))
                 {
-                    string pathMask = Path.Combine(FileUtils.dirpath, partNameMask);
                     //Configure Mask
                     try
                     {
@@ -3569,8 +3570,8 @@ namespace MVCore.GMDL
                     catch (System.IO.FileNotFoundException)
                     {
                         //Mask Texture not found
-                        Console.WriteLine("Mask Texture " + pathMask + " Not Found");
-                        MVCore.Common.CallBacks.Log(string.Format("Mask Texture {0} Not Found", pathMask));
+                        Console.WriteLine("Mask Texture " + partNameMask + " Not Found");
+                        MVCore.Common.CallBacks.Log(string.Format("Mask Texture {0} Not Found", partNameMask));
                         alphaLayersUsed[i] = 0.0f;
                     }
                 }
@@ -3592,8 +3593,6 @@ namespace MVCore.GMDL
                 }
                 else if (!texMgr.hasTexture(partNameNormal))
                 {
-                    string pathNormal = Path.Combine(FileUtils.dirpath, partNameNormal);
-
                     try
                     {
                         Texture texnormal = new Texture(partNameNormal);
@@ -3605,8 +3604,8 @@ namespace MVCore.GMDL
                     catch (System.IO.FileNotFoundException)
                     {
                         //Normal Texture not found
-                        Console.WriteLine("Normal Texture " + pathNormal + " Not Found");
-                        MVCore.Common.CallBacks.Log(string.Format("Normal Texture {0} Not Found", pathNormal));
+                        Console.WriteLine("Normal Texture " + partNameNormal + " Not Found");
+                        MVCore.Common.CallBacks.Log(string.Format("Normal Texture {0} Not Found", partNameNormal));
                     }
                 }
                 else
@@ -4077,40 +4076,54 @@ namespace MVCore.GMDL
         //Empty Initializer
         public Texture() {}
         //Path Initializer
-        public Texture(string path, bool isCustom=false)
+        public Texture(string path, bool isCustom = false)
         {
-            DDSImage ddsImage;
-            name = path;
-
             Stream fs;
-            if (!isCustom)
-                fs = NMSUtils.LoadNMSFileStream(path, ref Common.RenderState.activeResMgr);
-            else
-                fs = new FileStream(path, FileMode.Open);
-            
             byte[] image_data;
             int data_length;
-
-            if (fs == null)
+            try
             {
-                //throw new System.IO.FileNotFoundException();
-                Console.WriteLine("Texture {0} Missing. Using default.dds", path);
+                if (!isCustom)
+                    fs = NMSUtils.LoadNMSFileStream(path, ref Common.RenderState.activeResMgr);
+                else
+                    fs = new FileStream(path, FileMode.Open);
+                
 
-                //Load default.dds from resources
-                image_data = File.ReadAllBytes("default.dds");
-                data_length = image_data.Length;
-            } else
+                if (fs == null)
+                {
+                    //throw new System.IO.FileNotFoundException();
+                    Console.WriteLine("Texture {0} Missing. Using default.dds", path);
+
+                    //Load default.dds from resources
+                    image_data = File.ReadAllBytes("default.dds");
+                    data_length = image_data.Length;
+                }
+                else
+                {
+                    data_length = (int)fs.Length;
+                    image_data = new byte[data_length];
+                }
+
+                fs.Read(image_data, 0, data_length);
+
+            } catch (FileNotFoundException e)
             {
-                data_length = (int) fs.Length;
-                image_data = new byte[data_length];
+                //Fallback to the default.dds
+                image_data = WPFModelViewer.Properties.Resources._default;
             }
             
-            fs.Read(image_data, 0, data_length);
+            textureInit(image_data, path);
+        }
 
-            ddsImage = new DDSImage(image_data);
+        public void textureInit(byte[] imageData, string _name)
+        {
+            DDSImage ddsImage;
+            name = _name;
+            
+            ddsImage = new DDSImage(imageData);
             MVCore.Common.RenderStats.texturesNum += 1; //Accumulate settings
 
-            Console.WriteLine("Sampler Name Path " + path + " Width {0} Height {1}", ddsImage.header.dwWidth, ddsImage.header.dwHeight);
+            Console.WriteLine("Sampler Name Path " + name + " Width {0} Height {1}", ddsImage.header.dwWidth, ddsImage.header.dwHeight);
             width = ddsImage.header.dwWidth;
             height = ddsImage.header.dwHeight;
             int blocksize = 16;
@@ -4357,7 +4370,7 @@ namespace MVCore.GMDL
         public override void updateMeshInfo()
         {
             //We do not apply frustum occlusion on joint objects
-            if (Common.RenderOptions.RenderJoints && renderable && (children.Count > 0))
+            if (renderable && (children.Count > 0))
             {
                 //Update Vertex Buffer based on the new positions
                 float[] verts = new float[2 * children.Count * 3];
@@ -4623,7 +4636,7 @@ namespace MVCore.GMDL
 
         public override void updateMeshInfo()
         {
-            if (Common.RenderOptions.RenderLights && renderable)
+            if (Common.RenderState.renderViewSettings.RenderLights && renderable)
             {
                 //End Point
                 Vector4 ep;
@@ -5308,7 +5321,7 @@ namespace MVCore.GMDL
             if (animMeta != null)
             {
                 float activeAnimDuration = animMeta.duration / Speed;
-                float activeAnimInterval = activeAnimDuration / (Common.RenderOptions.animFPS * animMeta.FrameCount);
+                float activeAnimInterval = activeAnimDuration / (Common.RenderState.renderSettings.animFPS * animMeta.FrameCount);
                 
                 animationTime += dt; //Progress time
 

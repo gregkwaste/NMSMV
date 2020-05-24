@@ -8,7 +8,8 @@ using MVCore.GMDL;
 using MVCore.Common;
 using System.Runtime.InteropServices;
 using GLSLHelper;
-
+using libMBIN.NMS.GameComponents;
+using System.Windows.Controls;
 
 namespace MVCore
 {
@@ -109,10 +110,9 @@ namespace MVCore
         List<GLMeshVao> movingMeshQueue = new List<GLMeshVao>();
         
         List<GLMeshVao> globalMeshList = new List<GLMeshVao>();
-        List<GLMeshVao> staticMeshUNLITQueue = new List<GLMeshVao>();
-        List<GLMeshVao> staticMeshLITQueue = new List<GLMeshVao>();
-        List<GLMeshVao> transparentMeshQueue = new List<GLMeshVao>();
-        List<GLMeshVao> decalMeshQueue = new List<GLMeshVao>();
+        List<GLMeshVao> collisionMeshList = new List<GLMeshVao>();
+        List<GLMeshVao> locatorMeshList = new List<GLMeshVao>();
+        List<GLMeshVao> jointMeshList = new List<GLMeshVao>();
 
         public ResourceManager resMgr; //REf to the active resource Manager
 
@@ -121,7 +121,6 @@ namespace MVCore
         private Text.TextRenderer txtRenderer;
         public int last_text_height;
         
-
         private GBuffer gbuf;
         private PBuffer pbuf;
         private FBO blur_fbo;
@@ -146,6 +145,8 @@ namespace MVCore
         private int MAX_NUMBER_OF_MESHES = 2000;
         private ulong MAX_OCTREE_WIDTH = 256;
         private int MULTI_BUFFER_COUNT = 3;
+        private DebugProc GLDebug;
+
 
         
         public void init(ResourceManager input_resMgr)
@@ -164,6 +165,38 @@ namespace MVCore
 
             //Initialize Octree
             octree = new Octree(MAX_OCTREE_WIDTH);
+
+#if (DEBUG)
+            GL.Enable(EnableCap.DebugOutput);
+            GL.Enable(EnableCap.DebugOutputSynchronous);
+            
+            GLDebug = new DebugProc(GLDebugMessage);
+
+            GL.DebugMessageCallback(GLDebug, IntPtr.Zero);
+            GL.DebugMessageControl(DebugSourceControl.DontCare, DebugTypeControl.DontCare,
+                DebugSeverityControl.DontCare, 0, new int[] { 0 }, true);
+
+            GL.DebugMessageInsert(DebugSourceExternal.DebugSourceApplication, DebugType.DebugTypeMarker, 0, DebugSeverity.DebugSeverityNotification, -1, "Debug output enabled");
+#endif
+
+        }
+
+        private void GLDebugMessage(DebugSource source, DebugType type, int id, DebugSeverity severity, int length, IntPtr message, IntPtr userParam)
+        {
+            bool report = false;
+            switch (severity)
+            {
+                case DebugSeverity.DebugSeverityHigh:
+                    report = true;
+                    break;
+            }
+
+            if (report)
+            {
+                Console.WriteLine(source == DebugSource.DebugSourceApplication ?
+                $"openGL - {Marshal.PtrToStringAnsi(message, length)}" :
+                $"openGL - {Marshal.PtrToStringAnsi(message, length)}\n\tid:{id} severity:{severity} type:{type} source:{source}\n");
+            }
         }
 
         public void setupGBuffer(int width, int height)
@@ -186,12 +219,12 @@ namespace MVCore
             //Just cleanup the queues
             //The resource manager will handle the cleanup of the buffers and shit
 
-            staticMeshLITQueue.Clear();
-            staticMeshUNLITQueue.Clear();
+            globalMeshList.Clear();
+            collisionMeshList.Clear();
+            locatorMeshList.Clear();
+            jointMeshList.Clear();
             staticObjectsQueue.Clear();
             movingMeshQueue.Clear();
-            transparentMeshQueue.Clear();
-            decalMeshQueue.Clear();
             octree.clear();
         }
 
@@ -199,29 +232,45 @@ namespace MVCore
         {
             RenderState.activeResMgr.activeGLDeferredLITShaders.Clear();
             RenderState.activeResMgr.activeGLDeferredUNLITShaders.Clear();
+            RenderState.activeResMgr.activeGLForwardTransparentShaders.Clear();
 
+            //LIT Deferred
             foreach (GLSLShaderConfig conf in RenderState.activeResMgr.GLDeferredLITShaderMap.Values)
             {
-                if (RenderState.activeResMgr.opaqueMeshList[conf.shaderHash].Count > 0)
+                if (RenderState.activeResMgr.opaqueMeshShaderMap[conf.shaderHash].Count > 0)
                     RenderState.activeResMgr.activeGLDeferredLITShaders.Add(conf);
             }
-                
 
+            //UNLIT DEFERRED
             foreach (GLSLShaderConfig conf in RenderState.activeResMgr.GLDeferredUNLITShaderMap.Values)
             {
-                if (RenderState.activeResMgr.opaqueMeshList[conf.shaderHash].Count > 0)
+                if (RenderState.activeResMgr.opaqueMeshShaderMap[conf.shaderHash].Count > 0)
                     RenderState.activeResMgr.activeGLDeferredUNLITShaders.Add(conf);
+            }
+
+            //TRANSPARENT FORWARD
+            foreach (GLSLShaderConfig conf in RenderState.activeResMgr.GLForwardShaderMapTransparent.Values)
+            {
+                if (RenderState.activeResMgr.transparentMeshShaderMap[conf.shaderHash].Count > 0)
+                    RenderState.activeResMgr.activeGLForwardTransparentShaders.Add(conf);
+            }
+
+            //DECALS (Use the depth buffer but rendered forward
+            foreach (GLSLShaderConfig conf in RenderState.activeResMgr.GLDeferredShaderMapDecal.Values)
+            {
+                if (RenderState.activeResMgr.decalMeshShaderMap[conf.shaderHash].Count > 0)
+                    RenderState.activeResMgr.activeGLDeferredDecalShaders.Add(conf);
             }
         }
 
         public void populate(GMDL.model root)
         {
             cleanup();
-            
+
             //Populate octree
             octree.insert(root);
             octree.report();
-            
+
             foreach (scene s in resMgr.GLScenes.Values)
                 process_models(s);
 
@@ -233,35 +282,50 @@ namespace MVCore
             if (m == null)
                 return;
 
-            if (m.type == TYPES.LOCATOR)
-                Console.WriteLine("test");
-
-
-            Dictionary<int, List<GLMeshVao>> meshList = RenderState.activeResMgr.opaqueMeshList;
-
-            //Check if the model has a transparent material
-            if (m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F51_DECAL_DIFFUSE) ||
+            Dictionary<int, List<GLMeshVao>> shaderMeshMap = RenderState.activeResMgr.opaqueMeshShaderMap;
+            if (m.type == TYPES.COLLISION || m.type == TYPES.LOCATOR || m.type == TYPES.JOINT || m.type == TYPES.MODEL) { 
+                shaderMeshMap = RenderState.activeResMgr.defaultMeshShaderMap;
+            }
+            //Check if the model is a decal
+            else if (m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F51_DECAL_DIFFUSE) ||
                      m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F52_DECAL_NORMAL))
             {
-                meshList = MVCore.Common.RenderState.activeResMgr.decalMeshList;
+                shaderMeshMap = RenderState.activeResMgr.decalMeshShaderMap;
             }
+            //Check if the model has a transparent material
             else if (m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F22_TRANSPARENT_SCALAR) ||
                      m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F09_TRANSPARENT) ||
                      m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F11_ALPHACUTOUT))
             {
-                meshList = MVCore.Common.RenderState.activeResMgr.transparentMeshList;
+                shaderMeshMap = RenderState.activeResMgr.transparentMeshShaderMap;
             }
 
 
-            if (!meshList.ContainsKey(m.material.shaderHash)){
-                Console.WriteLine("WARNING MISSING SHADER");
-            } else
+            //Explicitly handle locator, scenes and collision meshes
+            switch (m.type)
             {
-                if (!meshList[m.material.shaderHash].Contains(m))
-                    meshList[m.material.shaderHash].Add(m);
+                case (TYPES.MODEL):
+                case (TYPES.LOCATOR):
+                    locatorMeshList.Add(m);
+                    break;
+                case (TYPES.COLLISION):
+                    collisionMeshList.Add(m);
+                    break;
+                case (TYPES.JOINT):
+                    jointMeshList.Add(m);
+                    break;
+                default:
+                    {
+                        //Add mesh to the corresponding shader's meshlist
+                        if (!shaderMeshMap.ContainsKey(m.material.shaderHash))
+                            Console.WriteLine("WARNING MISSING SHADER");
+                        else if (!shaderMeshMap[m.material.shaderHash].Contains(m))
+                            shaderMeshMap[m.material.shaderHash].Add(m);
+                        break;
+                    }
             }
 
-            //Add to global Mesh List
+            //Add all meshes to the global meshlist
             if (!globalMeshList.Contains(m))
                 globalMeshList.Add(m);
 
@@ -341,9 +405,10 @@ namespace MVCore
             //attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.MESH_FORWARD_SHADER, "_COMMON_PER_MESH", 1);
             //attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.DECAL_SHADER, "_COMMON_PER_FRAME", 0);
             //attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.DECAL_SHADER, "_COMMON_PER_MESH", 1);
-            GLShaderHelper.attachUBOToShaderBindingPoint(Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_LIT_SHADER], "_COMMON_PER_FRAME", 0);
-            GLShaderHelper.attachUBOToShaderBindingPoint(Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_UNLIT_SHADER], "_COMMON_PER_FRAME", 0);
-            GLShaderHelper.attachUBOToShaderBindingPoint(Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.TONE_MAPPING], "_COMMON_PER_FRAME", 0);
+            GLShaderHelper.attachUBOToShaderBindingPoint(RenderState.activeResMgr.GLShaders[SHADER_TYPE.GBUFFER_LIT_SHADER], "_COMMON_PER_FRAME", 0);
+            GLShaderHelper.attachUBOToShaderBindingPoint(RenderState.activeResMgr.GLShaders[SHADER_TYPE.GBUFFER_UNLIT_SHADER], "_COMMON_PER_FRAME", 0);
+            GLShaderHelper.attachUBOToShaderBindingPoint(RenderState.activeResMgr.GLShaders[SHADER_TYPE.TONE_MAPPING], "_COMMON_PER_FRAME", 0);
+            GLShaderHelper.attachUBOToShaderBindingPoint(RenderState.activeResMgr.GLShaders[SHADER_TYPE.INV_TONE_MAPPING], "_COMMON_PER_FRAME", 0);
             //attachUBOToShaderBindingPoint(GLSLHelper.SHADER_TYPE.GBUFFER_SHADER, "_COMMON_PER_MESH", 1);
 
             //Attach the generated buffers to the binding points
@@ -356,11 +421,11 @@ namespace MVCore
         private void prepareCommonPerFrameUBO()
         {
             //Prepare Struct
-            cpfu.diffuseFlag = RenderOptions._useTextures;
-            cpfu.use_lighting = RenderOptions._useLighting;
+            cpfu.diffuseFlag = RenderState.renderSettings._useTextures;
+            cpfu.use_lighting = RenderState.renderSettings._useLighting;
             cpfu.frameDim.X = gbuf.size[0];
             cpfu.frameDim.Y = gbuf.size[1];
-            cpfu.HDRExposure = RenderOptions._HDRExposure;
+            cpfu.HDRExposure = RenderState.renderSettings._HDRExposure;
             cpfu.mvp = RenderState.activeCam.viewMat;
             cpfu.rotMat = RenderState.rotMat;
             cpfu.lookMatInv = RenderState.activeCam.lookMatInv;
@@ -562,40 +627,6 @@ namespace MVCore
         }
 
 
-        private void sortTransparent()
-        {
-            //I need to check if transparent meshes have more than one instance, because this looks like it is not the case
-
-            transparentMeshQueue.Sort(
-                delegate (GLMeshVao l1, GLMeshVao l2)
-                {
-                    //Calculating distance assuming that the meshes do not move.
-
-                    //TODO: Fix that shit on instanced transparent meshes
-
-                    Vector3 l1_AABBMIN = l1.instanceRefs[0].AABBMIN;
-                    Vector3 l1_AABBMAX = l1.instanceRefs[0].AABBMAX;
-
-                    Vector3 l2_AABBMIN = l2.instanceRefs[0].AABBMIN;
-                    Vector3 l2_AABBMAX = l2.instanceRefs[0].AABBMAX;
-
-                    //Calculate distance from the point to the AABB
-                    Vector3 p = RenderState.activeCam.Position;
-                    float d1 = MathUtils.distance_Point_to_AABB_alt(l1_AABBMIN, l1_AABBMAX, p);
-                    float d2 = MathUtils.distance_Point_to_AABB_alt(l2_AABBMIN, l2_AABBMAX, p);
-
-                    //float d1 = MathUtils.distance_Point_to_AABB(l1.Bbox[0], l1.Bbox[1], p);
-                    //float d2 = MathUtils.distance_Point_to_AABB(l2.Bbox[0], l2.Bbox[1], p);
-
-                    //Console.WriteLine(l1.name + " Distance from camera: {0}", d1);
-                    //Console.WriteLine(l2.name + " Distance from camera: {0}", d2);
-
-                    //return d1.CompareTo(d2); //Front to back
-                    return d2.CompareTo(d1); //Back To front
-                }
-            );
-        }
-
         private void LOD_filtering(List<GLMeshVao> model_list)
         {
             /* TODO : REplace this shit with occlusion based on the instance_ids
@@ -762,18 +793,41 @@ namespace MVCore
         }
 
 
-       
-        private void renderStaticMeshes(List<GLSLShaderConfig> shaderList)
+
+        private void renderDefaultMeshes()
         {
-            foreach (GLSLShaderConfig shader in shaderList)
+            GL.Disable(EnableCap.CullFace);
+            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+
+            //Collisions
+            if (RenderState.renderViewSettings.RenderCollisions)
             {
+                Material mat = resMgr.GLmaterials["collisionMat"];
+                GLSLShaderConfig shader = RenderState.activeResMgr.GLDefaultShaderMap[mat.shaderHash];
                 GL.UseProgram(shader.program_id); //Set Program
-                
-                //Set polygon mode
-                GL.PolygonMode(MaterialFace.FrontAndBack, Common.RenderOptions.RENDERMODE);
-                
+
                 //Render static meshes
-                foreach (GLMeshVao m in resMgr.opaqueMeshList[shader.shaderHash])
+                foreach (GLMeshVao m in collisionMeshList)
+                {
+                    if (m.instance_count == 0)
+                        continue;
+
+                    GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"],
+                        (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+                    
+                    m.render(shader, RENDERPASS.DEFERRED);
+                }
+            }
+
+            if (RenderState.renderViewSettings.RenderJoints)
+            {
+                Material mat = resMgr.GLmaterials["jointMat"];
+                GLSLShaderConfig shader = Common.RenderState.activeResMgr.GLDefaultShaderMap[mat.shaderHash];
+
+                GL.UseProgram(shader.program_id); //Set Program
+
+                //Render static meshes
+                foreach (GLMeshVao m in jointMeshList)
                 {
                     if (m.instance_count == 0)
                         continue;
@@ -782,8 +836,60 @@ namespace MVCore
                         (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
 
                     m.render(shader, RENDERPASS.DEFERRED);
-                    if (RenderOptions.RenderBoundHulls)
+                }
+            }
+
+            if (RenderState.renderViewSettings.RenderLocators)
+            {
+                Material mat = resMgr.GLmaterials["crossMat"];
+                GLSLShaderConfig shader = Common.RenderState.activeResMgr.GLDefaultShaderMap[mat.shaderHash];
+
+                GL.UseProgram(shader.program_id); //Set Program
+
+                //Render static meshes
+                foreach (GLMeshVao m in locatorMeshList)
+                {
+                    if (m.instance_count == 0)
+                        continue;
+
+                    GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"],
+                        (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+
+                    m.render(shader, RENDERPASS.DEFERRED);
+                }
+            }
+
+            GL.PolygonMode(MaterialFace.FrontAndBack, RenderState.renderSettings.RENDERMODE);
+            GL.Enable(EnableCap.CullFace);
+        
+        }
+
+        private void renderStaticMeshes(List<GLSLShaderConfig> shaderList)
+        {
+            //Set polygon mode
+            GL.PolygonMode(MaterialFace.FrontAndBack, RenderState.renderSettings.RENDERMODE);
+            
+            foreach (GLSLShaderConfig shader in shaderList)
+            {
+                GL.UseProgram(shader.program_id); //Set Program
+                
+                //Render static meshes
+                foreach (GLMeshVao m in resMgr.opaqueMeshShaderMap[shader.shaderHash])
+                {
+                    if (m.instance_count == 0)
+                        continue;
+
+                    GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"],
+                        (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+
+                    m.render(shader, RENDERPASS.DEFERRED);
+                    if (RenderState.renderViewSettings.RenderBoundHulls)
+                    {
+                        GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
                         m.render(shader, RENDERPASS.BHULL);
+                        GL.PolygonMode(MaterialFace.FrontAndBack, RenderState.renderSettings.RENDERMODE);
+                    }
+                        
                 }
 
                 GL.BindBuffer(BufferTarget.UniformBuffer, 0); //Unbind UBOs
@@ -819,77 +925,96 @@ namespace MVCore
             //At first render the static meshes
             GL.Enable(EnableCap.DepthTest);
             GL.Enable(EnableCap.CullFace);
+            
+            //DEFERRED STAGE
 
             gbuf.bind();
             gbuf.clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             
             renderStaticMeshes(RenderState.activeResMgr.activeGLDeferredLITShaders); //LIT MESHES
 
-            renderDeferredLightPass();
-            
-            //Copy pbuf color to the albedo of the gbuf fbo
-            FBO.copyChannel(pbuf.fbo, gbuf.fbo, pbuf.size[0], pbuf.size[1], gbuf.size[0], gbuf.size[1],
-                ReadBufferMode.ColorAttachment0, DrawBufferMode.ColorAttachment0);
-            
+            //Copy depth buffer from gbuf to pbuf
+            FBO.copyDepthChannel(gbuf.fbo, pbuf.fbo, pbuf.size[0], pbuf.size[1], gbuf.size[0], gbuf.size[1]);
             gbuf.bind();
-            renderStaticMeshes(RenderState.activeResMgr.activeGLDeferredUNLITShaders);
+            renderDecalMeshes(); //Render Decals
+            
+            renderDeferredLightPass(); //Deferred Lighting Pass
 
-            renderDeferredPass();
+            pass_tex(gbuf.fbo, DrawBufferMode.ColorAttachment0, pbuf.color, gbuf.size); //Copy accumulated light to albedo
+            gbuf.bind();
+            renderStaticMeshes(RenderState.activeResMgr.activeGLDeferredUNLITShaders); //UNLIT MESHES
+            renderDefaultMeshes(); //Collisions, Locators, Joints
+            
+            renderDeferredPass(); //Final unlit deferred rendering pass
             
             //FORWARD STAGE - TRANSPARENT MESHES
-            renderTransparent();
             
-            //renderDecalMeshes();
-
+            //Copy depth channel to pbuf
+            FBO.copyDepthChannel(gbuf.fbo, pbuf.fbo, pbuf.size[0], pbuf.size[1], gbuf.size[0], gbuf.size[1]);
+            renderTransparent();
+        
         }
         
         private void renderDecalMeshes()
         {
-            gbuf.bind(); //Rebind FBO
-            
-            GL.Enable(EnableCap.DepthTest);
+            GL.DepthMask(false);
             GL.Enable(EnableCap.CullFace);
-
-            GLSLHelper.GLSLShaderConfig shader = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.DECAL_SHADER];
-
-            //Enable the Deferred Mesh Shader
-            GL.UseProgram(shader.program_id);
-
-            //Render Static Objects
-            foreach (GLMeshVao m in decalMeshQueue)
+            GL.CullFace(CullFaceMode.Back);
+            
+            foreach(GLSLShaderConfig shader in RenderState.activeResMgr.activeGLDeferredDecalShaders)
             {
-                if (m.instance_count == 0)
-                    continue;
+                GL.UseProgram(shader.program_id);
+                //Upload depth texture to the shader
 
-                GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"], (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
-                m.render(shader, RENDERPASS.DECAL, gbuf);
+                //Bind Depth Buffer
+                GL.Uniform1(shader.uniformLocations["mpCommonPerFrameSamplers.depthMap"], 6);
+                GL.ActiveTexture(TextureUnit.Texture6);
+                GL.BindTexture(TextureTarget.Texture2D, pbuf.depth);
+
+                foreach (GLMeshVao m in RenderState.activeResMgr.decalMeshShaderMap[shader.shaderHash])
+                {
+                    if (m.instance_count == 0)
+                        continue;
+
+                    GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"], (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+                    m.render(shader, RENDERPASS.DECAL);
+                }
+
+
             }
-
+            GL.CullFace(CullFaceMode.Back);
+            GL.Enable(EnableCap.CullFace);
+            GL.DepthMask(true);
         }
 
         private void renderTransparent()
         {
-            GL.BindFramebuffer(FramebufferTarget.FramebufferExt, gbuf.fbo);
-            GL.DrawBuffer(DrawBufferMode.ColorAttachment3);
+            //Render the first pass in the first channel of the pbuf
+            GL.ClearTexImage(pbuf.blur1, 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
+            GL.ClearTexImage(pbuf.blur2, 0, PixelFormat.Rgba, PixelType.Float, new float[] { 1.0f, 1.0f ,1.0f, 1.0f});
 
+            //Enable writing to both channels after clearing
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
+            GL.DrawBuffers(2, new DrawBuffersEnum[] { DrawBuffersEnum.ColorAttachment1,
+                                          DrawBuffersEnum.ColorAttachment2});
+            
             //At first render the static meshes
             GL.Enable(EnableCap.Blend);
+            GL.DepthMask(false);
             GL.Enable(EnableCap.DepthTest); //Enable depth test
-            GL.DepthFunc(DepthFunction.Lequal);
-            GL.Disable(EnableCap.CullFace);
-            //GL.CullFace(CullFaceMode.Front);
-            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-            //GL.BlendFunc(BlendingFactor.Src1Alpha, BlendingFactor.ONem);
+            //Set BlendFuncs for the 2 drawbuffers
+            GL.BlendFunc(0, BlendingFactorSrc.One, BlendingFactorDest.One);
+            GL.BlendFunc(1, BlendingFactorSrc.Zero, BlendingFactorDest.OneMinusSrcAlpha);
 
-            foreach (GLSLHelper.GLSLShaderConfig shader in resMgr.activeGLForwardTransparentShaders)
+            //Set polygon mode
+            GL.PolygonMode(MaterialFace.FrontAndBack, RenderState.renderSettings.RENDERMODE);
+
+            foreach (GLSLShaderConfig shader in resMgr.activeGLForwardTransparentShaders)
             {
                 GL.UseProgram(shader.program_id); //Set Program
 
-                //Set polygon mode
-                GL.PolygonMode(MaterialFace.FrontAndBack, Common.RenderOptions.RENDERMODE);
-
                 //Render transparent meshes
-                foreach (GLMeshVao m in resMgr.transparentMeshList[shader.shaderHash])
+                foreach (GLMeshVao m in resMgr.transparentMeshShaderMap[shader.shaderHash])
                 {
                     if (m.instance_count == 0)
                         continue;
@@ -901,14 +1026,23 @@ namespace MVCore
                     //if (RenderOptions.RenderBoundHulls)
                     //    m.render(shader, RENDERPASS.BHULL);
                 }
-
                 GL.BindBuffer(BufferTarget.UniformBuffer, 0); //Unbind UBOs
 
-
             }
+            
+            GL.DepthMask(true); //Re-enable depth buffer
+            
+            //Composite Step
+            GLSLShaderConfig bwoit_composite_shader = RenderState.activeResMgr.GLShaders[SHADER_TYPE.BWOIT_COMPOSITE_SHADER];
 
-            GL.Enable(EnableCap.CullFace);
+            //Draw to main color channel
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+            GL.BlendFunc(BlendingFactor.OneMinusSrcAlpha, BlendingFactor.SrcAlpha); //Set compositing blend func
+            //GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); //Set compositing blend func
+            render_quad(new string[] { }, new float[] { }, new string[] { "in1Tex", "in2Tex" }, new int[] { pbuf.blur1, pbuf.blur2 }, bwoit_composite_shader);
             GL.Disable(EnableCap.Blend);
+            
         }
 
         private void renderShadows()
@@ -921,7 +1055,6 @@ namespace MVCore
             GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, pbuf.fbo);
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, 0);
-            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
             GL.BlitFramebuffer(0, 0, gbuf.size[0], gbuf.size[1], 0, 0, gbuf.size[0], gbuf.size[1], 
                 ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Linear);
         }
@@ -939,10 +1072,10 @@ namespace MVCore
             sortLights();
             
             //Sort Transparent Objects
-            sortTransparent();
+            //sortTransparent(); //NOT NEEDED ANYMORE
             
             //LOD filtering
-            if (RenderOptions.LODFiltering)
+            if (RenderState.renderSettings.LODFiltering)
             {
                 //LOD_filtering(staticMeshQueue); TODO: FIX
                 //LOD_filtering(transparentMeshQueue); TODO: FIX
@@ -971,7 +1104,7 @@ namespace MVCore
             //gbuf?.stop();
 
             //Render info right on the 0 buffer
-            if (RenderOptions.RenderInfo)
+            if (RenderState.renderViewSettings.RenderInfo)
                 render_info();
         }
 
@@ -1078,7 +1211,6 @@ namespace MVCore
         {
             int quad_vao = resMgr.GLPrimitiveVaos["default_renderquad"].vao_id;
 
-
             GL.UseProgram(shaderConf.program_id);
             GL.BindVertexArray(quad_vao);
 
@@ -1092,13 +1224,29 @@ namespace MVCore
 
             //Upload uniforms - Assuming single float uniforms for now
             for (int i = 0; i < uniforms.Length; i++)
-                GL.Uniform1(shaderConf.uniformLocations[uniforms[i]], i);
-            
+                GL.Uniform1(shaderConf.uniformLocations[uniforms[i]], uniform_values[i]);
+
             //Render quad
+            GL.Disable(EnableCap.DepthTest);
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
             GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, (IntPtr)0);
             GL.BindVertexArray(0);
-        
+            GL.Enable(EnableCap.DepthTest);
+
+        }
+
+        private void pass_tex(int to_fbo, DrawBufferMode to_channel, int InTex, int[] to_buf_size)
+        {
+            //passthrough a texture to the specified to_channel of the to_fbo
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, to_fbo);
+            GL.DrawBuffer(to_channel);
+
+            GL.Disable(EnableCap.DepthTest); //Disable Depth test
+            GL.Clear(ClearBufferMask.ColorBufferBit);
+            GLSLShaderConfig shader = RenderState.activeResMgr.GLShaders[SHADER_TYPE.PASSTHROUGH_SHADER];
+            //render_quad(new string[] {"sizeX", "sizeY" }, new float[] { to_buf_size[0], to_buf_size[1]}, new string[] { "InTex" }, new int[] { InTex }, shader);
+            render_quad(new string[] { }, new float[] { }, new string[] { "InTex" }, new int[] { InTex }, shader);
+            GL.Enable(EnableCap.DepthTest); //Re-enable Depth test
         }
 
         private void bloom()
@@ -1114,6 +1262,7 @@ namespace MVCore
             //Copy Color to blur fbo channel 1
             FBO.copyChannel(pbuf.fbo, blur_fbo.fbo, gbuf.size[0], gbuf.size[1], blur_fbo.size_x, blur_fbo.size_y,
                 ReadBufferMode.ColorAttachment0, DrawBufferMode.ColorAttachment1);
+            //pass_tex(blur_fbo.fbo, DrawBufferMode.ColorAttachment1, pbuf.color, new int[] { blur_fbo.size_x, blur_fbo.size_y });
 
             //Extract Brightness on the blur buffer and write it to channel 0
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, blur_fbo.fbo);
@@ -1181,18 +1330,23 @@ namespace MVCore
 
         private void fxaa()
         {
+            tone_mapping(); //Apply tone mapping pbuf.color shoud be ready
+            
             //Load Programs
             GLSLShaderConfig fxaa_program = resMgr.GLShaders[SHADER_TYPE.FXAA_SHADER];
-            
+
             //Copy Color to first channel
             FBO.copyChannel(pbuf.fbo, pbuf.fbo, pbuf.size[0], pbuf.size[1], pbuf.size[0], pbuf.size[1],
                 ReadBufferMode.ColorAttachment0, DrawBufferMode.ColorAttachment1);
+            //pass_tex(pbuf.fbo, DrawBufferMode.ColorAttachment1, pbuf.color, pbuf.size);
 
             //Apply FXAA
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
 
             render_quad(new string[] { }, new float[] { }, new string[] { "diffuseTex" }, new int[] { pbuf.blur1 }, fxaa_program);
+
+            inv_tone_mapping(); //Invert Tone Mapping
 
         }
 
@@ -1202,25 +1356,44 @@ namespace MVCore
             GLSLShaderConfig tone_mapping_program = resMgr.GLShaders[SHADER_TYPE.TONE_MAPPING];
 
             //Copy Color to first channel
-            FBO.copyChannel(pbuf.fbo, pbuf.size[0], pbuf.size[1], ReadBufferMode.ColorAttachment0, DrawBufferMode.ColorAttachment1);
+            pass_tex(pbuf.fbo, DrawBufferMode.ColorAttachment1, pbuf.color, pbuf.size); //LOOKS OK!
 
             //Apply Tone Mapping
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-            
+
             render_quad(new string[] { }, new float[] { }, new string[] { "inTex" }, new int[] { pbuf.blur1 }, tone_mapping_program);
+
+        }
+
+        private void inv_tone_mapping()
+        {
+            //Load Programs
+            GLSLShaderConfig inv_tone_mapping_program = resMgr.GLShaders[SHADER_TYPE.INV_TONE_MAPPING];
+
+            //Copy Color to first channel
+            pass_tex(pbuf.fbo, DrawBufferMode.ColorAttachment1, pbuf.color, pbuf.size); //LOOKS OK!
+
+            //Apply Tone Mapping
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+
+            render_quad(new string[] { }, new float[] { }, new string[] { "inTex" }, new int[] { pbuf.blur1 }, inv_tone_mapping_program);
+
         }
 
         private void post_process()
         {
-            if (Common.RenderOptions.UseBLOOM)
+            if (RenderState.renderSettings.UseFXAA)
+                fxaa(); //FXAA (INCLUDING TONE/UNTONE)
+
+            //Actuall Post Process effects in AA space without tone mapping
+            
+            if (RenderState.renderSettings.UseBLOOM)
                 bloom(); //BLOOM
 
-            if (Common.RenderOptions.UseFXAA)
-                fxaa(); //FXAA
+            tone_mapping(); //FINAL TONE MAPPING, INCLUDES GAMMA CORRECTION
 
-            tone_mapping(); //TONE MAPPING, INCLUDES GAMMA CORRECTION
-        
         }
 
         private void backupDepth()
@@ -1258,16 +1431,13 @@ namespace MVCore
             //GL.ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-            GL.Disable(EnableCap.DepthTest); //Disable Depth test
             render_quad(new string[] { }, new float[] { }, new string[] { "albedoTex", "depthTex", "normalTex", "parameterTex"}, 
                                                             new int[] { gbuf.albedo, gbuf.depth, gbuf.normals, gbuf.info}, shader_conf);
-            GL.Enable(EnableCap.DepthTest); //Re-enable Depth test
-
         }
 
         private void renderDeferredPass()
         {
-            GLSLHelper.GLSLShaderConfig shader_conf = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_UNLIT_SHADER];
+            GLSLShaderConfig shader_conf = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_UNLIT_SHADER];
 
             //Bind default fbo
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
@@ -1277,8 +1447,8 @@ namespace MVCore
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
             GL.Disable(EnableCap.DepthTest); //Disable Depth test
-            render_quad(new string[] { }, new float[] { }, new string[] { "albedoTex", "parameterTex" },
-                                                            new int[] { gbuf.albedo, gbuf.info }, shader_conf);
+            render_quad(new string[] { }, new float[] { }, new string[] { "albedoTex" },
+                                                            new int[] { gbuf.albedo }, shader_conf);
             GL.Enable(EnableCap.DepthTest); //Re-enable Depth test
 
         }

@@ -64,7 +64,7 @@ namespace WPFModelViewer
             //override_assemblies();
 
             //Override Window Title
-            Title += " " + Util.Version;
+            Title += " " + Util.getVersion();
 
             //Add request timer handler
             requestHandler.Interval = 10;
@@ -180,6 +180,7 @@ namespace WPFModelViewer
             {
                 if (path.EndsWith(".SCENE.MBIN"))
                     paths.Add(path);
+                //paths.Add(path);
             }
             paths.Sort();
                 
@@ -269,11 +270,13 @@ namespace WPFModelViewer
                                     Util.setStatus("Ready");
                                     break;
                                 case THREAD_REQUEST_TYPE.LOAD_NMS_ARCHIVES_REQUEST:
+                                    
                                     //Enable Open File Functions
                                     Application.Current.Dispatcher.BeginInvoke((Action)(() =>
                                     {
                                         OpenFileHandle.IsEnabled = true;
-                                        OpenFilePAKHandle.IsEnabled = true;
+                                        if (req.response == 0)
+                                            OpenFilePAKHandle.IsEnabled = true;
                                     }));
                                     Util.setStatus("Ready");
                                     break;
@@ -394,9 +397,8 @@ namespace WPFModelViewer
             //FileUtils.dirpath = "I:\\SteamLibrary1\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
 
             //Load Settings
-            settings = SettingsForm.loadSettingsStatic();
-            SettingsForm.saveSettingsToEnv(settings);
-
+            SettingsForm.loadSettingsStatic();
+            
             //Check if the rt_thread is ready
             ThreadRequest req = new ThreadRequest();
             req.type = THREAD_REQUEST_TYPE.QUERY_GLCONTROL_STATUS_REQUEST;
@@ -431,6 +433,10 @@ namespace WPFModelViewer
             Util.activeStatusStrip = StatusLabel;
             Util.activeControl = glControl;
 
+            //Bind Settings
+            RenderViewOptionsControl.Content = RenderState.renderViewSettings;
+            RenderOptionsControl.Content = RenderState.renderSettings;
+
             //Add event handlers to GUI elements
             sliderzNear.ValueChanged += Sliders_OnValueChanged;
             sliderzFar.ValueChanged += Sliders_OnValueChanged;
@@ -451,7 +457,7 @@ namespace WPFModelViewer
             //Issue work request 
             ThreadRequest rq = new ThreadRequest();
             rq.arguments.Add("NMSmanifest");
-            rq.arguments.Add(Path.Combine(FileUtils.dirpath, "PCBANKS"));
+            rq.arguments.Add(Path.Combine(RenderState.settings.GameDir, "PCBANKS"));
             rq.arguments.Add(RenderState.activeResMgr);
             rq.type = THREAD_REQUEST_TYPE.LOAD_NMS_ARCHIVES_REQUEST;
             workDispatcher.sendRequest(rq);
@@ -535,7 +541,7 @@ namespace WPFModelViewer
 
         private void showSettingsDialog(object sender, RoutedEventArgs e)
         {
-            Window setWin = new SettingsForm(settings);
+            Window setWin = new SettingsForm();
             setWin.Show();
         }
 

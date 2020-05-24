@@ -2,12 +2,14 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using MathNet.Numerics.Statistics;
 using Model_Viewer;
 using MVCore;
 
@@ -15,7 +17,11 @@ namespace WPFModelViewer
 {
     public static class Util
     {
-        public static string Version = "v0.88.5-Test-Version";
+        public static int VersionMajor = 0;
+        public static int VersionMedium = 88;
+        public static int VersionMinor = 8;
+        public static string VersionName = "-Test-Version";
+        //public static string Version = "v0.88.6-Test-Version";
         public static string donateLink = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=4365XYBWGTBSU&currency_code=USD&source=url";
         public static readonly Random randgen = new Random();
         
@@ -25,11 +31,18 @@ namespace WPFModelViewer
         
         //Active Gamepad ID
         public static int gamepadID;
-        public static int procGenNum;
-
+        
         //Public LogFile
         public static StreamWriter loggingSr;
         
+
+        public static string getVersion()
+        {
+            return string.Join(".", new string[] { VersionMajor.ToString(),
+                                           VersionMedium.ToString(),
+                                           VersionMinor.ToString()}) + VersionName;
+        }
+
         //Update Status strip
         public static void setStatus(string status)
         {

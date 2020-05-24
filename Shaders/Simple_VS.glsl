@@ -10,7 +10,7 @@
 
 //Mesh Attributes
 layout(location=0) in vec4 vPosition;
-layout(location=1) in vec2 uvPosition0;
+layout(location=1) in vec4 uvPosition0;
 layout(location=2) in vec4 nPosition; //normals
 layout(location=3) in vec4 tPosition; //tangents
 layout(location=4) in vec4 bPosition; //bitangents/ vertex color
@@ -34,12 +34,14 @@ layout (std140, binding=1) uniform _COMMON_PER_MESH
 
 //Outputs
 out vec4 fragPos;
+out vec4 screenPos;
 out vec4 vertColor;
 out float isOccluded;
 out float isSelected;
-out vec3 N;
-out vec2 uv0;
+out vec3 mTangentSpaceNormalVec3;
+out vec4 uv;
 out mat3 TBN;
+flat out int instanceId;
 
 /*
 ** Returns matrix4x4 from texture cache.
@@ -56,16 +58,17 @@ mat4 get_skin_matrix(int offset)
 void main()
 {
     //Pass uv to fragment shader
-    uv0 = uvPosition0;
+    uv = uvPosition0;
     vertColor = bPosition;
 
     #ifdef __F14_UVSCROLL
         vec4 lFlippedScrollingUVVec4 = mpCustomPerMaterial.gUVScrollStepVec4;
         //TODO: Convert uvs to vec4 for diffuse2maps
-        uv0 += lFlippedScrollingUVVec4.xy * mpCommonPerFrame.gfTime;
+        uv.xy += lFlippedScrollingUVVec4.xy * mpCommonPerFrame.gfTime;
     #endif
     
     //Load Per Instance data
+    instanceId = gl_InstanceID;
     isOccluded = mpCommonPerMesh.instanceData[gl_InstanceID].isOccluded;
     isSelected = mpCommonPerMesh.instanceData[gl_InstanceID].isSelected;
     
@@ -89,10 +92,11 @@ void main()
     #else
         lWorldMat = mpCommonPerMesh.instanceData[gl_InstanceID].worldMat;
     #endif
-    
+
     vec4 wPos = lWorldMat * vPosition; //Calculate world Position
     fragPos = wPos; //Export world position to the fragment shader
-    gl_Position = mpCommonPerFrame.mvp * wPos;
+    screenPos = mpCommonPerFrame.mvp * wPos;
+    gl_Position = screenPos;
     
     //Construct TBN matrix
     //Nullify w components
@@ -112,7 +116,7 @@ void main()
                 normalize(lWorldNormalVec4.xyz) );
 
     //Send world normal to fragment shader
-    N = normalize(lWorldNormalVec4).xyz;
+    mTangentSpaceNormalVec3 = normalize(lWorldNormalVec4).xyz;
 
 }
 

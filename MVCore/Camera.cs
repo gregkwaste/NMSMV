@@ -186,7 +186,7 @@ namespace MVCore.GMDL
 
         public bool frustum_occlude(Vector3 AABBMIN, Vector3 AABBMAX)
         {
-            if (!Common.RenderOptions.UseFrustumCulling)
+            if (!Common.RenderState.renderSettings.UseFrustumCulling)
                 return true;
 
             float radius = 0.5f * (AABBMIN - AABBMAX).Length;

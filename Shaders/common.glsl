@@ -40,6 +40,13 @@
 #define _F55_MULTITEXTURE 54
 #define _F62_DETAIL_ALPHACUTOUT 61
 
+
+
+
+float max3(vec3 vec){
+    return max(max(vec.r, vec.g), vec.b);
+}
+
 vec3 
 GammaCorrectInput(
     in vec3 lColourVec3 )

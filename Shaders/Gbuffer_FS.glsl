@@ -81,18 +81,18 @@ void main()
 	float ao = fragParams.x;
 	float lfMetallic = fragParams.y;
 	float lfRoughness = fragParams.z;
-	float lfGlow = fragParams.a;
+	float lfSubsurface = fragParams.a;
+	float isLit = fragNormal.a;
 	
 	vec4 finalColor = vec4(0.0);
 
 	//finalColor = mix(finalColor, albedoColor, lfGlow);
-	vec4 ambient = vec4(vec3(0.03) * albedoColor.rgb * ao, 0.0);
+	vec4 ambient = vec4(vec3(0.03) * albedoColor.rgb, 0.0);
 
 	if (dot(albedoColor, vec4(1.0)) < 1e-3){
 		gl_FragColor = vec4(clearColor, 1.0);
 		return;
 	}
-
 
 #ifdef _D_LIGHTING
 	if ((mpCommonPerFrame.use_lighting > 0.0)) {
@@ -113,11 +113,11 @@ void main()
 		finalColor = albedoColor;
 	}
 #else
-	finalColor = (1.0 + lfGlow) * albedoColor;
+	finalColor = albedoColor;
 #endif
 	
 	//Add ambient lighting
-	finalColor += ambient;
+	//finalColor += ambient;
 
 	//vec3 lumcoeff = vec3(0.299,0.587,0.114);
     

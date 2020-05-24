@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using MVCore;
 using MVCore.Common;
+using System.Windows;
 
 namespace GLSLHelper { 
 
@@ -36,7 +37,9 @@ namespace GLSLHelper {
         GAUSSIAN_VERTICAL_BLUR_SHADER,
         ADDITIVE_BLEND_SHADER,
         FXAA_SHADER,
-        TONE_MAPPING
+        TONE_MAPPING,
+        INV_TONE_MAPPING,
+        BWOIT_COMPOSITE_SHADER
     }
 
     public class GLSLShaderText
@@ -106,7 +109,7 @@ namespace GLSLHelper {
             GL.ShaderSource(shader_object_id, string_num, strings, (int[]) null);
             
             //Get resolved shader text
-            GL.GetShaderSource(shader_object_id, 4096, out actual_shader_length, out actual_shader_source);
+            GL.GetShaderSource(shader_object_id, 32768, out actual_shader_length, out actual_shader_source);
             resolved_text = actual_shader_source; //Store full shader code
             
             GL.CompileShader(shader_object_id);
@@ -115,7 +118,14 @@ namespace GLSLHelper {
             compilation_log += info + "\n";
             GL.GetShader(shader_object_id, ShaderParameter.CompileStatus, out status_code);
             if (status_code != 1)
-                GLShaderHelper.throwCompilationError(compilation_log);
+            {
+                Console.WriteLine(GLShaderHelper.NumberLines(actual_shader_source));
+                MessageBox.Show("Failed to compile shader for the model. Contact Dev",
+                    "Shader Compilation Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                GLShaderHelper.throwCompilationError(compilation_log +
+                    GLShaderHelper.NumberLines(actual_shader_source) + "\n" + info);
+            }
+                
         }
 
         public void resolve()
@@ -320,7 +330,7 @@ namespace GLSLHelper {
 
     public static class GLShaderHelper
     {
-        static private string NumberLines(string s)
+        static public string NumberLines(string s)
         {
             if (s == "")
                 return s;

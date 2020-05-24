@@ -14,6 +14,7 @@ using Newtonsoft.Json;
 using System.Windows.Shapes;
 using Path = System.IO.Path;
 using MVCore.Common;
+using System.Windows;
 
 namespace MVCore
 {
@@ -74,28 +75,38 @@ namespace MVCore
         {
             int load_mode = 0;
             
+            string conv_filepath = filepath.TrimStart('/');
             filepath = filepath.Replace('\\', '/');
+            string effective_filepath = filepath;
 
             string exmlpath = Path.ChangeExtension(filepath, "exml");
             exmlpath = exmlpath.ToUpper(); //Make upper case
 
-            if (File.Exists(Path.Combine(FileUtils.dirpath, exmlpath)))
+            if (File.Exists(Path.Combine(RenderState.settings.UnpackDir, exmlpath)))
                 load_mode = 0; //Load Exml
-            else if (File.Exists(Path.Combine(FileUtils.dirpath, filepath)))
+            else if (File.Exists(Path.Combine(RenderState.settings.UnpackDir, filepath)))
                 load_mode = 1; //Load MBIN from file
             else if (resMgr.NMSFileToArchiveMap.ContainsKey(filepath))
                 load_mode = 2; //Extract file from archive
-            else
+            else if (resMgr.NMSFileToArchiveMap.ContainsKey("/" + filepath))
+            {
+                effective_filepath = "/" + filepath;
+                load_mode = 2; //Extract file from archive
+            } else
+            {
+                System.Windows.Forms.MessageBox.Show("File: " + filepath +  " Not found in PAKs or local folders. ",
+                    "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                CallBacks.Log("File: " + filepath + " Not found in PAKs or local folders. ");
                 throw new FileNotFoundException("File not found\n " + filepath);
-
+            }
             switch (load_mode)
             {
                 case 0: //Load EXML
-                    return new FileStream(Path.Combine(FileUtils.dirpath, exmlpath), FileMode.Open);
+                    return new FileStream(Path.Combine(RenderState.settings.UnpackDir, exmlpath), FileMode.Open);
                 case 1: //Load MBIN
-                    return new FileStream(Path.Combine(FileUtils.dirpath, filepath), FileMode.Open);
+                    return new FileStream(Path.Combine(RenderState.settings.UnpackDir, filepath), FileMode.Open);
                 case 2: //Load File from Archive
-                    return resMgr.NMSFileToArchiveMap[filepath].ExtractFile(filepath);
+                    return resMgr.NMSFileToArchiveMap[effective_filepath].ExtractFile(effective_filepath);
             }
 
             return null;
@@ -105,33 +116,44 @@ namespace MVCore
         {
             int load_mode = 0;
             NMSTemplate template = null;
-
             filepath = filepath.Replace('\\', '/');
+            string effective_filepath = filepath;
 
             string exmlpath = Path.ChangeExtension(filepath, "exml");
             exmlpath = exmlpath.ToUpper(); //Make upper case
+            
 
-            if (File.Exists(Path.Combine(FileUtils.dirpath, exmlpath)))
+            if (File.Exists(Path.Combine(RenderState.settings.UnpackDir, exmlpath)))
                 load_mode = 0; //Load Exml
-            else if (File.Exists(Path.Combine(FileUtils.dirpath, filepath)))
+            else if (File.Exists(Path.Combine(RenderState.settings.UnpackDir, filepath)))
                 load_mode = 1; //Load MBIN from file
             else if (resMgr.NMSFileToArchiveMap.ContainsKey(filepath))
                 load_mode = 2; //Extract file from archive
+            else if (resMgr.NMSFileToArchiveMap.ContainsKey("/" + filepath)) //AMUMSS BULLSHIT{
+            {
+                effective_filepath = "/" + filepath;
+                load_mode = 2; //Extract file from archive
+            }
             else
+            {
+                System.Windows.Forms.MessageBox.Show("File: " + filepath + " Not found in PAKs or local folders. ",
+                    "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                CallBacks.Log("File: " + filepath + " Not found in PAKs or local folders. ");
                 throw new FileNotFoundException("File not found\n " + filepath);
-
+            }
+                
             try
             {
                 switch (load_mode)
                 {
                     case 0: //Load EXML
                         {
-                            string xml = File.ReadAllText(Path.Combine(FileUtils.dirpath, exmlpath));
+                            string xml = File.ReadAllText(Path.Combine(RenderState.settings.UnpackDir, exmlpath));
                             return EXmlFile.ReadTemplateFromString(xml);
                         }
                     case 1: //Load MBIN
                         {
-                            string eff_path = Path.Combine(FileUtils.dirpath, filepath);
+                            string eff_path = Path.Combine(RenderState.settings.UnpackDir, filepath);
                             MBINFile mbinf = new MBINFile(eff_path);
                             mbinf.Load();
                             template = mbinf.GetData();
@@ -140,7 +162,7 @@ namespace MVCore
                         }
                     case 2: //Load File from Archive
                         {
-                            Stream file = resMgr.NMSFileToArchiveMap[filepath].ExtractFile(filepath);
+                            Stream file = resMgr.NMSFileToArchiveMap[effective_filepath].ExtractFile(effective_filepath);
                             MBINFile mbinf = new MBINFile(file);
                             mbinf.Load();
                             template = mbinf.GetData();
@@ -152,9 +174,9 @@ namespace MVCore
             {
 
                 if (ex is System.IO.DirectoryNotFoundException || ex is System.IO.FileNotFoundException)
-                    System.Windows.Forms.MessageBox.Show("File " + filepath + " Not Found...", "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                    System.Windows.Forms.MessageBox.Show("File " + effective_filepath + " Not Found...", "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
                 else if (ex is System.IO.IOException)
-                    System.Windows.Forms.MessageBox.Show("File " + filepath + " problem...", "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                    System.Windows.Forms.MessageBox.Show("File " + effective_filepath + " problem...", "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
                 else if (ex is System.Reflection.TargetInvocationException)
                 {
                     System.Windows.Forms.MessageBox.Show("libMBIN failed to decompile file. If this is a vanilla file, contact the MbinCompiler developer",
@@ -338,16 +360,25 @@ namespace MVCore
 
         //Load Game Archive Handles
         
-        public static void loadNMSArchives(string filepath, string gameDir, ref ResourceManager resMgr)
+        public static void loadNMSArchives(string filepath, string gameDir, ref ResourceManager resMgr, ref int status)
         {
+            CallBacks.Log("Trying to load PAK files from " + gameDir);
+            if (!Directory.Exists(gameDir))
+            {
+                MessageBox.Show("Unable to locate game Directory. PAK files (Vanilla + Mods) not loaded. You can still work using unpacked files", "Info",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                status = - 1;
+                return;
+            }
+            
             //Load the handles to the resource manager
             
             //Fetch .pak files
             string[] pak_files = Directory.GetFiles(gameDir);
             resMgr.NMSArchiveMap.Clear();
 
-            Common.CallBacks.updateStatus("Loading Vanilla NMS Archives...");
-
+            CallBacks.updateStatus("Loading Vanilla NMS Archives...");
+            
             foreach (string pak_path in pak_files)
             {
                 if (!pak_path.EndsWith(".pak"))
@@ -366,6 +397,9 @@ namespace MVCore
                 Common.CallBacks.updateStatus("Loading Modded NMS Archives...");
                 foreach (string pak_path in pak_files)
                 {
+                    if (pak_path.Contains("CUSTOMMODELS"))
+                        Console.WriteLine(pak_path);
+
                     if (!pak_path.EndsWith(".pak"))
                         continue;
 
@@ -381,7 +415,23 @@ namespace MVCore
                 CallBacks.Log("Not creating/reading manifest file");
                 return;
             }
-                
+
+            //Populate resource manager with the files
+            CallBacks.updateStatus("Populating Resource Manager...");
+            foreach (string arc_path in resMgr.NMSArchiveMap.Keys.Reverse())
+            {
+                libPSARC.PSARC.Archive arc = resMgr.NMSArchiveMap[arc_path];
+
+                foreach (string f in arc.filePaths)
+                {
+                    resMgr.NMSFileToArchiveMap[f] = resMgr.NMSArchiveMap[arc_path];
+                }
+            }
+
+            //NOT WORTH TO USE MANIFEST FILES
+
+
+            /*
             //Check if manifest file exists
             if (File.Exists(filepath))
             {
@@ -453,7 +503,9 @@ namespace MVCore
                 ms.Close();
             
             }
+            */
 
+            status = 0; // All good
             Common.CallBacks.updateStatus("Ready");
         }
 
@@ -467,10 +519,7 @@ namespace MVCore
 
         public static string getGameInstallationDir()
         {
-            //Try to fetch the installation dir
-            string steam_keyname = @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 275850";
-            string steam_keyval = "InstallLocation";
-
+            //Registry keys
             string gog32_keyname = @"HKEY_LOCAL_MACHINE\SOFTWARE\GOG.com\Games\1446213994";
             string gog32_keyval = "PATH";
 
@@ -486,22 +535,33 @@ namespace MVCore
                 val = fetchSteamGameInstallationDir();
             } catch (Exception e) {
                 val = "";
-                Common.CallBacks.Log("Fucked up Steam Installation");
             }
 
             if (val != "")  
                 return val;
+            else
+                CallBacks.Log("Unable to find Steam Version");
+
 
             //Check GOG32
             val = Registry.GetValue(gog32_keyname, gog32_keyval, "") as string;
             if (val != "")
+            {
+                CallBacks.Log("Found GOG32 Version: " + val);
                 return val;
+            } else
+                CallBacks.Log("Unable to find GOG32 Version: " + val);
 
             //Check GOG64
             val = Registry.GetValue(gog64_keyname, gog64_keyval, "") as string;
             if (val != "")
+            {
+                CallBacks.Log("Found GOG64 Version: " + val);
                 return val;
-            
+            }
+            else
+                CallBacks.Log("Unable to find GOG64 Version: " + val);
+
             return "";
         }
 
@@ -516,9 +576,12 @@ namespace MVCore
 
             //Fetch Steam Installation Folder
             string steam_path = Registry.GetValue(steam_keyname, steam_keyval, "") as string;
-            
+
+            CallBacks.Log("Found Steam Installation: " + steam_path);
+            CallBacks.Log("Searching for NMS in the default steam directory...");
+
             //At first try to find acf entries in steam installation dir
-            foreach(string path in Directory.GetFiles(steam_path))
+            foreach (string path in Directory.GetFiles(Path.Combine(steam_path, "steamapps")))
             {
                 if (!path.EndsWith(".acf"))
                     continue;
@@ -526,6 +589,8 @@ namespace MVCore
                 if (path.Contains(nms_id))
                     return Path.Combine(steam_path, @"steamapps\common\No Man's Sky\GAMEDATA");
             }
+
+            CallBacks.Log("NMS not found in default folders. Searching Steam Libraries...");
 
             //If that did't work try to load the libraryfolders.vdf
             StreamReader sr = new StreamReader(Path.Combine(steam_path, @"steamapps\libraryfolders.vdf"));
@@ -565,8 +630,6 @@ namespace MVCore
                 }
             }
 
-
-            
             return "";
         }
 

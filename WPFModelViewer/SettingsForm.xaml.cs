@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Security.RightsManagement;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -11,6 +13,7 @@ using System.Windows.Documents;
 using System.Windows.Forms;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
 using System.Windows.Shapes;
 using libMBIN.NMS.Toolkit;
 using MVCore;
@@ -32,11 +35,8 @@ namespace WPFModelViewer
             InitializeComponent();
 
             //Load settings from environment
-            settings = new Settings();
-            settings.dirpath = MVCore.FileUtils.dirpath;
-            settings.forceProcGen = MVCore.Common.RenderState.forceProcGen? 1: 0;
-            settings.procGenWinNum = Util.procGenNum;
-            loadSettings(settings);
+            SettingsContainer.Content = RenderState.settings;
+            RenderSettingsContainer.Content = RenderState.renderSettings;
         }
 
         public SettingsForm(Settings settings)
@@ -44,23 +44,24 @@ namespace WPFModelViewer
             InitializeComponent();
             //Load settings from input
             this.settings = settings;
-            loadSettings(settings);
+            SettingsContainer.Content = settings;
         }
 
-        public static Settings loadSettingsStatic()
+        public static void loadSettingsStatic()
         {
-            Settings lSettings = new Settings();
             //Load jsonstring
             try
             {
                 string jsonstring = File.ReadAllText("settings.json");
-                lSettings = JsonConvert.DeserializeObject<Settings>(jsonstring);
+                JSONSettings lSettings = JsonConvert.DeserializeObject<JSONSettings>(jsonstring);
+                saveSettingsToEnv(lSettings);
             }
             catch (FileNotFoundException)
             {
                 //Generating new settings file
 
                 string gamedir = NMSUtils.getGameInstallationDir();
+                string unpackdir;
 
                 if (gamedir == "")
                 {
@@ -75,45 +76,81 @@ namespace WPFModelViewer
                     openFileDlg.Dispose();
                 }
 
-                lSettings.dirpath = gamedir;
-                lSettings.forceProcGen = 1;
-                lSettings.procGenWinNum = 15;
-                lSettings.animFPS = 60;
-                lSettings.HDRExposure = 0.15f;
-                lSettings.useVSYNC = 0;
+                //Ask if the user has files unpacked
+                MessageBoxResult result = MessageBox.Show("Do you have unpacked game files?", "", MessageBoxButton.YesNo);
+
                 
-                saveSettingsStatic(lSettings); //Save Settings right away
+                if (result == MessageBoxResult.No)
+                {
+                    unpackdir = gamedir;
+                } else
+                {
+                    //Ask for unpack folder
+                    MessageBoxResult d1 = MessageBox.Show("Have you unpacked the game files on the game installation directory?", "", MessageBoxButton.YesNo);
+
+                    if (d1 == MessageBoxResult.Yes)
+                    {
+                        unpackdir = gamedir;
+                    } else
+                    {
+                        FolderBrowserDialog dialog = new FolderBrowserDialog();
+                        dialog.Description = "Select the unpacked GAMEDATA folder";
+                        DialogResult res = dialog.ShowDialog();
+
+                        if (res == System.Windows.Forms.DialogResult.OK)
+                        {
+                            unpackdir = dialog.SelectedPath;
+                        }
+                        else
+                            unpackdir = "";
+                    }
+
+                }
+
+                //Save path settings to the environment
+                RenderState.settings.GameDir = gamedir;
+                RenderState.settings.UnpackDir = unpackdir;
+
+                saveSettingsStatic(); //Save Settings right away
                 
             }
 
-            return lSettings;
         }
 
-        public void loadSettings(Settings settings)
+        public static void saveSettingsToEnv(JSONSettings settings)
         {
-            //Load settings to the Control
-            dirpath.Text = settings.dirpath;
-            forceProcGen.Text = settings.forceProcGen.ToString();
-            procGenWinNum.Text = settings.procGenWinNum.ToString();
-            AnimFPS.Text = settings.animFPS.ToString();
-            HDRExposure.Text = settings.HDRExposure.ToString();
-            VSYNC.Text = settings.useVSYNC.ToString();
+            //IF BINDINGS ARE CORRECT I DON"THAVE TO DO SHIT
+
+            //Save values to the environment
+            RenderState.settings.GameDir = settings.GameDir;
+            RenderState.settings.UnpackDir = settings.UnpackDir;
+            RenderState.settings.ProcGenWinNum = settings.ProcGenWinNum;
+            RenderState.settings.ForceProcGen = settings.ForceProcGen;
+            RenderState.renderSettings.UseVSYNC = (settings.UseVSYNC > 0);
+            RenderState.renderSettings._HDRExposure = settings.HDRExposure;
+            RenderState.renderSettings.animFPS = settings.AnimFPS;
         }
 
-        public static void saveSettingsToEnv(Settings settings)
+        public static void loadSettingsFromEnv(JSONSettings settings)
         {
-            //Load values to the environment
-            FileUtils.dirpath = settings.dirpath;
-            Util.procGenNum = settings.procGenWinNum;
-            RenderState.forceProcGen = (settings.forceProcGen > 0) ? true : false;
-            MVCore.Common.RenderOptions._HDRExposure = settings.HDRExposure;
-            MVCore.Common.RenderOptions.animFPS = settings.animFPS;
-            MVCore.Common.RenderOptions.UseVSYNC = (settings.useVSYNC > 0) ? true : false;
+            //IF BINDINGS ARE CORRECT I DON"THAVE TO DO SHIT
+
+            //Load values from the environment
+            settings.GameDir = RenderState.settings.GameDir;
+            settings.UnpackDir = RenderState.settings.UnpackDir;
+            settings.ProcGenWinNum = RenderState.settings.ProcGenWinNum;
+            settings.ForceProcGen = RenderState.settings.ForceProcGen;
+            settings.UseVSYNC = RenderState.renderSettings.UseVSYNC ? 1 : 0;
+            settings.HDRExposure = RenderState.renderSettings._HDRExposure;
+            settings.AnimFPS = RenderState.renderSettings.animFPS;
         }
 
-        public static void saveSettingsStatic(Settings settings)
+        public static void saveSettingsStatic()
         {
-            saveSettingsToEnv(settings);
+            //Create JSONSettings
+            JSONSettings settings = new JSONSettings();
+            loadSettingsFromEnv(settings);
+
             //Serialize object
             string jsonstring = JsonConvert.SerializeObject(settings);
             File.WriteAllText("settings.json", jsonstring);
@@ -121,40 +158,43 @@ namespace WPFModelViewer
 
         private void saveSettings(object sender, RoutedEventArgs e)
         {
-            //Read values from control
-            settings.dirpath = dirpath.Text;
-            settings.forceProcGen = int.Parse(forceProcGen.Text.ToString());
-            settings.procGenWinNum = int.Parse(procGenWinNum.Text.ToString());
-            settings.HDRExposure = float.Parse(HDRExposure.Text.ToString());
-            settings.animFPS = int.Parse(AnimFPS.Text.ToString());
-            
-            saveSettingsStatic(settings);
-
+            saveSettingsStatic();
             MessageBox.Show("Settings Saved", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void Dirpath_OnGotFocus(object sender, RoutedEventArgs e)
         {
+            System.Windows.Controls.Button but = (System.Windows.Controls.Button) sender;
+            
             FolderBrowserDialog openFileDlg = new FolderBrowserDialog();
             var res = openFileDlg.ShowDialog();
 
-            if (res == System.Windows.Forms.DialogResult.Cancel)
-                dirpath.Text = "";
-            else
-                dirpath.Text = openFileDlg.SelectedPath;
+            string path = "";
 
+            if (res == System.Windows.Forms.DialogResult.OK)
+                path = openFileDlg.SelectedPath;
             openFileDlg.Dispose();
+
+            if (but.Name == "GameDirSetButton")
+                settings.GameDir = path;
+            else
+                settings.UnpackDir = path;
+
         }
     }
 
-    //Settings Structure
-    public class Settings
+    //Settings JSON Structure
+
+    public class JSONSettings
     {
-        public string dirpath;
-        public int procGenWinNum;
-        public int forceProcGen;
-        public int useVSYNC;
-        public int animFPS;
+        public string GameDir;
+        public string UnpackDir;
+        public int ProcGenWinNum;
+        public int ForceProcGen;
+        public int UseVSYNC;
+        public int AnimFPS;
         public float HDRExposure;
+
     }
+   
 }

@@ -31,8 +31,6 @@ namespace MVCore
 
     public static class FileUtils
     {
-        //Store ref dirpath
-        public static string dirpath = "";
         //Check files
         public static bool compareFileSizes(string filepath1, string filepath2)
         {

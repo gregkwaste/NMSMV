@@ -50,7 +50,8 @@ struct CommonPerFrameUniforms
 
 struct CommonPerFrameSamplers
 {
-    samplerCube depthMap; //Depth Map for shadow calculation
+    sampler2D depthMap; //Scene Depth Map
+    sampler2DArray shadowMap; //Dummy - NOT USED
 };
 
 //Custom Per Frame Struct

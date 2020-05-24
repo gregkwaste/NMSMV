@@ -4,51 +4,82 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:WPFModelViewer"
+        xmlns:mvcore_common="clr-namespace:MVCore.Common"
         mc:Ignorable="d"
-        Title="SettingsForm" ResizeMode="NoResize" SizeToContent="WidthAndHeight" Height="Auto" Width="Auto">
+        Title="SettingsForm" ResizeMode="NoResize" SizeToContent="WidthAndHeight" Height="Auto" Width="Auto" d:DesignWidth="202.333" d:DesignHeight="80.333">
+    <Window.Resources>
+        <ResourceDictionary>
+            <DataTemplate DataType="{x:Type mvcore_common:Settings}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition/>
+                        <RowDefinition/>
+                        <RowDefinition/>
+                        <RowDefinition/>
+                    </Grid.RowDefinitions>
+
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="250"/>
+                        <ColumnDefinition Width="500"/>
+                        <ColumnDefinition Width="50"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" FontSize="14">No Man's Sky Installation Folder</TextBlock>
+                    <TextBox  Grid.Row="0" Grid.Column="1" Text="{Binding GameDir, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Stretch"  FontSize="14" IsEnabled="False"></TextBox>
+                    <Button  Grid.Row="0" Grid.Column="2" x:Name="GameDirSetButton" Click="Dirpath_OnGotFocus">Set</Button>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" FontSize="14">No Man's Sky UNPACKED Folder</TextBlock>
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding UnpackDir}" HorizontalAlignment="Stretch" FontSize="14" IsEnabled="False"></TextBox>
+                    <Button Grid.Row="1" Grid.Column="2" x:Name="UnpackDirSetButton" Click="Dirpath_OnGotFocus">Set</Button>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" FontSize="14">ProcGen Window Number</TextBlock>
+                    <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding ProcGenWinNum}" HorizontalAlignment="Stretch"></TextBox>
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" FontSize="14">Force ProcGen</TextBlock>
+                    <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding ForceProcGen}" HorizontalAlignment="Stretch"></TextBox>
+                </Grid>
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type mvcore_common:RenderSettings}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition/>
+                        <RowDefinition/>
+                        <RowDefinition/>
+                    </Grid.RowDefinitions>
+
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="250"/>
+                        <ColumnDefinition Width="500"/>
+                        <ColumnDefinition Width="50"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" FontSize="14">HDR Exposure</TextBlock>
+                    <TextBox Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding HDRExposure}" HorizontalAlignment="Stretch"></TextBox>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" FontSize="14">Animation FPS</TextBlock>
+                    <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding AnimFPS}" HorizontalAlignment="Stretch"></TextBox>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0"  FontSize="14">VSYNC</TextBlock>
+                    <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding UseVSYNC}" HorizontalAlignment="Stretch"></TextBox>
+
+                </Grid>
+            </DataTemplate>
+        </ResourceDictionary>
+    </Window.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition/>
             <RowDefinition/>
             <RowDefinition/>
-            <RowDefinition/>
-            <RowDefinition/>
-            <RowDefinition/>
-            <RowDefinition/>
         </Grid.RowDefinitions>
-
-        <DockPanel Grid.Row="0" LastChildFill="True">
-            <TextBlock Width="250" FontSize="14">No Man's Sky UNPACKED Folder</TextBlock>
-            <TextBox x:Name="dirpath" HorizontalAlignment="Right" Width="400" FontSize="14" GotFocus="Dirpath_OnGotFocus"></TextBox>
-        </DockPanel>
-        <DockPanel Grid.Row="1" LastChildFill="True">
-            <TextBlock Width="250" FontSize="14">ProcGen Window Number</TextBlock>
-            <TextBox x:Name="procGenWinNum" HorizontalAlignment="Right" Width="400"></TextBox>
-        </DockPanel>
-
-        <DockPanel Grid.Row="2" LastChildFill="True">
-            <TextBlock Width="250" FontSize="14">Force ProcGen</TextBlock>
-            <TextBox x:Name="forceProcGen" HorizontalAlignment="Right" Width="400"></TextBox>
-        </DockPanel>
-
-        <DockPanel Grid.Row="3" LastChildFill="True">
-            <TextBlock Width="250" FontSize="14">HDR Exposure</TextBlock>
-            <TextBox x:Name="HDRExposure" HorizontalAlignment="Right" Width="400"></TextBox>
-        </DockPanel>
-
-        <DockPanel Grid.Row="4" LastChildFill="True">
-            <TextBlock Width="250" FontSize="14">Animation FPS</TextBlock>
-            <TextBox x:Name="AnimFPS" HorizontalAlignment="Right" Width="400"></TextBox>
-        </DockPanel>
-
-        <DockPanel Grid.Row="5" LastChildFill="True">
-            <TextBlock Width="250" FontSize="14">VSYNC</TextBlock>
-            <TextBox x:Name="VSYNC" HorizontalAlignment="Right" Width="400"></TextBox>
-        </DockPanel>
-
-        <DockPanel Grid.Row="6" Grid.ColumnSpan="2">
-            <Button Click="saveSettings">Save Settings</Button>
-        </DockPanel>
-
+        <ContentControl Grid.Row="0" x:Name="SettingsContainer"/>
+        <ContentControl Grid.Row="1" x:Name="RenderSettingsContainer"/>
+        <Button Grid.Row="2" Click="saveSettings">Save Settings</Button>
     </Grid>
+    
+    
+    
+    
 </Window>

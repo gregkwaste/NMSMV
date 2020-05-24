@@ -2,6 +2,21 @@
  *  Copies incoming vertex color without change.
  *  Applies the transformation matrix to vertex position.
  */
+
+
+//Extra preprocessor directives
+#if defined( __F25_ROUGHNESS_MASK ) || defined( __F41_DETAIL_DIFFUSE ) || defined( __F42_DETAIL_NORMAL ) || defined( __F24_AOMAP ) || defined( __F40_SUBSURFACE_MASK ) || defined( __F54_COLOURMASK )
+    #define D_MASKS
+#endif
+
+#if defined( __F01_DIFFUSEMAP ) || defined( __F03_NORMALMAP ) || defined( D_IMPOSTERMASKS ) || defined(D_MASKS)
+    #define D_TEXCOORDS
+#endif
+
+#if defined( __F42_DETAIL_NORMAL ) || defined( __F41_DETAIL_DIFFUSE )
+    //#define D_DETAIL
+#endif
+
  
 //Includes
 #include "/common.glsl"
@@ -26,15 +41,30 @@ layout (std140, binding=1) uniform _COMMON_PER_MESH
 
 
 in vec4 fragPos;
+in vec4 screenPos;
 in vec4 vertColor;
-in vec3 N;
-in vec2 uv0;
+in vec3 mTangentSpaceNormalVec3;
+in vec4 uv;
 in mat3 TBN;
-in float isOccluded;
+flat in int instanceId;
 in float isSelected;
 
 //Deferred Shading outputs
 out vec4 outcolors[3];
+
+
+#ifdef __F62_DETAIL_ALPHACUTOUT
+	const float kfAlphaThreshold = 0.1;
+	const float kfAlphaThresholdMax = 0.5;
+#elif defined (__F11_ALPHACUTOUT)
+	//kfAlphaThreshold = 0.45; OLD
+	//kfAlphaThresholdMax = 0.8;
+	const float kfAlphaThreshold = 0.5;
+	const float kfAlphaThresholdMax = 0.9;
+#else
+	const float kfAlphaThreshold = 0.0001;
+#endif
+
 
 //New Decoding function - RGTC
 vec3 DecodeNormalMap(vec4 lNormalTexVec4 ){
@@ -46,92 +76,37 @@ vec3 DecodeNormalMap(vec4 lNormalTexVec4 ){
 float get_mipmap_level(){
 	float mipmaplevel = 0.0;
 	#ifdef __F01_DIFFUSEMAP
-		mipmaplevel = textureQueryLOD(mpCustomPerMaterial.gDiffuseMap, uv0).x;
+		mipmaplevel = textureQueryLOD(mpCustomPerMaterial.gDiffuseMap, uv.xy).x;
 	#endif
 	return mipmaplevel;
 }
 
-//Calculates the diffuse color
-vec4 calcDiffuseColor(float mipmaplevel, out float lHighAlpha, out float lLowAlpha, out float difftTex2Factor){
-	vec4 diffTexColor; 
-	lLowAlpha = 1.0;
-	lHighAlpha = 1.0;
+void clip(float test) { if (test < 0.0) discard; }
 
-	//Check _F01_DIFFUSEMAP
-#ifdef __F01_DIFFUSEMAP
-	#ifdef __F55_MULTITEXTURE
-		diffTexColor = textureLod(mpCustomPerMaterial.gDiffuseMap, vec3(uv0, mpCommonPerMesh.gUserDataVec4.w), mipmaplevel);
-		//diffTexColor = vec4(1.0, 1.0, 1.0, 1.0);
-	#else
-		diffTexColor = textureLod(mpCustomPerMaterial.gDiffuseMap, vec3(uv0, 0.0), mipmaplevel);
-		//diffTexColor = vec4(1.0, 0.0, 0.0, 1.0);
-	#endif
 
-	//diffTexColor = diffTexColor / diffTexColor.a;
-	#if !defined(__F07_UNLIT) && defined(__F39_METALLIC_MASK)
-		#if defined(__F34_GLOW) && defined(__F35_GLOW_MASK) && !defined(__F09_TRANSPARENT)
-			lHighAlpha = GetUpperValue(diffTexColor.a);
-		#else
-			lHighAlpha = diffTexColor.a;
-		#endif
-	#endif
+vec4 worldfromDepth()
+{
+	vec4 world;
 	
-	#if defined(__F34_GLOW) && defined (__F35_GLOW_MASK) && !defined (__F09_TRANSPARENT)
-		lLowAlpha = GetLowerValue(diffTexColor.a);
-	#endif
+	//PARTIALLY WORKING
+	vec2 depth_uv = gl_FragCoord.xy / (1.0 * mpCommonPerFrame.frameDim);
 	
-	#if !defined(__F09_TRANSPARENT) && !defined(__F11_ALPHACUTOUT)
-		diffTexColor.a = 1.0;
-	#endif
+	//Fetch depth
+	float depth = texture(mpCommonPerFrameSamplers.depthMap, depth_uv).x; 
 
-#else
-	diffTexColor = mpCustomPerMaterial.gMaterialColourVec4;
-#endif
+	//Convert depth back to (-1:1)
+	world.xy = 2.0 * depth_uv - 1.0;
+	world.z = 2.0 * depth - 1.0; 
+	world.w = 1.0f;
 
-#ifdef __F16_DIFFUSE2MAP
-	vec4 lDiffuse2Vec4 = textureLod(mpCustomPerMaterial.gDiffuse2Map, vec3(uv0, 0.0), mipmaplevel);
-	difftTex2Factor = lDiffuse2Vec4.a;
-
-	#ifndef __F17_MULTIPLYDIFFUSE2MAP
-		diffTexColor.rgb = mix( diffTexColor.rgb, lDiffuse2Vec4.rgb, lDiffuse2Vec4.a );
-	#endif
-#endif
-
-#ifdef __F21_VERTEXCOLOUR
-	diffTexColor *= vertColor;
-#endif
+	world = mpCommonPerFrame.projMatInv * world;
+	world /= world.w;
+	world = mpCommonPerFrame.lookMatInv * world;
+	world /= world.w;
 	
-	//Apply gamma correction
-    //diffTexColor.rgb = fixColorGamma(diffTexColor.rgb);
-    //diffTexColor.rgb = GammaCorrectInput(diffTexColor.rgb);
-	return diffTexColor;
+	return world;
 }
 
-
-//calculates the normal
-vec3 calcNormal(float mipmaplevel){
-	vec3 normal = normalize(N);
-	#ifdef __F03_NORMALMAP
-		vec2 lTexCoordsVec2 = uv0;
-		#ifdef __F43_NORMAL_TILING
-			lTexCoordsVec2 *= mpCustomPerMaterial.gCustomParams01Vec4.z;
-		#endif
-		normal = DecodeNormalMap(textureLod(mpCustomPerMaterial.gNormalMap, vec3(lTexCoordsVec2, 0.0), mipmaplevel));
-  		normal = normalize(TBN * normal);
-	#endif
-  	return (vec4(normal, 0.0)).xyz; //This is normalized in any case
-}
-
-float calcRoughness(float mipmaplevel){
-	float lfRoughness = 0.0;
-	#if defined(__F25_ROUGHNESS_MASK) && !defined(__F07_UNLIT)
-		lfRoughness = textureLod(mpCustomPerMaterial.gMasksMap, vec3(uv0, 0.0), mipmaplevel).g;
-		lfRoughness = 1.0 - lfRoughness;
-	#else
-		lfRoughness *= mpCustomPerMaterial.gMaterialParamsVec4.x;
-	#endif
-	return lfRoughness;
-}
 
 float calcAO(float mipmaplevel){
 	float ao = 1.0;
@@ -164,7 +139,7 @@ float calcShadow(vec4 _fragPos, Light light){
 	vec3 fragToLight = (_fragPos - light.position).xyz;
 	
 	// use the light to fragment vector to sample from the depth map 
-	float closestDepth = texture(mpCommonPerFrameSamplers.depthMap, fragToLight).r; 
+	float closestDepth = texture(mpCommonPerFrameSamplers.shadowMap, fragToLight).r; 
 	
 	// it is currently in linear range between [0,1]. Re-transform back to original value 
 	closestDepth *= mpCommonPerFrame.cameraFarPlane; 
@@ -183,160 +158,339 @@ float calcShadow(vec4 _fragPos, Light light){
 void pbr_lighting(){
 
 	//Final Light/Normal vector calculations
-	vec4 diffTexColor;
+	vec4 lColourVec4;
 	float diffTex2Factor = 1.0;
-	vec3 normal; //Fragment normal
+	vec3 lNormalVec3 = mTangentSpaceNormalVec3;
+	float lLowAlpha = 1.0; //TODO : Find out what exactly is that shit
+	float lHighAlpha = 1.0; //TODO : Find out what exactly is that shit
+	vec4 world = fragPos;
+	float isLit = 1.0;
 	float lfRoughness = 1.0;
 	float lfMetallic = 0.0;
 	float lfSubsurface = 0.0; //Not used atm
 	float ao = 1.0;
-	float lLowAlpha = 1.0; //TODO : Find out what exactly is that shit
-	float lHighAlpha = 1.0; //TODO : Find out what exactly is that shit
+	float lfGlow = 0.0;
+
+	#if defined(__F07_UNLIT)
+		isLit = 0.0;
+	#endif
+
+	#ifdef __F55_MULTITEXTURE
+    	float lfMultiTextureIndex = mpCommonPerMesh.gUserDataVec4.w;
+	#endif
+
+    #ifdef D_TEXCOORDS
+    	
+    	vec4 lTexCoordsVec4;
+        lTexCoordsVec4 = uv;
+
+        //Decal stuff
+		#if defined(__F51_DECAL_DIFFUSE) || defined(__F52_DECAL_NORMAL)
+        {
+            world = worldfromDepth();
+			//Convert vertex to the local space of the box
+
+			vec4 localPos = mpCommonPerMesh.instanceData[instanceId].worldMatInv * world;
+			localPos /= localPos.w;
+
+			//Clip
+			float decalBias = 0.01;
+			clip(0.5 - decalBias - abs(localPos.x));
+			clip(0.5 - decalBias- abs(localPos.y));
+			clip(0.5 - decalBias- abs(localPos.z));
+
+
+			lTexCoordsVec4.xy = localPos.xy + 0.5;
+			lTexCoordsVec4.y *= -1; //Flip on Y axis
+        }
+        #endif
+
+	    #if defined( D_IMPOSTER_COLOUR ) && defined( __F12_BATCHED_BILLBOARD )
+	        lTexCoordsVec4.y = 1.0 - lTexCoordsVec4.y;
+	    #endif
+
+    #endif
+
+
+	//Decal stuff
+	#if defined(__F51_DECAL_DIFFUSE) || defined(__F52_DECAL_NORMAL)
+		
+		
+	#endif
+
+	
 
 	if (mpCommonPerFrame.diffuseFlag > 0.0){
 		float mipmaplevel = get_mipmap_level();
 		
-		//Fetch albedo
-		diffTexColor = calcDiffuseColor(mipmaplevel, lHighAlpha, lLowAlpha, diffTex2Factor);
-		
-		//Fetch roughness value
-		lfRoughness = calcRoughness(mipmaplevel);
-		
-		//Fetch metallic value
-		lfMetallic = calcMetallic(lHighAlpha);
+	 
+	
+		#ifdef __F01_DIFFUSEMAP
+			#ifdef __F55_MULTITEXTURE
+				lColourVec4 = textureLod(mpCustomPerMaterial.gDiffuseMap, vec3(lTexCoordsVec4.xy, lfMultiTextureIndex), mipmaplevel);
+			#else
+				lColourVec4 = textureLod(mpCustomPerMaterial.gDiffuseMap, vec3(lTexCoordsVec4.xy, 0.0), mipmaplevel);
+			#endif
 
-		//Fetch AO value
-	 	ao = calcAO(mipmaplevel);
+			#if !defined(__F07_UNLIT) && defined(__F39_METALLIC_MASK)
+				#if defined(__F34_GLOW) && defined(__F35_GLOW_MASK) && !defined(__F09_TRANSPARENT)
+					lHighAlpha = GetUpperValue(lColourVec4.a);
+				#else
+					lHighAlpha = lColourVec4.a;
+				#endif
+			#endif
+			
+			#if defined(__F34_GLOW) && defined (__F35_GLOW_MASK) && !defined (__F09_TRANSPARENT)
+				lLowAlpha = GetLowerValue(lColourVec4.a);
+			#endif
+			
+			#if !defined(__F09_TRANSPARENT) && !defined(__F11_ALPHACUTOUT)
+				lColourVec4.a = 1.0;
+			#endif
+		#else
+			lColourVec4 = mpCustomPerMaterial.gMaterialColourVec4;
+		#endif
 
-	 	//Try to load normal from NormalTexture as well
-	 	normal = calcNormal(mipmaplevel);
+		#ifdef D_MASKS
+	    	#ifdef __F55_MULTITEXTURE
+	            vec4 lMasks = textureLod(mpCustomPerMaterial.gMasksMap, vec3(lTexCoordsVec4.xy, lfMultiTextureIndex));
+	        #else
+	            vec4 lMasks = textureLod(mpCustomPerMaterial.gMasksMap, vec3(lTexCoordsVec4.xy, 0.0));
+	        #endif
+	    #endif
+
+	    #ifdef __F16_DIFFUSE2MAP
+			vec4 lDiffuse2Vec4 = textureLod(mpCustomPerMaterial.gDiffuse2Map, vec3(lTexCoordsVec4.zw, 0.0), mipmaplevel);
+			difftTex2Factor = lDiffuse2Vec4.a;
+
+			#ifndef __F17_MULTIPLYDIFFUSE2MAP
+				lColourVec4.rgb = mix( lColourVec4.rgb, lDiffuse2Vec4.rgb, lDiffuse2Vec4.a );
+			#endif
+		#endif
+
+		#ifdef __F21_VERTEXCOLOUR
+			lColourVec4 *= vertColor;
+		#endif
+		
+		//TRANSPARENCY
+
+		//Mask Checks
+		#ifdef __F22_TRANSPARENT_SCALAR
+			// Transparency scalar comes from float in Material
+	        lColourVec4.a *= mpCustomPerMaterial.gMaterialColourVec4.a;
+	    #endif
+
+		// Discard fully transparent pixels
+	    #if defined( __F09_TRANSPARENT ) || defined( __F22_TRANSPARENT_SCALAR ) || defined( __F11_ALPHACUTOUT )
+	    {
+	        if ( lColourVec4.a < kfAlphaThreshold )
+	        	discard;
+	        
+	        #ifdef __F11_ALPHACUTOUT
+	        	lColourVec4.a = smoothstep( kfAlphaThreshold, kfAlphaThresholdMax, lColourVec4.a );
+	    	#endif
+	    }
+	    #endif
+
+	 	
+	 	#ifdef D_DETAIL
+	    	//TODO: ADD shit for detail maps
+	    #endif
+
+	    #ifdef __F24_AOMAP
+			lColourVec4.rgb *= lMasks.r;
+		#endif
+
+		#ifdef __F17_MULTIPLYDIFFUSE2MAP
+			lColourVec4.rgb *= diffTex2Factor;
+		#endif
+
+		//NORMALS
+
+		#ifdef __F03_NORMALMAP
+			#ifdef __F43_NORMAL_TILING
+	        	lTexCoordsVec4.xy *= mpCustomPerMaterial.gCustomParams01Vec4.z;
+	        #endif
+	        
+	        #if defined( __F44_IMPOSTER )
+	            vec4 lTexColour = textureLod(mpCustomPerMaterial.gNormalMap, vec3(lTexCoordsVec4.xy, 0.0), 1.0);
+	            vec3 lNormalTexVec3 = normalize(lTexColour.xyz * 2.0 - 1.0);
+	        #else
+	            #ifdef __F55_MULTITEXTURE
+	                vec4 lTexColour = textureLod(mpCustomPerMaterial.gNormalMap, vec3(lTexCoordsVec4.xy, lfMultiTextureIndex), mipmaplevel);
+	            #else
+	                vec4 lTexColour = textureLod(mpCustomPerMaterial.gNormalMap, vec3(lTexCoordsVec4.xy, 0.0), mipmaplevel );
+	            #endif 
+	        
+	        vec3 lNormalTexVec3 = DecodeNormalMap( lTexColour );
+	        #endif
+	            
+	         lNormalVec3 = lNormalTexVec3;
+	    #elif defined( D_USES_VERTEX_NORMAL )
+	    	lNormalVec3 = mTangentSpaceNormalVec3;
+		#endif
+
+		#if defined( __F03_NORMALMAP ) || defined( __F42_DETAIL_NORMAL )
+    	{
+        	mat3 lTangentSpaceMat;
+
+        
+	        #ifdef __F52_DECAL_NORMAL
+	        {
+	        	/* TODO ENABLE THAT SHIT AT SOME POINT
+	           		// lTangentSpaceMat = GetDecalTangentSpaceMatrix( lWorldPositionVec3, lUniforms.mpPerFrame->gViewMat4 );
+	            	lTangentSpaceMat = GetCotangentFrame( lWorldPositionVec3, lUniforms.mpPerFrame->gViewPositionVec3, lTexCoordsVec4.xy );
+	            */
+	        }
+	        #else
+	        {
+	            lTangentSpaceMat = TBN;
+	        }
+	        #endif
+        
+	        /* TODO ENABLE TAHT SHIT AT SOME POINT
+	        #if defined( _F36_DOUBLESIDED ) && !defined( D_IMPOSTER_NORMAL)
+
+	            lTangentSpaceMat[ 1 ] = cross( lFaceNormalVec3, lTangentSpaceMat[ 0 ] ) * IN( mWorldPositionVec3_mfSpare ).w;
+	            lTangentSpaceMat[ 2 ] = lFaceNormalVec3;
+
+	        #endif
+	        */
+
+        	lNormalVec3 = normalize(TBN * lNormalVec3);        
+    	}
+	    #endif
+
+	    #ifdef __F42_DETAIL_NORMAL
+	    	//TODO ADD SOME SHIT HERE
+	    #endif
+
+		//LIGHTING
+
+		#ifndef __F07_UNLIT
+	    {
+	        #ifdef __F25_ROUGHNESS_MASK
+	        {
+	            lfRoughness = lMasks.g;
+
+	            #ifdef D_DETAIL
+	            {
+	                //TODO: CHECK THAT SHIT OUT
+	                //lfRoughness  = mix( lfRoughness, lDetailNormalVec4.b,               lfIsBlendImage    * smoothstep( lfBlendHeightMin, lfBlendHeightMax, lMasks.b ) );
+	                //lfRoughness  = mix( lfRoughness, lDetailNormalVec4.b * lfRoughness, lfIsMultiplyImage * smoothstep( lfBlendHeightMin, lfBlendHeightMax, lMasks.b ) );
+	            }
+	            #endif
+
+	            lfRoughness = 1.0 - lfRoughness;
+	        }
+	        #endif
+
+			lfRoughness *= mpCustomPerMaterial.gMaterialParamsVec4.x;
+
+	        #ifdef __F39_METALLIC_MASK
+	        {
+	            lfMetallic = lHighAlpha;
+
+	            #ifdef D_DETAIL
+	            {
+	                //TODO: CHECK THAT SHIT OUT
+	                //lfMetallic = mix( lfMetallic, lDetailNormalVec4.b,               lfIsBlendImage    * smoothstep( lfBlendHeightMin, lfBlendHeightMax, lMasks.b ) );
+	                //lfMetallic = mix( lfMetallic, lDetailNormalVec4.b * lfRoughness, lfIsMultiplyImage * smoothstep( lfBlendHeightMin, lfBlendHeightMax, lMasks.b ) );
+	            }
+	            #endif        
+	        }
+	        #else 
+	        	lfMetallic = mpCustomPerMaterial.gMaterialParamsVec4.z;
+        	#endif
+
+	        #ifdef __F40_SUBSURFACE_MASK
+	        	lfSubsurface = lMasks.r;
+	        #endif
+
+	    }
+	    #endif
+
+
 	} else {
-		diffTexColor = vec4(mpCommonPerMesh.color, 1.0);
-		normal = N;
+		lColourVec4 = vec4(mpCommonPerMesh.color, 1.0);
+		lNormalVec3 = mTangentSpaceNormalVec3;
 	}
 
 	
-	//TRANSPARENCY
-
-	//Set alphaTrehsholds
-	float kfAlphaThreshold = 0.0001;
-	float kfAlphaThresholdMax = 0.8;
-
-	#ifdef __F62_DETAIL_ALPHACUTOUT
-		kfAlphaThreshold = 0.1;
-		kfAlphaThresholdMax = 0.5;
-	#elif defined (__F11_ALPHACUTOUT)
-		//kfAlphaThreshold = 0.45; OLD
-		//kfAlphaThresholdMax = 0.8;
-		kfAlphaThreshold = 0.5;
-		kfAlphaThresholdMax = 0.9;
-	#endif
-	
-	//Mask Checks
-	#ifdef __F22_TRANSPARENT_SCALAR
-		// Transparency scalar comes from float in Material
-        diffTexColor.a *= mpCustomPerMaterial.gMaterialColourVec4.a;
-    #endif
-	
-	#if defined(__F09_TRANSPARENT) || defined(__F22_TRANSPARENT_SCALAR) || defined(__F11_ALPHACUTOUT)
-		if (diffTexColor.a < kfAlphaThreshold) discard;
-		#ifdef __F11_ALPHACUTOUT
-			diffTexColor.a = smoothstep(kfAlphaThreshold, kfAlphaThresholdMax, diffTexColor.a);
-
-			if (diffTexColor.a < kfAlphaThreshold + 0.1) discard;
-		#endif
-	#endif
-
-	#ifdef __F24_AOMAP
-		diffTexColor.rgb *= ao;
-	#endif
-
-	#ifdef __F17_MULTIPLYDIFFUSE2MAP
-		diffTexColor.rgb *= diffTex2Factor;
-	#endif
-
-	//Get Glow
-	float lfGlow = 0.0;
-	
-	#if defined(__F35_GLOW_MASK) && !defined(__F09_TRANSPARENT)
-		lfGlow = mpCustomPerMaterial.gCustomParams01Vec4.y * lLowAlpha;
-	#elif defined(__F34_GLOW)
-		lfGlow = mpCustomPerMaterial.gCustomParams01Vec4.y;
-	#endif
-
 	#ifdef __F34_GLOW
-		diffTexColor.rgb = mix( diffTexColor.rgb, diffTexColor.rgb, lfGlow );
+    {
+        #if defined(__F35_GLOW_MASK) && !defined(__F09_TRANSPARENT)
+			lfGlow = mpCustomPerMaterial.gCustomParams01Vec4.y * lLowAlpha;
+		#else
+			lfGlow = mpCustomPerMaterial.gCustomParams01Vec4.y;
+		#endif
+    }
+    #endif
+
+
+    #ifdef __F34_GLOW
+		lColourVec4.rgb = mix( lColourVec4.rgb, lColourVec4.rgb, lfGlow );
 		#ifdef __F35_GLOW_MASK
-			diffTexColor.a = lfGlow;
+			lColourVec4.a = lfGlow;
 		#endif
 	#endif
 
-#ifdef _D_DEFERRED_RENDERING
-	//Save Info to GBuffer
-    //Albedo
-	outcolors[0] = diffTexColor;
-	//outcolors[0].rgb = vec3(lfGlow, lfGlow, 0);
-	//outcolors[0].rgb = lfGlow * mpCustomPerMaterial.gMaterialColourVec4.xyz;
-	outcolors[1].rgb = normal;	
-	
-	//Export Frag Params
-	outcolors[2].x = ao;
-	outcolors[2].y = lfMetallic;
-	outcolors[2].z = lfRoughness;
-	outcolors[2].a = lfGlow;
 
-#else
-	
-	//FORWARD LIGHTING
-	vec4 finalColor = vec4(0.0, 0.0, 0.0, diffTexColor.a);
+	//WRITE OUTPUT
 
-	#ifndef __F07_UNLIT
-		for(int i = 0; i < mpCommonPerFrame.light_count; ++i) 
-	    {
-	    	// calculate per-light radiance
-	        Light light = mpCommonPerFrame.lights[i]; 
 
-			//Pos.w is the renderable status of the light
-			if (light.position.w < 1.0)
-	        	continue;
-    		
-    		finalColor.rgb += calcLighting(light, fragPos, normal, mpCommonPerFrame.cameraPosition,
-	            diffTexColor.rgb, lfMetallic, lfRoughness, ao);
-		} 
+	#ifdef _D_DEFERRED_RENDERING
+		//Save Info to GBuffer
+	    //Albedo
+		outcolors[0] = lColourVec4;
+		//Normals
+		outcolors[1].rgb = lNormalVec3;
+		outcolors[1].a = isLit; //TODO: Use the alpha channel of that attachment to upload any extra material flags
+
+		//Export Frag Params
+		outcolors[2].x = ao; //ao is already multiplied to the color
+		outcolors[2].y = saturate(lfMetallic);
+		outcolors[2].z = lfRoughness;
+		outcolors[2].a = saturate(lfSubsurface);
+
+		//TODO SEND GLOW TO NEXT STAGES
 
 	#else
-		finalColor = diffTexColor;
-	#endif
+		
+		//FORWARD LIGHTING
+		vec4 finalColor = lColourVec4;
 
-	//finalColor.rgb = vec3(1.0, 1.0, 1.0);
-	//TODO: Add glow depending on the material parameters cached in the gbuffer (normalmap.a) if necessary
-	
-	#ifdef __F34_GLOW
-		finalColor.rgb = mix( finalColor.rgb, diffTexColor.rgb, lfGlow );
-		#ifdef __F35_GLOW_MASK
-			finalColor.a = lfGlow;
+		#ifndef __F07_UNLIT
+			for(int i = 0; i < mpCommonPerFrame.light_count; ++i) 
+		    {
+		    	// calculate per-light radiance
+		        Light light = mpCommonPerFrame.lights[i]; 
+
+				//Pos.w is the renderable status of the light
+				if (light.position.w < 1.0)
+		        	continue;
+	    		
+	    		finalColor.rgb += calcLighting(light, fragPos, lNormalVec3, mpCommonPerFrame.cameraPosition,
+		            lColourVec4.rgb, lfMetallic, lfRoughness, ao);
+			} 
+
+		#else
+			finalColor = lColourVec4;
 		#endif
+
+		//Weighted Blended order independent transparency
+		float z = screenPos.z / screenPos.w;
+		float weight = max(min(1.0, max3(finalColor.rgb) * finalColor.a), finalColor.a) *
+						clamp(0.03 / (1e-5 + pow(z/200, 4.0)), 1e-2, 3e3);
+		
+		outcolors[0] = vec4(finalColor.rgb * finalColor.a, finalColor.a) * weight;
+		outcolors[1] = vec4(finalColor.a);
+
 	#endif
-
-	// Exposure tone mapping
-	float gamma = 2.2;
-    //finalColor.rgb = vec3(1.0) - exp(-finalColor.rgb * mpCommonPerFrame.HDRExposure);
-    
-
-    // Gamma correction 
-    //finalColor.rgb = pow(finalColor.rgb, vec3(1.0 / gamma));
-
-    outcolors[0] = finalColor;
-
-#endif
 }
 
 
 void main(){
-
-	//Occlusion is properly applied per instance in the main code. No need to discard anything here
-	if (isOccluded > 0.0)
-		discard;
 
 	pbr_lighting();
 }

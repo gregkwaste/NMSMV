@@ -85,7 +85,6 @@ namespace Model_Viewer
         private ContextMenuStrip contextMenuStrip1;
         private System.ComponentModel.IContainer components;
         private ToolStripMenuItem exportToObjToolStripMenuItem;
-        private ToolStripMenuItem loadAnimationToolStripMenuItem;
         private OpenFileDialog openFileDialog1;
         private Form pform;
 
@@ -145,7 +144,7 @@ namespace Model_Viewer
 
             //Set properties
             DoubleBuffered = true;
-            VSync = false;
+            VSync = RenderState.renderSettings.UseVSYNC;
 
         }
 
@@ -201,7 +200,7 @@ namespace Model_Viewer
             SwapBuffers();
 
             renderMgr.render(); //Render Everything
-            
+
             Thread.Sleep(1);
         }
         
@@ -217,7 +216,9 @@ namespace Model_Viewer
         //Per Frame Updates
         private void frameUpdate()
         {
-            VSync = RenderOptions.UseVSYNC; //Update Vsync 
+            VSync = RenderState.renderSettings.UseVSYNC; //Update Vsync 
+
+            //Console.WriteLine(RenderState.renderSettings.RENDERMODE);
 
             //Update movement
             keyboardController();
@@ -247,7 +248,7 @@ namespace Model_Viewer
             }
             
             //Progress animations
-            if (RenderOptions.ToggleAnimations)
+            if (RenderState.renderSettings.ToggleAnimations)
                 progressAnimations();
             
             //Camera & Light Positions
@@ -303,14 +304,18 @@ namespace Model_Viewer
             }
         }
 
-
         //Main Rendering Routines
         private void ControlLoop()
         {
             //Setup new Context
-            IGraphicsContext new_context = new GraphicsContext(new GraphicsMode(32, 24, 0, 8), this.WindowInfo);
-            new_context.MakeCurrent(this.WindowInfo);
-            this.MakeCurrent(); //This is essential
+#if(DEBUG)
+            IGraphicsContext new_context = new GraphicsContext(new GraphicsMode(32, 24, 0, 8), WindowInfo, 4, 3,
+                GraphicsContextFlags.Debug);
+#else
+            IGraphicsContext new_context = new GraphicsContext(new GraphicsMode(32, 24, 0, 8), WindowInfo);
+#endif
+            new_context.MakeCurrent(WindowInfo);
+            MakeCurrent(); //This is essential
 
             //Add default primitives trying to avoid Vao Request queue traffic
             resMgr.Cleanup();
@@ -414,7 +419,7 @@ namespace Model_Viewer
 
         
 
-        #region GLControl Methods
+#region GLControl Methods
         private void genericEnter(object sender, EventArgs e)
         {
             //Start Timer when the glControl gets focus
@@ -617,16 +622,16 @@ namespace Model_Viewer
             //}
         }
 
-        #endregion GLControl Methods
+#endregion GLControl Methods
 
-        #region ShaderMethods
+#region ShaderMethods
 
-        #endregion ShaderMethods
+#endregion ShaderMethods
 
         private void compileMainShaders()
         {
 
-#if(DEBUG)
+#if (DEBUG)
             //Query GL Extensions
             Console.WriteLine("OPENGL AVAILABLE EXTENSIONS:");
             string[] ext = GL.GetString(StringName.Extensions).Split(' ');
@@ -758,15 +763,24 @@ namespace Model_Viewer
                             GLSLHelper.SHADER_TYPE.TONE_MAPPING, ref log);
             resMgr.GLShaders[GLSLHelper.SHADER_TYPE.TONE_MAPPING] = shader_conf;
 
+            //INV TONE MAPPING + GAMMA CORRECTION
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gbuffer_shader_fs.addStringFromFile("Shaders/inv_tone_mapping_fs.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
+                            SHADER_TYPE.INV_TONE_MAPPING, ref log);
+            resMgr.GLShaders[SHADER_TYPE.INV_TONE_MAPPING] = shader_conf;
 
-            //TODO_REPAIR
-            //Decal Shaders
-            //GLSLShaderText decal_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            //GLSLShaderText decal_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            //decal_shader_vs.addStringFromFile("Shaders/decal_VS.glsl");
-            //decal_shader_fs.addStringFromFile("Shaders/Decal_FS.glsl");
-            //GLShaderHelper.compileShader(decal_shader_vs, decal_shader_fs, null, null, null,
-            //                GLSLHelper.SHADER_TYPE.DECAL_SHADER, ref log);
+
+            //BWOIT SHADER
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gbuffer_shader_fs.addStringFromFile("Shaders/bwoit_shader_fs.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
+                            SHADER_TYPE.BWOIT_COMPOSITE_SHADER, ref log);
+            resMgr.GLShaders[SHADER_TYPE.BWOIT_COMPOSITE_SHADER] = shader_conf;
 
 
             //Text Shaders
@@ -777,20 +791,22 @@ namespace Model_Viewer
             resMgr.GLShaders[GLSLHelper.SHADER_TYPE.CAMERA_SHADER] = null;
 
             //FILTERS - EFFECTS
-            
+
             //Pass Shader
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
             GLSLShaderText passthrough_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
             passthrough_shader_fs.addStringFromFile("Shaders/PassThrough_FS.glsl");
             shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, passthrough_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.PASSTHROUGH_SHADER, ref log);
-            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.PASSTHROUGH_SHADER] = shader_conf;
+                            SHADER_TYPE.PASSTHROUGH_SHADER, ref log);
+            resMgr.GLShaders[SHADER_TYPE.PASSTHROUGH_SHADER] = shader_conf;
 
             
 
         }
 
 
-        #region ContextMethods
+#region ContextMethods
 
         private void exportToObjToolStripMenuItem_Click(object sender, EventArgs e)
         {
@@ -838,9 +854,9 @@ namespace Model_Viewer
                 if (c.renderable) findGeoms(c, s, ref index);
         }
 
-        #endregion ContextMethods
+#endregion ContextMethods
 
-        #region ControlSetup_Init
+#region ControlSetup_Init
 
         //Setup
         
@@ -851,15 +867,15 @@ namespace Model_Viewer
             Context.MakeCurrent(null);
             rendering_thread = new Thread(ControlLoop);
             rendering_thread.IsBackground = true;
-            rendering_thread.Priority = ThreadPriority.AboveNormal;
+            rendering_thread.Priority = ThreadPriority.Normal;
 
             //Start RT Thread
             rendering_thread.Start();
         }
 
-        #endregion ControlSetup_Init
+#endregion ControlSetup_Init
 
-        #region Camera Update Functions
+#region Camera Update Functions
         public void setActiveCam(int index)
         {
             if (RenderState.activeCam != null)
@@ -882,7 +898,7 @@ namespace Model_Viewer
             RenderState.activeCam.Position = pos;
         }
 
-        #endregion
+#endregion
 
         public void updateControlRotation(float rx, float ry)
         {
@@ -890,7 +906,7 @@ namespace Model_Viewer
             rot.Y = ry;
         }
 
-        #region AddObjectMethods
+#region AddObjectMethods
 
         private void addCamera(bool cull = true)
         {
@@ -908,7 +924,7 @@ namespace Model_Viewer
             
         }
 
-        #endregion AddObjectMethods
+#endregion AddObjectMethods
 
 
         public void issueRequest(ref ThreadRequest r)
@@ -943,7 +959,7 @@ namespace Model_Viewer
             RenderStats.ClearStats();
             
             //Stop animation if on
-            if (RenderOptions.ToggleAnimations)
+            if (RenderState.renderSettings.ToggleAnimations)
                 toggleAnimation();
             
             addCamera();
@@ -951,9 +967,7 @@ namespace Model_Viewer
             setActiveCam(0);
 
             //Setup new object
-            string relpath = filename.Replace(FileUtils.dirpath, "");
-            relpath = relpath.TrimStart('\\');
-            rootObject = GEOMMBIN.LoadObjects(relpath);
+            rootObject = GEOMMBIN.LoadObjects(filename);
 
             //Explicitly add default light to the rootObject
             rootObject.children.Add(resMgr.GLlights[0]);
@@ -973,7 +987,7 @@ namespace Model_Viewer
             rootObject.updateMeshInfo(); //Update all mesh info
 
             //Restart anim worker if it was active
-            if (!RenderOptions.ToggleAnimations)
+            if (!RenderState.renderSettings.ToggleAnimations)
                 toggleAnimation();
         }
 
@@ -1012,7 +1026,7 @@ namespace Model_Viewer
         }
 
 
-        #region INPUT_HANDLERS
+#region INPUT_HANDLERS
 
         //Gamepad handler
         private void gamepadController()
@@ -1056,19 +1070,19 @@ namespace Model_Viewer
             rot.X += 50 * step * (kbHandler.getKeyStatus(OpenTK.Input.Key.C) - kbHandler.getKeyStatus(OpenTK.Input.Key.Z));
         }
 
-        #endregion
+#endregion
 
-        #region ANIMATION_PLAYBACK
+#region ANIMATION_PLAYBACK
         //Animation Playback
 
         public void toggleAnimation()
         {
-            RenderOptions.ToggleAnimations = !RenderOptions.ToggleAnimations;
+            RenderState.renderSettings.ToggleAnimations = !RenderState.renderSettings.ToggleAnimations;
         }
 
-        #endregion ANIMATION_PLAYBACK
+#endregion ANIMATION_PLAYBACK
 
-        #region DISPOSE_METHODS
+#region DISPOSE_METHODS
 
         protected override void Dispose(bool disposing)
         {
@@ -1087,7 +1101,7 @@ namespace Model_Viewer
             disposed = true;
         }
 
-        #endregion DISPOSE_METHODS
+#endregion DISPOSE_METHODS
 
     }
 

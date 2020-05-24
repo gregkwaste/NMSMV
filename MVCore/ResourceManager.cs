@@ -35,19 +35,21 @@ namespace MVCore
         //public Dictionary<string, int> GLShaders = new Dictionary<string, int>();
         public Dictionary<GLSLHelper.SHADER_TYPE, GLSLHelper.GLSLShaderConfig> GLShaders = new Dictionary<GLSLHelper.SHADER_TYPE, GLSLHelper.GLSLShaderConfig>(); //Generic Shaders
         
-        public Dictionary<int, GLSLHelper.GLSLShaderConfig> GLDeferredLITShaderMap = new Dictionary<int, GLSLHelper.GLSLShaderConfig>();
-        public Dictionary<int, GLSLHelper.GLSLShaderConfig> GLDeferredUNLITShaderMap = new Dictionary<int, GLSLHelper.GLSLShaderConfig>();
-        public Dictionary<int, GLSLHelper.GLSLShaderConfig> GLForwardShaderMapTransparent = new Dictionary<int, GLSLHelper.GLSLShaderConfig>();
-        public Dictionary<int, GLSLHelper.GLSLShaderConfig> GLForwardShaderMapDecal = new Dictionary<int, GLSLHelper.GLSLShaderConfig>();
+        public Dictionary<int, GLSLShaderConfig> GLDeferredLITShaderMap = new Dictionary<int, GLSLShaderConfig>();
+        public Dictionary<int, GLSLShaderConfig> GLDeferredUNLITShaderMap = new Dictionary<int, GLSLShaderConfig>();
+        public Dictionary<int, GLSLShaderConfig> GLForwardShaderMapTransparent = new Dictionary<int, GLSLShaderConfig>();
+        public Dictionary<int, GLSLShaderConfig> GLDeferredShaderMapDecal = new Dictionary<int, GLSLShaderConfig>();
+        public Dictionary<int, GLSLShaderConfig> GLDefaultShaderMap = new Dictionary<int, GLSLShaderConfig>();
 
         public List<GLSLHelper.GLSLShaderConfig> activeGLDeferredLITShaders = new List<GLSLHelper.GLSLShaderConfig>();
         public List<GLSLHelper.GLSLShaderConfig> activeGLDeferredUNLITShaders = new List<GLSLHelper.GLSLShaderConfig>();
         public List<GLSLHelper.GLSLShaderConfig> activeGLForwardTransparentShaders = new List<GLSLHelper.GLSLShaderConfig>();
-        public List<GLSLHelper.GLSLShaderConfig> activeGLForwardDecalShaders = new List<GLSLHelper.GLSLShaderConfig>();
+        public List<GLSLHelper.GLSLShaderConfig> activeGLDeferredDecalShaders = new List<GLSLHelper.GLSLShaderConfig>();
 
-        public Dictionary<int, List<GLMeshVao>> opaqueMeshList = new Dictionary<int, List<GLMeshVao>>();
-        public Dictionary<int, List<GLMeshVao>> transparentMeshList = new Dictionary<int, List<GLMeshVao>>();
-        public Dictionary<int, List<GLMeshVao>> decalMeshList = new Dictionary<int, List<GLMeshVao>>();
+        public Dictionary<int, List<GLMeshVao>> opaqueMeshShaderMap = new Dictionary<int, List<GLMeshVao>>();
+        public Dictionary<int, List<GLMeshVao>> defaultMeshShaderMap = new Dictionary<int, List<GLMeshVao>>();
+        public Dictionary<int, List<GLMeshVao>> transparentMeshShaderMap = new Dictionary<int, List<GLMeshVao>>();
+        public Dictionary<int, List<GLMeshVao>> decalMeshShaderMap = new Dictionary<int, List<GLMeshVao>>();
 
         //Global NMS File Archive handles
         public Dictionary<string, libPSARC.PSARC.Archive> NMSFileToArchiveMap = new Dictionary<string, libPSARC.PSARC.Archive>();
@@ -77,13 +79,14 @@ namespace MVCore
             //Add Default textures
             //White tex
             string texpath = "default.dds";
-            Texture tex = new Texture(texpath, true);
-            tex.name = "default.dds";
+            Texture tex = new Texture();
+            tex.textureInit(WPFModelViewer.Properties.Resources._default, texpath); //Manually load data
             texMgr.addTexture(tex);
+
             //Transparent Mask
-            texpath = Path.Combine(execpath, "default_mask.dds");
-            tex = new Texture(texpath, true);
-            tex.name = "default_mask.dds";
+            texpath = "default_mask.dds";
+            tex = new Texture();
+            tex.textureInit(WPFModelViewer.Properties.Resources.default_mask, texpath);
             texMgr.addTexture(tex);
         }
 
@@ -166,9 +169,9 @@ namespace MVCore
             uf = new TkMaterialUniform();
             uf.Name = "gMaterialColourVec4";
             uf.Values = new libMBIN.NMS.Vector4f();
-            uf.Values.x = 0.5f;
-            uf.Values.y = 1.0f;
-            uf.Values.z = 0.5f;
+            uf.Values.x = 0.8f;
+            uf.Values.y = 0.8f;
+            uf.Values.z = 0.2f;
             uf.Values.t = 1.0f;
             mat.Uniforms.Add(uf);
             mat.init();
@@ -226,24 +229,28 @@ namespace MVCore
             Dictionary<int, GLSLShaderConfig> shaderDict;
             
             //Save shader to resource Manager
-            if (mat.MaterialFlags.Contains("_F51_DECAL_DIFFUSE") ||
+            if (mat.Name == "collisionMat" || mat.Name == "crossMat" || mat.Name == "jointMat")
+            {
+                shaderDict = GLDefaultShaderMap;
+            }
+            else if (mat.MaterialFlags.Contains("_F51_DECAL_DIFFUSE") ||
                 mat.MaterialFlags.Contains("_F52_DECAL_NORMAL"))
             {
-                shaderDict = Common.RenderState.activeResMgr.GLForwardShaderMapDecal;
+                shaderDict = GLDeferredShaderMapDecal;
             }
             else if (mat.MaterialFlags.Contains("_F09_TRANSPARENT") ||
                      mat.MaterialFlags.Contains("_F22_TRANSPARENT_SCALAR") ||
                      mat.MaterialFlags.Contains("_F11_ALPHACUTOUT"))
             {
-                shaderDict = Common.RenderState.activeResMgr.GLForwardShaderMapTransparent;
+                shaderDict = GLForwardShaderMapTransparent;
             }
             else if (mat.MaterialFlags.Contains("_F07_UNLIT"))
             {
-                shaderDict = Common.RenderState.activeResMgr.GLDeferredUNLITShaderMap;
+                shaderDict = GLDeferredUNLITShaderMap;
             }
             else
             {
-                shaderDict = Common.RenderState.activeResMgr.GLDeferredLITShaderMap;
+                shaderDict = GLDeferredLITShaderMap;
             }
 
             return shaderDict.ContainsKey(mat.shaderHash);
@@ -278,19 +285,21 @@ namespace MVCore
             GLmaterials.Clear();
 
             //Cleanup Material Shaders
-            opaqueMeshList.Clear();
-            transparentMeshList.Clear();
-            decalMeshList.Clear();
+            opaqueMeshShaderMap.Clear();
+            defaultMeshShaderMap.Clear();
+            transparentMeshShaderMap.Clear();
+            decalMeshShaderMap.Clear();
 
             activeGLDeferredLITShaders.Clear();
             activeGLDeferredUNLITShaders.Clear();
-            activeGLForwardDecalShaders.Clear();
+            activeGLDeferredDecalShaders.Clear();
             activeGLForwardTransparentShaders.Clear();
 
             GLDeferredLITShaderMap.Clear();
             GLDeferredUNLITShaderMap.Clear();
             GLForwardShaderMapTransparent.Clear();
-            GLForwardShaderMapDecal.Clear();
+            GLDeferredShaderMapDecal.Clear();
+            GLDefaultShaderMap.Clear();
 
             //Cleanup Lights
             foreach (GMDL.Light p in GLlights)
