@@ -35,7 +35,7 @@ namespace MVCore.Common
         //Active ResourceManager
         public static ResourceManager activeResMgr;
 
-        public static bool enableShaderCompilationLog = false;
+        public static bool enableShaderCompilationLog = true;
         public static string shaderCompilationLog;
 
     }

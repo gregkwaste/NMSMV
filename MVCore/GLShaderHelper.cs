@@ -381,7 +381,6 @@ namespace GLSLHelper {
             if (hash == "")
                 hash = "DEFAULT";
 
-            Console.WriteLine(hash);
             return hash.GetHashCode();
         }
 
@@ -418,14 +417,83 @@ namespace GLSLHelper {
         }
 
         //This method attaches UBOs to shader binding points
-        public static void attachUBOToShaderBindingPoint(GLSLHelper.GLSLShaderConfig shader_conf, string var_name, int binding_point)
+        public static void attachUBOToShaderBindingPoint(GLSLShaderConfig shader_conf, string var_name, int binding_point)
         {
-            //Binding Position 0 - Matrices UBO
             int shdr_program_id = shader_conf.program_id;
             int ubo_index = GL.GetUniformBlockIndex(shdr_program_id, var_name);
             GL.UniformBlockBinding(shdr_program_id, ubo_index, binding_point);
         }
-        
+
+        public static void attachSSBOToShaderBindingPoint(GLSLShaderConfig shader_conf, string var_name, int binding_point)
+        {
+            //Binding Position 0 - Matrices UBO
+            int shdr_program_id = shader_conf.program_id;
+            int ssbo_index = GL.GetProgramResourceIndex(shdr_program_id, ProgramInterface.ShaderStorageBlock, var_name);
+            GL.ShaderStorageBlockBinding(shader_conf.program_id, ssbo_index, binding_point);
+        }
+
+        public static void reportUBOs(GLSLShaderConfig shader_conf)
+        {
+            //Print Debug Information for the UBO
+            // Get named blocks info
+            int count, info, length;
+            int test_program = shader_conf.program_id;
+            GL.GetProgram(test_program, GetProgramParameterName.ActiveUniformBlocks, out count);
+
+            for (int i = 0; i < count; ++i)
+            {
+                // Get blocks name
+                string block_name;
+                int block_size, block_bind_index;
+                GL.GetActiveUniformBlockName(test_program, i, 256, out length, out block_name);
+                GL.GetActiveUniformBlock(test_program, i, ActiveUniformBlockParameter.UniformBlockDataSize, out block_size);
+                Console.WriteLine("Block {0} Data Size {1}", block_name, block_size);
+
+                GL.GetActiveUniformBlock(test_program, i, ActiveUniformBlockParameter.UniformBlockBinding, out block_bind_index);
+                Console.WriteLine("    Block Binding Point {0}", block_bind_index);
+
+                GL.GetInteger(GetIndexedPName.UniformBufferBinding, block_bind_index, out info);
+                Console.WriteLine("    Block Bound to Binding Point: {0} {{", info);
+
+                int block_active_uniforms;
+                GL.GetActiveUniformBlock(test_program, i, ActiveUniformBlockParameter.UniformBlockActiveUniforms, out block_active_uniforms);
+                int[] uniform_indices = new int[block_active_uniforms];
+                GL.GetActiveUniformBlock(test_program, i, ActiveUniformBlockParameter.UniformBlockActiveUniformIndices, uniform_indices);
+
+
+                int[] uniform_types = new int[block_active_uniforms];
+                int[] uniform_offsets = new int[block_active_uniforms];
+                int[] uniform_sizes = new int[block_active_uniforms];
+
+                //Fetch Parameters for all active Uniforms
+                GL.GetActiveUniforms(test_program, block_active_uniforms, uniform_indices, ActiveUniformParameter.UniformType, uniform_types);
+                GL.GetActiveUniforms(test_program, block_active_uniforms, uniform_indices, ActiveUniformParameter.UniformOffset, uniform_offsets);
+                GL.GetActiveUniforms(test_program, block_active_uniforms, uniform_indices, ActiveUniformParameter.UniformSize, uniform_sizes);
+
+                for (int k = 0; k < block_active_uniforms; ++k)
+                {
+                    int actual_name_length;
+                    string name;
+
+                    GL.GetActiveUniformName(test_program, uniform_indices[k], 256, out actual_name_length, out name);
+                    Console.WriteLine("\t{0}", name);
+
+                    Console.WriteLine("\t\t    type: {0}", uniform_types[k]);
+                    Console.WriteLine("\t\t    offset: {0}", uniform_offsets[k]);
+                    Console.WriteLine("\t\t    size: {0}", uniform_sizes[k]);
+
+                    /*
+                    GL.GetActiveUniforms(test_program, i, ref uniform_indices[k], ActiveUniformParameter.UniformArrayStride, out uniArrayStride);
+                    Console.WriteLine("\t\t    array stride: {0}", uniArrayStride);
+
+                    GL.GetActiveUniforms(test_program, i, ref uniform_indices[k], ActiveUniformParameter.UniformMatrixStride, out uniMatStride);
+                    Console.WriteLine("\t\t    matrix stride: {0}", uniMatStride);
+                    */
+                }
+                Console.WriteLine("}}");
+            }
+
+        }
 
         public static void compileShader(GLSLShaderConfig config)
         {

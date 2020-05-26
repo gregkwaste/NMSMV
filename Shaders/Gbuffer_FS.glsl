@@ -27,11 +27,6 @@ layout (std140, binding=0) uniform _COMMON_PER_FRAME
     CommonPerFrameUniforms mpCommonPerFrame;
 };
 
-layout (std140, binding=1) uniform _COMMON_PER_MESH
-{
-    CommonPerMeshUniforms mpCommonPerMesh;
-};
-
 
 vec4 worldfromDepth(in vec2 screen, in float depth)
 {

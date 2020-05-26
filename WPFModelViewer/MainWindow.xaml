@@ -327,8 +327,14 @@
                             </DockPanel>
                         </Grid>
                     </GroupBox>
-                    <GroupBox Grid.Row="2" Header="CommonPerMeshUniforms">
-                        <ContentControl Content="{Binding PgUserDataVec4}"></ContentControl>
+                    <GroupBox Header="CommonPerMeshUniforms" Grid.Row="2">
+                        <ListBox Grid.Row="2" ItemsSource="{Binding CommonPerMeshUniforms}" HorizontalContentAlignment="Stretch">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <ContentControl Content="{Binding Path=Value}"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
                     </GroupBox>
                     <ContentControl Content="{Binding material}" Grid.Row="3"></ContentControl>
                 </Grid>

@@ -1,121 +1,297 @@
 ﻿using OpenTK.Input;
 using System.Diagnostics;
 using System;
+using System.Runtime.CompilerServices;
+using System.Collections.Generic;
+using System.Resources;
+using System.Windows.Forms;
+using System.Security.Policy;
 
-public class GamepadHandler
+public enum PSGamePadLayout //THE ORDERING AFFECTS THE MAPPING TO THE DEFAULT XBOX LAYOUT
 {
-    //Designed for proper GamePads - XBOX Controllers and stuff
-    //Controller ID
-    private int ID = -1;
-    //Struct for Stick Positions
-    //States are saved as follows : LS_x LS_y RS_x RS_y
-    private float[][] LR = new float[][] { new float[] { 0.0f, 0.0f },
-                                           new float[] { 0.0f, 0.0f },
-                                           new float[] { 0.0f, 0.0f } };
+    UP,
+    DOWN,
+    LEFT,
+    RIGHT,
+    TRIANGLE,
+    SQUARE,
+    CIRCLE,
+    CROSS,
+    L1,
+    R1,
+    L3,
+    R3,
+    R_H,
+    R2,
+    L_H,
+    L_V,
+    R_V,
+    L2
+}
 
-    private float[][] dLR = new float[][] { new float[] { 0.0f, 0.0f },
-                                            new float[] { 0.0f, 0.0f },
-                                            new float[] { 0.0f, 0.0f } };
-    //Calibration coeffs
-    private float[][] clibCoeffs = new float[][] { new float[] { 0.0f, 0.0f },
-                                           new float[] { 0.0f, 0.0f } };
+public enum XBOXGamePadLayout
+{
+    UP,
+    DOWN,
+    LEFT,
+    RIGHT,
+    Y,
+    A,
+    X,
+    B,
+    LB,
+    RB,
+    LS,
+    RS,
+    LT,
+    RT,
+    L_H,
+    L_V,
+    R_H,
+    R_V
+}
 
+public enum ControllerActions
+{
+    ACCELERATE,
+    DECELERATE,
+    CAMERA_MOVE_H,
+    CAMERA_MOVE_V,
+    MOVE_Z,
+    MOVE_Y,
+    MOVE_Y_POS,
+    MOVE_Y_NEG,
+    MOVE_X,
+    MOVE_X_POS,
+    MOVE_X_NEG
+}
 
-    //Buttons are : LB, RB, Y, X, B, A
-    private float[] buttonStates = new float[] { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+public enum ControllerType
+{
+    PS4_v2,
+    XBOX
+}
+
+public delegate float MapGamepadStatus(float val);
+
+public abstract class BaseGamepadHandler
+{
+    public int ID;
+    private List<float> State = new List<float>();
+    private Dictionary<ControllerActions, int> ActionMap = new Dictionary<ControllerActions, int>();
     
-
-    //Constructor
-    public GamepadHandler(int index)
+    public BaseGamepadHandler(int id)
     {
-        //Set ID
-        ID = index;
-        calibrateAxes();
+        ID = id;
+        for (int i = 0; i < 18; i++)
+            State.Add(0.0f);
     }
 
-    public void calibrateAxes()
+    public virtual void updateState()
     {
-        GamePadState state = GamePad.GetState(ID);
-        GamePadCapabilities cp = new GamePadCapabilities();
-        clibCoeffs[0][0] = state.ThumbSticks.Left.X;
-        clibCoeffs[0][1] = state.ThumbSticks.Left.Y;
-        clibCoeffs[1][0] = state.ThumbSticks.Right.X;
-        clibCoeffs[1][1] = state.ThumbSticks.Right.Y;
-    }
-
-    //Update Position
-    public void updateState()
-    {
-        //Update Sticks
-        GamePadState state = GamePad.GetState(ID);
-        float l_x = state.ThumbSticks.Left.X;
-        float l_y = state.ThumbSticks.Left.Y;
-        float r_x = state.ThumbSticks.Right.X;
-        float r_y = state.ThumbSticks.Right.Y;
-        float t_l = state.Triggers.Left;
-        float t_r = state.Triggers.Right;
+        GamePadCapabilities caps = GamePad.GetCapabilities(ID);
         
-        //Update differences
-        dLR[0][0] = l_x - LR[0][0];
-        dLR[0][1] = l_y - LR[0][1]; 
-        dLR[1][0] = r_x - LR[1][0];
-        dLR[1][1] = r_y - LR[1][1];
-        dLR[2][0] = t_l - LR[2][0];
-        dLR[2][1] = t_r - LR[2][1];
+        if (!caps.IsConnected)
+        {
+            //Console.WriteLine("COntroller not connected");
+            return;
+        }
+            
+        GamePadState pad_status = GamePad.GetState(ID);
 
-        //Store the new values
-        LR[0][0] = l_x;
-        LR[0][1] = l_y;
-        LR[1][0] = r_x;
-        LR[1][1] = r_y;
-        LR[2][0] = t_l;
-        LR[2][1] = t_r;
+        //0,1,2,3 - DPAD UP, DOWN, LEFT, RIGHT
+        State[0] = (float)pad_status.DPad.Up;
+        State[1] = (float)pad_status.DPad.Down;
+        State[2] = (float)pad_status.DPad.Left;
+        State[3] = (float)pad_status.DPad.Right;
 
-        //Update Buttons
-        buttonStates[0] = (float) state.Buttons.LeftShoulder;
-        buttonStates[1] = (float) state.Buttons.RightShoulder;
-        buttonStates[2] = (float) state.Buttons.Y;
-        buttonStates[3] = (float) state.Buttons.X;
-        buttonStates[4] = (float) state.Buttons.B;
-        buttonStates[5] = (float) state.Buttons.A;
-        
+        //4,5,6,7 - BUTTONS (UP), (DOWN), (LEFT), (RIGHT)
+        State[4] = (float)pad_status.Buttons.Y;
+        State[5] = (float)pad_status.Buttons.A;
+        State[6] = (float)pad_status.Buttons.X;
+        State[7] = (float)pad_status.Buttons.B;
+
+        //8, 9 - BUTTONS (LB), (RB)
+        State[8] = (float)pad_status.Buttons.LeftShoulder;
+        State[9] = (float)pad_status.Buttons.RightShoulder;
+
+        //10, 11 - BUTTONS (LS), (RS)
+        State[10] = (float)pad_status.Buttons.LeftStick;
+        State[11] = (float)pad_status.Buttons.RightStick;
+
+        //12, 13 - TRIGGERS (Left), (Right) 
+        State[12] = pad_status.Triggers.Left;
+        State[13] = pad_status.Triggers.Right;
+
+        //14, 15 - STICKS (Left Horizontal), (Left Vertical)
+        State[14] = pad_status.ThumbSticks.Left.X;
+        State[15] = pad_status.ThumbSticks.Left.Y;
+
+        //14, 15 - STICKS (Right Horizontal), (Right Vertical)
+        State[16] = pad_status.ThumbSticks.Right.X;
+        State[17] = pad_status.ThumbSticks.Right.Y;
+
     }
 
-    public float getDisp(int stick, int axis)
+
+    public virtual void setActionMap(Dictionary<ControllerActions, int> map)
     {
-        return dLR[stick][axis];
+        ActionMap = map;
     }
 
-    public float getAxsState(int stick, int axis)
+    public abstract float getAction(ControllerActions action);
+
+    public int getActionButton(ControllerActions action)
     {
-
-        float length = (float) Math.Abs(LR[stick][axis]);
-        if (length >= 0.25)
-            return (float) Math.Round(LR[stick][axis]);
-        else
-            return 0.0f;
-        
+        return ActionMap[action];
     }
 
-    public void reportButtons()
+    public virtual float getState(int id)
     {
-        Debug.WriteLine(getBtnState(0) + " " + getBtnState(1) + " " + getBtnState(2) + " " + getBtnState(3) + " " + getBtnState(4) + " " + getBtnState(5) + " ");
+        return State[id];
     }
 
-    public void reportAxes()
+    public virtual void reportButtons()
     {
-        Debug.WriteLine(getAxsState(0, 0) + " " + getAxsState(0, 1) + " " + getAxsState(1, 0) + " " + getAxsState(1, 1) + " " + getAxsState(2, 0) + " " + getAxsState(2, 1) + " ");
+        string s = "Buttons : ";
+        for (int i = 0;i<12; i++)
+            s += " " + getState(i).ToString();
+        Console.WriteLine(s);
     }
 
-    public float getBtnState(int btnId)
+    
+    public virtual void reportAxes()
     {
-        return buttonStates[btnId];
+        string s = "Axes: ";
+        for (int i = 12; i < 18; i++)
+            s += " " + getState(i).ToString();
+        Console.WriteLine(s);
     }
 
-
+    public bool isConnected()
+    {
+        return GamePad.GetCapabilities(ID).IsConnected;
+    }
 
 
 }
+
+
+public class PS4GamePadHandler : BaseGamepadHandler
+{
+    Dictionary<PSGamePadLayout, MapGamepadStatus> PS4ButtonFunctionMap = new Dictionary<PSGamePadLayout, MapGamepadStatus>();
+
+    public PS4GamePadHandler(int id) : base(id)
+    {
+        //Initiallize value mapping functions
+        MapGamepadStatus oneToOne = new MapGamepadStatus(map_1_TO_1);
+        MapGamepadStatus RV_Map = new MapGamepadStatus(R_V_Map);
+        MapGamepadStatus RH_Map = new MapGamepadStatus(R_H_Map);
+        MapGamepadStatus R2_Map = new MapGamepadStatus(R_2_Map);
+        MapGamepadStatus L2_Map = new MapGamepadStatus(L_2_Map);
+
+        //Initialize the Function map for the DS4 Controller
+
+        //Set 1-1 mapping for buttons
+        PS4ButtonFunctionMap[PSGamePadLayout.CIRCLE] = oneToOne;
+        PS4ButtonFunctionMap[PSGamePadLayout.SQUARE] = oneToOne;
+        PS4ButtonFunctionMap[PSGamePadLayout.TRIANGLE] = oneToOne;
+        PS4ButtonFunctionMap[PSGamePadLayout.CROSS] = oneToOne;
+        PS4ButtonFunctionMap[PSGamePadLayout.UP] = oneToOne;
+        PS4ButtonFunctionMap[PSGamePadLayout.DOWN] = oneToOne;
+        PS4ButtonFunctionMap[PSGamePadLayout.LEFT] = oneToOne;
+        PS4ButtonFunctionMap[PSGamePadLayout.RIGHT] = oneToOne;
+        PS4ButtonFunctionMap[PSGamePadLayout.R1] = oneToOne;
+        PS4ButtonFunctionMap[PSGamePadLayout.L1] = oneToOne;
+
+        //Set Mapping for triggers and sticks
+
+        PS4ButtonFunctionMap[PSGamePadLayout.L_H] = oneToOne;
+        PS4ButtonFunctionMap[PSGamePadLayout.L_V] = oneToOne;
+        PS4ButtonFunctionMap[PSGamePadLayout.R_H] = RH_Map;
+        PS4ButtonFunctionMap[PSGamePadLayout.R_V] = RV_Map;
+        PS4ButtonFunctionMap[PSGamePadLayout.R2] = R2_Map;
+        PS4ButtonFunctionMap[PSGamePadLayout.L2] = L2_Map;
+
+        
+        setDefaultActionMap();
+
+    }
+ 
+    public override float getAction(ControllerActions action)
+    {
+        return getState((PSGamePadLayout) getActionButton(action));
+    }
+
+    public float getState(PSGamePadLayout btn)
+    {
+        float base_val = base.getState((int)btn);
+        base_val = PS4ButtonFunctionMap[btn](base_val) * 100.0f;
+        base_val = (float) Math.Round(base_val, 1);
+
+        if (Math.Abs(base_val) < 10.0f)
+            base_val = 0.0f;
+        
+        return base_val / 100.0f;
+    }
+
+    private void setDefaultActionMap()
+    {
+        //Initialize ActionMap
+        Dictionary<ControllerActions, int> actMap = new Dictionary<ControllerActions, int>();
+        actMap[ControllerActions.ACCELERATE] = (int)PSGamePadLayout.R2;
+        actMap[ControllerActions.DECELERATE] = (int)PSGamePadLayout.L2;
+        actMap[ControllerActions.CAMERA_MOVE_H] = (int)PSGamePadLayout.R_H;
+        actMap[ControllerActions.CAMERA_MOVE_V] = (int)PSGamePadLayout.R_V;
+        actMap[ControllerActions.MOVE_Y_POS] = (int)PSGamePadLayout.R1;
+        actMap[ControllerActions.MOVE_Y_NEG] = (int)PSGamePadLayout.L1;
+        actMap[ControllerActions.MOVE_X] = (int)PSGamePadLayout.L_H;
+        setActionMap(actMap); //Set this map
+    }
+
+    public float map_1_TO_1(float val)
+    {
+        return val;
+    }
+
+    public float L_2_Map(float val)
+    {
+        return -0.5f * val + 0.5f;
+    }
+
+    public float R_2_Map(float val)
+    {
+        return 1.33f * val;
+    }
+
+    public float R_H_Map(float val)
+    {
+        return 2.0f * val - 1.0f;
+    }
+
+    public float R_V_Map(float val)
+    {
+        return -val;
+    }
+
+    public override void reportButtons()
+    {
+        string s = "PS4 Buttons : ";
+        for (int i = 0; i < 12; i++)
+            s += " " + getState((PSGamePadLayout) i).ToString();
+        Console.WriteLine(s);
+    }
+
+    public override void reportAxes()
+    {
+        string s = "PS4 Axes : ";
+        for (int i = 12; i < 18; i++)
+            s += " " + getState((PSGamePadLayout)i).ToString();
+        Console.WriteLine(s);
+    }
+
+}
+
 
 
 

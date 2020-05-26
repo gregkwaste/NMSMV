@@ -728,7 +728,7 @@ namespace MVCore.GMDL
             new_s.copyFrom(this);
 
             new_s.meshVao = this.meshVao;
-            new_s.instanceId = new_s.meshVao.addInstance(this);
+            new_s.instanceId = GLMeshBufferManager.addInstance(new_s.meshVao, this);
             
             //Clone children
             foreach (model child in children)
@@ -815,6 +815,23 @@ namespace MVCore.GMDL
 
     }
 
+    public class gizmo: model
+    {
+        public gizmo()
+        {
+            type = TYPES.GIZMO;
+            
+            //Assemble geometry in the constructor
+            meshVao = Common.RenderState.activeResMgr.GLPrimitiveMeshVaos["default_translation_gizmo"];
+            instanceId = GLMeshBufferManager.addInstance(meshVao, this);
+        }
+
+        public override GMDL.model Clone()
+        {
+            return new gizmo();
+        }
+    }
+
     public class locator: model
     {
         public locator()
@@ -827,7 +844,7 @@ namespace MVCore.GMDL
             
             //Assemble geometry in the constructor
             meshVao = MVCore.Common.RenderState.activeResMgr.GLPrimitiveMeshVaos["default_cross"];
-            instanceId = meshVao.addInstance(this);
+            instanceId = GLMeshBufferManager.addInstance(meshVao, this);
         }
 
         public void copyFrom(locator input)
@@ -866,7 +883,7 @@ namespace MVCore.GMDL
             if (renderable)
             {
                 //Upload worldMat to the meshVao
-                instanceId = meshVao.addInstance(this);
+                instanceId = GLMeshBufferManager.addInstance(meshVao, this);
                 //Console.WriteLine("Updating Light");
             }
 
@@ -1020,24 +1037,273 @@ namespace MVCore.GMDL
         }
     }
 
+    public static class GLMeshBufferManager
+    {
+        public const int color_Float_Offset = 0;
+        public const int color_Byte_Offset = 0;
+
+        public const int skinned_Float_Offset = 3;
+        public const int skinned_Byte_Offset = 12;
+
+        public const int instanceData_Float_Offset = 4;
+        public const int instanceData_Byte_Offset = 16;
+
+        //Relative Instance Offsets
+
+        //public static int instance_Uniforms_Offset = 0;
+        public const int instance_Uniforms_Float_Offset = 0;
+        //public static int instance_worldMat_Offset = 64;
+        public const int instance_worldMat_Float_Offset = 16;
+        //public static int instance_normalMat_Offset = 128;
+        public const int instance_normalMat_Float_Offset = 32;
+        //public static int instance_worldMatInv_Offset = 192;
+        public const int instance_worldMatInv_Float_Offset = 48;
+        //public static int instance_isOccluded_Offset = 256;
+        public const int instance_isOccluded_Float_Offset = 64;
+        //public static int instance_isSelected_Offset = 260;
+        public const int instance_isSelected_Float_Offset = 65;
+        //public static int instance_color_Offset = 264; //TODO make that a vec4
+        public const int instance_color_Float_Offset = 66;
+        public static int instance_struct_size_bytes = 272;
+        public const int instance_struct_size_floats = 68;
+
+        //Instance Data Format:
+        //0-16 : instance WorldMatrix
+        //16-17: isOccluded
+        //17-18: isSelected
+        //18-20: padding
+
+
+        public static int addInstance(GLMeshVao mesh, model m)
+        {
+            int instance_id = mesh.instance_count;
+
+            //Expand mesh data buffer if required
+            if (instance_id * instance_struct_size_bytes > mesh.dataBuffer.Length)
+            {
+                float[] newBuffer = new float[mesh.dataBuffer.Length + 256];
+                Array.Copy(mesh.dataBuffer, newBuffer, mesh.dataBuffer.Length);
+                mesh.dataBuffer = newBuffer;
+            }
+            
+            if (instance_id < GLMeshVao.MAX_INSTANCES)
+            {
+                //Uplod worldMat to the meshVao
+                
+                Matrix4 worldMatInv = m.worldMat.Inverted();
+                setInstanceWorldMat(m.meshVao, instance_id, m.worldMat);
+                setInstanceWorldMatInv(m.meshVao, instance_id, worldMatInv);
+                setInstanceNormalMat(m.meshVao, instance_id, Matrix4.Transpose(worldMatInv));
+
+                mesh.instanceRefs.Add(m); //Keep reference
+                mesh.instance_count++;
+            }
+
+            return instance_id;
+        }
+
+        //Overload with transform overrides
+        public static int addInstance(GLMeshVao mesh, model m, Matrix4 worldMat, Matrix4 worldMatInv, Matrix4 normMat)
+        {
+            int instance_id = mesh.instance_count;
+
+            //Expand mesh data buffer if required
+            if (instance_id * instance_struct_size_bytes > mesh.dataBuffer.Length)
+            {
+                float[] newBuffer = new float[mesh.dataBuffer.Length + 256];
+                Array.Copy(mesh.dataBuffer, newBuffer, mesh.dataBuffer.Length);
+                mesh.dataBuffer = newBuffer;
+            }
+            
+            if (instance_id < GLMeshVao.MAX_INSTANCES)
+            {
+                setInstanceWorldMat(mesh, instance_id, worldMat);
+                setInstanceWorldMatInv(mesh, instance_id, worldMatInv);
+                setInstanceNormalMat(mesh, instance_id, normMat);
+
+                mesh.instanceRefs.Add(m); //Keep reference
+                mesh.instance_count++;
+            }
+
+            return instance_id;
+        }
+
+        public static void clearInstances(GLMeshVao mesh)
+        {
+            mesh.instanceRefs.Clear();
+            mesh.instance_count = 0;
+        }
+
+        public static void removeInstance(GLMeshVao mesh, model m)
+        {
+            int id = mesh.instanceRefs.IndexOf(m);
+
+            //TODO: Make all the memory shit to push the instances backwards
+        }
+
+
+        public static void setInstanceOccludedStatus(GLMeshVao mesh, int instance_id, bool status)
+        {
+            mesh.visible_instances += (status ? -1 : 1);
+            unsafe
+            {
+                mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_isOccluded_Float_Offset] = status ? 1.0f : 0.0f;
+            }
+        }
+
+        public static bool getInstanceOccludedStatus(GLMeshVao mesh, int instance_id)
+        {
+            unsafe
+            {
+                return mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_isOccluded_Float_Offset] > 0.0f ? true : false;
+            }
+        }
+
+        public static void setInstanceSelectedStatus(GLMeshVao mesh, int instance_id, bool status)
+        {
+            unsafe
+            {
+                mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_isSelected_Float_Offset] = status ? 1.0f : 0.0f;
+            }
+        }
+
+        public static Matrix4 getInstanceWorldMat(GLMeshVao mesh, int instance_id)
+        {
+            unsafe
+            {
+                fixed (float* ar = mesh.dataBuffer)
+                {
+                    return MathUtils.Matrix4FromArray(ar, instance_id * instance_struct_size_floats + instance_worldMat_Float_Offset);
+                }
+            }
+
+        }
+
+        public static Matrix4 getInstanceNormalMat(GLMeshVao mesh, int instance_id)
+        {
+            unsafe
+            {
+                fixed (float* ar = mesh.dataBuffer)
+                {
+                    return MathUtils.Matrix4FromArray(ar, instance_id * instance_struct_size_floats + instance_normalMat_Float_Offset);
+                }
+            }
+        }
+
+        public static Vector3 getInstanceColor(GLMeshVao mesh, int instance_id)
+        {
+            float col;
+            unsafe
+            {
+                col = mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_color_Float_Offset];
+            }
+
+            return new Vector3(col, col, col);
+        }
+
+        public static void setInstanceUniform4(GLMeshVao mesh, int instance_id, string un_name, Vector4 un)
+        {
+            unsafe
+            {
+                int offset = instanceData_Float_Offset + instance_id * instance_struct_size_floats + instance_Uniforms_Float_Offset;
+                int uniform_id = 0;
+                switch (un_name)
+                {
+                    case "gUserDataVec4":
+                        uniform_id = 0;
+                        break;
+                }
+
+                offset += uniform_id * 4;
+
+                mesh.dataBuffer[offset] = un.X;
+                mesh.dataBuffer[offset + 1] = un.Y;
+                mesh.dataBuffer[offset + 2] = un.Z;
+                mesh.dataBuffer[offset + 3] = un.W;
+            }
+        }
+
+        public static Vector4 getInstanceUniform(GLMeshVao mesh, int instance_id, string un_name)
+        {
+            Vector4 un;
+            unsafe
+            {
+                int offset = instanceData_Float_Offset + instance_id * instance_struct_size_floats + instance_Uniforms_Float_Offset;
+                int uniform_id = 0;
+                switch (un_name)
+                {
+                    case "gUserDataVec4":
+                        uniform_id = 0;
+                        break;
+                }
+
+                offset += uniform_id * 4;
+
+                un.X = mesh.dataBuffer[offset];
+                un.Y = mesh.dataBuffer[offset + 1];
+                un.Z = mesh.dataBuffer[offset + 2];
+                un.W = mesh.dataBuffer[offset + 3];
+            }
+
+            return un;
+        }
+
+        public static void setInstanceWorldMat(GLMeshVao mesh, int instance_id, Matrix4 mat)
+        {
+            unsafe
+            {
+                fixed (float* ar = mesh.dataBuffer)
+                {
+                    int offset = instanceData_Float_Offset + instance_id * instance_struct_size_floats + instance_worldMat_Float_Offset;
+                    MathUtils.insertMatToArray16(ar, offset, mat);
+                }
+            }
+        }
+
+        public static void setInstanceWorldMatInv(GLMeshVao mesh, int instance_id, Matrix4 mat)
+        {
+            unsafe
+            {
+                fixed (float* ar = mesh.dataBuffer)
+                {
+                    int offset = instanceData_Float_Offset + instance_id * instance_struct_size_floats + instance_worldMatInv_Float_Offset;
+                    MathUtils.insertMatToArray16(ar, offset, mat);
+                }
+            }
+        }
+
+        public static void setInstanceNormalMat(GLMeshVao mesh, int instance_id, Matrix4 mat)
+        {
+            unsafe
+            {
+                fixed (float* ar = mesh.dataBuffer)
+                {
+                    int offset = instanceData_Float_Offset + instance_id * instance_struct_size_floats + instance_normalMat_Float_Offset;
+                    MathUtils.insertMatToArray16(ar, offset, mat);
+                }
+            }
+        }
+
+
+    }
 
     public class GLMeshVao : IDisposable
     {
         //Class static properties
-        public static int MAX_INSTANCES = 300;
-
+        public const int MAX_INSTANCES = 512;
+        
         public GLVao vao;
         public GLVao bHullVao;
         public MeshMetaData metaData;
+        public float[] dataBuffer = new float[256];
 
         //Mesh type
         public COLLISIONTYPES collisionType;
         public TYPES type;
 
         //Instance Data
-        public CommonPerMeshUniformsInstanced UBO;
         public int UBO_aligned_size = 0; //Actual size of the data for the UBO, multiple to 256
-        public int UBO_offset = 0; //Ofset 
+        public int UBO_offset = 0; //Offset 
 
         public int instance_count = 0;
         public int visible_instances = 0;
@@ -1052,28 +1318,6 @@ namespace MVCore.GMDL
         public int[] BoneRemapIndices;
         //public float[] BoneRemapMatrices = new float[16 * 128];
         public bool skinned = false;
-        
-        
-        //public static int instance_worldMat_Offset = 0;
-        public static int instance_worldMat_Float_Offset = 0;
-        //public static int instance_normalMat_Offset = 64;
-        public static int instance_normalMat_Float_Offset = 16;
-        //public static int instance_worldMatInv_Offset = 128;
-        public static int instance_worldMatInv_Float_Offset = 32;
-        //public static int instance_isOccluded_Offset = 192;
-        public static int instance_isOccluded_Float_Offset = 48;
-        //public static int instance_isSelected_Offset = 196;
-        public static int instance_isSelected_Float_Offset = 49;
-        //public static int instance_color_Offset = 200; //TODO make that a vec4
-        public static int instance_color_Float_Offset = 50;
-        //public static int instance_struct_size_bytes = 204;
-        public static int instance_struct_size_floats = 52; //Aligned 208 Bytes
-
-        //Instance Data Format:
-        //0-16 : instance WorldMatrix
-        //16-17: isOccluded
-        //17-18: isSelected
-        //18-20: padding
 
 
         public DrawElementsType indicesLength = DrawElementsType.UnsignedShort;
@@ -1104,15 +1348,7 @@ namespace MVCore.GMDL
             float radius = 0.5f * (metaData.AABBMIN - metaData.AABBMAX).Length;
             Vector4 bsh_center = new Vector4(metaData.AABBMIN + 0.5f * (metaData.AABBMAX - metaData.AABBMIN), 1.0f);
 
-            Matrix4 t_mat;
-            unsafe
-            {
-                fixed(float* ar = UBO.instanceData)
-                {
-                    t_mat = MathUtils.Matrix4FromArray(ar, instance_id * instance_struct_size_floats);
-                }
-            }
-            
+            Matrix4 t_mat = GLMeshBufferManager.getInstanceWorldMat(this, instance_id);
             bsh_center = bsh_center * t_mat;
 
             //Create Sphere vbo
@@ -1131,10 +1367,10 @@ namespace MVCore.GMDL
 
         public void renderBbox(int pass, int instance_id)
         {
-            if (getInstanceOccludedStatus(instance_id))
+            if (GLMeshBufferManager.getInstanceOccludedStatus(this, instance_id))
                 return;
 
-            Matrix4 worldMat = getInstanceWorldMat(instance_id);
+            Matrix4 worldMat = GLMeshBufferManager.getInstanceWorldMat(this, instance_id);
             //worldMat = worldMat.ClearRotation();
             
             Vector4[] tr_AABB = new Vector4[2];
@@ -1309,7 +1545,7 @@ namespace MVCore.GMDL
             foreach (Uniform un in material.CustomPerMaterialUniforms.Values)
             {
                 if (shader.uniformLocations.Keys.Contains(un.Name))
-                    GL.Uniform4(shader.uniformLocations[un.Name], un.vec.Vec);
+                    GL.Uniform4(shader.uniformLocations[un.Name], un.vec.vec4);
             }
 
             //BIND TEXTURES
@@ -1339,6 +1575,7 @@ namespace MVCore.GMDL
 
             switch (type)
             {
+                case TYPES.GIZMO:
                 case TYPES.MESH:
                     renderMesh();
                     break;
@@ -1439,157 +1676,6 @@ namespace MVCore.GMDL
         }
 
 
-        public int addInstance(model m)
-        {
-            //Set instance id
-            int instance_id = instance_count;
-            
-            if (instance_id < MAX_INSTANCES)
-            {
-                //Uplod worldMat to the meshVao
-                instance_id = instance_count;
-
-                Matrix4 worldMatInv = m.worldMat.Inverted();
-                setInstanceWorldMat(instance_id, m.worldMat);
-                setInstanceWorldMatInv(instance_id, worldMatInv);
-                setInstanceNormalMat(instance_id, Matrix4.Transpose(worldMatInv));
-
-                instanceRefs.Add(m); //Keep reference
-                instance_count++;
-            }
-
-            return instance_id;
-        }
-
-        //Overload with transform overrides
-        public int addInstance(model m, Matrix4 worldMat, Matrix4 worldMatInv, Matrix4 normMat)
-        {
-            //Set instance id
-            int instance_id = instance_count;
-
-            if (instance_id < MAX_INSTANCES)
-            {
-                //Uplod worldMat to the meshVao
-                instance_id = instance_count;
-
-                setInstanceWorldMat(instance_id, worldMat);
-                setInstanceWorldMatInv(instance_id, worldMatInv);
-                setInstanceNormalMat(instance_id, normMat);
-
-                instanceRefs.Add(m); //Keep reference
-                instance_count++;
-            }
-
-            return instance_id;
-        }
-
-        public void clearInstances()
-        {
-            instanceRefs.Clear();
-            instance_count = 0;
-        }
-
-        public void removeInstance(model m)
-        {
-            int id = instanceRefs.IndexOf(m);
-            
-            //TODO: Make all the memory shit to push the instances backwards
-        }
-
-
-        public void setInstanceOccludedStatus(int instance_id, bool status)
-        {
-            visible_instances += (status ? -1 : 1);
-            unsafe
-            {
-                UBO.instanceData[instance_id * instance_struct_size_floats + instance_isOccluded_Float_Offset] = status ? 1.0f : 0.0f;
-            }
-            
-        }
-
-        public bool getInstanceOccludedStatus(int instance_id)
-        {
-            unsafe
-            {
-                return UBO.instanceData[instance_id * instance_struct_size_floats + instance_isOccluded_Float_Offset] > 0.0f ? true : false;
-            }
-        }
-
-        public void setInstanceSelectedStatus(int instance_id, bool status)
-        {
-            unsafe
-            {
-                UBO.instanceData[instance_id * instance_struct_size_floats + instance_isSelected_Float_Offset] = status ? 1.0f : 0.0f;
-            }
-        }
-
-        public Matrix4 getInstanceWorldMat(int instance_id)
-        {
-            unsafe
-            {
-                fixed(float* ar = UBO.instanceData)
-                {
-                    return MathUtils.Matrix4FromArray(ar, instance_id * instance_struct_size_floats + instance_worldMat_Float_Offset);
-                }
-            }
-            
-        }
-
-        public Matrix4 getInstanceNormalMat(int instance_id)
-        {
-            unsafe
-            {
-                fixed (float* ar = UBO.instanceData)
-                {
-                    return MathUtils.Matrix4FromArray(ar, instance_id * instance_struct_size_floats + instance_normalMat_Float_Offset);
-                }
-            }
-        }
-
-        public Vector3 getInstanceColor(int instance_id)
-        {
-            float col;
-            unsafe
-            {
-                col = UBO.instanceData[instance_id * instance_struct_size_floats + instance_color_Float_Offset];
-            }
-            
-            return new Vector3(col, col, col);
-        }
-
-        public void setInstanceWorldMat(int instance_id, Matrix4 mat)
-        {
-            unsafe
-            {
-                fixed (float* ar = UBO.instanceData)
-                {
-                    MathUtils.insertMatToArray16(ar, instance_id * instance_struct_size_floats + instance_worldMat_Float_Offset, mat);
-                }
-            }
-        }
-
-        public void setInstanceWorldMatInv(int instance_id, Matrix4 mat)
-        {
-            unsafe
-            {
-                fixed (float* ar = UBO.instanceData)
-                {
-                    MathUtils.insertMatToArray16(ar, instance_id * instance_struct_size_floats + instance_worldMatInv_Float_Offset, mat);
-                }
-            }
-        }
-
-        public void setInstanceNormalMat(int instance_id, Matrix4 mat)
-        {
-            unsafe
-            {
-                fixed (float* ar = UBO.instanceData)
-                {
-                    MathUtils.insertMatToArray16(ar, instance_id * instance_struct_size_floats + instance_normalMat_Float_Offset, mat);
-                }
-            }
-        }
-
 
         public void setSkinMatrices(scene animScene, int instance_id)
         {
@@ -1612,10 +1698,15 @@ namespace MVCore.GMDL
                 
         }
 
-        public void initializeSkinMatrices()
+        public void initializeSkinMatrices(scene animScene)
         {
             if (instance_count == 0)
                 return;
+            int jointCount = animScene.jointDict.Values.Count;
+
+            //TODO: Use the jointCount to adaptively setup the instanceBoneMatrices
+            Console.WriteLine("MAX : 128  vs Effective : " + jointCount.ToString());
+
             //Re-initialize the array based on the number of instances
             instanceBoneMatrices = new float[instance_count * 128 * 16];
             int bufferSize = instance_count * 128 * 16 * 4;
@@ -1732,15 +1823,6 @@ namespace MVCore.GMDL
         public GLVao bHull_Vao;
         public GeomObject gobject; //Ref to the geometry shit
         
-        //Exposable Uniforms Properties
-        private Uniform gUserDataVec4;
-        public Uniform PgUserDataVec4
-        {
-            get { return gUserDataVec4; }
-
-            set { gUserDataVec4 = value; }
-        }
-
         public Material material
         {
             get
@@ -1748,16 +1830,31 @@ namespace MVCore.GMDL
                 return meshVao.material;
             }
         }
-        
+
+        private static List<string> supportedCommonPerMeshUniforms = new List<string>() { "gUserDataVec4" };
+
+        private Dictionary<string, Uniform> _CommonPerMeshUniforms = new Dictionary<string, Uniform>();
+
+        public Dictionary<string, Uniform> CommonPerMeshUniforms
+        {
+            get
+            {
+                return _CommonPerMeshUniforms;
+            }
+        }
+
         //Constructor
         public meshModel() : base()
         {
             type = TYPES.MESH;
             metaData = new MeshMetaData();
-            
-            //Init Properties
-            gUserDataVec4 = new Uniform();
-            gUserDataVec4.PName = "mpCommonPerMesh.gUserDataVec4";
+
+            //Init MeshModel Uniforms
+            foreach (string un in supportedCommonPerMeshUniforms)
+            {
+                Uniform my_un = new Uniform(un);
+                _CommonPerMeshUniforms[my_un.Name] = my_un;
+            }
         }
 
         public meshModel(meshModel input) : base(input)
@@ -1799,7 +1896,7 @@ namespace MVCore.GMDL
             new_m.copyFrom(this);
 
             new_m.meshVao = this.meshVao;
-            new_m.instanceId = new_m.meshVao.addInstance(new_m);
+            new_m.instanceId = GLMeshBufferManager.addInstance(new_m.meshVao, new_m);
             
             //Clone children
             foreach (model child in children)
@@ -1821,10 +1918,10 @@ namespace MVCore.GMDL
 
         public override void setupSkinMatrixArrays()
         {
-            meshVao?.initializeSkinMatrices();
+            meshVao?.initializeSkinMatrices(parentScene);
 
             base.setupSkinMatrixArrays();
-            
+        
         }
 
         public override void updateMeshInfo()
@@ -1864,8 +1961,12 @@ namespace MVCore.GMDL
                 }
                 */
 
-                instanceId = meshVao.addInstance(this);
+                instanceId = GLMeshBufferManager.addInstance(meshVao, this);
 
+                //Upload commonperMeshUniforms
+                GLMeshBufferManager.setInstanceUniform4(meshVao, instanceId, 
+                    "gUserDataVec4", CommonPerMeshUniforms["gUserDataVec4"].Vec.Vec);
+                
                 if (Skinned)
                 {
                     //Update the mesh remap matrices and continue with the transform updates
@@ -2179,8 +2280,8 @@ namespace MVCore.GMDL
             new_m.copyFrom(this);
 
             new_m.meshVao = this.meshVao;
-            new_m.instanceId = new_m.meshVao.addInstance(new_m);
-
+            new_m.instanceId = GLMeshBufferManager.addInstance(new_m.meshVao, new_m);
+            
             //Clone children
             foreach (model child in children)
             {
@@ -2208,7 +2309,7 @@ namespace MVCore.GMDL
         {
             if (renderable)
             {
-                instanceId = meshVao.addInstance(this);
+                instanceId = GLMeshBufferManager.addInstance(meshVao, this);
                 base.updateMeshInfo();
                 return;
             }
@@ -2325,7 +2426,7 @@ namespace MVCore.GMDL
             {
                 if (GLMeshVaos[hash].ContainsKey(matname))
                 {
-                    Console.WriteLine("MeshVao already in the dictinary, nothing to do...");
+                    Console.WriteLine("MeshVao already in the dictionary, nothing to do...");
                     return false;
                 }
             }
@@ -2400,7 +2501,6 @@ namespace MVCore.GMDL
                 meshDataDict[so.metaData.Hash].is_buffer, BufferUsageHint.StaticDraw);
             GL.GetBufferParameter(BufferTarget.ElementArrayBuffer, BufferParameterName.BufferSize,
                 out size);
-            Console.WriteLine(GL.GetError());
             if (size != meshMetaDataDict[so.metaData.Hash].is_size)
             {
                 System.Windows.Forms.MessageBox.Show("Mesh metadata does not match the index buffer size from the geometry file", "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
@@ -2727,8 +2827,6 @@ namespace MVCore.GMDL
 
         private void loadTexture()
         {
-            Console.WriteLine("Trying to load Texture");
-
             if (Map == "")
                 return;
 
@@ -3003,7 +3101,6 @@ namespace MVCore.GMDL
 
         public void init()
         {
-            
             //Get MaterialFlags
             foreach (TkMaterialFlags f in Flags)
                 material_flags[(int) f.MaterialFlag] = 1.0f;
@@ -3063,7 +3160,7 @@ namespace MVCore.GMDL
             List<string> includes = new List<string>();
             for (int i = 0; i < MaterialFlags.Count; i++)
             {
-                if (Material.supported_flags.Contains(MaterialFlags[i]))
+                if (supported_flags.Contains(MaterialFlags[i]))
                     includes.Add(MaterialFlags[i]);
             }
 
@@ -3072,7 +3169,6 @@ namespace MVCore.GMDL
             if (!Common.RenderState.activeResMgr.shaderExistsForMaterial(this))
                 compileMaterialShader();
             
-            Common.CallBacks.Log("\n");
         }
 
         //Wrapper to support uberflags
@@ -3154,7 +3250,6 @@ namespace MVCore.GMDL
             if (hash == "")
                 hash = "DEFAULT";
             
-            Console.WriteLine(hash);
             return hash.GetHashCode();
         }
 
@@ -3214,7 +3309,8 @@ namespace MVCore.GMDL
 
             //Attach UBO binding Points
             GLShaderHelper.attachUBOToShaderBindingPoint(shader, "_COMMON_PER_FRAME", 0);
-            GLShaderHelper.attachUBOToShaderBindingPoint(shader, "_COMMON_PER_MESH", 1);
+            GLShaderHelper.attachSSBOToShaderBindingPoint(shader, "_COMMON_PER_MESH", 1);
+            
             
             //Save shader to the resource Manager
             shaderDict[shader.shaderHash] = shader;
@@ -3231,6 +3327,13 @@ namespace MVCore.GMDL
         public Uniform()
         {
             prefix = "";
+            vec = new MVector4(0.0f);
+        }
+
+        public Uniform(string name)
+        {
+            prefix = "";
+            PName = name;
             vec = new MVector4(0.0f);
         }
 
@@ -3274,7 +3377,7 @@ namespace MVCore.GMDL
 
     public class MVector4: INotifyPropertyChanged
     {
-        private Vector4 vec4;
+        public Vector4 vec4;
 
         public MVector4(Vector4 v)
         {
@@ -3604,7 +3707,6 @@ namespace MVCore.GMDL
                     catch (System.IO.FileNotFoundException)
                     {
                         //Normal Texture not found
-                        Console.WriteLine("Normal Texture " + partNameNormal + " Not Found");
                         MVCore.Common.CallBacks.Log(string.Format("Normal Texture {0} Not Found", partNameNormal));
                     }
                 }
@@ -3639,19 +3741,16 @@ namespace MVCore.GMDL
 
             //Diffuse Output
             fbo_tex = Sampler.generate2DTexture(PixelInternalFormat.Rgba, texWidth, texHeight, PixelFormat.Rgba, PixelType.UnsignedByte, 1);
-            Console.WriteLine(GL.GetError());
             Sampler.setupTextureParameters(TextureTarget.Texture2D, fbo_tex, (int)TextureWrapMode.Repeat,
                 (int)TextureMagFilter.Linear, (int)TextureMinFilter.LinearMipmapLinear, 4.0f);
-            Console.WriteLine(GL.GetError());
-
+            
             //Create New RenderBuffer for the diffuse
             fbo = GL.GenFramebuffer();
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, fbo);
 
             //Attach Textures to this FBO
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, fbo_tex, 0);
-            Console.WriteLine(GL.GetError());
-
+            
             //Check
             Debug.Assert(GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer) == FramebufferErrorCode.FramebufferComplete);
             
@@ -4358,8 +4457,8 @@ namespace MVCore.GMDL
             this.color = input.color;
 
             meshVao = new GLMeshVao();
-            instanceId = meshVao.addInstance(this);
-            meshVao.setInstanceWorldMat(instanceId, Matrix4.Identity); //This does not change 
+            instanceId = GLMeshBufferManager.addInstance(meshVao, this);
+            GLMeshBufferManager.setInstanceWorldMat(meshVao, instanceId, Matrix4.Identity);
             meshVao.type = TYPES.JOINT;
             meshVao.metaData = new MeshMetaData();
             //TODO: Find a place to keep references from the joint GLMeshVAOs
@@ -4392,7 +4491,7 @@ namespace MVCore.GMDL
                 GL.BindBuffer(BufferTarget.ArrayBuffer, meshVao.vao.vertex_buffer_object);
                 //Add verts data, color data should stay the same
                 GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
-                instanceId = meshVao.addInstance(this, Matrix4.Identity, Matrix4.Identity, Matrix4.Identity);
+                instanceId = GLMeshBufferManager.addInstance(meshVao, this, Matrix4.Identity, Matrix4.Identity, Matrix4.Identity);
             }
             
             base.updateMeshInfo();
@@ -4409,8 +4508,8 @@ namespace MVCore.GMDL
             j.color = this.color;
 
             j.meshVao = new GLMeshVao();
-            j.instanceId = j.meshVao.addInstance(j);
-            j.meshVao.setInstanceWorldMat(j.instanceId, Matrix4.Identity); //This does not change 
+            j.instanceId = GLMeshBufferManager.addInstance(j.meshVao, j);
+            GLMeshBufferManager.setInstanceWorldMat(j.meshVao, j.instanceId, Matrix4.Identity);
             j.meshVao.type = TYPES.JOINT;
             j.meshVao.metaData = new MeshMetaData();
             //TODO: Find a place to keep references from the joint GLMeshVAOs
@@ -4590,7 +4689,7 @@ namespace MVCore.GMDL
             meshVao.metaData = new MeshMetaData();
             meshVao.metaData.batchcount = 2;
             meshVao.material = Common.RenderState.activeResMgr.GLmaterials["lightMat"];
-            instanceId = meshVao.addInstance(this); //Add instance
+            instanceId = GLMeshBufferManager.addInstance(meshVao, this); // Add instance
 
             //Init projection Matrix
             lightProjectionMatrix = Matrix4.CreatePerspectiveFieldOfView(MathUtils.radians(90), 1.0f, 1.0f, 300f);
@@ -4622,7 +4721,8 @@ namespace MVCore.GMDL
             meshVao.metaData = new MeshMetaData();
             meshVao.metaData.batchcount = 2;
             meshVao.material = Common.RenderState.activeResMgr.GLmaterials["lightMat"];
-            instanceId = meshVao.addInstance(this); //Add instance
+            instanceId = GLMeshBufferManager.addInstance(meshVao, this); //Add instance
+            
 
             //Copy Matrices
             lightProjectionMatrix = input.lightProjectionMatrix;
@@ -4677,7 +4777,7 @@ namespace MVCore.GMDL
                 GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
 
                 //Uplod worldMat to the meshVao
-                instanceId = meshVao.addInstance(this, Matrix4.Identity, Matrix4.Identity, Matrix4.Identity);
+                instanceId = GLMeshBufferManager.addInstance(meshVao, this, Matrix4.Identity, Matrix4.Identity, Matrix4.Identity); //Add instance
             }
 
             base.updateMeshInfo();

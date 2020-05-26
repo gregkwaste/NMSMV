@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Media;
+using MathNet.Numerics;
+using MathNet.Numerics.LinearAlgebra.Complex;
 using OpenTK;
 using OpenTK.Graphics.OpenGL4;
 
@@ -12,9 +15,30 @@ namespace MVCore.Primitives
     {
         internal float[] verts;
         internal float[] normals;
+        internal float[] colors;
         internal int[] indices;
 
         internal GMDL.GeomObject geom;
+
+
+        public void applyTransform(Matrix4 transform)
+        {
+            for (int i = 0; i < verts.Length / 3; i++)
+            {
+                //Load 
+                float x = verts[3 * i + 0];
+                float y = verts[3 * i + 1];
+                float z = verts[3 * i + 2];
+
+                Vector4 vec = new Vector4(x, y, z, 1.0f) * transform;
+
+                //Save
+                verts[3 * i + 0] = vec.X;
+                verts[3 * i + 1] = vec.Y;
+                verts[3 * i + 2] = vec.Z;
+            }
+
+        }
 
         public GMDL.GeomObject getGeom()
         {
@@ -57,6 +81,34 @@ namespace MVCore.Primitives
         public GMDL.GLVao getVAO()
         {
             return geom?.generateVAO();
+        }
+
+        public static Primitive mergePrimitives(Primitive p1, Primitive p2)
+        {
+            Primitive p = new Primitive();
+
+            //Merge vertices
+            p.verts = new float[p1.verts.Length + p2.verts.Length];
+            p.indices = new int[p1.indices.Length + p2.indices.Length];
+            p.colors = new float[p1.colors.Length + p2.colors.Length];
+
+            //Copy verts
+            Array.Copy(p1.verts, 0, p.verts, 0, p1.verts.Length);
+            Array.Copy(p2.verts, 0, p.verts, p1.verts.Length, p2.verts.Length);
+
+            //Copy colors
+            Array.Copy(p1.colors, 0, p.colors, 0, p1.colors.Length);
+            Array.Copy(p2.colors, 0, p.colors, p1.colors.Length, p2.colors.Length);
+
+            //Copy indices
+            Array.Copy(p1.indices, 0, p.indices, 0, p1.indices.Length);
+            Array.Copy(p2.indices, 0, p.indices, p1.indices.Length, p2.indices.Length);
+
+            //Fix indices
+            for (int i=p1.indices.Length; i<p.indices.Length; i++)
+                p.indices[i] += (p1.verts.Length / 3);
+            
+            return p;
         }
     }
 
@@ -204,15 +256,14 @@ namespace MVCore.Primitives
     class Cylinder : Primitive
     {
         //Constructor
-        public Cylinder(float radius, float height)
+        public Cylinder(float radius, float height, Vector3 color, bool generateGeom = false, int latBands = 10)
         {
-            int latBands = 10;
-            
             //Init Arrays
             int arraysize = latBands;
             verts = new float[2* (1 + arraysize) * 3];
             normals = new float[2* (1 + arraysize) * 3];
             indices = new int[3 * latBands + 3*latBands + latBands * 2 * 3];
+            colors = new float[2 * (1 + arraysize) * 3];
 
             //Add Top Cap Verts
             float y = height / 2.0f;
@@ -296,9 +347,267 @@ namespace MVCore.Primitives
             indices[array_ioff + 6 * (latBands - 1) + 4] = latBands;
             indices[array_ioff + 6 * (latBands - 1) + 5] = latBands +2;
 
-            geom = getGeom();
+            //Set Colors
+            for (int i=0; i<verts.Length/3; i++)
+            {
+                colors[3 * i + 0] = color.X;
+                colors[3 * i + 1] = color.Y;
+                colors[3 * i + 2] = color.Z;
+            }
+
+            if (generateGeom)
+                geom = getGeom();
         }
-        
+    }
+
+    class Arrow : Primitive
+    {
+        public Arrow(float radius, float length, Vector3 color, bool generateGeom=false, int latBands = 10)
+        {
+            ArrowHead head = new ArrowHead(radius, 2 * radius, color, false, latBands);
+            Cylinder cyl = new Cylinder(radius/2.0f, length, color, false, latBands);
+
+            //Transform Primitives before merging
+            //Move arrowhead up in place
+            Matrix4 t = Matrix4.CreateTranslation(0.0f, length, 0.0f);
+            head.applyTransform(t);
+            //Move cylinder up to fit into place
+            t = Matrix4.CreateTranslation(0.0f, length/2.0f, 0.0f);
+            cyl.applyTransform(t);
+
+            //Merge Primitives
+            Primitive p = mergePrimitives(head, cyl);
+            verts = p.verts;
+            indices = p.indices;
+            colors = p.colors;
+
+            if (generateGeom)
+                geom = getGeom();
+        }
+
+        public new GMDL.GeomObject getGeom()
+        {
+            GMDL.GeomObject geom = new GMDL.GeomObject();
+
+            //Set main Geometry Info
+            geom.vertCount = verts.Length / 0x3;
+            geom.indicesCount = indices.Length;
+            geom.indicesLength = 0x4;
+
+            //Set Strides
+            geom.vx_size = 3 * 4; //3 Floats * 4 Bytes each
+
+            //Set Buffer Offsets
+            geom.offsets = new int[7];
+            geom.bufInfo = new List<GMDL.bufInfo>();
+
+            for (int i = 0; i < 7; i++)
+            {
+                geom.bufInfo.Add(null);
+                geom.offsets[i] = -1;
+            }
+
+            geom.mesh_descr = "vn";
+            geom.offsets[0] = 0;
+            geom.offsets[2] = 0;
+            geom.offsets[4] = 0;
+            geom.bufInfo[0] = new GMDL.bufInfo(0, VertexAttribPointerType.Float, 3, 0, "vPosition", false);
+            geom.bufInfo[2] = new GMDL.bufInfo(2, VertexAttribPointerType.Float, 3, geom.vertCount * 12, "nPosition", false);
+            geom.bufInfo[4] = new GMDL.bufInfo(4, VertexAttribPointerType.Float, 3, geom.vertCount * 12, "bPosition", false);
+
+            //Set Buffers
+            geom.ibuffer = new byte[4 * indices.Length];
+            System.Buffer.BlockCopy(indices, 0, geom.ibuffer, 0, geom.ibuffer.Length);
+            
+            geom.vbuffer = new byte[4 * verts.Length + 4 * colors.Length];
+            System.Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, 4 * verts.Length); //Copy Vertices
+            System.Buffer.BlockCopy(colors, 0, geom.vbuffer, 4 * verts.Length, 4 * colors.Length); //Copy Colors
+
+            return geom;
+        }
+    }
+
+    class TranslationGizmo : Primitive
+    {
+        public TranslationGizmo(bool generateGeom = false)
+        {
+            Arrow XAxis = new Arrow(0.015f, 0.25f, new Vector3(1.0f, 0.0f, 0.0f), false, 20);
+            Arrow YAxis = new Arrow(0.015f, 0.25f, new Vector3(0.0f, 1.0f, 0.0f), false, 20);
+            Arrow ZAxis = new Arrow(0.015f, 0.25f, new Vector3(0.0f, 0.0f, 1.0f), false, 20);
+
+            //Transform Primitives before merging
+            //Move arrowhead up in place
+            Matrix4 t = Matrix4.CreateRotationZ(MathUtils.radians(90));
+            XAxis.applyTransform(t);
+            t = Matrix4.CreateRotationX(MathUtils.radians(90));
+            ZAxis.applyTransform(t);
+            
+            //Merge Primitives
+            Primitive p1 = mergePrimitives(XAxis, YAxis);
+            Primitive p = mergePrimitives(p1, ZAxis);
+
+            verts = p.verts;
+            indices = p.indices;
+            colors = p.colors;
+
+            if (generateGeom)
+                geom = getGeom();
+        }
+
+        public new GMDL.GeomObject getGeom()
+        {
+            GMDL.GeomObject geom = new GMDL.GeomObject();
+
+            //Set main Geometry Info
+            geom.vertCount = verts.Length / 0x3;
+            geom.indicesCount = indices.Length;
+            geom.indicesLength = 0x4;
+
+            //Set Strides
+            geom.vx_size = 3 * 4; //3 Floats * 4 Bytes each
+
+            //Set Buffer Offsets
+            geom.offsets = new int[7];
+            geom.bufInfo = new List<GMDL.bufInfo>();
+
+            for (int i = 0; i < 7; i++)
+            {
+                geom.bufInfo.Add(null);
+                geom.offsets[i] = -1;
+            }
+
+            geom.mesh_descr = "vn";
+            geom.offsets[0] = 0;
+            geom.offsets[2] = 0;
+            geom.offsets[4] = 0;
+            geom.bufInfo[0] = new GMDL.bufInfo(0, VertexAttribPointerType.Float, 3, 0, "vPosition", false);
+            geom.bufInfo[2] = new GMDL.bufInfo(2, VertexAttribPointerType.Float, 3, geom.vertCount * 12, "nPosition", false);
+            geom.bufInfo[4] = new GMDL.bufInfo(4, VertexAttribPointerType.Float, 3, geom.vertCount * 12, "bPosition", false);
+
+            //Set Buffers
+            geom.ibuffer = new byte[4 * indices.Length];
+            System.Buffer.BlockCopy(indices, 0, geom.ibuffer, 0, geom.ibuffer.Length);
+
+            geom.vbuffer = new byte[4 * verts.Length + 4 * colors.Length];
+            System.Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, 4 * verts.Length); //Copy Vertices
+            System.Buffer.BlockCopy(colors, 0, geom.vbuffer, 4 * verts.Length, 4 * colors.Length); //Copy Colors
+
+            return geom;
+        }
+    }
+
+
+
+    class ArrowHead : Primitive
+    {
+        //Constructor
+        public ArrowHead(float radius, float height, Vector3 col, bool generateGeom=false, int latBands=10)
+        {
+            //Init Arrays
+            verts = new float[3 * (2 + latBands)]; 
+            colors = new float[3 * (2 + latBands)]; 
+            normals = new float[3 * (2 + latBands)];
+            indices = new int[2 * 3 * latBands];
+
+            //First create the arrow edge
+            
+            //Create circle
+            
+            //Add center vertex
+            verts[0] = 0.0f;
+            verts[1] = 0.0f;
+            verts[2] = 0.0f;
+            
+            for (int lat = 0; lat < latBands; lat++)
+            {
+                float theta = lat * (2 * (float) Math.PI / latBands);
+                verts[3 * (lat + 1) + 0] = radius * (float) Math.Cos(theta);
+                verts[3 * (lat + 1) + 1] = 0.0f;
+                verts[3 * (lat + 1) + 2] = radius * (float) Math.Sin(theta);
+            }
+
+            //Top Cap Indices
+            for (int lat = 1; lat < latBands; lat++)
+            {
+                indices[3 * (lat - 1) + 0] = 0;
+                indices[3 * (lat - 1) + 1] = lat;
+                indices[3 * (lat - 1) + 2] = lat + 1;
+            }
+            
+            //Close the circle
+            indices[3 * (latBands - 1) + 0] = 0;
+            indices[3 * (latBands - 1) + 1] = latBands;
+            indices[3 * (latBands - 1) + 2] = 1;
+
+            //Add Top vertex 
+            verts[3 * (latBands + 1) + 0] = 0.0f;
+            verts[3 * (latBands + 1) + 1] = height;
+            verts[3 * (latBands + 1) + 2] = 0.0f;
+
+            //Connect all vertices to the top vertex
+            for (int lat = 1; lat < latBands; lat++)
+            {
+                indices[3 * latBands + 3 * (lat - 1) + 0] = latBands + 1;
+                indices[3 * latBands + 3 * (lat - 1) + 1] = lat;
+                indices[3 * latBands + 3 * (lat - 1) + 2] = lat + 1;
+            }
+
+            //Close the circle
+            indices[3 * latBands + 3 * (latBands - 1) + 0] = latBands + 1;
+            indices[3 * latBands + 3 * (latBands - 1) + 1] = latBands;
+            indices[3 * latBands + 3 * (latBands - 1) + 2] = 1;
+
+            //Add colors
+            for (int i=0; i< (2 + latBands); i++)
+            {
+                colors[3 * i + 0] = col.X;
+                colors[3 * i + 1] = col.Y;
+                colors[3 * i + 2] = col.Z;
+            }
+
+            if (generateGeom)
+                geom = getGeom();
+        }
+
+        public new GMDL.GeomObject getGeom()
+        {
+            GMDL.GeomObject geom = new GMDL.GeomObject();
+
+            //Set main Geometry Info
+            geom.vertCount = verts.Length / 0x6;
+            geom.indicesCount = indices.Length;
+            geom.indicesLength = 0x4;
+
+            //Set Strides
+            geom.vx_size = 3 * 4; //3 Floats * 4 Bytes each
+
+            //Set Buffer Offsets
+            geom.offsets = new int[7];
+            geom.bufInfo = new List<GMDL.bufInfo>();
+
+            for (int i = 0; i < 7; i++)
+            {
+                geom.bufInfo.Add(null);
+                geom.offsets[i] = -1;
+            }
+
+            geom.mesh_descr = "vn";
+            geom.offsets[0] = 0;
+            geom.offsets[2] = 0;
+            geom.offsets[4] = 0;
+            geom.bufInfo[0] = new GMDL.bufInfo(0, VertexAttribPointerType.Float, 3, 0, "vPosition", false);
+            geom.bufInfo[2] = new GMDL.bufInfo(2, VertexAttribPointerType.Float, 3, geom.vertCount * 12, "nPosition", false);
+            geom.bufInfo[4] = new GMDL.bufInfo(4, VertexAttribPointerType.Float, 3, geom.vertCount * 12, "bPosition", false);
+
+            //Set Buffers
+            geom.ibuffer = new byte[4 * indices.Length];
+            System.Buffer.BlockCopy(indices, 0, geom.ibuffer, 0, geom.ibuffer.Length);
+            geom.vbuffer = new byte[4 * verts.Length];
+            System.Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, geom.vbuffer.Length);
+
+            return geom;
+        }
+
     }
 
     class Box : Primitive

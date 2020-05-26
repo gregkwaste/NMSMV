@@ -7,6 +7,9 @@ using OpenTK;
 using System.IO;
 using GLSLHelper;
 using libPSARC;
+using System.Diagnostics.Contracts;
+using MathNet.Numerics.Statistics;
+using MVCore.Common;
 
 namespace MVCore
 {
@@ -58,19 +61,25 @@ namespace MVCore
         //public int[] shader_programs;
         public textureManager texMgr = new textureManager();
 
+        public bool initialized = false;
+
         //Procedural Generation Options
         //TODO: This is 99% NOT correct
         //public Dictionary<string, int> procTextureLayerSelections = new Dictionary<string, int>();
         
-            //public DebugForm DebugWin;
+        //public DebugForm DebugWin;
 
         public void Init()
         {
+            initialized = false;
+            
             //Add defaults
             addDefaultTextures();
             addDefaultMaterials();
             addDefaultPrimitives();
             addDefaultLights();
+
+            initialized = true;
         }
 
         private void addDefaultTextures()
@@ -218,10 +227,23 @@ namespace MVCore
             GLPrimitiveMeshVaos["default_box"].vao = GLPrimitiveVaos["default_box"];
 
             //Default sphere
-            MVCore.Primitives.Sphere sph = new MVCore.Primitives.Sphere(new Vector3(0.0f, 0.0f, 0.0f), 100.0f);
+            Primitives.Sphere sph = new Primitives.Sphere(new Vector3(0.0f, 0.0f, 0.0f), 100.0f);
             GLPrimitiveVaos["default_sphere"] = sph.getVAO();
             GLPrimitiveMeshVaos["default_sphere"] = new GLMeshVao();
             GLPrimitiveMeshVaos["default_sphere"].vao = GLPrimitiveVaos["default_sphere"];
+
+            //Default arrow
+            //Primitives.ArrowHead arr = new Primitives.ArrowHead(new Vector3(1.0f, 0.0f, 0.0f));
+            //Primitives.Arrow arr = new Primitives.Arrow(0.1f, 1.0f, new Vector3(1.0f, 0.0f, 0.0f), true);
+            Primitives.TranslationGizmo arr = new Primitives.TranslationGizmo(true);
+            GLPrimitiveVaos["default_translation_gizmo"] = arr.getVAO();
+            GLPrimitiveMeshVaos["default_translation_gizmo"] = new GLMeshVao();
+            GLPrimitiveMeshVaos["default_translation_gizmo"].type = TYPES.GIZMO;
+            GLPrimitiveMeshVaos["default_translation_gizmo"].metaData = new MeshMetaData();
+            GLPrimitiveMeshVaos["default_translation_gizmo"].metaData.batchcount = arr.geom.indicesCount;
+            GLPrimitiveMeshVaos["default_translation_gizmo"].indicesLength = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedInt;
+            GLPrimitiveMeshVaos["default_translation_gizmo"].vao = GLPrimitiveVaos["default_translation_gizmo"];
+            GLPrimitiveMeshVaos["default_translation_gizmo"].material = GLmaterials["crossMat"];
         }
 
         public bool shaderExistsForMaterial(Material mat)
@@ -375,9 +397,7 @@ namespace MVCore
                 GLtextures.Remove(name);
             }
             else
-            {
-                Console.WriteLine("Texture not found\n");
-            }
+                CallBacks.Log("Texture not found\n");
         }
 
         public void setMasterTexManager(textureManager mtMgr)

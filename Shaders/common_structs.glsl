@@ -10,6 +10,10 @@ struct Light //locations:5
 
 struct MeshInstance
 {
+    vec4 gUserDataVec4;
+    vec4 un2;
+    vec4 un3;
+    vec4 un4;
     mat4 worldMat;
     mat4 normalMat;
     mat4 worldMatInv;
@@ -20,10 +24,11 @@ struct MeshInstance
 //Common Per Mesh Struct
 struct CommonPerMeshUniforms
 {
+    //CommonPerMeshUniforms
     vec4 gUserDataVec4;
     vec3 color; //Mesh Default Color
     float skinned;
-    MeshInstance instanceData[300]; //Instance world matrices, normal matrices, occlusion and selection status
+    MeshInstance instanceData[512]; //Instance world matrices, normal matrices, occlusion and selection status
 };
 
 //Custom Per Frame Struct

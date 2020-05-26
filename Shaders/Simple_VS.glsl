@@ -27,9 +27,11 @@ layout (std140, binding=0) uniform _COMMON_PER_FRAME
     CommonPerFrameUniforms mpCommonPerFrame;
 };
 
-layout (std140, binding=1) uniform _COMMON_PER_MESH
+layout (std430, binding=1) buffer _COMMON_PER_MESH
 {
-    CommonPerMeshUniforms mpCommonPerMesh;
+    vec3 color; //Mesh Default Color
+    float skinned;
+    MeshInstance instanceData[]; //Instance world matrices, normal matrices, occlusion and selection status
 };
 
 //Outputs
@@ -69,8 +71,8 @@ void main()
     
     //Load Per Instance data
     instanceId = gl_InstanceID;
-    isOccluded = mpCommonPerMesh.instanceData[gl_InstanceID].isOccluded;
-    isSelected = mpCommonPerMesh.instanceData[gl_InstanceID].isSelected;
+    isOccluded = instanceData[gl_InstanceID].isOccluded;
+    isSelected = instanceData[gl_InstanceID].isSelected;
     
     mat4 lWorldMat;
     
@@ -90,7 +92,7 @@ void main()
         lWorldMat += blendWeights.z * get_skin_matrix(instanceMatOffset + 4 * index.z);
         lWorldMat += blendWeights.w * get_skin_matrix(instanceMatOffset + 4 * index.w);
     #else
-        lWorldMat = mpCommonPerMesh.instanceData[gl_InstanceID].worldMat;
+        lWorldMat = instanceData[gl_InstanceID].worldMat;
     #endif
 
     vec4 wPos = lWorldMat * vPosition; //Calculate world Position
@@ -103,7 +105,7 @@ void main()
     vec4 lLocalTangentVec4 = tPosition;
     vec4 lLocalNormalVec4 = nPosition;
     
-    mat4 nMat = mpCommonPerMesh.instanceData[gl_InstanceID].normalMat;
+    mat4 nMat = instanceData[gl_InstanceID].normalMat;
 
     //OLD
     vec4 lWorldTangentVec4 = nMat * lLocalTangentVec4;

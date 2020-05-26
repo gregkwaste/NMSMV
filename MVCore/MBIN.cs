@@ -15,6 +15,7 @@ using MVCore.GMDL;
 using Console = System.Console;
 using WPFModelViewer;
 using MVCore.Common;
+using System.Drawing;
 
 namespace MVCore
 {
@@ -29,6 +30,7 @@ namespace MVCore
         COLLISION,
         REFERENCE,
         DECAL,
+        GIZMO,
         UNKNOWN
     }
 
@@ -69,7 +71,7 @@ namespace MVCore
             //testfs.Close();
 
             BinaryReader br = new BinaryReader(fs);
-            Console.WriteLine("Parsing MBIN");
+            Console.WriteLine("Parsing Geometry MBIN");
 
             fs.Seek(0x60, SeekOrigin.Begin);
 
@@ -832,7 +834,15 @@ namespace MVCore
                 {
                     so.hasLOD = true;
                     //Override LOD level using the name
-                    so.metaData.lodLevel =  (int) Char.GetNumericValue(name[name.IndexOf("LOD") + 3]);
+                    try
+                    {
+                        so.metaData.lodLevel = (int)Char.GetNumericValue(name[name.IndexOf("LOD") + 3]);
+                    } catch (IndexOutOfRangeException ex)
+                    {
+                        CallBacks.Log("Unable to fetch lod level from mesh name");
+                        so.metaData.lodLevel = 0;
+                    }
+                    
                 }
                     
                 //Process Attachments
@@ -928,7 +938,7 @@ namespace MVCore
                 }
 
                 so.meshVao = meshVao;
-                so.instanceId = meshVao.addInstance(so);
+                so.instanceId = GLMeshBufferManager.addInstance(meshVao, so); //Add instance
 
                 Console.WriteLine("Object {0}, Number of skinmatrices required: {1}", so.name, so.metaData.lastskinmat - so.metaData.firstskinmat);
 
@@ -1060,7 +1070,7 @@ namespace MVCore
 
 
                 joint.meshVao = new GLMeshVao();
-                joint.instanceId = joint.meshVao.addInstance(joint);
+                joint.instanceId = GLMeshBufferManager.addInstance(joint.meshVao, joint); //Add instance
                 joint.meshVao.type = TYPES.JOINT;
                 joint.meshVao.metaData = new MeshMetaData();
                 //TODO: Find a place to keep references from the joint GLMeshVAOs
@@ -1147,7 +1157,6 @@ namespace MVCore
                 //string collisionType = ((XmlElement)attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']")).GetAttribute("value").ToUpper();
                 string collisionType = node.Attributes.FirstOrDefault(item => item.Name == "TYPE").Value.ToUpper();
 
-                Console.WriteLine("Collision Detected " + name + "TYPE: " + collisionType);
                 Common.CallBacks.Log(string.Format("Collision Detected {0} {1}", name, collisionType));
 
                 //Get Material for all types
@@ -1188,7 +1197,7 @@ namespace MVCore
                     try
                     {
                         so.meshVao = new GLMeshVao(so.metaData);
-                        so.instanceId = so.meshVao.addInstance(so); //Add instance
+                        so.instanceId = GLMeshBufferManager.addInstance(so.meshVao, so); //Add instance
                         so.meshVao.vao = gobject.getCollisionMeshVao(so.metaData);
                         //Use indiceslength from the gobject
                         so.meshVao.indicesLength = so.gobject.indicesLengthType;
@@ -1214,8 +1223,8 @@ namespace MVCore
                     metaData.vertrend_graphics = 22 - 1;
                     so.metaData = metaData;
                     so.meshVao = new GLMeshVao(so.metaData);
-                    so.meshVao.vao = (new MVCore.Primitives.Cylinder(radius,height)).getVAO();
-                    so.instanceId = so.meshVao.addInstance(so); //Add instance
+                    so.meshVao.vao = (new Primitives.Cylinder(radius,height, new Vector3(0.0f, 0.0f, 0.0f))).getVAO();
+                    so.instanceId = GLMeshBufferManager.addInstance(so.meshVao, so); //Add instance
                     so.collisionType = COLLISIONTYPES.CYLINDER;
                     
                 }
@@ -1236,7 +1245,7 @@ namespace MVCore
                     
                     so.meshVao = new GLMeshVao(so.metaData);
                     so.meshVao.vao = (new MVCore.Primitives.Box(width, height, depth)).getVAO();
-                    so.instanceId = so.meshVao.addInstance(so); //Add instance
+                    so.instanceId = GLMeshBufferManager.addInstance(so.meshVao, so); //Add instance
                     so.collisionType = COLLISIONTYPES.BOX;
                     
 
@@ -1254,7 +1263,7 @@ namespace MVCore
                     so.metaData = metaData;
                     so.meshVao = new GLMeshVao(so.metaData);
                     so.meshVao.vao = (new MVCore.Primitives.Capsule(new Vector3(), height, radius)).getVAO();
-                    so.instanceId = so.meshVao.addInstance(so); //Add instance
+                    so.instanceId = GLMeshBufferManager.addInstance(so.meshVao, so); //Add instance
                     so.collisionType = COLLISIONTYPES.CAPSULE;
                     
                 }
@@ -1270,12 +1279,11 @@ namespace MVCore
                     so.metaData = metaData;
                     so.meshVao = new GLMeshVao(so.metaData);
                     so.meshVao.vao = (new MVCore.Primitives.Sphere(new Vector3(), radius)).getVAO();
-                    so.instanceId = so.meshVao.addInstance(so); //Add instance
+                    so.instanceId = GLMeshBufferManager.addInstance(so.meshVao, so); //Add instance
                     so.collisionType = COLLISIONTYPES.SPHERE;
                 }
                 else
                 {
-                    Console.WriteLine("NEW COLLISION TYPE: " + collisionType);
                     CallBacks.Log("NEW COLLISION TYPE: " + collisionType);
                 }
 
@@ -1285,8 +1293,8 @@ namespace MVCore
                 so.meshVao.type = TYPES.COLLISION;
                 so.meshVao.collisionType = so.collisionType;
 
-                Console.WriteLine("Batch Start {0} Count {1} ",
-                    metaData.batchstart_physics, metaData.batchcount);
+                CallBacks.Log(string.Format("Batch Start {0} Count {1} ",
+                    metaData.batchstart_physics, metaData.batchcount));
 
                 so.parent = parent;
                 so.init(transforms);

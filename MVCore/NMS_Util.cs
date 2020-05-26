@@ -528,16 +528,15 @@ namespace MVCore
 
             //Check Steam
             string val;
-            
-            
+
             try
             {
                 val = fetchSteamGameInstallationDir();
             } catch (Exception e) {
-                val = "";
+                val = null;
             }
 
-            if (val != "")  
+            if (val != null)  
                 return val;
             else
                 CallBacks.Log("Unable to find Steam Version");
@@ -545,16 +544,18 @@ namespace MVCore
 
             //Check GOG32
             val = Registry.GetValue(gog32_keyname, gog32_keyval, "") as string;
-            if (val != "")
+            if (val != null)
             {
                 CallBacks.Log("Found GOG32 Version: " + val);
                 return val;
-            } else
+            }
+            else
                 CallBacks.Log("Unable to find GOG32 Version: " + val);
+
 
             //Check GOG64
             val = Registry.GetValue(gog64_keyname, gog64_keyval, "") as string;
-            if (val != "")
+            if (val != null)
             {
                 CallBacks.Log("Found GOG64 Version: " + val);
                 return val;

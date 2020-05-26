@@ -13,17 +13,10 @@ using MVCore.Common;
 using MVCore.GMDL;
 using GLSLHelper;
 using OpenTK.Graphics;
-using ClearBufferMask = OpenTK.Graphics.OpenGL.ClearBufferMask;
-using CullFaceMode = OpenTK.Graphics.OpenGL.CullFaceMode;
-using EnableCap = OpenTK.Graphics.OpenGL4.EnableCap;
-using PolygonMode = OpenTK.Graphics.OpenGL4.PolygonMode;
 using GL = OpenTK.Graphics.OpenGL4.GL;
-using System.ComponentModel;
 using System.Threading;
-using QuickFont;
-using ProjProperties = WPFModelViewer.Properties;
-using libMBIN.NMS.Toolkit;
-using System.Windows.Ink;
+
+
 
 namespace Model_Viewer
 {
@@ -99,7 +92,7 @@ namespace Model_Viewer
         private DateTime prevtime;
 
         //Gamepad Setup
-        public GamepadHandler gpHandler;
+        public BaseGamepadHandler gpHandler;
         public KeyboardHandler kbHandler;
         private bool disposed;
         public Microsoft.Win32.SafeHandles.SafeFileHandle handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(IntPtr.Zero, true);
@@ -179,16 +172,18 @@ namespace Model_Viewer
             //Console.WriteLine(gpHandler.getAxsState(0, 0).ToString() + " " +  gpHandler.getAxsState(0, 1).ToString());
             //gpHandler.reportButtons();
             //gamepadController(); //Move camera according to input
+
             bool focused = false;
 
             this.Invoke((MethodInvoker) delegate
             {
-                focused = this.Focused;
+                focused = Focused;
             });
 
             if (focused)
             {
-                kbHandler.updateState();
+                kbHandler?.updateState();
+                gpHandler?.updateState();
             }
         }
 
@@ -222,6 +217,7 @@ namespace Model_Viewer
 
             //Update movement
             keyboardController();
+            gamepadController();
 
             //Set time to the renderManager
             renderMgr.progressTime(dt);
@@ -241,6 +237,14 @@ namespace Model_Viewer
             renderMgr.clearInstances(); //Clear All mesh instances
             rootObject?.updateMeshInfo(); //Reapply frustum culling and re-setup visible instances
 
+            //Update gizmo
+
+            if (rootObject != null)
+            {
+                GLMeshBufferManager.clearInstances(renderMgr.gz.meshVao);
+                GLMeshBufferManager.addInstance(renderMgr.gz.meshVao, rootObject);
+            }
+                
             //Identify dynamic Objects
             foreach (model s in animScenes)
             {
@@ -312,7 +316,8 @@ namespace Model_Viewer
             IGraphicsContext new_context = new GraphicsContext(new GraphicsMode(32, 24, 0, 8), WindowInfo, 4, 3,
                 GraphicsContextFlags.Debug);
 #else
-            IGraphicsContext new_context = new GraphicsContext(new GraphicsMode(32, 24, 0, 8), WindowInfo);
+            IGraphicsContext new_context = new GraphicsContext(new GraphicsMode(32, 24, 0, 8), WindowInfo, 4 ,3,
+                GraphicsContextFlags.Default);
 #endif
             new_context.MakeCurrent(WindowInfo);
             MakeCurrent(); //This is essential
@@ -325,8 +330,10 @@ namespace Model_Viewer
             setActiveCam(0);
             addTestObjects();
 
+            //Initialize the render manager
+            renderMgr.init(resMgr);
             renderMgr.setupGBuffer(ClientSize.Width, ClientSize.Height);
-            
+
             bool renderFlag = true; //Toggle rendering on/off
             
             //Rendering Loop
@@ -458,18 +465,18 @@ namespace Model_Viewer
             //Once the context is initialized compile the shaders
             compileMainShaders();
 
-            //Initialize the render manager (Does some pretty lame shit for now)
-            renderMgr.init(resMgr);
-            
             kbHandler = new KeyboardHandler();
-            //gpHandler = new GamepadHandler(); TODO: Add support for PS4 controller
+            gpHandler = new PS4GamePadHandler(0); //TODO: Add support for PS4 controller
 
             //Everything ready to swap threads
             setupRenderingThread();
 
             //Start Timers
             inputPollTimer.Start();
-        
+
+            //Start rendering Thread
+            rendering_thread.Start();
+
         }
 
         private void genericMouseMove(object sender, MouseEventArgs e)
@@ -869,8 +876,6 @@ namespace Model_Viewer
             rendering_thread.IsBackground = true;
             rendering_thread.Priority = ThreadPriority.Normal;
 
-            //Start RT Thread
-            rendering_thread.Start();
         }
 
 #endregion ControlSetup_Init
@@ -1032,25 +1037,20 @@ namespace Model_Viewer
         private void gamepadController()
         {
             if (gpHandler == null) return;
-            
-            //This Method handles and controls the gamepad input
-            gpHandler.updateState();
-            //gpHandler.reportAxes();
-            
-            //Move camera
-            //Console.WriteLine(gpHandler.getBtnState(1) - gpHandler.getBtnState(0));
-            //Console.WriteLine(gpHandler.getAxsState(0, 1));
-            for (int i = 0; i < movement_speed; i++)
-                RenderState.activeCam.Move(0.1f * gpHandler.getAxsState(0, 0),
-                               0.1f * gpHandler.getAxsState(0, 1),
-                               gpHandler.getBtnState(1) - gpHandler.getBtnState(0));
+            if (!gpHandler.isConnected()) return;
 
-            //Rotate Camera
-            //for (int i = 0; i < movement_speed; i++)
-            RenderState.activeCam.AddRotation(-3.0f * gpHandler.getAxsState(1, 0), 3.0f * gpHandler.getAxsState(1, 1));
-            //Console.WriteLine("Camera Orientation {0} {1}", activeCam.Orientation.X,
-            //    activeCam.Orientation.Y,
-            //    activeCam.Orientation.Z);
+            //Camera Movement
+            float step = movement_speed * 0.002f;
+            RenderState.activeCam.Move(
+                    step * gpHandler.getAction(ControllerActions.MOVE_X),
+                    step * (gpHandler.getAction(ControllerActions.ACCELERATE) - gpHandler.getAction(ControllerActions.DECELERATE)),
+                    step * (gpHandler.getAction(ControllerActions.MOVE_Y_NEG) - gpHandler.getAction(ControllerActions.MOVE_Y_POS)));
+
+
+            float cameraSensitivity = 2.0f;
+            RenderState.activeCam.AddRotation(-cameraSensitivity * gpHandler.getAction(ControllerActions.CAMERA_MOVE_H),
+                                               cameraSensitivity * gpHandler.getAction(ControllerActions.CAMERA_MOVE_V));
+
         }
 
         //Keyboard handler

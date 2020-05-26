@@ -16,11 +16,18 @@ layout(location=4) in vec4 bPosition; //bitangents
 layout(location=5) in vec4 blendIndices;
 layout(location=6) in vec4 blendWeights;
 
+
 //Uniform Blocks
-layout (std140) uniform Uniforms
+layout (std140, binding=0) uniform _COMMON_PER_FRAME
 {
     CommonPerFrameUniforms mpCommonPerFrame;
-    CommonPerMeshUniforms mpCommonPerMesh;
+};
+
+layout (std430, binding=1) buffer _COMMON_PER_MESH
+{
+    vec3 color; //Mesh Default Color
+    float skinned;
+    MeshInstance instanceData[]; //Instance world matrices, normal matrices, occlusion and selection status
 };
 
 //Outputs

@@ -34,11 +34,12 @@ layout (std140, binding=0) uniform _COMMON_PER_FRAME
     CommonPerFrameUniforms mpCommonPerFrame;
 };
 
-layout (std140, binding=1) uniform _COMMON_PER_MESH
+layout (std430, binding=1) buffer _COMMON_PER_MESH
 {
-    CommonPerMeshUniforms mpCommonPerMesh;
+    vec3 color; //Mesh Default Color
+    float skinned;
+    MeshInstance instanceData[]; //Instance world matrices, normal matrices, occlusion and selection status
 };
-
 
 in vec4 fragPos;
 in vec4 screenPos;
@@ -72,13 +73,18 @@ vec3 DecodeNormalMap(vec4 lNormalTexVec4 ){
     return ( vec3( lNormalTexVec4.r, lNormalTexVec4.g, sqrt( max( 1.0 - lNormalTexVec4.r*lNormalTexVec4.r - lNormalTexVec4.g*lNormalTexVec4.g, 0.0 ) ) ) );
 }
 
-//Fetches the mipmap level
-float get_mipmap_level(){
-	float mipmaplevel = 0.0;
-	#ifdef __F01_DIFFUSEMAP
-		mipmaplevel = textureQueryLOD(mpCustomPerMaterial.gDiffuseMap, uv.xy).x;
-	#endif
-	return mipmaplevel;
+float
+mip_map_level(in vec2 texture_coordinate)
+{
+    // The OpenGL Graphics System: A Specification 4.2
+    //  - chapter 3.9.11, equation 3.21
+
+    vec2  dx_vtc        = dFdx(texture_coordinate);
+    vec2  dy_vtc        = dFdy(texture_coordinate);
+    float delta_max_sqr = max(dot(dx_vtc, dx_vtc), dot(dy_vtc, dy_vtc));
+
+    //return max(0.0, 0.5 * log2(delta_max_sqr) - 1.0); // == log2(sqrt(delta_max_sqr));
+    return 0.5 * log2(delta_max_sqr); // == log2(sqrt(delta_max_sqr));
 }
 
 void clip(float test) { if (test < 0.0) discard; }
@@ -107,25 +113,6 @@ vec4 worldfromDepth()
 	return world;
 }
 
-
-float calcAO(float mipmaplevel){
-	float ao = 1.0;
-	#ifdef __F24_AOMAP
-		ao = textureLod(mpCustomPerMaterial.gMasksMap, vec3(uv0, 0.0), mipmaplevel).r;
-	#endif
-	return ao;
-}
-
-float calcMetallic(float lHighAlpha){
-	float lfMetallic = mpCustomPerMaterial.gMaterialParamsVec4.z;
-	#if defined(__F39_METALLIC_MASK) && !defined(__F07_UNLIT)
-		lfMetallic = lHighAlpha;
-	#else
-		lfMetallic = mpCustomPerMaterial.gMaterialParamsVec4.z;
-	#endif
-
-	return lfMetallic;
-}
 
 vec4 ApplySelectedColor(vec4 color){
 	vec4 new_col = color;
@@ -176,7 +163,7 @@ void pbr_lighting(){
 	#endif
 
 	#ifdef __F55_MULTITEXTURE
-    	float lfMultiTextureIndex = mpCommonPerMesh.gUserDataVec4.w;
+    	float lfMultiTextureIndex = instanceData[instanceId].gUserDataVec4.w;
 	#endif
 
     #ifdef D_TEXCOORDS
@@ -190,7 +177,7 @@ void pbr_lighting(){
             world = worldfromDepth();
 			//Convert vertex to the local space of the box
 
-			vec4 localPos = mpCommonPerMesh.instanceData[instanceId].worldMatInv * world;
+			vec4 localPos = instanceData[instanceId].worldMatInv * world;
 			localPos /= localPos.w;
 
 			//Clip
@@ -221,10 +208,9 @@ void pbr_lighting(){
 	
 
 	if (mpCommonPerFrame.diffuseFlag > 0.0){
-		float mipmaplevel = get_mipmap_level();
+		float mipmaplevel = mip_map_level(uv.xy);
 		
-	 
-	
+	 	
 		#ifdef __F01_DIFFUSEMAP
 			#ifdef __F55_MULTITEXTURE
 				lColourVec4 = textureLod(mpCustomPerMaterial.gDiffuseMap, vec3(lTexCoordsVec4.xy, lfMultiTextureIndex), mipmaplevel);
@@ -253,15 +239,15 @@ void pbr_lighting(){
 
 		#ifdef D_MASKS
 	    	#ifdef __F55_MULTITEXTURE
-	            vec4 lMasks = textureLod(mpCustomPerMaterial.gMasksMap, vec3(lTexCoordsVec4.xy, lfMultiTextureIndex));
+	            vec4 lMasks = textureLod(mpCustomPerMaterial.gMasksMap, vec3(lTexCoordsVec4.xy, lfMultiTextureIndex), mipmaplevel);
 	        #else
-	            vec4 lMasks = textureLod(mpCustomPerMaterial.gMasksMap, vec3(lTexCoordsVec4.xy, 0.0));
+	            vec4 lMasks = textureLod(mpCustomPerMaterial.gMasksMap, vec3(lTexCoordsVec4.xy, 0.0), mipmaplevel);
 	        #endif
 	    #endif
 
 	    #ifdef __F16_DIFFUSE2MAP
 			vec4 lDiffuse2Vec4 = textureLod(mpCustomPerMaterial.gDiffuse2Map, vec3(lTexCoordsVec4.zw, 0.0), mipmaplevel);
-			difftTex2Factor = lDiffuse2Vec4.a;
+			diffTex2Factor = lDiffuse2Vec4.a;
 
 			#ifndef __F17_MULTIPLYDIFFUSE2MAP
 				lColourVec4.rgb = mix( lColourVec4.rgb, lDiffuse2Vec4.rgb, lDiffuse2Vec4.a );
@@ -412,7 +398,7 @@ void pbr_lighting(){
 
 
 	} else {
-		lColourVec4 = vec4(mpCommonPerMesh.color, 1.0);
+		lColourVec4 = vec4(color, 1.0);
 		lNormalVec3 = mTangentSpaceNormalVec3;
 	}
 
@@ -461,6 +447,7 @@ void pbr_lighting(){
 		vec4 finalColor = lColourVec4;
 
 		#ifndef __F07_UNLIT
+		if (mpCommonPerFrame.use_lighting > 0.0) {
 			for(int i = 0; i < mpCommonPerFrame.light_count; ++i) 
 		    {
 		    	// calculate per-light radiance
@@ -473,7 +460,7 @@ void pbr_lighting(){
 	    		finalColor.rgb += calcLighting(light, fragPos, lNormalVec3, mpCommonPerFrame.cameraPosition,
 		            lColourVec4.rgb, lfMetallic, lfRoughness, ao);
 			} 
-
+		}
 		#else
 			finalColor = lColourVec4;
 		#endif
