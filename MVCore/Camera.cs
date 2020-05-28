@@ -15,10 +15,13 @@ namespace MVCore.GMDL
         public float pitch = 0; //Radians rotation on X axis
         public float yaw = (float) Math.PI/2.0f; //Radians rotation on Y axis
         public float roll = 0; //Radians rotation on Z axis
+        public Vector3 Right;
+        public Vector3 Front = new Vector3(0.0f, 0.0f, -1.0f);
+        public Vector3 Up = new Vector3(0.0f, 1.0f, 0.0f);
 
-        public Vector3 Orientation = new Vector3(0.0f, 0f, 0f);
-        public float MoveSpeed = 0.02f;
-        public float MouseSensitivity = 0.001f;
+
+        public float Speed = 0.02f;
+        public float Sensitivity = 0.001f;
         public bool isActive = false;
         //Projection variables Set defaults
         public float fov;
@@ -53,7 +56,8 @@ namespace MVCore.GMDL
             this.type = mode;
             this.culling = cull;
 
-            updateOrientation();
+            updateCameraVectors();
+            
             //Initialize the viewmat
             this.updateViewMatrix();
         
@@ -61,7 +65,7 @@ namespace MVCore.GMDL
         
         public void updateViewMatrix()
         {
-            lookMat = Matrix4.LookAt(Position, Position + Orientation, Vector3.UnitY);
+            lookMat = Matrix4.LookAt(Position, Position + Front, Up);
             
             //lookMat = Matrix4.LookAt(new Vector3(0.0f,0.0f,0.0f), lookat, Vector3.UnitY);
 
@@ -76,8 +80,6 @@ namespace MVCore.GMDL
 
                 //projMat = Matrix4.CreatePerspectiveOffCenter(-w, w, -h, h, zNear, zFar);
                 Matrix4.CreatePerspectiveFieldOfView(fov, aspect, zNear, zFar, out projMat);
-                
-
                 viewMat = lookMat * projMat;
             }
             else
@@ -97,52 +99,40 @@ namespace MVCore.GMDL
             updateFrustumPlanes();
         }
 
-        public void Move(float x, float y, float z)
+        private void updateCameraVectors()
         {
+            
+            //Recalculate front vector
+            Front.X = (float) Math.Cos(yaw) * (float)Math.Cos(pitch);
+            Front.Y = (float) Math.Sin(pitch);
+            Front.Z = (float) Math.Sin(yaw) * (float)Math.Cos(pitch);
+            Front.Normalize();
+
+            //Recalculate right vector
+            Right = Vector3.Cross(Front, new Vector3(0.0f, 1.0f, 0.0f)).Normalized();
+            Up = Vector3.Cross(Right, Front).Normalized();
+
+        }
+
+        public void Move(float x, float y, float z, 
+            float rotx, float roty)
+        {
+            yaw -= rotx * Sensitivity;
+            pitch += roty * Sensitivity;
+
+            yaw %= (2.0f * (float) Math.PI);
+            pitch %= (2.0f * (float) Math.PI);
+
+            updateCameraVectors();
+
+            //Finally move camera
             Vector3 offset = new Vector3();
-
-            //Vector3 right = new Vector3(-forward.Z, 0, forward.X);
-            Vector3 right = Vector3.Cross(Orientation, new Vector3(0.0f, 1.0f, 0.0f)).Normalized();
-
-            offset += x * right;
-            offset += y * Orientation;
+            offset += x * Right;
+            offset += y * Front;
             offset.Y += z;
 
-            //offset.NormalizeFast();
-            //Movement speed is accumulated in x,y,z
-            //offset = Vector3.Multiply(offset, MoveSpeed);
-
+            //Update final vector
             Position += offset;
-        }
-
-        public void AddRotation(float x, float y)
-        {
-            yaw -= x * MouseSensitivity;
-            pitch += y * MouseSensitivity;
-
-            yaw = yaw %  (2.0f * (float) Math.PI);
-            pitch = pitch % (2.0f * (float) Math.PI);
-            
-            //yaw = MathUtils.clamp(yaw, (float)-Math.PI, (float)Math.PI);
-            //pitch = MathUtils.clamp(pitch, (float)-Math.PI, (float)Math.PI);
-
-            //Console.WriteLine("{0} {1}", yaw, pitch);
-
-            updateOrientation();
-            
-            //x = x * MouseSensitivity;
-            //y = y * MouseSensitivity;
-
-            //Orientation.X = (Orientation.X + x) % ((float)Math.PI * 2.0f);
-            //Orientation.Y = Math.Max(Math.Min(Orientation.Y + y, (float)Math.PI / 2.0f - 0.1f), (float)-Math.PI / 2.0f + 0.1f);
-        }
-
-        public void updateOrientation()
-        {
-            //Recalculate orientation vector
-            Orientation.X = (float)Math.Cos(yaw) * (float)Math.Cos(pitch);
-            Orientation.Y = (float)Math.Sin(pitch);
-            Orientation.Z = (float)Math.Sin(yaw) * (float)Math.Cos(pitch);
         }
 
         public void setFOV(int angle)

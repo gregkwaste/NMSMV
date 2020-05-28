@@ -78,6 +78,15 @@ namespace WPFModelViewer
             scaleX.Text = _mdl.localScale.X.ToString();
             scaleY.Text = _mdl.localScale.Y.ToString();
             scaleZ.Text = _mdl.localScale.Z.ToString();
+
+            //LOAD AABB
+            AABBMINX.Text = _mdl.AABBMIN.X.ToString();
+            AABBMINY.Text = _mdl.AABBMIN.Y.ToString();
+            AABBMINZ.Text = _mdl.AABBMIN.Z.ToString();
+
+            AABBMAXX.Text = _mdl.AABBMAX.X.ToString();
+            AABBMAXY.Text = _mdl.AABBMAX.Y.ToString();
+            AABBMAXZ.Text = _mdl.AABBMAX.Z.ToString();
         }
 
         private void applyTransformButtonTrigger(object sender, RoutedEventArgs e)

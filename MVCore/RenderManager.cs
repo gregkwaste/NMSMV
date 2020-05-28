@@ -8,10 +8,9 @@ using MVCore.GMDL;
 using MVCore.Common;
 using System.Runtime.InteropServices;
 using GLSLHelper;
-using libMBIN.NMS.GameComponents;
 using System.Windows.Controls;
-using MathNet.Numerics.LinearAlgebra.Complex;
-using System.Windows.Media.Effects;
+
+
 
 namespace MVCore
 {
@@ -21,7 +20,6 @@ namespace MVCore
     {
         [FieldOffset(0)]
         public int depthMap; //Depth Map Sampler ID
-        
         public static readonly int SizeInBytes = 12;
     };
 
@@ -95,12 +93,6 @@ namespace MVCore
         //Octree Structure
         private Octree octree;
 
-        //Gizmo
-        public gizmo gz;
-        
-        //Local Counters
-        private int occludedNum;
-
         //UBO structs
         CommonPerFrameUniforms cpfu;
         private byte[] atlas_cpmu;
@@ -149,11 +141,6 @@ namespace MVCore
             //Initialize Octree
             octree = new Octree(MAX_OCTREE_WIDTH);
 
-            //Initialize Gizmo
-            gz = new gizmo();
-
-
-
         }
 
         private void GLDebugMessage(DebugSource source, DebugType type, int id, DebugSeverity severity, int length, IntPtr message, IntPtr userParam)
@@ -181,6 +168,16 @@ namespace MVCore
             pbuf = new PBuffer(width, height);
             blur_fbo = new FBO(TextureTarget.Texture2D, 3, width / blur_fbo_scale, height / blur_fbo_scale, false);
         }
+
+        public void getMousePosInfo(int x, int y, ref Vector4[] arr)
+        {
+            //Fetch Depth
+            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, gbuf.fbo);
+            GL.ReadPixels(x, y, 1, 1, 
+                PixelFormat.DepthComponent, PixelType.Float, arr);
+            //Fetch color from UI Fbo
+        }
+
 
 
         public void progressTime(double dt)
@@ -250,6 +247,9 @@ namespace MVCore
                 process_models(s);
 
             identifyActiveShaders();
+
+            //Add default meshes to the global list
+            globalMeshList.Add(resMgr.GLPrimitiveMeshVaos["default_translation_gizmo"]);
         }
 
         private void process_model(GLMeshVao m)
@@ -438,7 +438,7 @@ namespace MVCore
             cpfu.lookMatInv = RenderState.activeCam.lookMatInv;
             cpfu.projMatInv = RenderState.activeCam.projMatInv;
             cpfu.cameraPosition = RenderState.activeCam.Position;
-            cpfu.cameraDirection = RenderState.activeCam.Orientation;
+            cpfu.cameraDirection = RenderState.activeCam.Front;
             cpfu.cameraNearPlane = RenderState.activeCam.zNear;
             cpfu.cameraFarPlane = RenderState.activeCam.zFar;
             cpfu.light_number = Math.Min(32, resMgr.GLlights.Count);
@@ -702,8 +702,6 @@ namespace MVCore
                     Console.WriteLine("GAMITHIKE O DIAS");
 
                 //at this point the ubo_offset is the actual size of the atlas buffer
-
-                //Console.WriteLine(GL.GetError());
 
                 unsafe
                 {
@@ -969,10 +967,7 @@ namespace MVCore
             
         }
 
-        private void renderShadows()
-        {
-            
-        }
+        
 
         private void renderFinalPass()
         {
@@ -985,15 +980,29 @@ namespace MVCore
 
         private void renderUI()
         {
-            GL.Clear(ClearBufferMask.DepthBufferBit); //Clear depth
-            GL.Enable(EnableCap.DepthTest);
-            GL.Disable(EnableCap.CullFace);
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
-            Material mat = resMgr.GLmaterials["crossMat"];
-            GLSLShaderConfig shader = resMgr.GLDefaultShaderMap[mat.shaderHash];
-            GL.UseProgram(shader.program_id);
-            gz.meshVao.render(shader, RENDERPASS.FORWARD);
-            GL.Enable(EnableCap.CullFace);
+            
+            if (RenderState.renderViewSettings.RenderGizmos)
+            {
+                GL.Clear(ClearBufferMask.DepthBufferBit); //Clear depth
+                GL.Enable(EnableCap.DepthTest);
+                GL.Disable(EnableCap.CullFace);
+                GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
+                GLSLShaderConfig shader = resMgr.GLShaders[SHADER_TYPE.GIZMO_SHADER];
+                GL.UseProgram(shader.program_id);
+                //Render Translation Gizmo
+                GLMeshVao m = resMgr.GLPrimitiveMeshVaos["default_translation_gizmo"];
+                //Render Start
+                Matrix4 mWMat = GLMeshBufferManager.getInstanceWorldMat(m, 0);
+                GL.UniformMatrix4(shader.uniformLocations["worldMat"], false, ref mWMat);
+                GL.Uniform1(shader.uniformLocations["color_mult"], 1.0f);
+                m.render(shader, RENDERPASS.FORWARD);
+                //Render End
+                mWMat = GLMeshBufferManager.getInstanceWorldMat(m, 1);
+                GL.UniformMatrix4(shader.uniformLocations["worldMat"], false, ref mWMat);
+                GL.Uniform1(shader.uniformLocations["color_mult"], 0.5f);
+                m.render(shader, RENDERPASS.FORWARD);
+                GL.Enable(EnableCap.CullFace);
+            }
             
             GL.Enable(EnableCap.Blend);
             GL.Disable(EnableCap.DepthTest);
@@ -1001,10 +1010,15 @@ namespace MVCore
             //Render info right on the 0 buffer
             if (RenderState.renderViewSettings.RenderInfo)
                 render_info();
-
+            
             GL.PolygonMode(MaterialFace.FrontAndBack, RenderState.renderSettings.RENDERMODE);
             GL.Enable(EnableCap.DepthTest);
             GL.Disable(EnableCap.Blend);
+        }
+
+        private void renderShadows()
+        {
+
         }
 
         //Rendering Mechanism
@@ -1096,19 +1110,18 @@ namespace MVCore
             //GL.Clear(ClearBufferMask.DepthBufferBit);
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
 
-            float text_pos_x = gbuf.size[0] - 20.0f;
-            float text_pos_y = 80.0f;
-
+            //float text_pos_x = gbuf.size[0] - 20.0f;
+            float text_pos_x = 20.0f;
+            float text_pos_y = 100.0f;
 
             txtRenderer.clearPrimitives();
             //txtRenderer.clearNonStaticPrimitives();
-
 
             //Update only dynamic stuff
             
             System.Drawing.SizeF size = new System.Drawing.SizeF();
             Vector3 pos;
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < 6; i++)
             {
                 //Set Vector Pos
                 pos.X = text_pos_x;
@@ -1134,6 +1147,10 @@ namespace MVCore
                         break;
                     case 4:
                         size = txtRenderer.addDrawing(string.Format("Textures: {0:D1}", RenderStats.texturesNum),
+                            pos, System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS, false);
+                        break;
+                    case 5:
+                        size = txtRenderer.addDrawing(string.Format("Controller: {0} ", RenderState.activeGamepad?.getName()),
                             pos, System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS, false);
                         break;
                 }

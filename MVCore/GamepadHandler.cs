@@ -173,6 +173,11 @@ public abstract class BaseGamepadHandler
         return GamePad.GetCapabilities(ID).IsConnected;
     }
 
+    public string getName()
+    {
+        return GamePad.GetName(ID);
+    }
+
 
 }
 

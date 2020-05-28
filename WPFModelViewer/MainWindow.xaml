@@ -424,6 +424,7 @@
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
+                            <RowDefinition Height="20"/>
                         </Grid.RowDefinitions>
                         <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                             <TextBlock HorizontalAlignment="Left">Show Info</TextBlock>
@@ -448,6 +449,10 @@
                         <DockPanel Grid.Row="5" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                             <TextBlock HorizontalAlignment="Left">Show Bound Hulls</TextBlock>
                             <CheckBox Width="20" HorizontalAlignment="Right" IsEnabled="False" IsChecked="{Binding RenderBoundHulls}"></CheckBox>
+                        </DockPanel>
+                        <DockPanel Grid.Row="6" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                            <TextBlock HorizontalAlignment="Left">Show Gizmo</TextBlock>
+                            <CheckBox Width="20" HorizontalAlignment="Right" IsEnabled="True" IsChecked="{Binding RenderGizmos}"></CheckBox>
                         </DockPanel>
                     </Grid>
                 </GroupBox>

@@ -20,6 +20,7 @@ namespace GLSLHelper {
         MESH_DEFERRED_SHADER,
         DECAL_SHADER,
         DEBUG_MESH_SHADER,
+        GIZMO_SHADER,
         PICKING_SHADER,
         BBOX_SHADER,
         LOCATOR_SHADER,

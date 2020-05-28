@@ -15,14 +15,16 @@ using GLSLHelper;
 using OpenTK.Graphics;
 using GL = OpenTK.Graphics.OpenGL4.GL;
 using System.Threading;
-
-
+using MathNet.Numerics.LinearAlgebra.Complex;
 
 namespace Model_Viewer
 {
     public class CGLControl : GLControl
     {
         public model rootObject;
+        public model TranslationGizmo;
+        public model RotationalGizmo;
+        public model ScaleGizmo;
 
         //Common Transforms
         //private Matrix4 rotMat, mvp;
@@ -183,7 +185,7 @@ namespace Model_Viewer
             if (focused)
             {
                 kbHandler?.updateState();
-                gpHandler?.updateState();
+                //gpHandler?.updateState();
             }
         }
 
@@ -217,7 +219,7 @@ namespace Model_Viewer
 
             //Update movement
             keyboardController();
-            gamepadController();
+            //gamepadController();
 
             //Set time to the renderManager
             renderMgr.progressTime(dt);
@@ -241,8 +243,8 @@ namespace Model_Viewer
 
             if (rootObject != null)
             {
-                GLMeshBufferManager.clearInstances(renderMgr.gz.meshVao);
-                GLMeshBufferManager.addInstance(renderMgr.gz.meshVao, rootObject);
+                GLMeshVao gz = resMgr.GLPrimitiveMeshVaos["default_translation_gizmo"];
+                GLMeshBufferManager.addInstance(ref gz, TranslationGizmo);
             }
                 
             //Identify dynamic Objects
@@ -329,6 +331,9 @@ namespace Model_Viewer
             addCamera(cull:false); //Add second camera
             setActiveCam(0);
             addTestObjects();
+            
+            //Init Gizmos
+            TranslationGizmo = new locator();
 
             //Initialize the render manager
             renderMgr.init(resMgr);
@@ -385,6 +390,12 @@ namespace Model_Viewer
                             case THREAD_REQUEST_TYPE.UPDATE_SCENE_REQUEST:
                                 scene req_scn = (scene) req.arguments[0];
                                 req_scn.update();
+                                req.status = THREAD_REQUEST_STATUS.FINISHED;
+                                break;
+                            case THREAD_REQUEST_TYPE.MOUSEPOSITION_INFO_REQUEST:
+                                Vector4[] t = (Vector4[]) req.arguments[2];
+                                renderMgr.getMousePosInfo((int)req.arguments[0], (int)req.arguments[1],
+                                    ref t);
                                 req.status = THREAD_REQUEST_STATUS.FINISHED;
                                 break;
                             case THREAD_REQUEST_TYPE.GL_RESIZE_REQUEST:
@@ -466,7 +477,9 @@ namespace Model_Viewer
             compileMainShaders();
 
             kbHandler = new KeyboardHandler();
-            gpHandler = new PS4GamePadHandler(0); //TODO: Add support for PS4 controller
+            //gpHandler = new PS4GamePadHandler(0); //TODO: Add support for PS4 controller
+
+            RenderState.activeGamepad = gpHandler;
 
             //Everything ready to swap threads
             setupRenderingThread();
@@ -493,12 +506,12 @@ namespace Model_Viewer
             if (e.Button == MouseButtons.Left)
             {
                 //Debug.WriteLine("Deltas {0} {1} {2}", delta_x, delta_y, e.Button);
-                RenderState.activeCam.AddRotation(delta_x, delta_y);
+                RenderState.activeCam.Move(0, 0, 0, delta_x, delta_y);
             }
 
             mouse_x = e.X;
             mouse_y = e.Y;
-            
+
         }
 
         private void generic_KeyDown(object sender, PreviewKeyDownEventArgs e)
@@ -623,10 +636,10 @@ namespace Model_Viewer
                 contextMenuStrip1.Show(Control.MousePosition);
             }
             //TODO: ADD SELECT OBJECT FUNCTIONALITY IN THE FUTURE
-            //else if ((e.Button == MouseButtons.Left) && (ModifierKeys == Keys.Control))
-            //{
-            //    selectObject(e.Location);
-            //}
+            else if ((e.Button == MouseButtons.Left) && (ModifierKeys == Keys.Control))
+            {
+                selectObject(new Vector2(e.X, e.Y));
+            }
         }
 
 #endregion GLControl Methods
@@ -670,10 +683,25 @@ namespace Model_Viewer
             geometry_shader_gs.addStringFromFile("Shaders/Simple_GS.glsl");
 
             GLShaderHelper.compileShader(geometry_shader_vs, geometry_shader_fs, geometry_shader_gs, null, null,
-                            GLSLHelper.SHADER_TYPE.DEBUG_MESH_SHADER, ref log);
+                            SHADER_TYPE.DEBUG_MESH_SHADER, ref log);
+
+
+            //Compile Object Shaders
+            GLSLShaderText gizmo_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText gizmo_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gizmo_shader_vs.addStringFromFile("Shaders/Gizmo_VS.glsl");
+            gizmo_shader_fs.addStringFromFile("Shaders/Gizmo_FS.glsl");
+            shader_conf = GLShaderHelper.compileShader(gizmo_shader_vs, gizmo_shader_fs, null, null, null,
+                            SHADER_TYPE.GIZMO_SHADER, ref log);
+            
+            //Attach UBO binding Points
+            GLShaderHelper.attachUBOToShaderBindingPoint(shader_conf, "_COMMON_PER_FRAME", 0);
+            resMgr.GLShaders[SHADER_TYPE.GIZMO_SHADER] = shader_conf;
+
+            //Picking Shader
 
             //Compile Default Shaders
-            
+
             //BoundBox Shader
             GLSLShaderText bbox_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
             GLSLShaderText bbox_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
@@ -828,7 +856,7 @@ namespace Model_Viewer
 
             StreamWriter obj = new StreamWriter(sv.FileName);
 
-            obj.WriteLine("# No Mans Model Viewer OBJ File:");
+            obj.WriteLine("# No Mans Sky Model Viewer OBJ File:");
             obj.WriteLine("# www.3dgamedevblog.com");
 
             //Iterate in objects
@@ -836,7 +864,7 @@ namespace Model_Viewer
             findGeoms(rootObject, obj, ref index);
             
             obj.Close();
-            
+
         }
 
         private void findGeoms(model m, StreamWriter s, ref uint index)
@@ -861,6 +889,75 @@ namespace Model_Viewer
                 if (c.renderable) findGeoms(c, s, ref index);
         }
 
+        private Vector3 unProject(Vector2 vec)
+        {
+            Vector3 v;
+
+            Vector2 screenPos = vec;
+
+            //Normalize screenPos
+            float fov_fact = 0.5f * RenderState.activeCam.fov;
+            float dx = fov_fact * (screenPos.X - 0.5f * Size.Width) / Size.Width;
+            float dy = -fov_fact * (screenPos.Y - 0.5f * Size.Height) / Size.Height;
+
+            v = RenderState.activeCam.Front;
+            v += 2.0f * RenderState.activeCam.Up * dy;
+            v += 2.0f * RenderState.activeCam.Right * dx;
+
+            return v.Normalized();
+        }
+
+        
+        private void selectObject(Vector2 screenPos)
+        {
+            //Vector3 near = unProject(new Vector3(screenPos.X, screenPos.Y, 0.0f));
+            //Vector3 near = unProject(new Vector3(screenPos.X, screenPos.Y, 0.0f));
+            Vector3 v = unProject(new Vector2(screenPos.X, screenPos.Y));
+            
+            Console.WriteLine("Ray Vector : {0}, {1}, {2} ", v.X, v.Y, v.Z);
+
+            //Intersect Ray with scene
+            model intersectedModel = null;
+            bool intersectionStatus = false;
+            float intersectionDistance = float.MaxValue;
+            findIntersectedModel(rootObject, v, ref intersectionStatus, ref intersectedModel, ref intersectionDistance);
+
+            if (intersectedModel != null)
+            {
+                Console.WriteLine("Ray intersects model : " + intersectedModel.name);
+                TranslationGizmo.localPosition = intersectedModel.worldPosition;
+                TranslationGizmo.update();
+            }
+
+        }
+
+        
+        private void findIntersectedModel(model m, Vector3 ray, ref bool foundIntersection, ref model interSectedModel, ref float intersectionDistance)
+        {
+            if (!m.renderable)
+                return;
+            
+            //Skip if intersection was found
+            if (foundIntersection)
+                return;
+            
+            //Check interection with m
+            if (m.intersects(RenderState.activeCam.Position, ray, ref intersectionDistance))
+            {
+                foundIntersection = true;
+                interSectedModel = m;
+                return;
+            }
+                
+            //Iterate in children
+            foreach (model c in m.children)
+            { 
+                findIntersectedModel(c, ray, ref foundIntersection, ref interSectedModel, ref intersectionDistance);
+            }
+
+
+        }
+
 #endregion ContextMethods
 
 #region ControlSetup_Init
@@ -875,7 +972,7 @@ namespace Model_Viewer
             rendering_thread = new Thread(ControlLoop);
             rendering_thread.IsBackground = true;
             rendering_thread.Priority = ThreadPriority.Normal;
-
+        
         }
 
 #endregion ControlSetup_Init
@@ -898,10 +995,13 @@ namespace Model_Viewer
             resMgr.GLCameras[0].zNear = zNear;
         }
 
-        public void updateActiveCam(Vector3 pos)
+        public void updateActiveCam(Vector3 pos, Vector3 rot)
         {
             RenderState.activeCam.Position = pos;
-        }
+            RenderState.activeCam.pitch = rot.X; //Radians rotation on X axis
+            RenderState.activeCam.yaw = rot.Y; //Radians rotation on Y axis
+            RenderState.activeCam.roll = rot.Z; //Radians rotation on Z axis
+    }
 
 #endregion
 
@@ -918,7 +1018,7 @@ namespace Model_Viewer
             //Set Camera position
             Camera cam = new Camera(90, -1, 0, cull);
             for (int i = 0; i < 20; i++)
-                cam.Move(0.0f, -0.1f, 0.0f);
+                cam.Move(0.0f, -0.1f, 0.0f, 0, 0);
             cam.isActive = false;
             resMgr.GLCameras.Add(cam);
         }
@@ -1040,16 +1140,17 @@ namespace Model_Viewer
             if (!gpHandler.isConnected()) return;
 
             //Camera Movement
-            float step = movement_speed * 0.002f;
-            RenderState.activeCam.Move(
-                    step * gpHandler.getAction(ControllerActions.MOVE_X),
-                    step * (gpHandler.getAction(ControllerActions.ACCELERATE) - gpHandler.getAction(ControllerActions.DECELERATE)),
-                    step * (gpHandler.getAction(ControllerActions.MOVE_Y_NEG) - gpHandler.getAction(ControllerActions.MOVE_Y_POS)));
-
-
+            float step = movement_speed * 0.002f; 
             float cameraSensitivity = 2.0f;
-            RenderState.activeCam.AddRotation(-cameraSensitivity * gpHandler.getAction(ControllerActions.CAMERA_MOVE_H),
-                                               cameraSensitivity * gpHandler.getAction(ControllerActions.CAMERA_MOVE_V));
+            float x, y, z, rotx, roty;
+
+            x = step * gpHandler.getAction(ControllerActions.MOVE_X);
+            y = step * (gpHandler.getAction(ControllerActions.ACCELERATE) - gpHandler.getAction(ControllerActions.DECELERATE));
+            z = step * (gpHandler.getAction(ControllerActions.MOVE_Y_NEG) - gpHandler.getAction(ControllerActions.MOVE_Y_POS));
+            rotx = -cameraSensitivity * gpHandler.getAction(ControllerActions.CAMERA_MOVE_H);
+            roty = cameraSensitivity * gpHandler.getAction(ControllerActions.CAMERA_MOVE_V);
+
+            RenderState.activeCam.Move(x, y, z, rotx, roty);
 
         }
 
@@ -1060,14 +1161,18 @@ namespace Model_Viewer
 
             //Camera Movement
             float step = movement_speed * 0.002f;
-            RenderState.activeCam.Move(
-                    step * (kbHandler.getKeyStatus(OpenTK.Input.Key.D) - kbHandler.getKeyStatus(OpenTK.Input.Key.A)),
-                    step * (kbHandler.getKeyStatus(OpenTK.Input.Key.W) - kbHandler.getKeyStatus(OpenTK.Input.Key.S)),
-                    step * (kbHandler.getKeyStatus(OpenTK.Input.Key.R) - kbHandler.getKeyStatus(OpenTK.Input.Key.F)));
+            float x, y, z, rotx, roty;
 
-            //Rotate Axis
-            rot.Y += 50 * step * (kbHandler.getKeyStatus(OpenTK.Input.Key.E) - kbHandler.getKeyStatus(OpenTK.Input.Key.Q));
-            rot.X += 50 * step * (kbHandler.getKeyStatus(OpenTK.Input.Key.C) - kbHandler.getKeyStatus(OpenTK.Input.Key.Z));
+            x = step * (kbHandler.getKeyStatus(OpenTK.Input.Key.D) - kbHandler.getKeyStatus(OpenTK.Input.Key.A));
+            y = step * (kbHandler.getKeyStatus(OpenTK.Input.Key.W) - kbHandler.getKeyStatus(OpenTK.Input.Key.S));
+            z = step * (kbHandler.getKeyStatus(OpenTK.Input.Key.R) - kbHandler.getKeyStatus(OpenTK.Input.Key.F));
+
+            rotx = 50 * step * (kbHandler.getKeyStatus(OpenTK.Input.Key.E) - kbHandler.getKeyStatus(OpenTK.Input.Key.Q));
+            roty = 50 * step * (kbHandler.getKeyStatus(OpenTK.Input.Key.C) - kbHandler.getKeyStatus(OpenTK.Input.Key.Z));
+
+            //Move Camera
+            RenderState.activeCam.Move(x, y, z, rotx, roty);
+            
         }
 
 #endregion

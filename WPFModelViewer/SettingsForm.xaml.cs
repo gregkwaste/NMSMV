@@ -29,7 +29,6 @@ namespace WPFModelViewer
     /// </summary>
     public partial class SettingsForm : Window
     {
-        private Settings settings;
         public SettingsForm()
         {
             InitializeComponent();
@@ -37,14 +36,6 @@ namespace WPFModelViewer
             //Load settings from environment
             SettingsContainer.Content = RenderState.settings;
             RenderSettingsContainer.Content = RenderState.renderSettings;
-        }
-
-        public SettingsForm(Settings settings)
-        {
-            InitializeComponent();
-            //Load settings from input
-            this.settings = settings;
-            SettingsContainer.Content = settings;
         }
 
         public static void loadSettingsStatic()
@@ -176,9 +167,13 @@ namespace WPFModelViewer
             openFileDlg.Dispose();
 
             if (but.Name == "GameDirSetButton")
-                settings.GameDir = path;
+            {
+                RenderState.settings.GameDir = path;
+                MessageBox.Show("Please restart the application to reload pak files.", "Info",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
             else
-                settings.UnpackDir = path;
+                RenderState.settings.UnpackDir = path;
 
         }
     }
@@ -194,7 +189,6 @@ namespace WPFModelViewer
         public int UseVSYNC;
         public int AnimFPS;
         public float HDRExposure;
-
     }
    
 }

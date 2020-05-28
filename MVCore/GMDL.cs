@@ -106,7 +106,6 @@ namespace MVCore.GMDL
         public Vector3 AABBMIN = new Vector3();
         public Vector3 AABBMAX = new Vector3();
         
-
         //Disposable Stuff
         public bool disposed = false;
         public Microsoft.Win32.SafeHandles.SafeFileHandle handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(IntPtr.Zero, true);
@@ -197,6 +196,44 @@ namespace MVCore.GMDL
         //Methods
 
 
+        public bool intersects(Vector3 ray_start, Vector3 ray, ref float distance)
+        {
+            //Calculate bound box center
+            float radius = 0.5f * (AABBMIN - AABBMAX).Length;
+            Vector3 bsh_center = AABBMIN + 0.5f * (AABBMAX - AABBMIN);
+
+            //Move sphere to object's root position
+            bsh_center = (new Vector4(bsh_center, 1.0f)).Xyz;
+
+            //Calculate factors of the point equation
+            float a = ray.LengthSquared;
+            float b = 2.0f * Vector3.Dot(ray, ray_start - bsh_center);
+            float c = (ray_start - bsh_center).LengthSquared - radius*radius;
+
+            float D = b * b - 4 * a * c;
+
+            if (D >= 0.0f)
+            {
+                //Make sure that the calculated l is positive so that intersections are
+                //checked only forward
+                float l2 = (-b + (float) Math.Sqrt(D)) / (2.0f * a);
+                float l1 = (-b - (float) Math.Sqrt(D)) / (2.0f * a);
+
+                if (l2 > 0.0f || l1 > 0.0f)
+                {
+                    float d = (float)Math.Min((ray * l1).Length, (ray * l2).Length);
+                    
+                    if (d < distance)
+                    {
+                        distance = d;
+                        return true;
+                    }
+                }
+            }
+                
+            return false;
+        }
+
         public abstract model Clone();
 
         public virtual void updateLODDistances()
@@ -216,15 +253,6 @@ namespace MVCore.GMDL
             foreach (model child in children)
             {
                 child.updateMeshInfo();
-                
-
-                AABBMIN.X = Math.Min(AABBMIN.X, child.AABBMIN.X);
-                AABBMIN.Y = Math.Min(AABBMIN.Y, child.AABBMIN.Y);
-                AABBMIN.Z = Math.Min(AABBMIN.Z, child.AABBMIN.Z);
-
-                AABBMAX.X = Math.Max(AABBMAX.X, child.AABBMAX.X);
-                AABBMAX.Y = Math.Max(AABBMAX.Y, child.AABBMAX.Y);
-                AABBMAX.Z = Math.Max(AABBMAX.Z, child.AABBMAX.Z);
             }
         }
 
@@ -728,7 +756,7 @@ namespace MVCore.GMDL
             new_s.copyFrom(this);
 
             new_s.meshVao = this.meshVao;
-            new_s.instanceId = GLMeshBufferManager.addInstance(new_s.meshVao, this);
+            new_s.instanceId = GLMeshBufferManager.addInstance(ref new_s.meshVao, this);
             
             //Clone children
             foreach (model child in children)
@@ -823,7 +851,7 @@ namespace MVCore.GMDL
             
             //Assemble geometry in the constructor
             meshVao = Common.RenderState.activeResMgr.GLPrimitiveMeshVaos["default_translation_gizmo"];
-            instanceId = GLMeshBufferManager.addInstance(meshVao, this);
+            instanceId = GLMeshBufferManager.addInstance(ref meshVao, this);
         }
 
         public override GMDL.model Clone()
@@ -839,12 +867,12 @@ namespace MVCore.GMDL
             //Set type
             type = TYPES.LOCATOR;
             //Set BBOX
-            AABBMIN = new Vector3(-1.0f, -1.0f, -1.0f);
-            AABBMAX = new Vector3(1.0f, 1.0f, 1.0f);
+            AABBMIN = new Vector3(-0.1f, -0.1f, -0.1f);
+            AABBMAX = new Vector3(0.1f, 0.1f, 0.1f);
             
             //Assemble geometry in the constructor
-            meshVao = MVCore.Common.RenderState.activeResMgr.GLPrimitiveMeshVaos["default_cross"];
-            instanceId = GLMeshBufferManager.addInstance(meshVao, this);
+            meshVao = Common.RenderState.activeResMgr.GLPrimitiveMeshVaos["default_cross"];
+            instanceId = GLMeshBufferManager.addInstance(ref meshVao, this);
         }
 
         public void copyFrom(locator input)
@@ -883,7 +911,7 @@ namespace MVCore.GMDL
             if (renderable)
             {
                 //Upload worldMat to the meshVao
-                instanceId = GLMeshBufferManager.addInstance(meshVao, this);
+                instanceId = GLMeshBufferManager.addInstance(ref meshVao, this);
                 //Console.WriteLine("Updating Light");
             }
 
@@ -1074,7 +1102,7 @@ namespace MVCore.GMDL
         //18-20: padding
 
 
-        public static int addInstance(GLMeshVao mesh, model m)
+        public static int addInstance(ref GLMeshVao mesh, model m)
         {
             int instance_id = mesh.instance_count;
 
@@ -1091,9 +1119,9 @@ namespace MVCore.GMDL
                 //Uplod worldMat to the meshVao
                 
                 Matrix4 worldMatInv = m.worldMat.Inverted();
-                setInstanceWorldMat(m.meshVao, instance_id, m.worldMat);
-                setInstanceWorldMatInv(m.meshVao, instance_id, worldMatInv);
-                setInstanceNormalMat(m.meshVao, instance_id, Matrix4.Transpose(worldMatInv));
+                setInstanceWorldMat(mesh, instance_id, m.worldMat);
+                setInstanceWorldMatInv(mesh, instance_id, worldMatInv);
+                setInstanceNormalMat(mesh, instance_id, Matrix4.Transpose(worldMatInv));
 
                 mesh.instanceRefs.Add(m); //Keep reference
                 mesh.instance_count++;
@@ -1173,7 +1201,8 @@ namespace MVCore.GMDL
             {
                 fixed (float* ar = mesh.dataBuffer)
                 {
-                    return MathUtils.Matrix4FromArray(ar, instance_id * instance_struct_size_floats + instance_worldMat_Float_Offset);
+                    int offset = instanceData_Float_Offset + instance_id * instance_struct_size_floats + instance_worldMat_Float_Offset;
+                    return MathUtils.Matrix4FromArray(ar, offset);
                 }
             }
 
@@ -1705,7 +1734,7 @@ namespace MVCore.GMDL
             int jointCount = animScene.jointDict.Values.Count;
 
             //TODO: Use the jointCount to adaptively setup the instanceBoneMatrices
-            Console.WriteLine("MAX : 128  vs Effective : " + jointCount.ToString());
+            //Console.WriteLine("MAX : 128  vs Effective : " + jointCount.ToString());
 
             //Re-initialize the array based on the number of instances
             instanceBoneMatrices = new float[instance_count * 128 * 16];
@@ -1896,7 +1925,7 @@ namespace MVCore.GMDL
             new_m.copyFrom(this);
 
             new_m.meshVao = this.meshVao;
-            new_m.instanceId = GLMeshBufferManager.addInstance(new_m.meshVao, new_m);
+            new_m.instanceId = GLMeshBufferManager.addInstance(ref new_m.meshVao, new_m);
             
             //Clone children
             foreach (model child in children)
@@ -1961,7 +1990,7 @@ namespace MVCore.GMDL
                 }
                 */
 
-                instanceId = GLMeshBufferManager.addInstance(meshVao, this);
+                instanceId = GLMeshBufferManager.addInstance(ref meshVao, this);
 
                 //Upload commonperMeshUniforms
                 GLMeshBufferManager.setInstanceUniform4(meshVao, instanceId, 
@@ -2025,8 +2054,6 @@ namespace MVCore.GMDL
                 AABBMAX.Y = Math.Max(AABBMAX.Y, vecs[i].Y);
                 AABBMAX.Z = Math.Max(AABBMAX.Z, vecs[i].Z);
             }
-
-
         }
 
 
@@ -2280,7 +2307,7 @@ namespace MVCore.GMDL
             new_m.copyFrom(this);
 
             new_m.meshVao = this.meshVao;
-            new_m.instanceId = GLMeshBufferManager.addInstance(new_m.meshVao, new_m);
+            new_m.instanceId = GLMeshBufferManager.addInstance(ref new_m.meshVao, new_m);
             
             //Clone children
             foreach (model child in children)
@@ -2309,7 +2336,7 @@ namespace MVCore.GMDL
         {
             if (renderable)
             {
-                instanceId = GLMeshBufferManager.addInstance(meshVao, this);
+                instanceId = GLMeshBufferManager.addInstance(ref meshVao, this);
                 base.updateMeshInfo();
                 return;
             }
@@ -4457,7 +4484,7 @@ namespace MVCore.GMDL
             this.color = input.color;
 
             meshVao = new GLMeshVao();
-            instanceId = GLMeshBufferManager.addInstance(meshVao, this);
+            instanceId = GLMeshBufferManager.addInstance(ref meshVao, this);
             GLMeshBufferManager.setInstanceWorldMat(meshVao, instanceId, Matrix4.Identity);
             meshVao.type = TYPES.JOINT;
             meshVao.metaData = new MeshMetaData();
@@ -4508,7 +4535,7 @@ namespace MVCore.GMDL
             j.color = this.color;
 
             j.meshVao = new GLMeshVao();
-            j.instanceId = GLMeshBufferManager.addInstance(j.meshVao, j);
+            j.instanceId = GLMeshBufferManager.addInstance(ref j.meshVao, j);
             GLMeshBufferManager.setInstanceWorldMat(j.meshVao, j.instanceId, Matrix4.Identity);
             j.meshVao.type = TYPES.JOINT;
             j.meshVao.metaData = new MeshMetaData();
@@ -4689,7 +4716,7 @@ namespace MVCore.GMDL
             meshVao.metaData = new MeshMetaData();
             meshVao.metaData.batchcount = 2;
             meshVao.material = Common.RenderState.activeResMgr.GLmaterials["lightMat"];
-            instanceId = GLMeshBufferManager.addInstance(meshVao, this); // Add instance
+            instanceId = GLMeshBufferManager.addInstance(ref meshVao, this); // Add instance
 
             //Init projection Matrix
             lightProjectionMatrix = Matrix4.CreatePerspectiveFieldOfView(MathUtils.radians(90), 1.0f, 1.0f, 300f);
@@ -4721,7 +4748,7 @@ namespace MVCore.GMDL
             meshVao.metaData = new MeshMetaData();
             meshVao.metaData.batchcount = 2;
             meshVao.material = Common.RenderState.activeResMgr.GLmaterials["lightMat"];
-            instanceId = GLMeshBufferManager.addInstance(meshVao, this); //Add instance
+            instanceId = GLMeshBufferManager.addInstance(ref meshVao, this); //Add instance
             
 
             //Copy Matrices

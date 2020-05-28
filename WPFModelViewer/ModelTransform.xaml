@@ -11,6 +11,8 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         
         <Grid Grid.Row="0">
@@ -51,8 +53,34 @@
             <TextBox Grid.Column="2" x:Name="scaleY" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True"/>
             <TextBox Grid.Column="3" x:Name="scaleZ" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True"/>
         </Grid>
-        
+
         <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="50*"/>
+                <ColumnDefinition Width="25*"/>
+                <ColumnDefinition Width="25*"/>
+                <ColumnDefinition Width="25*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="AABBMIN"/>
+            <TextBox Grid.Column="1" x:Name="AABBMINX" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True"/>
+            <TextBox Grid.Column="2" x:Name="AABBMINY" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True"/>
+            <TextBox Grid.Column="3" x:Name="AABBMINZ" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True"/>
+        </Grid>
+
+        <Grid Grid.Row="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="50*"/>
+                <ColumnDefinition Width="25*"/>
+                <ColumnDefinition Width="25*"/>
+                <ColumnDefinition Width="25*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="AABBMAX"/>
+            <TextBox Grid.Column="1" x:Name="AABBMAXX" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True"/>
+            <TextBox Grid.Column="2" x:Name="AABBMAXY" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True"/>
+            <TextBox Grid.Column="3" x:Name="AABBMAXZ" PreviewTextInput="FilterTextInput" KeyUp="HandleKeyUpEvent" Width="Auto" MaxLines="1" MinLines="1" Text="0" IsUndoEnabled="True"/>
+        </Grid>
+
+        <Grid Grid.Row="5">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition/>
                 <ColumnDefinition/>

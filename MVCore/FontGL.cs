@@ -93,7 +93,7 @@ namespace MVCore.Text
             SizeF size;
             MyQFontDrawingPrimitive prim = new MyQFontDrawingPrimitive(_font, textOpts, isStatic);
             _drawing.DrawingPrimitives.Add(prim);
-            size = prim.Print(text, pos, QFontAlignment.Right); //Print text to drawing
+            size = prim.Print(text, pos, QFontAlignment.Left); //Print text to drawing
             return size;
         }
 

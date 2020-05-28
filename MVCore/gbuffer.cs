@@ -42,11 +42,7 @@ namespace MVCore
         {
             //Init the main FBO
             fbo = GL.GenFramebuffer();
-
             channels = new int[channel_num];
-
-            //Init the 
-            //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
 
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
@@ -80,13 +76,10 @@ namespace MVCore
 
                 GL.BindFramebuffer(FramebufferTarget.FramebufferExt, attach_to_fbo);
                 GL.FramebufferTexture2D(FramebufferTarget.FramebufferExt, attachment_id, TextureTarget.Texture2DMultisample, handle, 0);
-                //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
             }
             else if (textarget == TextureTarget.Texture2D)
             {
                 GL.BindTexture(TextureTarget.Texture2D, handle);
-
-                //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
 
                 //GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent, size[0], size[1], 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
                 //GL.TexImage2DMultisample(TextureTargetMultisample.Texture2DMultisample, msaa_samples, format, size[0], size[1], true);
@@ -101,8 +94,6 @@ namespace MVCore
                         break;
                 }
 
-                Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
-
                 GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
                 GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
                 GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
@@ -110,7 +101,6 @@ namespace MVCore
 
 
                 GL.BindFramebuffer(FramebufferTarget.FramebufferExt, attach_to_fbo);
-                //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
                 GL.FramebufferTexture2D(FramebufferTarget.FramebufferExt, attachment_id, TextureTarget.Texture2D, handle, 0);
 
                 //Check
@@ -213,9 +203,6 @@ namespace MVCore
         {
             //Init the main FBO
             fbo = GL.GenFramebuffer();
-
-            //Init the 
-            //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
 
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
@@ -346,9 +333,6 @@ namespace MVCore
         {
             //Init the main FBO
             fbo = GL.GenFramebuffer();
-            
-            //Init the 
-            //Console.WriteLine("GBuffer Setup, Last GL Error: " + GL.GetError());
             
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)

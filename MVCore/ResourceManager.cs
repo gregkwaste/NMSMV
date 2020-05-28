@@ -138,7 +138,7 @@ namespace MVCore
             mat.Uniforms.Add(uf);
             mat.init();
             GLmaterials["crossMat"] = mat;
-            
+
             //Joint Material
             mat = new Material();
             mat.Name = "jointMat";
@@ -322,6 +322,9 @@ namespace MVCore
             GLForwardShaderMapTransparent.Clear();
             GLDeferredShaderMapDecal.Clear();
             GLDefaultShaderMap.Clear();
+
+            //Cleanup archives
+            NMSUtils.unloadNMSArchives(this);
 
             //Cleanup Lights
             foreach (GMDL.Light p in GLlights)

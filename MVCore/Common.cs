@@ -34,6 +34,8 @@ namespace MVCore.Common
         public static Camera activeCam;
         //Active ResourceManager
         public static ResourceManager activeResMgr;
+        //Active GamePad
+        public static BaseGamepadHandler activeGamepad;
 
         public static bool enableShaderCompilationLog = true;
         public static string shaderCompilationLog;
@@ -56,8 +58,9 @@ namespace MVCore.Common
 
         public bool RenderBoundHulls { get; set; } = false;
 
-        
+        public bool RenderGizmos { get; set; } = true;
 
+        
         public event PropertyChangedEventHandler PropertyChanged;
 
         private void NotifyPropertyChanged(String info)

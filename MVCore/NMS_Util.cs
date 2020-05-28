@@ -509,7 +509,7 @@ namespace MVCore
             Common.CallBacks.updateStatus("Ready");
         }
 
-        public static void unloadNMSArchives(ref ResourceManager resMgr)
+        public static void unloadNMSArchives(ResourceManager resMgr)
         {
             foreach (libPSARC.PSARC.Archive arc in resMgr.NMSArchiveMap.Values)
             {

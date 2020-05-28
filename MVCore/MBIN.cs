@@ -938,7 +938,7 @@ namespace MVCore
                 }
 
                 so.meshVao = meshVao;
-                so.instanceId = GLMeshBufferManager.addInstance(meshVao, so); //Add instance
+                so.instanceId = GLMeshBufferManager.addInstance(ref meshVao, so); //Add instance
 
                 Console.WriteLine("Object {0}, Number of skinmatrices required: {1}", so.name, so.metaData.lastskinmat - so.metaData.firstskinmat);
 
@@ -1070,7 +1070,7 @@ namespace MVCore
 
 
                 joint.meshVao = new GLMeshVao();
-                joint.instanceId = GLMeshBufferManager.addInstance(joint.meshVao, joint); //Add instance
+                joint.instanceId = GLMeshBufferManager.addInstance(ref joint.meshVao, joint); //Add instance
                 joint.meshVao.type = TYPES.JOINT;
                 joint.meshVao.metaData = new MeshMetaData();
                 //TODO: Find a place to keep references from the joint GLMeshVAOs
@@ -1197,7 +1197,7 @@ namespace MVCore
                     try
                     {
                         so.meshVao = new GLMeshVao(so.metaData);
-                        so.instanceId = GLMeshBufferManager.addInstance(so.meshVao, so); //Add instance
+                        so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
                         so.meshVao.vao = gobject.getCollisionMeshVao(so.metaData);
                         //Use indiceslength from the gobject
                         so.meshVao.indicesLength = so.gobject.indicesLengthType;
@@ -1224,7 +1224,7 @@ namespace MVCore
                     so.metaData = metaData;
                     so.meshVao = new GLMeshVao(so.metaData);
                     so.meshVao.vao = (new Primitives.Cylinder(radius,height, new Vector3(0.0f, 0.0f, 0.0f))).getVAO();
-                    so.instanceId = GLMeshBufferManager.addInstance(so.meshVao, so); //Add instance
+                    so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
                     so.collisionType = COLLISIONTYPES.CYLINDER;
                     
                 }
@@ -1245,7 +1245,7 @@ namespace MVCore
                     
                     so.meshVao = new GLMeshVao(so.metaData);
                     so.meshVao.vao = (new MVCore.Primitives.Box(width, height, depth)).getVAO();
-                    so.instanceId = GLMeshBufferManager.addInstance(so.meshVao, so); //Add instance
+                    so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
                     so.collisionType = COLLISIONTYPES.BOX;
                     
 
@@ -1263,7 +1263,7 @@ namespace MVCore
                     so.metaData = metaData;
                     so.meshVao = new GLMeshVao(so.metaData);
                     so.meshVao.vao = (new MVCore.Primitives.Capsule(new Vector3(), height, radius)).getVAO();
-                    so.instanceId = GLMeshBufferManager.addInstance(so.meshVao, so); //Add instance
+                    so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
                     so.collisionType = COLLISIONTYPES.CAPSULE;
                     
                 }
@@ -1279,7 +1279,7 @@ namespace MVCore
                     so.metaData = metaData;
                     so.meshVao = new GLMeshVao(so.metaData);
                     so.meshVao.vao = (new MVCore.Primitives.Sphere(new Vector3(), radius)).getVAO();
-                    so.instanceId = GLMeshBufferManager.addInstance(so.meshVao, so); //Add instance
+                    so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
                     so.collisionType = COLLISIONTYPES.SPHERE;
                 }
                 else

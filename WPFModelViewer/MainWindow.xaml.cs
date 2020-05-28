@@ -22,6 +22,7 @@ using System.Reflection;
 using MathNet.Numerics.Optimization;
 using System.Runtime.CompilerServices;
 using libMBIN.NMS.GameComponents;
+using OpenTK;
 
 namespace WPFModelViewer
 {
@@ -180,12 +181,19 @@ namespace WPFModelViewer
             {
                 if (path.EndsWith(".SCENE.MBIN"))
                     paths.Add(path);
-                //paths.Add(path);
             }
             paths.Sort();
                 
             Window win = new Window();
             win.Title = "Select SCENE file from List";
+
+            //Add Keyboard HAndler
+            win.KeyUp += new KeyEventHandler(delegate (object s, KeyEventArgs ee)
+            {
+                if (ee.Key == Key.Escape)
+                    win.Close();
+            });
+
             //Add a default grid
             Grid grid = new Grid();
             grid.RowDefinitions.Add(new RowDefinition());
@@ -202,7 +210,6 @@ namespace WPFModelViewer
             lb.MouseDoubleClick += delegate
             {
                 string selected = (string)lb.SelectedItem;
-                Console.WriteLine(selected);
                 win.Close();
                 OpenFile(selected);
             };
@@ -322,7 +329,6 @@ namespace WPFModelViewer
             //Cleanup GL Context
             glControl.rootObject?.Dispose();
             glControl.resMgr.Cleanup();
-            NMSUtils.unloadNMSArchives(ref glControl.resMgr);
             glControl.Dispose();
         }
 
@@ -506,7 +512,8 @@ namespace WPFModelViewer
 
         private void CameraResetPos(object sender, RoutedEventArgs e)
         {
-            glControl.updateActiveCam(new OpenTK.Vector3(0.0f, 0.0f, 0.0f));
+            glControl.updateActiveCam(new Vector3(0.0f, 0.0f, 0.0f), 
+                                      new Vector3(0.0f, (float)Math.PI/2.0f, 0.0f));
             glControl.updateControlRotation(0.0f, 0.0f);
         }
 
