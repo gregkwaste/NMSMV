@@ -55,13 +55,13 @@ namespace MVCore
             {
                 if (ex is System.IO.DirectoryNotFoundException || ex is System.IO.FileNotFoundException)
                 {
-                    System.Windows.Forms.MessageBox.Show("File " + filepath + " Not Found...", "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                    Util.showError("File " + filepath + " Not Found...", "Error");
+
 
                 } else if (ex is System.Reflection.TargetInvocationException)
                 {
-                    System.Windows.Forms.MessageBox.Show("libMBIN failed to decompile file. If this is a vanilla file, contact the MbinCompiler developer",
-                    "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
-                    
+                    Util.showError("libMBIN failed to decompile file. If this is a vanilla file, contact the MbinCompiler developer",
+                    "Error");
                 }
                 return null;
 
@@ -94,8 +94,7 @@ namespace MVCore
                 load_mode = 2; //Extract file from archive
             } else
             {
-                System.Windows.Forms.MessageBox.Show("File: " + filepath +  " Not found in PAKs or local folders. ",
-                    "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                Util.showError("File: " + filepath + " Not found in PAKs or local folders. ", "Error");
                 CallBacks.Log("File: " + filepath + " Not found in PAKs or local folders. ");
                 throw new FileNotFoundException("File not found\n " + filepath);
             }
@@ -136,8 +135,7 @@ namespace MVCore
             }
             else
             {
-                System.Windows.Forms.MessageBox.Show("File: " + filepath + " Not found in PAKs or local folders. ",
-                    "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                Util.showError("File: " + filepath + " Not found in PAKs or local folders. ", "Error");
                 CallBacks.Log("File: " + filepath + " Not found in PAKs or local folders. ");
                 throw new FileNotFoundException("File not found\n " + filepath);
             }
@@ -174,13 +172,13 @@ namespace MVCore
             {
 
                 if (ex is System.IO.DirectoryNotFoundException || ex is System.IO.FileNotFoundException)
-                    System.Windows.Forms.MessageBox.Show("File " + effective_filepath + " Not Found...", "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                    Util.showError("File " + effective_filepath + " Not Found...", "Error");
                 else if (ex is System.IO.IOException)
-                    System.Windows.Forms.MessageBox.Show("File " + effective_filepath + " problem...", "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                    Util.showError("File " + effective_filepath + " problem...", "Error");
                 else if (ex is System.Reflection.TargetInvocationException)
                 {
-                    System.Windows.Forms.MessageBox.Show("libMBIN failed to decompile file. If this is a vanilla file, contact the MbinCompiler developer",
-                    "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                    Util.showError("libMBIN failed to decompile file. If this is a vanilla file, contact the MbinCompiler developer",
+                    "Error");
                 }
                 return null;
 
@@ -365,8 +363,7 @@ namespace MVCore
             CallBacks.Log("Trying to load PAK files from " + gameDir);
             if (!Directory.Exists(gameDir))
             {
-                MessageBox.Show("Unable to locate game Directory. PAK files (Vanilla + Mods) not loaded. You can still work using unpacked files", "Info",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                Util.showError("Unable to locate game Directory. PAK files (Vanilla + Mods) not loaded. You can still work using unpacked files", "Info");
                 status = - 1;
                 return;
             }
@@ -378,19 +375,27 @@ namespace MVCore
             resMgr.NMSArchiveMap.Clear();
 
             CallBacks.updateStatus("Loading Vanilla NMS Archives...");
-            
+
             foreach (string pak_path in pak_files)
             {
                 if (!pak_path.EndsWith(".pak"))
                     continue;
 
-                FileStream arc_stream = new FileStream(pak_path, FileMode.Open);
-                libPSARC.PSARC.Archive psarc = new libPSARC.PSARC.Archive(arc_stream, true);
-                
-                resMgr.NMSArchiveMap[pak_path] = psarc;
+                try
+                {
+                    FileStream arc_stream = new FileStream(pak_path, FileMode.Open);
+                    libPSARC.PSARC.Archive psarc = new libPSARC.PSARC.Archive(arc_stream, true);
+                    CallBacks.Log("Loaded :" + pak_path);
+                    resMgr.NMSArchiveMap[pak_path] = psarc;
+                }
+                catch (Exception ex)
+                {
+                    Util.showError("An Error Occured : " + ex.Message, "Error");
+                    CallBacks.Log("Pak file " + pak_path + " failed to load");
+                    CallBacks.Log("Error : " + ex.GetType().Name + " " + ex.Message);
+                }
             }
-
-
+            
             if (Directory.Exists(Path.Combine(gameDir, "MODS")))
             {
                 pak_files = Directory.GetFiles(Path.Combine(gameDir, "MODS"));
@@ -402,10 +407,19 @@ namespace MVCore
 
                     if (!pak_path.EndsWith(".pak"))
                         continue;
-
-                    FileStream arc_stream = new FileStream(pak_path, FileMode.Open);
-                    libPSARC.PSARC.Archive psarc = new libPSARC.PSARC.Archive(arc_stream, true);
-                    resMgr.NMSArchiveMap[pak_path] = psarc;
+                    
+                    try
+                    {
+                        FileStream arc_stream = new FileStream(pak_path, FileMode.Open);
+                        libPSARC.PSARC.Archive psarc = new libPSARC.PSARC.Archive(arc_stream, true);
+                        resMgr.NMSArchiveMap[pak_path] = psarc;
+                    }
+                    catch (Exception ex)
+                    {
+                        Util.showError("An Error Occured : " + ex.Message, "Error");
+                        CallBacks.Log("Pak file " + pak_path + " failed to load");
+                        CallBacks.Log("Error : " + ex.GetType().Name + " " + ex.Message);
+                    }
                 }
             }
 
@@ -531,16 +545,15 @@ namespace MVCore
 
             try
             {
-                val = fetchSteamGameInstallationDir();
+                val = fetchSteamGameInstallationDir() as string;
             } catch (Exception e) {
                 val = null;
             }
 
-            if (val != null)  
+            if (val != null || val == "")  
                 return val;
             else
                 CallBacks.Log("Unable to find Steam Version");
-
 
             //Check GOG32
             val = Registry.GetValue(gog32_keyname, gog32_keyval, "") as string;
@@ -563,7 +576,7 @@ namespace MVCore
             else
                 CallBacks.Log("Unable to find GOG64 Version: " + val);
 
-            return "";
+            return null;
         }
 
         private static string fetchSteamGameInstallationDir()
@@ -576,8 +589,15 @@ namespace MVCore
             string nms_id = "275850";
 
             //Fetch Steam Installation Folder
-            string steam_path = Registry.GetValue(steam_keyname, steam_keyval, "") as string;
+            
+            string steam_path = Registry.GetValue(steam_keyname, steam_keyval, null) as string;
 
+            if (steam_path is null)
+            {
+                CallBacks.Log("Failed to find Steam Installation: ");
+                return null;
+            }
+                
             CallBacks.Log("Found Steam Installation: " + steam_path);
             CallBacks.Log("Searching for NMS in the default steam directory...");
 
@@ -631,7 +651,8 @@ namespace MVCore
                 }
             }
 
-            return "";
+            CallBacks.Log("Unable to locate Steam Installation...");
+            return null;
         }
 
     }

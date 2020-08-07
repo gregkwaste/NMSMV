@@ -211,20 +211,23 @@ namespace MVCore
             GLPrimitiveMeshVaos["default_renderquad"].vao = GLPrimitiveVaos["default_renderquad"];
 
             //Default cross
-            MVCore.Primitives.Cross c = new MVCore.Primitives.Cross(0.1f);
-            GLPrimitiveVaos["default_cross"] = c.getVAO();
+            MVCore.Primitives.Cross c = new Primitives.Cross(0.1f, true);
             GLPrimitiveMeshVaos["default_cross"] = new GLMeshVao();
+            GLPrimitiveVaos["default_cross"] = c.getVAO();
+            GLPrimitiveMeshVaos["default_cross"].type = TYPES.GIZMO;
             GLPrimitiveMeshVaos["default_cross"].metaData = new MeshMetaData();
-            GLPrimitiveMeshVaos["default_cross"].metaData.batchcount = 6;
+            GLPrimitiveMeshVaos["default_cross"].metaData.batchcount = c.geom.indicesCount;
             GLPrimitiveMeshVaos["default_cross"].indicesLength = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedInt;
             GLPrimitiveMeshVaos["default_cross"].vao = GLPrimitiveVaos["default_cross"];
             GLPrimitiveMeshVaos["default_cross"].material = GLmaterials["crossMat"];
 
+
             //Default cube
-            MVCore.Primitives.Box bx = new MVCore.Primitives.Box(1.0f, 1.0f, 1.0f);
+            MVCore.Primitives.Box bx = new MVCore.Primitives.Box(1.0f, 1.0f, 1.0f, new Vector3(1.0f), true);
             GLPrimitiveVaos["default_box"] = bx.getVAO();
             GLPrimitiveMeshVaos["default_box"] = new GLMeshVao();
             GLPrimitiveMeshVaos["default_box"].vao = GLPrimitiveVaos["default_box"];
+
 
             //Default sphere
             Primitives.Sphere sph = new Primitives.Sphere(new Vector3(0.0f, 0.0f, 0.0f), 100.0f);
@@ -235,7 +238,7 @@ namespace MVCore
             //Default arrow
             //Primitives.ArrowHead arr = new Primitives.ArrowHead(new Vector3(1.0f, 0.0f, 0.0f));
             //Primitives.Arrow arr = new Primitives.Arrow(0.1f, 1.0f, new Vector3(1.0f, 0.0f, 0.0f), true);
-            Primitives.TranslationGizmo arr = new Primitives.TranslationGizmo(true);
+            Primitives.TranslationGizmo arr = new Primitives.TranslationGizmo(new Vector3(1.0f, 1.0f, 1.0f), true);
             GLPrimitiveVaos["default_translation_gizmo"] = arr.getVAO();
             GLPrimitiveMeshVaos["default_translation_gizmo"] = new GLMeshVao();
             GLPrimitiveMeshVaos["default_translation_gizmo"].type = TYPES.GIZMO;
@@ -284,17 +287,17 @@ namespace MVCore
             texMgr.cleanup();
             //procTextureLayerSelections.Clear();
 
-            foreach (GMDL.scene p in GLScenes.Values)
+            foreach (scene p in GLScenes.Values)
                 p.Dispose();
             GLScenes.Clear();
 
             //Cleanup Geom Objects
-            foreach (GMDL.GeomObject p in GLgeoms.Values)
+            foreach (GeomObject p in GLgeoms.Values)
                 p.Dispose();
             GLgeoms.Clear();
 
             //Cleanup GLVaos
-            foreach (GMDL.GLVao p in GLVaos.Values)
+            foreach (GLVao p in GLVaos.Values)
                 p.Dispose();
             GLVaos.Clear();
             
@@ -302,7 +305,7 @@ namespace MVCore
             Animations.Clear();
 
             //Cleanup Materials
-            foreach (GMDL.Material p in GLmaterials.Values)
+            foreach (Material p in GLmaterials.Values)
                 p.Dispose();
             GLmaterials.Clear();
 
@@ -327,7 +330,7 @@ namespace MVCore
             NMSUtils.unloadNMSArchives(this);
 
             //Cleanup Lights
-            foreach (GMDL.Light p in GLlights)
+            foreach (Light p in GLlights)
                 p.Dispose();
             GLlights.Clear();
 

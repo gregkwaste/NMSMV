@@ -2,26 +2,19 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using GLSLHelper;
 using Microsoft.Win32;
 using Model_Viewer;
 using MVCore.Common;
 using MVCore.GMDL;
 using MVCore;
-using libPSARC;
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
 using System.Windows.Input;
 using System.Windows.Data;
 using System.Threading;
-using OpenTK.Graphics.ES10;
 using System.Reflection;
-using MathNet.Numerics.Optimization;
-using System.Runtime.CompilerServices;
-using libMBIN.NMS.GameComponents;
 using OpenTK;
 
 namespace WPFModelViewer
@@ -35,6 +28,7 @@ namespace WPFModelViewer
     public partial class MainWindow : Window
     {
         private CGLControl glControl;
+        private SettingsForm settingsForm;
         private Settings settings;
         private model activeModel;
         private model prev_activeModel;
@@ -72,8 +66,6 @@ namespace WPFModelViewer
             requestHandler.Elapsed += queryRequests;
             requestHandler.Start();
             workDispatcher.Start();
-
-            Console.WriteLine("Testing");
 
             //Setup Logger
             Util.loggingSr = new StreamWriter("log.out");
@@ -303,6 +295,8 @@ namespace WPFModelViewer
         private void FormClose(object sender, RoutedEventArgs e)
         {
             Console.WriteLine("Bye bye :'(");
+
+            //Check if settings window is open and close it
             this.Close();
         }
 
@@ -330,12 +324,14 @@ namespace WPFModelViewer
             glControl.rootObject?.Dispose();
             glControl.resMgr.Cleanup();
             glControl.Dispose();
+
+            //CLose settings form if opened
+            settingsForm?.Close();
         }
 
         private void MainWindow_OnClosed(object sender, EventArgs e)
         {
             Console.WriteLine("Window Closed");
-            
             //CLose Logger
             Util.loggingSr.Close();
         }
@@ -438,6 +434,7 @@ namespace WPFModelViewer
             //Set active Components
             Util.activeStatusStrip = StatusLabel;
             Util.activeControl = glControl;
+            Util.activeWindow = this;
 
             //Bind Settings
             RenderViewOptionsControl.Content = RenderState.renderViewSettings;
@@ -474,14 +471,14 @@ namespace WPFModelViewer
         void OnDispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
         {
             string errorMessage = string.Format("An unhandled exception occurred: {0}", e.Exception.Message);
-            MessageBox.Show(errorMessage, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            Util.showError(errorMessage, "Error");
             e.Handled = true;
         }
         
         private void ButtonBase_OnClick(object sender, RoutedEventArgs e)
         {
             Console.WriteLine("Generating ProcGen Models");
-            MessageBox.Show("HOOOOOOOOLA");
+            MessageBox.Show(Util.activeWindow, "HOOOOOOOOLA");
         }
 
         private void PlayStop_Click(object sender, RoutedEventArgs e)
@@ -491,7 +488,7 @@ namespace WPFModelViewer
 
         private void RegenPose_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("This button should set random values to the pose slider of the active locator object");
+            MessageBox.Show(Util.activeWindow, "This button should set random values to the pose slider of the active locator object");
         }
 
 
@@ -514,7 +511,11 @@ namespace WPFModelViewer
         {
             glControl.updateActiveCam(new Vector3(0.0f, 0.0f, 0.0f), 
                                       new Vector3(0.0f, (float)Math.PI/2.0f, 0.0f));
-            glControl.updateControlRotation(0.0f, 0.0f);
+        }
+
+        private void SceneResetRotation(object sender, RoutedEventArgs e)
+        {
+            glControl.updateControlRotation(0.0f, 0.0f, 0.0f);
         }
 
         private void SceneTreeView_OnSelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -548,8 +549,20 @@ namespace WPFModelViewer
 
         private void showSettingsDialog(object sender, RoutedEventArgs e)
         {
-            Window setWin = new SettingsForm();
-            setWin.Show();
+            //Do not open a new settings window if the current one is not closed
+            if (settingsForm != null)
+                return;
+            
+            settingsForm = new SettingsForm();
+            settingsForm.KeyUp += new KeyEventHandler(delegate (object s, KeyEventArgs ee)
+            {
+                if (ee.Key == Key.Escape)
+                {
+                    settingsForm.Close();
+                    settingsForm = null;
+                }
+            });
+            settingsForm.Show();
         }
 
         private void SceneTreeView_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)

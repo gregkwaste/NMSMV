@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Model_Viewer;
 using MVCore;
+using MVCore.Common;
 
 namespace WPFModelViewer
 {
@@ -12,14 +13,14 @@ namespace WPFModelViewer
     {
         public static int VersionMajor = 0;
         public static int VersionMedium = 89;
-        public static int VersionMinor = 0;
-        public static string VersionName = "-Test-Version";
+        public static int VersionMinor = 2;
         
         public static string donateLink = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=4365XYBWGTBSU&currency_code=USD&source=url";
         public static readonly Random randgen = new Random();
         
         //Current GLControl Handle
         public static CGLControl activeControl;
+        public static Window activeWindow;
         public static TextBlock activeStatusStrip;
         
         //Public LogFile
@@ -30,7 +31,7 @@ namespace WPFModelViewer
         {
             string ver = string.Join(".", new string[] { VersionMajor.ToString(),
                                            VersionMedium.ToString(),
-                                           VersionMinor.ToString()}) + VersionName;
+                                           VersionMinor.ToString()});
 #if DEBUG
             return ver + " [DEBUG]";
 #endif
@@ -45,6 +46,30 @@ namespace WPFModelViewer
                 activeStatusStrip.Text = status;
             }));
             
+        }
+
+        public static void showError(string message, string caption)
+        {
+            Application.Current.Dispatcher.Invoke((Action)(() =>
+            {
+                if (activeWindow is null)
+                    MessageBox.Show(message, caption, MessageBoxButton.OK, MessageBoxImage.Error);
+                else
+                    MessageBox.Show(activeWindow, message, caption, MessageBoxButton.OK, MessageBoxImage.Error);
+            }));
+            
+        }
+
+        public static void showInfo(string message, string caption)
+        {
+            Application.Current.Dispatcher.Invoke((Action)(() =>
+            {
+                if (activeWindow is null)
+                    MessageBox.Show(message, caption, MessageBoxButton.OK, MessageBoxImage.Information);
+                else
+                    MessageBox.Show(activeWindow, message, caption, MessageBoxButton.OK, MessageBoxImage.Information);
+            }));
+
         }
 
         //Generic Procedures - File Loading

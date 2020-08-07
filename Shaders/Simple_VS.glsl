@@ -97,7 +97,7 @@ void main()
 
     vec4 wPos = lWorldMat * vPosition; //Calculate world Position
     fragPos = wPos; //Export world position to the fragment shader
-    screenPos = mpCommonPerFrame.mvp * wPos;
+    screenPos = mpCommonPerFrame.mvp * mpCommonPerFrame.rotMat * wPos;
     gl_Position = screenPos;
     
     //Construct TBN matrix

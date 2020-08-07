@@ -58,7 +58,7 @@ namespace MVCore.Common
 
         public bool RenderBoundHulls { get; set; } = false;
 
-        public bool RenderGizmos { get; set; } = true;
+        public bool RenderGizmos { get; set; } = false;
 
         
         public event PropertyChangedEventHandler PropertyChanged;

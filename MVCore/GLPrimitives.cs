@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -427,19 +428,173 @@ namespace MVCore.Primitives
         }
     }
 
+
+    class SquareCross2D : Primitive
+    {
+        public SquareCross2D(float size, Vector3 col, bool generateGeom = false)
+        {
+            Box b1 = new Box(size, size, size, col, false);
+            Box b2 = new Box(size, size, size, col, false);
+            Box b3 = new Box(size, size, size, col, false);
+            Box b4 = new Box(size, size, size, col, false);
+            Box b5 = new Box(size, size, size, col, false);
+
+            Matrix4 t;
+            t = Matrix4.CreateTranslation(new Vector3(-size, 0.0f, 0.0f));
+            b2.applyTransform(t); //Left
+            t = Matrix4.CreateTranslation(new Vector3(size, 0.0f, 0.0f));
+            b3.applyTransform(t); //Right
+            t = Matrix4.CreateTranslation(new Vector3(0.0f, size, 0.0f));
+            b4.applyTransform(t); //Up
+            t = Matrix4.CreateTranslation(new Vector3(0.0f, -size, 0.0f));
+            b5.applyTransform(t); //Down
+
+            //Merge
+
+            Primitive p = mergePrimitives(b2, b3);
+            Primitive p2 = mergePrimitives(b4, b5);
+            p = mergePrimitives(p, p2);
+            p = mergePrimitives(p, b1);
+
+            verts = p.verts;
+            indices = p.indices;
+            colors = p.colors;
+
+            if (generateGeom)
+                geom = getGeom();
+
+        }
+    }
+
+    class Cross : Primitive
+    {
+        public Cross(float scale, bool generateGeom = false)
+        {
+            Primitive p = generatePrimitive(new Vector3(scale));
+
+            verts = p.verts;
+            indices = p.indices;
+            colors = p.colors;
+
+            if (generateGeom)
+                geom = getGeom();
+        }
+        
+
+        public Cross(Vector3 scale, bool generateGeom = false)
+        {
+            Primitive p = generatePrimitive(scale);
+            
+            verts = p.verts;
+            indices = p.indices;
+            colors = p.colors;
+
+            if (generateGeom)
+                geom = getGeom();
+        }
+
+        
+        private Primitive generatePrimitive(Vector3 scale)
+        {
+            Arrow XPosAxis = new Arrow(0.02f, scale.X, new Vector3(10.5f, 0.0f, 0.0f), false, 5);
+            Arrow XNegAxis = new Arrow(0.01f, scale.X, new Vector3(10.5f, 0.1f, 0.1f), false, 5);
+            Arrow YPosAxis = new Arrow(0.02f, scale.Y, new Vector3(0.0f, 10.5f, 0.0f), false, 5);
+            Arrow YNegAxis = new Arrow(0.01f, scale.Y, new Vector3(0.1f, 10.5f, 0.1f), false, 5);
+            Arrow ZPosAxis = new Arrow(0.02f, scale.Z, new Vector3(0.0f, 0.0f, 10.5f), false, 5);
+            Arrow ZNegAxis = new Arrow(0.01f, scale.Z, new Vector3(0.1f, 0.1f, 10.5f), false, 5);
+            
+            //SquareCross2D c = new SquareCross2D(0.01f, new Vector3(0.0f, 10.5f, 0.0f), false);
+
+            //Transform Primitives before merging
+            //Global Scale matrix
+            //Matrix4 s = Matrix4.CreateScale(scale);
+            Matrix4 s = Matrix4.Identity;
+            Matrix4 t;
+
+            //Move arrowhead up in place
+            t = s * Matrix4.CreateRotationZ(MathUtils.radians(90));
+            XNegAxis.applyTransform(t);
+            t = s * Matrix4.CreateRotationZ(MathUtils.radians(-90));
+            XPosAxis.applyTransform(t);
+
+            t = s * Matrix4.CreateRotationX(MathUtils.radians(90));
+            ZPosAxis.applyTransform(t);
+            t = s * Matrix4.CreateRotationX(MathUtils.radians(-90));
+            ZNegAxis.applyTransform(t);
+
+            t = s * Matrix4.CreateRotationX(MathUtils.radians(180));
+            YNegAxis.applyTransform(t);
+            YPosAxis.applyTransform(s);
+
+            //Merge Primitives
+            Primitive py = mergePrimitives(YPosAxis, YNegAxis);
+            Primitive px = mergePrimitives(XNegAxis, XPosAxis);
+            Primitive pz = mergePrimitives(ZNegAxis, ZPosAxis);
+
+            Primitive p = mergePrimitives(py, px);
+            p = mergePrimitives(p, pz);
+            
+
+            return p;
+        }
+
+        public new GMDL.GeomObject getGeom()
+        {
+            GMDL.GeomObject geom = new GMDL.GeomObject();
+
+            //Set main Geometry Info
+            geom.vertCount = verts.Length / 0x3;
+            geom.indicesCount = indices.Length;
+            geom.indicesLength = 0x4;
+
+            //Set Strides
+            geom.vx_size = 3 * 4; //3 Floats * 4 Bytes each
+
+            //Set Buffer Offsets
+            geom.offsets = new int[7];
+            geom.bufInfo = new List<GMDL.bufInfo>();
+
+            for (int i = 0; i < 7; i++)
+            {
+                geom.bufInfo.Add(null);
+                geom.offsets[i] = -1;
+            }
+
+            geom.mesh_descr = "vn";
+            geom.offsets[0] = 0;
+            geom.offsets[2] = 0;
+            geom.offsets[4] = 0;
+            geom.bufInfo[0] = new GMDL.bufInfo(0, VertexAttribPointerType.Float, 3, 0, "vPosition", false);
+            geom.bufInfo[2] = new GMDL.bufInfo(2, VertexAttribPointerType.Float, 3, geom.vertCount * 12, "nPosition", false);
+            geom.bufInfo[4] = new GMDL.bufInfo(4, VertexAttribPointerType.Float, 3, geom.vertCount * 12, "bPosition", false);
+
+            //Set Buffers
+            geom.ibuffer = new byte[4 * indices.Length];
+            System.Buffer.BlockCopy(indices, 0, geom.ibuffer, 0, geom.ibuffer.Length);
+
+            geom.vbuffer = new byte[4 * verts.Length + 4 * colors.Length];
+            System.Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, 4 * verts.Length); //Copy Vertices
+            System.Buffer.BlockCopy(colors, 0, geom.vbuffer, 4 * verts.Length, 4 * colors.Length); //Copy Colors
+
+            return geom;
+        }
+    }
+
     class TranslationGizmo : Primitive
     {
-        public TranslationGizmo(bool generateGeom = false)
+        public TranslationGizmo(Vector3 scale, bool generateGeom = false)
         {
             Arrow XAxis = new Arrow(0.015f, 0.25f, new Vector3(1.0f, 0.0f, 0.0f), false, 20);
             Arrow YAxis = new Arrow(0.015f, 0.25f, new Vector3(0.0f, 1.0f, 0.0f), false, 20);
             Arrow ZAxis = new Arrow(0.015f, 0.25f, new Vector3(0.0f, 0.0f, 1.0f), false, 20);
 
             //Transform Primitives before merging
+            //Scale matrix
+            Matrix4 s = Matrix4.CreateScale(scale);
             //Move arrowhead up in place
-            Matrix4 t = Matrix4.CreateRotationZ(MathUtils.radians(90));
+            Matrix4 t = s * Matrix4.CreateRotationZ(MathUtils.radians(90));
             XAxis.applyTransform(t);
-            t = Matrix4.CreateRotationX(MathUtils.radians(90));
+            t = s * Matrix4.CreateRotationX(MathUtils.radians(90));
             ZAxis.applyTransform(t);
             
             //Merge Primitives
@@ -613,10 +768,11 @@ namespace MVCore.Primitives
     class Box : Primitive
     {
         //Constructor
-        public Box(float width, float height, float depth)
+        public Box(float width, float height, float depth, Vector3 col, bool generateGeom = false)
         {
             //Init Arrays
             verts = new float[8*3];
+            colors = new float[8 * 3];
             normals = new float[8*3];
             indices = new int[12*3];
 
@@ -667,7 +823,17 @@ namespace MVCore.Primitives
                 0, 1, 4,
                 1, 5, 4 };
 
-            geom = getGeom();
+            //Set colors
+            for (int i = 0; i < 8; i++)
+            {
+                colors[3 * i + 0] = col.X;
+                colors[3 * i + 1] = col.Y;
+                colors[3 * i + 2] = col.Z;
+            }
+
+
+            if (generateGeom)
+                geom = getGeom();
         }
 
     }
@@ -742,10 +908,10 @@ namespace MVCore.Primitives
     
     }
 
-    class Cross : Primitive
+    class LineCross : Primitive
     {
         //Constructor
-        public Cross(float scale)
+        public LineCross(float scale)
         {
             //Set type
             //this.type = "LOCATOR";

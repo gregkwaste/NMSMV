@@ -9,8 +9,7 @@ using MVCore.Common;
 using System.Runtime.InteropServices;
 using GLSLHelper;
 using System.Windows.Controls;
-
-
+using System.Linq;
 
 namespace MVCore
 {
@@ -258,7 +257,7 @@ namespace MVCore
                 return;
 
             Dictionary<int, List<GLMeshVao>> shaderMeshMap = RenderState.activeResMgr.opaqueMeshShaderMap;
-            if (m.type == TYPES.COLLISION || m.type == TYPES.LOCATOR || m.type == TYPES.JOINT || m.type == TYPES.MODEL) { 
+            if (m.type == TYPES.COLLISION || m.type == TYPES.LOCATOR || m.type == TYPES.JOINT || m.type == TYPES.MODEL || m.type == TYPES.GIZMO) { 
                 shaderMeshMap = RenderState.activeResMgr.defaultMeshShaderMap;
             }
             //Check if the model is a decal
@@ -281,6 +280,7 @@ namespace MVCore
             {
                 case (TYPES.MODEL):
                 case (TYPES.LOCATOR):
+                case (TYPES.GIZMO):
                     locatorMeshList.Add(m);
                     break;
                 case (TYPES.COLLISION):
@@ -319,8 +319,11 @@ namespace MVCore
 
         public void clearInstances()
         {
-            foreach (GLMeshVao m in globalMeshList)
-                GLMeshBufferManager.clearInstances(m);
+            lock (globalMeshList)
+            {
+                foreach (GLMeshVao m in globalMeshList)
+                    GLMeshBufferManager.clearInstances(m);
+            }
         }
 
         public void setupTextRenderer()
@@ -761,10 +764,12 @@ namespace MVCore
                 }
             }
 
+            GL.PolygonMode(MaterialFace.FrontAndBack, RenderState.renderSettings.RENDERMODE);
+
             if (RenderState.renderViewSettings.RenderLocators)
             {
                 Material mat = resMgr.GLmaterials["crossMat"];
-                GLSLShaderConfig shader = Common.RenderState.activeResMgr.GLDefaultShaderMap[mat.shaderHash];
+                GLSLShaderConfig shader = RenderState.activeResMgr.GLDefaultShaderMap[mat.shaderHash];
 
                 GL.UseProgram(shader.program_id); //Set Program
 
@@ -781,7 +786,6 @@ namespace MVCore
                 }
             }
 
-            GL.PolygonMode(MaterialFace.FrontAndBack, RenderState.renderSettings.RENDERMODE);
             GL.Enable(EnableCap.CullFace);
         
         }
@@ -1253,7 +1257,6 @@ namespace MVCore
                 GL.Clear(ClearBufferMask.ColorBufferBit);
 
                 render_quad(new string[] { }, new float[] { }, new string[] { "diffuseTex" }, new int[] { blur_fbo.channels[1] }, gs_vertical_blur_program);
-
             }
 
             //Blit to screen

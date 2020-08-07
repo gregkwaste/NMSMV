@@ -30,6 +30,7 @@ using System.Windows.Forms;
 using System.Security.Permissions;
 using SharpFont;
 using WPFModelViewer.Properties;
+using WPFModelViewer;
 //using Matrix4 = MathNet.Numerics.LinearAlgebra.Matrix<float>;
 
 
@@ -194,7 +195,46 @@ namespace MVCore.GMDL
 
 
         //Methods
+        public void recalculateAABB()
+        {
 
+            //Revert back to the original values
+            AABBMIN = meshVao.metaData.AABBMIN;
+            AABBMAX = meshVao.metaData.AABBMAX;
+
+            //Generate all 8 points from the AABB
+            List<Vector4> vecs = new List<Vector4>();
+            vecs.Add(new Vector4(AABBMIN.X, AABBMIN.Y, AABBMIN.Z, 1.0f));
+            vecs.Add(new Vector4(AABBMAX.X, AABBMIN.Y, AABBMIN.Z, 1.0f));
+            vecs.Add(new Vector4(AABBMIN.X, AABBMAX.Y, AABBMIN.Z, 1.0f));
+            vecs.Add(new Vector4(AABBMAX.X, AABBMAX.Y, AABBMIN.Z, 1.0f));
+
+            vecs.Add(new Vector4(AABBMIN.X, AABBMIN.Y, AABBMAX.Z, 1.0f));
+            vecs.Add(new Vector4(AABBMAX.X, AABBMIN.Y, AABBMAX.Z, 1.0f));
+            vecs.Add(new Vector4(AABBMIN.X, AABBMAX.Y, AABBMAX.Z, 1.0f));
+            vecs.Add(new Vector4(AABBMAX.X, AABBMAX.Y, AABBMAX.Z, 1.0f));
+
+            //Transform all Vectors using the worldMat
+            for (int i = 0; i < 8; i++)
+                vecs[i] = vecs[i] * worldMat;
+
+            //Init vectors to max
+            AABBMIN = new Vector3(float.MaxValue);
+            AABBMAX = new Vector3(float.MinValue);
+
+            //Align values
+
+            for (int i = 0; i < 8; i++)
+            {
+                AABBMIN.X = Math.Min(AABBMIN.X, vecs[i].X);
+                AABBMIN.Y = Math.Min(AABBMIN.Y, vecs[i].Y);
+                AABBMIN.Z = Math.Min(AABBMIN.Z, vecs[i].Z);
+
+                AABBMAX.X = Math.Max(AABBMAX.X, vecs[i].X);
+                AABBMAX.Y = Math.Max(AABBMAX.Y, vecs[i].Y);
+                AABBMAX.Z = Math.Max(AABBMAX.Z, vecs[i].Z);
+            }
+        }
 
         public bool intersects(Vector3 ray_start, Vector3 ray, ref float distance)
         {
@@ -904,15 +944,24 @@ namespace MVCore.GMDL
         public override void update()
         {
             base.update();
+            recalculateAABB(); //Update AABB
         }
 
         public override void updateMeshInfo()
         {
-            if (renderable)
+            if (!renderable)
             {
-                //Upload worldMat to the meshVao
+                base.updateMeshInfo();
+                return;
+            }
+            
+            bool fr_status = Common.RenderState.activeCam.frustum_occlude(this);
+            bool occluded_status = !fr_status && Common.RenderState.renderSettings.UseFrustumCulling;
+
+            //Recalculations && Data uploads
+            if (!occluded_status)
+            {
                 instanceId = GLMeshBufferManager.addInstance(ref meshVao, this);
-                //Console.WriteLine("Updating Light");
             }
 
             base.updateMeshInfo();
@@ -1941,8 +1990,7 @@ namespace MVCore.GMDL
         public override void update()
         {
             base.update();
-            //Calculate transfomration matrix for the normals
-            //normMat = Matrix4.Transpose(worldMat.Inverted()); (This is immediately calculated during instance initialization
+            recalculateAABB(); //Update AABB
         }
 
         public override void setupSkinMatrixArrays()
@@ -1973,8 +2021,6 @@ namespace MVCore.GMDL
             //Recalculations && Data uploads
             if (!occluded_status)
             {
-                recalculateAABB(); //Update AABB
-
                 /*
                 //Apply LOD filtering
                 if (hasLOD && Common.RenderOptions.LODFiltering)
@@ -2013,48 +2059,6 @@ namespace MVCore.GMDL
             base.updateMeshInfo();
         }
 
-
-        public void recalculateAABB()
-        {
-
-            //Revert back to the original values
-            AABBMIN = meshVao.metaData.AABBMIN;
-            AABBMAX = meshVao.metaData.AABBMAX;
-
-            //Generate all 8 points from the AABB
-            List<Vector4> vecs = new List<Vector4>();
-            vecs.Add(new Vector4(AABBMIN.X, AABBMIN.Y, AABBMIN.Z, 1.0f));
-            vecs.Add(new Vector4(AABBMAX.X, AABBMIN.Y, AABBMIN.Z, 1.0f));
-            vecs.Add(new Vector4(AABBMIN.X, AABBMAX.Y, AABBMIN.Z, 1.0f));
-            vecs.Add(new Vector4(AABBMAX.X, AABBMAX.Y, AABBMIN.Z, 1.0f));
-            
-            vecs.Add(new Vector4(AABBMIN.X, AABBMIN.Y, AABBMAX.Z, 1.0f));
-            vecs.Add(new Vector4(AABBMAX.X, AABBMIN.Y, AABBMAX.Z, 1.0f));
-            vecs.Add(new Vector4(AABBMIN.X, AABBMAX.Y, AABBMAX.Z, 1.0f));
-            vecs.Add(new Vector4(AABBMAX.X, AABBMAX.Y, AABBMAX.Z, 1.0f));
-
-
-            //Transform all Vectors using the worldMat
-            for (int i = 0; i < 8; i++)
-                vecs[i] = vecs[i] * worldMat;
-
-            //Init vectors to max
-            AABBMIN = new Vector3(float.MaxValue);
-            AABBMAX = new Vector3(float.MinValue);
-            
-            //Align values
-            
-            for (int i = 0; i < 8; i++)
-            {
-                AABBMIN.X = Math.Min(AABBMIN.X, vecs[i].X);
-                AABBMIN.Y = Math.Min(AABBMIN.Y, vecs[i].Y);
-                AABBMIN.Z = Math.Min(AABBMIN.Z, vecs[i].Z);
-
-                AABBMAX.X = Math.Max(AABBMAX.X, vecs[i].X);
-                AABBMAX.Y = Math.Max(AABBMAX.Y, vecs[i].Y);
-                AABBMAX.Z = Math.Max(AABBMAX.Z, vecs[i].Z);
-            }
-        }
 
 
         public void writeGeomToStream(StreamWriter s, ref uint index)
@@ -2507,18 +2511,17 @@ namespace MVCore.GMDL
             if (size != vx_size * (so.metaData.vertrend_graphics + 1))
             {
                 //throw new ApplicationException(String.Format("Problem with vertex buffer"));
-                System.Windows.Forms.MessageBox.Show("Mesh metadata does not match the vertex buffer size from the geometry file", "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                Util.showError("Mesh metadata does not match the vertex buffer size from the geometry file", "Error");
             }
                 
-
-            MVCore.Common.RenderStats.vertNum += so.metaData.vertrend_graphics + 1; //Accumulate settings
+            Common.RenderStats.vertNum += so.metaData.vertrend_graphics + 1; //Accumulate settings
 
             //Assign VertexAttribPointers
             for (int i = 0; i < 7; i++)
             {
-                if (this.bufInfo[i] == null) continue;
-                bufInfo buf = this.bufInfo[i];
-                GL.VertexAttribPointer(i, buf.count, buf.type, buf.normalize, this.vx_size, buf.stride);
+                if (bufInfo[i] == null) continue;
+                bufInfo buf = bufInfo[i];
+                GL.VertexAttribPointer(i, buf.count, buf.type, buf.normalize, vx_size, buf.stride);
                 GL.EnableVertexAttribArray(i);
             }
 
@@ -2530,7 +2533,7 @@ namespace MVCore.GMDL
                 out size);
             if (size != meshMetaDataDict[so.metaData.Hash].is_size)
             {
-                System.Windows.Forms.MessageBox.Show("Mesh metadata does not match the index buffer size from the geometry file", "Error", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                Util.showError("Mesh metadata does not match the index buffer size from the geometry file", "Error");
                 //throw new ApplicationException(String.Format("Problem with vertex buffer"));
             }
 
@@ -2562,7 +2565,7 @@ namespace MVCore.GMDL
             }
 
             //Generate intermediate geom
-            GMDL.GeomObject temp_geom = new GMDL.GeomObject();
+            GeomObject temp_geom = new GeomObject();
 
             //Set main Geometry Info
             temp_geom.vertCount = vx_buffer_float.Length / 3;
@@ -2615,7 +2618,8 @@ namespace MVCore.GMDL
             vao.vertex_buffer_object = vbo_buffers[0];
             vao.element_buffer_object = vbo_buffers[1];
 
-            if (GL.GetError() != ErrorCode.NoError)
+            ErrorCode err = GL.GetError();
+            if (err != ErrorCode.NoError)
                 Console.WriteLine(GL.GetError());
             
             //Bind vertex buffer

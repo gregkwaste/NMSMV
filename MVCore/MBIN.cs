@@ -9,13 +9,13 @@ using Model_Viewer;
 using libMBIN;
 using libMBIN.NMS.Toolkit;
 using System.Linq;
-using System.Windows.Forms;
 using MVCore;
 using MVCore.GMDL;
 using Console = System.Console;
 using WPFModelViewer;
 using MVCore.Common;
 using System.Drawing;
+using System.Windows;
 
 namespace MVCore
 {
@@ -539,8 +539,8 @@ namespace MVCore
 
                 if (fs is null)
                 {
-                    MessageBox.Show("Could not find geometry file " + geomfile + ".PC");
-                    Common.CallBacks.Log(string.Format("Could not find geometry file {0} ", geomfile + ".PC"));
+                    Util.showError("Could not find geometry file " + geomfile + ".PC", "Error");
+                    CallBacks.Log(string.Format("Could not find geometry file {0} ", geomfile + ".PC"));
 
                     //Create Dummy Scene
                     scene dummy = new scene();
@@ -1008,10 +1008,10 @@ namespace MVCore
                         attachment_data = null;
                     }
                 }
-                
+
                 if (node.Attributes.Count > 1)
-                    MessageBox.Show("PM THE IDIOT TO ADD SUPPORT FOR FUCKING MULTIPLE ATTACHMENTS...");
-                
+                    Util.showError("DM THE IDIOT TO ADD SUPPORT FOR FUCKING MULTIPLE ATTACHMENTS...", "DM THE IDIOT");
+                    
                 //Set Properties
                 //Testingso.Name = name + "_LOC";
                 so.name = name;
@@ -1223,7 +1223,7 @@ namespace MVCore
                     metaData.vertrend_graphics = 22 - 1;
                     so.metaData = metaData;
                     so.meshVao = new GLMeshVao(so.metaData);
-                    so.meshVao.vao = (new Primitives.Cylinder(radius,height, new Vector3(0.0f, 0.0f, 0.0f))).getVAO();
+                    so.meshVao.vao = (new Primitives.Cylinder(radius,height, new Vector3(0.0f, 0.0f, 0.0f), true)).getVAO();
                     so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
                     so.collisionType = COLLISIONTYPES.CYLINDER;
                     
@@ -1244,7 +1244,7 @@ namespace MVCore
                     so.metaData = metaData;
                     
                     so.meshVao = new GLMeshVao(so.metaData);
-                    so.meshVao.vao = (new MVCore.Primitives.Box(width, height, depth)).getVAO();
+                    so.meshVao.vao = (new MVCore.Primitives.Box(width, height, depth, new Vector3(1.0f), true)).getVAO();
                     so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
                     so.collisionType = COLLISIONTYPES.BOX;
                     

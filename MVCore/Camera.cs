@@ -4,6 +4,7 @@ using OpenTK.Graphics.OpenGL;
 using OpenTK;
 using MVCore;
 using MathNet.Numerics;
+using MathNet.Numerics.LinearAlgebra.Complex;
 
 namespace MVCore.GMDL
 {
@@ -51,7 +52,7 @@ namespace MVCore.GMDL
             //Set fov on init
             this.setFOV(angle);
             vao = new GLMeshVao();
-            vao.vao = (new Primitives.Box(1.0f, 1.0f, 1.0f)).getVAO();
+            vao.vao = (new Primitives.Box(1.0f, 1.0f, 1.0f, new Vector3(1.0f), true)).getVAO();
             this.program = program;
             this.type = mode;
             this.culling = cull;
@@ -193,7 +194,7 @@ namespace MVCore.GMDL
         }
 
 
-        public bool frustum_occlude(GMDL.meshModel cand)
+        public bool frustum_occlude(GMDL.model cand)
         {
             if (!culling) return true;
 

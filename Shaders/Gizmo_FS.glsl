@@ -21,6 +21,5 @@ in vec4 vertColor;
 uniform float color_mult;
 
 void main(){
-
 	gl_FragColor = color_mult * vertColor;
 }

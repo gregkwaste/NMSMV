@@ -54,48 +54,41 @@ namespace WPFModelViewer
                 string gamedir = NMSUtils.getGameInstallationDir();
                 string unpackdir;
 
-                if (gamedir == "")
+                if (gamedir == "" || gamedir is null)
                 {
-                    MessageBox.Show("NMS Installation not found. Please choose your unpacked files folder...", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                    Util.showInfo("NMS Installation not found. Please choose your unpacked files folder...", "Info");
                     FolderBrowserDialog openFileDlg = new FolderBrowserDialog();
                     var res = openFileDlg.ShowDialog();
 
                     if (res == System.Windows.Forms.DialogResult.Cancel)
-                        gamedir = "";
+                        unpackdir = "";
                     else
-                        gamedir = openFileDlg.SelectedPath;
+                        unpackdir = openFileDlg.SelectedPath;
                     openFileDlg.Dispose();
+                    //Store paths
+                    RenderState.settings.GameDir = unpackdir;
+                    RenderState.settings.UnpackDir = unpackdir;
+                    return;
                 }
 
                 //Ask if the user has files unpacked
                 MessageBoxResult result = MessageBox.Show("Do you have unpacked game files?", "", MessageBoxButton.YesNo);
 
-                
                 if (result == MessageBoxResult.No)
                 {
                     unpackdir = gamedir;
                 } else
                 {
-                    //Ask for unpack folder
-                    MessageBoxResult d1 = MessageBox.Show("Have you unpacked the game files on the game installation directory?", "", MessageBoxButton.YesNo);
+                    FolderBrowserDialog dialog = new FolderBrowserDialog();
+                    dialog.Description = "Select the unpacked GAMEDATA folder";
+                    DialogResult res = dialog.ShowDialog();
 
-                    if (d1 == MessageBoxResult.Yes)
+                    if (res == System.Windows.Forms.DialogResult.OK)
                     {
-                        unpackdir = gamedir;
-                    } else
-                    {
-                        FolderBrowserDialog dialog = new FolderBrowserDialog();
-                        dialog.Description = "Select the unpacked GAMEDATA folder";
-                        DialogResult res = dialog.ShowDialog();
-
-                        if (res == System.Windows.Forms.DialogResult.OK)
-                        {
-                            unpackdir = dialog.SelectedPath;
-                        }
-                        else
-                            unpackdir = "";
+                        unpackdir = dialog.SelectedPath;
                     }
-
+                    else
+                        unpackdir = "";
                 }
 
                 //Save path settings to the environment
@@ -150,7 +143,7 @@ namespace WPFModelViewer
         private void saveSettings(object sender, RoutedEventArgs e)
         {
             saveSettingsStatic();
-            MessageBox.Show("Settings Saved", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+            Util.showInfo("Settings Saved", "Info");
         }
 
         private void Dirpath_OnGotFocus(object sender, RoutedEventArgs e)
@@ -169,8 +162,7 @@ namespace WPFModelViewer
             if (but.Name == "GameDirSetButton")
             {
                 RenderState.settings.GameDir = path;
-                MessageBox.Show("Please restart the application to reload pak files.", "Info",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                Util.showInfo("Please restart the application to reload pak files.", "Info");
             }
             else
                 RenderState.settings.UnpackDir = path;

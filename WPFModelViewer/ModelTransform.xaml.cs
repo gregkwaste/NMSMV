@@ -196,7 +196,8 @@ namespace WPFModelViewer
                 TkSceneNodeData temp = _mdl.ExportTemplate(true);
                 
                 temp.WriteToExml(scnName + ".SCENE.EXML");
-                MessageBox.Show("Scene successfully exported to " + scnName + ".exml");
+                Util.showInfo("Scene successfully exported to " + scnName + ".exml", "Info");
+                
             }
         }
 
@@ -211,7 +212,7 @@ namespace WPFModelViewer
                 
                 TkSceneNodeData temp = _mdl.ExportTemplate(true);
                 temp.WriteToMbin(scnName.ToUpper() + ".SCENE.MBIN");
-                MessageBox.Show("Scene successfully exported to " + scnName.ToUpper() + ".MBIN");
+                Util.showInfo("Scene successfully exported to " + scnName.ToUpper() + ".MBIN", "Info");
             }
         }
 

@@ -6,6 +6,7 @@ using System.Reflection;
 using MVCore;
 using MVCore.Common;
 using System.Windows;
+using WPFModelViewer;
 
 namespace GLSLHelper { 
 
@@ -121,8 +122,8 @@ namespace GLSLHelper {
             if (status_code != 1)
             {
                 Console.WriteLine(GLShaderHelper.NumberLines(actual_shader_source));
-                MessageBox.Show("Failed to compile shader for the model. Contact Dev",
-                    "Shader Compilation Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                Util.showError("Failed to compile shader for the model. Contact Dev",
+                    "Shader Compilation Error");
                 GLShaderHelper.throwCompilationError(compilation_log +
                     GLShaderHelper.NumberLines(actual_shader_source) + "\n" + info);
             }

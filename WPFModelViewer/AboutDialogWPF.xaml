@@ -21,7 +21,7 @@
                 <ColumnDefinition/>
             </Grid.ColumnDefinitions>
 
-        <Image Grid.Row="0" Grid.Column="0" Grid.RowSpan="4" HorizontalAlignment="Center" VerticalAlignment="Center" Height="250" Source="/WPFModelViewer;component/Resources/ianm32logo_border.png"></Image>
+        <Image Grid.Row="0" Grid.Column="0" Grid.RowSpan="4" HorizontalAlignment="Center" VerticalAlignment="Center" Height="250" Source="Resources/ianm32logo_border.png"></Image>
         <StackPanel Grid.Row="0"
                     Grid.Column="1"
                     Grid.ColumnSpan="3"
