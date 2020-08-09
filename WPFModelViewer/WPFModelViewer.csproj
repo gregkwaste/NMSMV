@@ -265,9 +265,6 @@
     <Resource Include="Resources\ianm32logo_border.png" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="MIConvexHull.xml" />
-  </ItemGroup>
-  <ItemGroup>
     <Resource Include="FodyWeavers.xml" />
   </ItemGroup>
   <ItemGroup />

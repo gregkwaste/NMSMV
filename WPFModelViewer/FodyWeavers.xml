@@ -7,7 +7,6 @@
       OpenTK.GLControl
       MathNet.Numerics
       Newtonsoft.Json
-      MIConvexHull
       Quickfont
       SharpFont
     </IncludeAssemblies>
