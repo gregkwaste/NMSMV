@@ -109,7 +109,7 @@ void main()
 
     //OLD
     vec4 lWorldTangentVec4 = nMat * lLocalTangentVec4;
-    vec4 lWorldNormalVec4 = nMat * lLocalNormalVec4;
+    vec4 lWorldNormalVec4 = lLocalNormalVec4;
     
     vec4 lWorldBitangentVec4 = vec4( cross(lWorldNormalVec4.xyz, lWorldTangentVec4.xyz), 0.0);
     

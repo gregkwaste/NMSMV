@@ -5,11 +5,11 @@ float DistributionGGX(vec3 N, vec3 H, float roughness)
     float a2     = a*a;
     float NdotH  = max(dot(N, H), 0.0);
     float NdotH2 = NdotH*NdotH;
-	
+    
     float num   = a2;
     float denom = (NdotH2 * (a2 - 1.0) + 1.0);
     denom = PI * denom * denom;
-	
+    
     return num / denom;
 }
 
@@ -20,7 +20,7 @@ float GeometrySchlickGGX(float NdotV, float roughness)
 
     float num   = NdotV;
     float denom = NdotV * (1.0 - k) + k;
-	
+    
     return num / denom;
 }
 float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
@@ -29,7 +29,7 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
     float NdotL = max(dot(N, L), 0.0);
     float ggx2  = GeometrySchlickGGX(NdotV, roughness);
     float ggx1  = GeometrySchlickGGX(NdotL, roughness);
-	
+    
     return ggx1 * ggx2;
 }
 
@@ -109,7 +109,7 @@ float calcLightAttenuation(Light light, vec4 _fragPos){
 }
 
 
-vec3 calcLighting(Light light, vec4 fragPos, vec3 fragNormal, vec3 cameraPosition,
+vec3 calcLighting(Light light, vec4 fragPos, vec3 fragNormal, vec3 viewDir,
             vec3 albedoColor, float lfMetallic, float lfRoughness, float ao) {
     
     vec3 L;
@@ -119,30 +119,31 @@ vec3 calcLighting(Light light, vec4 fragPos, vec3 fragNormal, vec3 cameraPositio
     vec3 N = fragNormal;
     F0 = mix(F0, albedoColor, lfMetallic);
 
-    vec3 viewDir = normalize(cameraPosition - fragPos.xyz);
     //ao = 1.0;
     //return vec3(lfRoughness, 0.0, 0.0);
 
+    vec3 V = -viewDir;
     L = normalize(light.position.xyz - fragPos.xyz);    
     attenuation = calcLightAttenuation(light, fragPos);
     //float attenuation = 1.0 / (distance * distance); //Default calculation
 
     vec3 radiance = light.color.xyz * light.color.w * attenuation;
-    vec3 H = normalize(viewDir + L);
+    vec3 H = normalize(V + L);
     //float distance    = length(light.position.xyz - fragPos.xyz);
     
     // cook-torrance brdf
-    float NDF = DistributionGGX(N, H, lfRoughness);        
-    float G   = GeometrySmith(N, viewDir, L, lfRoughness);      
-    vec3 F    = fresnelSchlick(max(dot(H, viewDir), 0.0), F0);       
+    float NDF = DistributionGGX(N, H, 1.0 - lfRoughness);        
+    float G   = GeometrySmith(N, V, L, 1.0 - lfRoughness);      
+    vec3 F    = fresnelSchlick(max(dot(H, V), 0.0), F0);       
     
     vec3 kS = F;
     vec3 kD = vec3(1.0) - kS;
     kD *= 1.0 - lfMetallic;   
     
     vec3 numerator    = NDF * G * F;
-    float denominator = 4.0 * max(dot(N, viewDir), 0.0) * max(dot(N, L), 0.0);
-    vec3 specular     = numerator / max(denominator, 0.001);  
+    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
+    vec3 specular     = numerator / max(denominator, 0.001);
+    //specular = vec3(0.0);
 
 
     //TRANSLUCENCY
@@ -156,7 +157,7 @@ vec3 calcLighting(Light light, vec4 fragPos, vec3 fragNormal, vec3 cameraPositio
     if (dot(N, L) > 0.0) {
         forwardTranslucency = vec3(0.0, 0.0, 0.0);
     } else {
-        forwardTranslucency = vec3(_ForwardTranslucentColor) * pow(max(0.0, dot(-L, viewDir)), _Sharpness);
+        forwardTranslucency = vec3(_ForwardTranslucentColor) * pow(max(0.0, dot(-L, V)), _Sharpness);
     }
 
     

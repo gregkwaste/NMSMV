@@ -4,7 +4,6 @@ using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Media;
 using MathNet.Numerics;
 using MathNet.Numerics.LinearAlgebra.Complex;
 using OpenTK;
@@ -608,6 +607,7 @@ namespace MVCore.Primitives
             if (generateGeom)
                 geom = getGeom();
         }
+
 
         public new GMDL.GeomObject getGeom()
         {

@@ -19,6 +19,7 @@ namespace MVCore
         TERMINATE_REQUEST,  
         LOAD_NMS_ARCHIVES_REQUEST,
         OPEN_FILE_REQUEST,
+        GIZMO_PICKING_REQUEST,
         NULL
     };
 

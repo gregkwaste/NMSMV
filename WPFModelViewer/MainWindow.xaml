@@ -452,7 +452,7 @@
                         </DockPanel>
                         <DockPanel Grid.Row="6" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                             <TextBlock HorizontalAlignment="Left">Show Gizmo</TextBlock>
-                            <CheckBox Width="20" HorizontalAlignment="Right" IsEnabled="False" IsChecked="{Binding RenderGizmos}"></CheckBox>
+                            <CheckBox Width="20" HorizontalAlignment="Right" IsEnabled="True" IsChecked="{Binding RenderGizmos}"></CheckBox>
                         </DockPanel>
                     </Grid>
                 </GroupBox>

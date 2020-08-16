@@ -1,15 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
-using OpenTK;
-using OpenTK.Graphics.OpenGL4;
-using libMBIN.NMS.Toolkit;
-using MVCore.GMDL;
-using MVCore.Common;
 using System.Runtime.InteropServices;
 using GLSLHelper;
-using System.Windows.Controls;
-using System.Linq;
+using libMBIN.NMS.Toolkit;
+using MVCore.Common;
+using MVCore.GMDL;
+using OpenTK;
+using OpenTK.Graphics.OpenGL4;
 
 namespace MVCore
 {
@@ -79,6 +76,7 @@ namespace MVCore
         
         private GBuffer gbuf;
         private PBuffer pbuf;
+        private FBO gizmo_fbo;
         private FBO blur_fbo;
         private int blur_fbo_scale = 2;
         private float gfTime = 0.0f;
@@ -166,6 +164,7 @@ namespace MVCore
             gbuf = new GBuffer(width, height);
             pbuf = new PBuffer(width, height);
             blur_fbo = new FBO(TextureTarget.Texture2D, 3, width / blur_fbo_scale, height / blur_fbo_scale, false);
+            gizmo_fbo = new FBO(TextureTarget.Texture2D, 2, width, height, false);
         }
 
         public void getMousePosInfo(int x, int y, ref Vector4[] arr)
@@ -177,6 +176,52 @@ namespace MVCore
             //Fetch color from UI Fbo
         }
 
+        public void gizmoPick(ref Gizmo activeGizmo, Vector2 mousePos)
+        {
+            //Reset the active status of all the gizmo parts
+            activeGizmo.reset();
+
+            //Render the gizmos in the appropriate fbo
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, gizmo_fbo.fbo);
+            GL.ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            GLSLShaderConfig shader = resMgr.GLShaders[SHADER_TYPE.GIZMO_SHADER];
+            GL.UseProgram(shader.program_id);
+
+            foreach (GizmoPart gzPart in activeGizmo.gizmoParts)
+            {
+                //Render Translation Gizmo
+                GLMeshVao m = gzPart.meshVao;
+                //Render Start
+                Matrix4 mWMat = GLMeshBufferManager.getInstanceWorldMat(m, 0);
+                GL.UniformMatrix4(shader.uniformLocations["worldMat"], false, ref mWMat);
+                GL.Uniform1(shader.uniformLocations["is_active"], 0.0f); //Render with default color
+                m.render(shader, RENDERPASS.FORWARD);
+            }
+
+
+            //Pick color from the fbo in the mouse position
+            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, gizmo_fbo.fbo);
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+            float[] pixeldata = new float[10];
+            GL.ReadPixels((int) mousePos.X,  gizmo_fbo.size_y -  (int) mousePos.Y, 1, 1,
+                PixelFormat.Rgba, PixelType.Float, pixeldata);
+
+            Vector3 pixelColor = new Vector3(pixeldata[0], pixeldata[1], pixeldata[2]);
+            //Console.WriteLine("Picking read color: {0}", pixelColor);
+
+            //Identify selected part and set status
+            foreach (GizmoPart gzPart in activeGizmo.gizmoParts)
+            {
+                if ((gzPart.pick_color - pixelColor).Length < 1e-5)
+                {
+                    gzPart.active = true;
+                } 
+            }
+
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+
+        }
 
 
         public void progressTime(double dt)
@@ -245,10 +290,15 @@ namespace MVCore
             foreach (scene s in resMgr.GLScenes.Values)
                 process_models(s);
 
+            //Add gizmo meshes manually to the globalmeshlist\
+            //Translation gizmo parts
+            globalMeshList.Add(resMgr.GLPrimitiveMeshVaos["default_translation_gizmo_x_axis"]);
+            globalMeshList.Add(resMgr.GLPrimitiveMeshVaos["default_translation_gizmo_y_axis"]);
+            globalMeshList.Add(resMgr.GLPrimitiveMeshVaos["default_translation_gizmo_z_axis"]);
+
+            
             identifyActiveShaders();
 
-            //Add default meshes to the global list
-            globalMeshList.Add(resMgr.GLPrimitiveMeshVaos["default_translation_gizmo"]);
         }
 
         private void process_model(GLMeshVao m)
@@ -397,6 +447,7 @@ namespace MVCore
             GLShaderHelper.attachUBOToShaderBindingPoint(RenderState.activeResMgr.GLShaders[SHADER_TYPE.GBUFFER_UNLIT_SHADER], "_COMMON_PER_FRAME", 0);
             GLShaderHelper.attachUBOToShaderBindingPoint(RenderState.activeResMgr.GLShaders[SHADER_TYPE.TONE_MAPPING], "_COMMON_PER_FRAME", 0);
             GLShaderHelper.attachUBOToShaderBindingPoint(RenderState.activeResMgr.GLShaders[SHADER_TYPE.INV_TONE_MAPPING], "_COMMON_PER_FRAME", 0);
+            GLShaderHelper.attachUBOToShaderBindingPoint(RenderState.activeResMgr.GLShaders[SHADER_TYPE.GIZMO_SHADER], "_COMMON_PER_FRAME", 0); ;
 
 
             foreach (GLSLShaderConfig shader in RenderState.activeResMgr.activeGLDeferredDecalShaders)
@@ -972,7 +1023,7 @@ namespace MVCore
         }
 
         
-
+        
         private void renderFinalPass()
         {
             GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, pbuf.fbo);
@@ -993,19 +1044,28 @@ namespace MVCore
                 GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
                 GLSLShaderConfig shader = resMgr.GLShaders[SHADER_TYPE.GIZMO_SHADER];
                 GL.UseProgram(shader.program_id);
-                //Render Translation Gizmo
-                GLMeshVao m = resMgr.GLPrimitiveMeshVaos["default_translation_gizmo"];
-                //Render Start
-                Matrix4 mWMat = GLMeshBufferManager.getInstanceWorldMat(m, 0);
-                GL.UniformMatrix4(shader.uniformLocations["worldMat"], false, ref mWMat);
-                GL.Uniform1(shader.uniformLocations["color_mult"], 1.0f);
-                m.render(shader, RENDERPASS.FORWARD);
-                //Render End
-                mWMat = GLMeshBufferManager.getInstanceWorldMat(m, 1);
-                GL.UniformMatrix4(shader.uniformLocations["worldMat"], false, ref mWMat);
-                GL.Uniform1(shader.uniformLocations["color_mult"], 0.5f);
-                m.render(shader, RENDERPASS.FORWARD);
+
+
+                //Render GizmoParts
+                List<string> gizmoPartNames = new List<string> { "default_translation_gizmo_x_axis",
+                                                "default_translation_gizmo_y_axis",
+                                                "default_translation_gizmo_z_axis" }; 
+
+
+                foreach (string name in gizmoPartNames)
+                {
+                    //Render Translation Gizmo
+                    GLMeshVao m = resMgr.GLPrimitiveMeshVaos[name];
+                    //Render Start
+                    //TODO: Bind the Mesh UBO directly
+                    Matrix4 mWMat = GLMeshBufferManager.getInstanceWorldMat(m, 0);
+                    GL.UniformMatrix4(shader.uniformLocations["worldMat"], false, ref mWMat);
+                    GL.Uniform1(shader.uniformLocations["is_active"], GLMeshBufferManager.getInstanceSelectedStatus(m, 0) ? 1.0f: 0.0f);
+                    m.render(shader, RENDERPASS.FORWARD);
+                }
+
                 GL.Enable(EnableCap.CullFace);
+
             }
             
             GL.Enable(EnableCap.Blend);

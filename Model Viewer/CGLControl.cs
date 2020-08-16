@@ -1,31 +1,31 @@
 using System;
 using System.Collections.Generic;
-using System.Windows.Forms;
-using OpenTK;
-using OpenTK.Graphics.OpenGL4;
 using System.Diagnostics;
 using System.IO;
-using System.Reflection;
-
+using System.Threading;
+using System.Windows.Forms;
+using GLSLHelper;
 //Custom Imports
 using MVCore;
 using MVCore.Common;
 using MVCore.GMDL;
-using GLSLHelper;
+using OpenTK;
 using OpenTK.Graphics;
+using OpenTK.Graphics.OpenGL4;
+using OpenTK.Input;
 using GL = OpenTK.Graphics.OpenGL4.GL;
-using System.Threading;
-using MathNet.Numerics.LinearAlgebra.Complex;
 
 namespace Model_Viewer
 {
     public class CGLControl : GLControl
     {
         public model rootObject;
-        public model TranslationGizmo;
-        public model RotationalGizmo;
-        public model ScaleGizmo;
+        public model activeModel; //Active Model Reference
 
+        public Gizmo activeGizmo;
+        public TranslationGizmo gizTranslate;
+        
+        
         //Common Transforms
         //private Matrix4 rotMat, mvp;
 
@@ -38,10 +38,11 @@ namespace Model_Viewer
         public float light_distance = 5.0f;
         public float light_intensity = 1.0f;
         public float scale = 1.0f;
-        
+
         //Mouse Pos
-        private int mouse_x;
-        private int mouse_y;
+        private MouseMovementState mouseState = new MouseMovementState();
+        private MouseMovementStatus mouseMovementStatus = MouseMovementStatus.IDLE;
+        
         //Camera Movement Speed
         public int movement_speed = 1;
 
@@ -53,8 +54,8 @@ namespace Model_Viewer
 
         //Animation Stuff
         private bool animationStatus = false;
-        
 
+        
         public bool PAnimationStatus
         {
             get
@@ -80,6 +81,7 @@ namespace Model_Viewer
         private ContextMenuStrip contextMenuStrip1;
         private System.ComponentModel.IContainer components;
         private ToolStripMenuItem exportToObjToolStripMenuItem;
+        private ToolStripMenuItem exportToAssimpMenuItem;
         private OpenFileDialog openFileDialog1;
         private Form pform;
 
@@ -110,8 +112,10 @@ namespace Model_Viewer
             //this.Paint += new System.Windows.Forms.PaintEventHandler(this.genericPaint);
             this.Resize += new System.EventHandler(OnResize); 
             this.MouseHover += new System.EventHandler(genericHover);
+            this.MouseDown += new System.Windows.Forms.MouseEventHandler(genericMouseDown);
             this.MouseMove += new System.Windows.Forms.MouseEventHandler(genericMouseMove);
-            this.MouseClick += new System.Windows.Forms.MouseEventHandler(CGLControl_MouseClick);
+            this.MouseUp += new System.Windows.Forms.MouseEventHandler(genericMouseUp);
+            this.MouseClick += new System.Windows.Forms.MouseEventHandler(genericMouseClick);
             //this.glControl1.MouseWheel += new System.Windows.Forms.MouseEventHandler(this.glControl1_Scroll);
             this.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(generic_KeyDown);
             this.Enter += new System.EventHandler(genericEnter);
@@ -221,6 +225,23 @@ namespace Model_Viewer
             keyboardController();
             //gamepadController();
 
+            //Gizmo Picking
+            //Send picking request
+            //Make new request
+            ThreadRequest req = new ThreadRequest();
+            req.type = THREAD_REQUEST_TYPE.GIZMO_PICKING_REQUEST;
+            req.arguments.Clear();
+            req.arguments.Add(activeGizmo);
+            req.arguments.Add(mouseState.Position);
+
+            issueRequest(ref req);
+
+            //No need to wait for the request
+            //while (req.status != THREAD_REQUEST_STATUS.FINISHED)
+            //    Thread.Sleep(2);
+
+            
+            
             //Set time to the renderManager
             renderMgr.progressTime(dt);
 
@@ -241,10 +262,13 @@ namespace Model_Viewer
 
             //Update gizmo
 
-            if (rootObject != null)
+            if (activeModel != null)
             {
-                GLMeshVao gz = resMgr.GLPrimitiveMeshVaos["default_translation_gizmo"];
-                GLMeshBufferManager.addInstance(ref gz, TranslationGizmo);
+                //TODO: Move gizmos
+                gizTranslate.setReference(activeModel);
+                gizTranslate.updateMeshInfo();
+                //GLMeshVao gz = resMgr.GLPrimitiveMeshVaos["default_translation_gizmo"];
+                //GLMeshBufferManager.addInstance(ref gz, TranslationGizmo);
             }
                 
             //Identify dynamic Objects
@@ -331,9 +355,10 @@ namespace Model_Viewer
             addCamera(cull:false); //Add second camera
             setActiveCam(0);
             addTestObjects();
-            
+
             //Init Gizmos
-            TranslationGizmo = new locator();
+            gizTranslate = new TranslationGizmo();
+            activeGizmo = gizTranslate;
 
             //Initialize the render manager
             renderMgr.init(resMgr);
@@ -405,6 +430,12 @@ namespace Model_Viewer
                             case THREAD_REQUEST_TYPE.GL_MODIFY_SHADER_REQUEST:
                                 GLShaderHelper.modifyShader((GLSLShaderConfig) req.arguments[0],
                                              (GLSLShaderText) req.arguments[1]);
+                                req.status = THREAD_REQUEST_STATUS.FINISHED;
+                                break;
+                            case THREAD_REQUEST_TYPE.GIZMO_PICKING_REQUEST:
+                                //TODO: Send the nessessary arguments to the render manager and mark the active gizmoparts
+                                Gizmo g = (Gizmo) req.arguments[0];
+                                renderMgr.gizmoPick(ref g, (Vector2)req.arguments[1]);
                                 req.status = THREAD_REQUEST_STATUS.FINISHED;
                                 break;
                             case THREAD_REQUEST_TYPE.TERMINATE_REQUEST:
@@ -492,26 +523,97 @@ namespace Model_Viewer
 
         }
 
-        private void genericMouseMove(object sender, MouseEventArgs e)
+        private void genericMouseMove(object sender, System.Windows.Forms.MouseEventArgs e)
         {
             //Debug.WriteLine("Mouse moving on {0}", this.TabIndex);
             //int delta_x = (int) (Math.Pow(activeCam.fov, 4) * (e.X - mouse_x));
             //int delta_y = (int) (Math.Pow(activeCam.fov, 4) * (e.Y - mouse_y));
-            int delta_x = (e.X - mouse_x);
-            int delta_y = (e.Y - mouse_y);
+            mouseState.Delta.X = (e.X - mouseState.Position.X);
+            mouseState.Delta.Y = (e.Y - mouseState.Position.Y);
 
-            delta_x = Math.Min(Math.Max(delta_x, -10), 10);
-            delta_y = Math.Min(Math.Max(delta_y, -10), 10);
+            mouseState.Delta.X = Math.Min(Math.Max(mouseState.Delta.X, -10), 10);
+            mouseState.Delta.Y = Math.Min(Math.Max(mouseState.Delta.Y, -10), 10);
 
-            if (e.Button == MouseButtons.Left)
+            //Take action
+            switch (mouseMovementStatus)
             {
-                //Debug.WriteLine("Deltas {0} {1} {2}", delta_x, delta_y, e.Button);
-                RenderState.activeCam.Move(0, 0, 0, delta_x, delta_y);
+                case MouseMovementStatus.CAMERA_MOVEMENT:
+                    {
+                        // Debug.WriteLine("Deltas {0} {1} {2}", mouseState.Delta.X, mouseState.Delta.Y, e.Button);
+                        RenderState.activeCam.Move(0, 0, 0, mouseState.Delta.X, mouseState.Delta.Y);
+                        break;
+                    }
+                case MouseMovementStatus.GIZMO_MOVEMENT:
+                    {
+                        //Find movement axis
+                        GIZMO_PART_TYPE t = activeGizmo.activeType;
+                        float movement_step = (float)Math.Sqrt(mouseState.Delta.X * mouseState.Delta.X / (Size.Width * Size.Width) +
+                                                                mouseState.Delta.Y * mouseState.Delta.Y / (Size.Height * Size.Height));
+                        Console.WriteLine("Moving by {0}", movement_step);
+
+                        switch (t)
+                        {
+                            case GIZMO_PART_TYPE.T_X:
+                                activeModel._localPosition.X += movement_step;
+                                break;
+                            case GIZMO_PART_TYPE.T_Y:
+                                activeModel._localPosition.Y += movement_step;
+                                break;
+                            case GIZMO_PART_TYPE.T_Z:
+                                activeModel._localPosition.Z += movement_step;
+                                break;
+                        }
+
+                        activeModel.update(); //Trigger model update
+
+                        break;
+                    }
+                default:
+                    break;
+
             }
 
-            mouse_x = e.X;
-            mouse_y = e.Y;
+            
+            mouseState.Position.X = e.X;
+            mouseState.Position.Y = e.Y;
 
+        }
+
+        private void genericMouseDown(object sender, System.Windows.Forms.MouseEventArgs e)
+        {
+            if (activeGizmo != null && (e.Button == MouseButtons.Left) && activeGizmo.isActive)
+            {
+                //Engage movement
+                Console.WriteLine("Engaging gizmo movement");
+                mouseMovementStatus = MouseMovementStatus.GIZMO_MOVEMENT;
+            } else if (e.Button == MouseButtons.Left)
+            {
+                mouseMovementStatus = MouseMovementStatus.CAMERA_MOVEMENT;
+            }
+            
+        }
+
+        private void genericMouseUp(object sender, System.Windows.Forms.MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+            {
+                mouseMovementStatus = MouseMovementStatus.IDLE;
+            }
+
+        }
+
+        private void genericMouseClick(object sender, System.Windows.Forms.MouseEventArgs e)
+        {
+            
+            if ((e.Button == MouseButtons.Left) && (ModifierKeys == Keys.Control))
+            {
+                selectObject(new Vector2(e.X, e.Y));
+            }
+            else if (e.Button == MouseButtons.Right)
+            {
+                contextMenuStrip1.Show(Control.MousePosition);
+            }
+            
         }
 
         private void generic_KeyDown(object sender, PreviewKeyDownEventArgs e)
@@ -597,6 +699,7 @@ namespace Model_Viewer
             this.components = new System.ComponentModel.Container();
             this.contextMenuStrip1 = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.exportToObjToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.exportToAssimpMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
             this.contextMenuStrip1.SuspendLayout();
             this.SuspendLayout();
@@ -604,6 +707,7 @@ namespace Model_Viewer
             // contextMenuStrip1
             // 
             this.contextMenuStrip1.Items.Add(this.exportToObjToolStripMenuItem);
+            this.contextMenuStrip1.Items.Add(this.exportToAssimpMenuItem);
             this.contextMenuStrip1.Name = "contextMenuStrip1";
             this.contextMenuStrip1.Size = new System.Drawing.Size(181, 70);
             // 
@@ -613,6 +717,13 @@ namespace Model_Viewer
             this.exportToObjToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
             this.exportToObjToolStripMenuItem.Text = "Export to obj";
             this.exportToObjToolStripMenuItem.Click += new System.EventHandler(this.exportToObjToolStripMenuItem_Click);
+            // 
+            // exportToAssimp
+            // 
+            this.exportToAssimpMenuItem.Name = "exportToAssimp";
+            this.exportToAssimpMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.exportToAssimpMenuItem.Text = "Export to assimp";
+            this.exportToAssimpMenuItem.Click += new System.EventHandler(this.exportToAssimp);
             // 
             // openFileDialog1
             // 
@@ -629,18 +740,7 @@ namespace Model_Viewer
         }
 
                
-        private void CGLControl_MouseClick(object sender, MouseEventArgs e)
-        {
-            if (e.Button == MouseButtons.Right)
-            {
-                contextMenuStrip1.Show(Control.MousePosition);
-            }
-            //TODO: ADD SELECT OBJECT FUNCTIONALITY IN THE FUTURE
-            else if ((e.Button == MouseButtons.Left) && (ModifierKeys == Keys.Control))
-            {
-                selectObject(new Vector2(e.X, e.Y));
-            }
-        }
+        
 
 #endregion GLControl Methods
 
@@ -863,8 +963,44 @@ namespace Model_Viewer
             uint index = 1;
             findGeoms(rootObject, obj, ref index);
             
+
             obj.Close();
 
+        }
+
+        private void exportToAssimp(object sender, EventArgs e)
+        {
+            Debug.WriteLine("Exporting to assimp");
+
+            if (rootObject != null)
+            {
+                Assimp.AssimpContext ctx = new Assimp.AssimpContext();
+                Dictionary<int, int> meshImportStatus = new Dictionary<int, int>();
+                Assimp.Scene aScene = new Assimp.Scene();
+                Assimp.Node rootNode = rootObject.assimpExport(ref aScene, ref meshImportStatus);
+                aScene.RootNode = rootNode;
+
+                //add a single material for now
+                Assimp.Material aMat = new Assimp.Material();
+                aMat.Name = "testMaterial";
+                aScene.Materials.Add(aMat);
+
+                Assimp.ExportFormatDescription[] supported_formats = ctx.GetSupportedExportFormats();
+                //Assimp.Scene blenderScene = ctx.ImportFile("SimpleSkin.gltf");
+                //ctx.ExportFile(blenderScene, "SimpleSkin.glb", "glb2");
+                try
+                {
+                    ctx.ExportFile(aScene, "test.glb", "glb2");
+                    //ctx.ExportFile(aScene, "test.fbx", "fbx");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
+                
+
+            }
+            
         }
 
         private void findGeoms(model m, StreamWriter s, ref uint index)
@@ -910,6 +1046,7 @@ namespace Model_Viewer
         
         private void selectObject(Vector2 screenPos)
         {
+            //WARNING: NOT ACCURATE
             //Vector3 near = unProject(new Vector3(screenPos.X, screenPos.Y, 0.0f));
             //Vector3 near = unProject(new Vector3(screenPos.X, screenPos.Y, 0.0f));
             Vector3 v = unProject(new Vector2(screenPos.X, screenPos.Y));
@@ -925,8 +1062,8 @@ namespace Model_Viewer
             if (intersectedModel != null)
             {
                 Console.WriteLine("Ray intersects model : " + intersectedModel.name);
-                TranslationGizmo.localPosition = intersectedModel.worldPosition;
-                TranslationGizmo.update();
+                gizTranslate.setReference(intersectedModel);
+                gizTranslate.update();
             }
 
         }
@@ -1059,6 +1196,13 @@ namespace Model_Viewer
             //Clear animScenes
             animScenes.Clear();
             rootObject = null;
+            activeModel = null;
+            //Clear Gizmos
+            gizTranslate = null;
+            activeGizmo = null;
+
+            //Clear Update Queues
+            modelUpdateQueue.Clear();
 
             //Clear RenderStats
             RenderStats.ClearStats();
@@ -1090,6 +1234,13 @@ namespace Model_Viewer
             //Clear Instances
             renderMgr.clearInstances();
             rootObject.updateMeshInfo(); //Update all mesh info
+
+            activeModel = rootObject; //Set the new scene as the new activeModel
+            activeModel.selected = 1;
+
+            //Reinitialize gizmos
+            gizTranslate = new TranslationGizmo();
+            activeGizmo = gizTranslate;
 
             //Restart anim worker if it was active
             if (!RenderState.renderSettings.ToggleAnimations)

@@ -34,7 +34,7 @@ void main()
 {
     //Load Per Instance data
     vertColor = bPosition;
-    gl_Position = mpCommonPerFrame.mvp * worldMat * vPosition; //Calculate world Position
+    gl_Position = mpCommonPerFrame.mvp * mpCommonPerFrame.rotMat * worldMat *  vPosition; //Calculate world Position
 }
 
 

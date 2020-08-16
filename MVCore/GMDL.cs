@@ -31,8 +31,8 @@ using System.Security.Permissions;
 using SharpFont;
 using WPFModelViewer.Properties;
 using WPFModelViewer;
+using System.Windows.Documents.DocumentStructures;
 //using Matrix4 = MathNet.Numerics.LinearAlgebra.Matrix<float>;
-
 
 namespace MVCore.GMDL
 {
@@ -158,6 +158,32 @@ namespace MVCore.GMDL
         public void updateRotationFromAngles(float x, float y, float z)
         {
             
+        }
+
+        public virtual Assimp.Node assimpExport(ref Assimp.Scene scn, ref Dictionary<int, int> meshImportStatus) {
+
+            //Default shit
+            //Create assimp node
+            Assimp.Node node = new Assimp.Node(Name);
+            node.Transform = MathUtils.convertMatrix(localMat);
+
+            //Handle animations maybe?
+            int animComponentId = hasComponent(typeof(AnimComponent));
+            if (animComponentId > -1)
+            {
+                AnimComponent cmp = (AnimComponent) _components[animComponentId];
+                cmp.assimpExport(ref scn);
+
+            }
+
+            foreach (model child in children)
+            {
+                Assimp.Node c = child.assimpExport(ref scn, ref meshImportStatus);
+                node.Children.Add(c);
+            }
+                
+
+            return node;
         }
 
         public string Name
@@ -546,7 +572,7 @@ namespace MVCore.GMDL
 
             foreach (TkAnimNodeData node in apc._poseFrameData.NodeData)
             {
-                List<Quaternion> quats = new List<Quaternion>();
+                List<OpenTK.Quaternion> quats = new List<OpenTK.Quaternion>();
                 List<Vector3> translations = new List<Vector3>();
                 List<Vector3> scales = new List<Vector3>();
 
@@ -560,7 +586,7 @@ namespace MVCore.GMDL
                     int poseFrameIndex = apc._poseData[i].PActivePoseFrame;
 
                     Vector3 v_t, v_s;
-                    Quaternion lq;
+                    OpenTK.Quaternion lq;
                     //Fetch Rotation Quaternion
                     lq = NMSUtils.fetchRotQuaternion(node, apc._poseFrameData, poseFrameIndex);
                     v_t = NMSUtils.fetchTransVector(node, apc._poseFrameData, poseFrameIndex);
@@ -572,7 +598,7 @@ namespace MVCore.GMDL
                 }
 
                 float fact = 1.0f / quats.Count;
-                Quaternion fq = new Quaternion();
+                OpenTK.Quaternion fq = new OpenTK.Quaternion();
                 Vector3 f_vt = new Vector3();
                 Vector3 f_vs = new Vector3();
 
@@ -584,7 +610,7 @@ namespace MVCore.GMDL
                 //Interpolate all data
                 for (int i = 1; i < quats.Count; i++)
                 {
-                    Quaternion.Slerp(fq, quats[i], 0.5f);
+                    OpenTK.Quaternion.Slerp(fq, quats[i], 0.5f);
                     Vector3.Lerp(f_vt, translations[i], 0.5f);
                     Vector3.Lerp(f_vs, scales[i], 0.5f);
                 }
@@ -779,7 +805,7 @@ namespace MVCore.GMDL
 
                     //Vector3 tr = kp.Value.ExtractTranslation();
                     Vector3 sc = kp.Value.ExtractScale();
-                    Quaternion q = kp.Value.ExtractRotation();
+                    OpenTK.Quaternion q = kp.Value.ExtractRotation();
 
                     //j.localRotation = Matrix4.CreateFromQuaternion(q);
                     //j.localPosition = tr;
@@ -806,6 +832,11 @@ namespace MVCore.GMDL
             }
         }
 
+        public override Assimp.Node assimpExport(ref Assimp.Scene scn, ref Dictionary<int,int> meshImportStatus)
+        {
+
+            return base.assimpExport(ref scn, ref meshImportStatus);
+        }
 
         public scene(scene input) :base(input)
         {
@@ -1226,7 +1257,7 @@ namespace MVCore.GMDL
                 setInstanceWorldMat(mesh, instance_id, worldMat);
                 setInstanceWorldMatInv(mesh, instance_id, worldMatInv);
                 setInstanceNormalMat(mesh, instance_id, normMat);
-
+                
                 mesh.instanceRefs.Add(m); //Keep reference
                 mesh.instance_count++;
             }
@@ -1261,7 +1292,7 @@ namespace MVCore.GMDL
         {
             unsafe
             {
-                return mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_isOccluded_Float_Offset] > 0.0f ? true : false;
+                return mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_isOccluded_Float_Offset] > 0.0f;
             }
         }
 
@@ -1270,6 +1301,14 @@ namespace MVCore.GMDL
             unsafe
             {
                 mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_isSelected_Float_Offset] = status ? 1.0f : 0.0f;
+            }
+        }
+
+        public static bool getInstanceSelectedStatus(GLMeshVao mesh, int instance_id)
+        {
+            unsafe
+            {
+                return mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_isSelected_Float_Offset] > 0.0f;
             }
         }
 
@@ -1683,6 +1722,7 @@ namespace MVCore.GMDL
             switch (type)
             {
                 case TYPES.GIZMO:
+                case TYPES.GIZMOPART:
                 case TYPES.MESH:
                     renderMesh();
                     break;
@@ -2088,7 +2128,281 @@ namespace MVCore.GMDL
             base.updateMeshInfo();
         }
 
+        public override Assimp.Node assimpExport(ref Assimp.Scene scn, ref Dictionary<int, int> meshImportStatus)
+        {
+            Assimp.Mesh amesh = new Assimp.Mesh();
+            Assimp.Node node;
+            amesh.Name = name;
 
+            int meshHash = meshVao.GetHashCode();
+
+            //TESTING
+            if (scn.MeshCount > 20)
+            {
+                node = base.assimpExport(ref scn, ref meshImportStatus);
+                return node;
+             }
+
+            if (!meshImportStatus.ContainsKey(meshHash))
+            //if (false)
+            {
+                meshImportStatus[meshHash] = scn.MeshCount;
+
+                int vertcount = metaData.vertrend_graphics - metaData.vertrstart_graphics + 1;
+                MemoryStream vms = new MemoryStream(gobject.meshDataDict[metaData.Hash].vs_buffer);
+                MemoryStream ims = new MemoryStream(gobject.meshDataDict[metaData.Hash].is_buffer);
+                BinaryReader vbr = new BinaryReader(vms);
+                BinaryReader ibr = new BinaryReader(ims);
+
+
+                //Initialize Texture Component Channels
+                if (gobject.bufInfo[1] != null)
+                {
+                    List<Assimp.Vector3D> textureChannel = new List<Assimp.Vector3D>();
+                    amesh.TextureCoordinateChannels.Append(textureChannel);
+                    amesh.UVComponentCount[0] = 2;
+                }
+
+                //Generate bones only for the joints related to the mesh
+                Dictionary<int, Assimp.Bone> localJointDict = new Dictionary<int, Assimp.Bone>();
+
+                //Export Bone Structure
+                if (Skinned)
+                //if (false)
+                {
+                    for (int i = 0; i < meshVao.BoneRemapIndicesCount; i++)
+                    {
+                        int joint_id = meshVao.BoneRemapIndices[i];
+                        //Fetch name
+                        Joint relJoint = null;
+
+                        foreach (Joint jnt in parentScene.jointDict.Values)
+                        {
+                            if (jnt.jointIndex == joint_id)
+                            {
+                                relJoint = jnt;
+                                break;
+                            }
+
+                        }
+
+                        //Generate bone
+                        Assimp.Bone b = new Assimp.Bone();
+                        if (relJoint != null)
+                        {
+                            b.Name = relJoint.name;
+                            b.OffsetMatrix = MathUtils.convertMatrix(relJoint.invBMat);
+                        }
+                        
+
+                        localJointDict[i] = b;
+                        amesh.Bones.Add(b);
+                    }
+                }
+                
+
+                
+                //Write geometry info
+
+                vbr.BaseStream.Seek(0, SeekOrigin.Begin);
+                for (int i = 0; i < vertcount; i++)
+                {
+                    Assimp.Vector3D v, vN;
+
+                    for (int j = 0; j < gobject.bufInfo.Count; j++)
+                    {
+                        bufInfo buf = gobject.bufInfo[j];
+                        if (buf is null)
+                            continue;
+
+                        switch (buf.semantic)
+                        {
+                            case 0: //vPosition
+                                {
+                                    switch (buf.type)
+                                    {
+                                        case VertexAttribPointerType.HalfFloat:
+                                            uint v1 = vbr.ReadUInt16();
+                                            uint v2 = vbr.ReadUInt16();
+                                            uint v3 = vbr.ReadUInt16();
+                                            uint v4 = vbr.ReadUInt16();
+
+                                            //Transform vector with worldMatrix
+                                            v = new Assimp.Vector3D(Half.decompress(v1), Half.decompress(v2), Half.decompress(v3));
+                                            break;
+                                        case VertexAttribPointerType.Float: //This is used in my custom vbos
+                                            float f1 = vbr.ReadSingle();
+                                            float f2 = vbr.ReadSingle();
+                                            float f3 = vbr.ReadSingle();
+                                            //Transform vector with worldMatrix
+                                            v = new Assimp.Vector3D(f1, f2, f3);
+                                            break;
+                                        default:
+                                            throw new Exception("Unimplemented Vertex Type");
+                                    }
+                                    amesh.Vertices.Add(v);
+                                    break;
+                                }
+
+                            case 1: //uvPosition
+                                {
+                                    Assimp.Vector3D uv;
+                                    uint v1 = vbr.ReadUInt16();
+                                    uint v2 = vbr.ReadUInt16();
+                                    uint v3 = vbr.ReadUInt16();
+                                    uint v4 = vbr.ReadUInt16();
+                                    //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
+                                    uv = new Assimp.Vector3D(Half.decompress(v1), Half.decompress(v2), 0.0f);
+
+                                    amesh.TextureCoordinateChannels[0].Add(uv); //Add directly to the first channel
+                                    break;
+                                }
+                            case 2: //nPosition
+                            case 3: //tPosition
+                                {
+                                    switch (buf.type)
+                                    {
+                                        case (VertexAttribPointerType.Float):
+                                            float f1, f2, f3;
+                                            f1 = vbr.ReadSingle();
+                                            f2 = vbr.ReadSingle();
+                                            f3 = vbr.ReadSingle();
+                                            vN = new Assimp.Vector3D(f1, f2, f3);
+                                            break;
+                                        case (VertexAttribPointerType.HalfFloat):
+                                            uint v1, v2, v3;
+                                            v1 = vbr.ReadUInt16();
+                                            v2 = vbr.ReadUInt16();
+                                            v3 = vbr.ReadUInt16();
+                                            vN = new Assimp.Vector3D(Half.decompress(v1), Half.decompress(v2), Half.decompress(v3));
+                                            break;
+                                        case (VertexAttribPointerType.Int2101010Rev):
+                                            int i1, i2, i3;
+                                            uint value;
+                                            byte[] a32 = new byte[4];
+                                            a32 = vbr.ReadBytes(4);
+
+                                            value = BitConverter.ToUInt32(a32, 0);
+                                            //Convert Values
+                                            i1 = _2sComplement.toInt((value >> 00) & 0x3FF, 10);
+                                            i2 = _2sComplement.toInt((value >> 10) & 0x3FF, 10);
+                                            i3 = _2sComplement.toInt((value >> 20) & 0x3FF, 10);
+                                            //int i4 = _2sComplement.toInt((value >> 30) & 0x003, 10);
+                                            float norm = (float)Math.Sqrt(i1 * i1 + i2 * i2 + i3 * i3);
+
+                                            vN = new Assimp.Vector3D(Convert.ToSingle(i1) / norm,
+                                                             Convert.ToSingle(i2) / norm,
+                                                             Convert.ToSingle(i3) / norm);
+
+                                            //Debug.WriteLine(vN);
+                                            break;
+                                        default:
+                                            throw new Exception("UNIMPLEMENTED NORMAL TYPE. PLEASE REPORT");
+                                    }
+
+                                    if (j == 2)
+                                        amesh.Normals.Add(vN);
+                                    else if (j == 3)
+                                    {
+                                        amesh.Tangents.Add(vN);
+                                        amesh.BiTangents.Add(new Assimp.Vector3D(0.0f, 0.0f, 1.0f));
+                                    }
+                                    break;
+                                }
+                            case 4: //bPosition
+                                vbr.ReadBytes(4); // skip
+                                break;
+                            case 5: //BlendIndices + BlendWeights
+                                {
+                                    int[] joint_ids = new int[4];
+                                    float[] weights = new float[4];
+
+                                    for (int k = 0; k < 4; k++)
+                                    {
+                                        joint_ids[k] = vbr.ReadByte();
+                                    }
+                                        
+
+                                    for (int k = 0; k < 4; k++)
+                                        weights[k] = Half.decompress(vbr.ReadUInt16());
+
+                                    if (Skinned)
+                                    //if (false)
+                                    {
+                                        for (int k = 0; k < 4; k++)
+                                        {
+                                            int joint_id = joint_ids[k];
+
+                                            Assimp.VertexWeight vw = new Assimp.VertexWeight();
+                                            vw.VertexID = i;
+                                            vw.Weight = weights[k];
+                                            localJointDict[joint_id].VertexWeights.Add(vw);
+
+                                        }
+
+                                        
+                                    }
+                                   
+
+                                    break;
+                                }
+                            case 6:
+                                break; //Handled by 5
+                            default:
+                                {
+                                    throw new Exception("UNIMPLEMENTED BUF Info. PLEASE REPORT");
+                                    break;
+                                }
+
+                        }
+                    }
+
+                }
+
+                //Export Faces
+                //Get indices
+                ibr.BaseStream.Seek(0, SeekOrigin.Begin);
+                bool start = false;
+                int fstart = 0;
+                for (int i = 0; i < metaData.batchcount / 3; i++)
+                {
+                    int f1, f2, f3;
+                    //NEXT models assume that all gstream meshes have uint16 indices
+                    f1 = ibr.ReadUInt16();
+                    f2 = ibr.ReadUInt16();
+                    f3 = ibr.ReadUInt16();
+
+                    if (!start && this.type != TYPES.COLLISION)
+                    { fstart = f1; start = true; }
+                    else if (!start && this.type == TYPES.COLLISION)
+                    {
+                        fstart = 0; start = true;
+                    }
+
+                    int f11, f22, f33;
+                    f11 = f1 - fstart;
+                    f22 = f2 - fstart;
+                    f33 = f3 - fstart;
+
+
+                    Assimp.Face face = new Assimp.Face();
+                    face.Indices.Add(f11);
+                    face.Indices.Add(f22);
+                    face.Indices.Add(f33);
+
+
+                    amesh.Faces.Add(face);
+                }
+
+                scn.Meshes.Add(amesh);
+               
+            }
+
+            node = base.assimpExport(ref scn, ref meshImportStatus);
+            node.MeshIndices.Add(meshImportStatus[meshHash]);
+
+            return node;
+        }
 
         public void writeGeomToStream(StreamWriter s, ref uint index)
         {
@@ -2418,8 +2732,9 @@ namespace MVCore.GMDL
         public List<int> vstarts = new List<int>();
         public Dictionary<ulong, geomMeshMetaData> meshMetaDataDict = new Dictionary<ulong, geomMeshMetaData>();
         public Dictionary<ulong, geomMeshData> meshDataDict = new Dictionary<ulong, geomMeshData>();
-        
+
         //Joint info
+        public int jointCount;
         public List<JointBindingData> jointData = new List<JointBindingData>();
         public float[] invBMats = new float[256 * 16];
 
@@ -4982,6 +5297,15 @@ namespace MVCore.GMDL
             
         }
 
+        public void assimpExport(ref Assimp.Scene scn)
+        {
+            foreach (AnimData ad in Animations)
+            {
+                Assimp.Animation anim = ad.assimpExport(ref scn);
+                scn.Animations.Add(anim);
+            }
+        }
+
         public AnimComponent(TkAnimationComponentData data)
         {
             //Load Animations
@@ -5295,7 +5619,7 @@ namespace MVCore.GMDL
     public class AnimMetadata: TkAnimMetadata
     {
         public float duration;
-        public Dictionary<string, Quaternion[]> anim_rotations;
+        public Dictionary<string, OpenTK.Quaternion[]> anim_rotations;
         public Dictionary<string, Vector3[]> anim_positions;
         public Dictionary<string, Vector3[]> anim_scales;
 
@@ -5319,7 +5643,7 @@ namespace MVCore.GMDL
         public void load()
         {
             //Init dictionaries
-            anim_rotations = new Dictionary<string, Quaternion[]>();
+            anim_rotations = new Dictionary<string, OpenTK.Quaternion[]>();
             anim_positions = new Dictionary<string, Vector3[]>();
             anim_scales = new Dictionary<string, Vector3[]>();
 
@@ -5333,7 +5657,7 @@ namespace MVCore.GMDL
                 TkAnimNodeData node = NodeData[j];
                 //Init dictionary entries
 
-                anim_rotations[node.Node] = new Quaternion[FrameCount];
+                anim_rotations[node.Node] = new OpenTK.Quaternion[FrameCount];
                 anim_positions[node.Node] = new Vector3[FrameCount];
                 anim_scales[node.Node] = new Vector3[FrameCount];
 
@@ -5373,6 +5697,63 @@ namespace MVCore.GMDL
 
         public AnimData()
         {
+            
+        }
+
+        public Assimp.Animation assimpExport(ref Assimp.Scene scn)
+        {
+            Assimp.Animation asAnim = new Assimp.Animation();
+            asAnim.Name = Anim;
+
+            
+            
+            
+            //Make sure keyframe data is loaded from the files
+            if (!loaded)
+            {
+                fetchAnimMetaData();
+                loaded = true;
+            }
+
+            
+
+            asAnim.TicksPerSecond = 60;
+            asAnim.DurationInTicks = animMeta.FrameCount;
+            float time_interval = 1.0f / (float) asAnim.TicksPerSecond;
+            
+
+            //Add Node-Bone Channels
+            for (int i = 0; i < animMeta.NodeCount; i++)
+            {
+                string name = animMeta.NodeData[i].Node;
+                Assimp.NodeAnimationChannel mChannel = new Assimp.NodeAnimationChannel();
+                mChannel.NodeName = name;
+                
+                //mChannel.PostState = Assimp.AnimationBehaviour.Linear;
+                //mChannel.PreState = Assimp.AnimationBehaviour.Linear;
+                
+
+                //Export Keyframe Data
+                for (int j = 0; j < animMeta.FrameCount; j++)
+                {
+                    
+                    //Position
+                    Assimp.VectorKey vk = new Assimp.VectorKey(j * time_interval, MathUtils.convertVector(animMeta.anim_positions[name][j]));
+                    mChannel.PositionKeys.Add(vk);
+                    //Rotation
+                    Assimp.QuaternionKey qk = new Assimp.QuaternionKey(j * time_interval, MathUtils.convertQuaternion(animMeta.anim_rotations[name][j]));
+                    mChannel.RotationKeys.Add(qk);
+                    //Scale
+                    Assimp.VectorKey sk = new Assimp.VectorKey(j * time_interval, MathUtils.convertVector(animMeta.anim_scales[name][j]));
+                    mChannel.ScalingKeys.Add(sk);
+                    
+                }
+                
+                asAnim.NodeAnimationChannels.Add(mChannel);
+                
+            }
+
+            return asAnim;
             
         }
 
@@ -5510,16 +5891,16 @@ namespace MVCore.GMDL
         public void applyNodeTransform(model m, string node)
         {
             //Fetch prevFrame stuff
-            Quaternion prev_q = animMeta.anim_rotations[node][prevFrameIndex];
+            OpenTK.Quaternion prev_q = animMeta.anim_rotations[node][prevFrameIndex];
             Vector3 prev_p = animMeta.anim_positions[node][prevFrameIndex];
 
             //Fetch nextFrame stuff
-            Quaternion next_q = animMeta.anim_rotations[node][prevFrameIndex];
+            OpenTK.Quaternion next_q = animMeta.anim_rotations[node][prevFrameIndex];
             Vector3 next_p = animMeta.anim_positions[node][prevFrameIndex];
 
             //Interpolate
 
-            Quaternion q = Quaternion.Slerp(prev_q, next_q, LERP_coeff);
+            OpenTK.Quaternion q = OpenTK.Quaternion.Slerp(prev_q, next_q, LERP_coeff);
             Vector3 p = prev_p * LERP_coeff + next_p * (1.0f - LERP_coeff);
 
             //Convert transforms
@@ -5562,7 +5943,7 @@ namespace MVCore.GMDL
 
             //Calculate Binding Matrix
             Vector3 BindTranslate, BindScale;
-            Quaternion BindRotation = new Quaternion();
+            OpenTK.Quaternion BindRotation = new OpenTK.Quaternion();
 
             //Get Translate
             BindTranslate.X = br.ReadSingle();

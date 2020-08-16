@@ -18,6 +18,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)GamepadHandler.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)gbuffer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)gImage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Gizmo.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GLPrimitives.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GLShaderHelper.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GLSL_Preprocessor.cs" />

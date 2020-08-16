@@ -7,12 +7,26 @@ using MVCore.GMDL;
 using MVCore;
 using GLSLHelper;
 using WPFModelViewer;
-using System.Windows.Controls;
 using System.ComponentModel;
 using System.Windows.Forms;
+using System.Diagnostics.Contracts;
 
 namespace MVCore.Common
 {
+
+    public enum MouseMovementStatus
+    {
+        CAMERA_MOVEMENT = 0x0,
+        GIZMO_MOVEMENT,
+        IDLE
+    }
+
+    public class MouseMovementState
+    {
+        public Vector2 Position = new Vector2();
+        public Vector2 Delta = new Vector2();   
+    }
+
     public static class RenderState
     {
         //Add a random generator just for the procgen procedures

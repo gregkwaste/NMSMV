@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using OpenTK;
+using Assimp;
 
 namespace MVCore
 {
@@ -135,6 +136,48 @@ namespace MVCore
             array[offset + 14] = mat.Row3.Z;
             array[offset + 15] = mat.Row3.W;
 
+        }
+
+        public static Assimp.Matrix4x4 convertMatrix(Matrix4 localMat)
+        {
+            Assimp.Matrix4x4 mat = new Assimp.Matrix4x4();
+            mat.A1 = localMat.Column0.X;
+            mat.A2 = localMat.Column0.Y;
+            mat.A3 = localMat.Column0.Z;
+            mat.A4 = localMat.Column0.W;
+            mat.B1 = localMat.Column1.X;
+            mat.B2 = localMat.Column1.Y;
+            mat.B3 = localMat.Column1.Z;
+            mat.B4 = localMat.Column1.W;
+            mat.C1 = localMat.Column2.X;
+            mat.C2 = localMat.Column2.Y;
+            mat.C3 = localMat.Column2.Z;
+            mat.C4 = localMat.Column2.W;
+            mat.D1 = localMat.Column3.X;
+            mat.D2 = localMat.Column3.Y;
+            mat.D3 = localMat.Column3.Z;
+            mat.D4 = localMat.Column3.W;
+
+            return mat;
+        }
+
+        public static Assimp.Vector3D convertVector(Vector3 localVec)
+        {
+            Assimp.Vector3D vec = new Assimp.Vector3D();
+            vec.X = localVec.X;
+            vec.Y = localVec.Y;
+            vec.Z = localVec.Z;
+            return vec;
+        }
+
+        public static Assimp.Quaternion convertQuaternion(OpenTK.Quaternion localQuat)
+        {
+            Assimp.Quaternion q = new Assimp.Quaternion();
+            q.X = localQuat.X;
+            q.Y = localQuat.Y;
+            q.Z = localQuat.Z;
+            q.W = localQuat.W;
+            return q;
         }
 
         public unsafe static Matrix4 Matrix4FromArray(float* array, int offset)

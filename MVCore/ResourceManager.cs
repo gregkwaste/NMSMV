@@ -1,15 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using MVCore.GMDL;
-using libMBIN.NMS.Toolkit;
-using OpenTK;
+﻿using System.Collections.Generic;
 using System.IO;
 using GLSLHelper;
-using libPSARC;
-using System.Diagnostics.Contracts;
-using MathNet.Numerics.Statistics;
+using libMBIN.NMS.Toolkit;
 using MVCore.Common;
+using MVCore.GMDL;
+using OpenTK;
 
 namespace MVCore
 {
@@ -17,7 +12,7 @@ namespace MVCore
     {
         void cleanup();
     }
-    
+
 
     //Class Which will store all the texture resources for better memory management
     public class ResourceManager
@@ -32,12 +27,12 @@ namespace MVCore
         public Dictionary<string, GLVao> GLPrimitiveVaos = new Dictionary<string, GLVao>();
         public Dictionary<string, GLVao> GLVaos = new Dictionary<string, GLVao>();
         public Dictionary<string, GLMeshVao> GLPrimitiveMeshVaos = new Dictionary<string, GLMeshVao>();
-        
+
         public List<GMDL.Light> GLlights = new List<GMDL.Light>();
         public List<Camera> GLCameras = new List<Camera>();
         //public Dictionary<string, int> GLShaders = new Dictionary<string, int>();
         public Dictionary<GLSLHelper.SHADER_TYPE, GLSLHelper.GLSLShaderConfig> GLShaders = new Dictionary<GLSLHelper.SHADER_TYPE, GLSLHelper.GLSLShaderConfig>(); //Generic Shaders
-        
+
         public Dictionary<int, GLSLShaderConfig> GLDeferredLITShaderMap = new Dictionary<int, GLSLShaderConfig>();
         public Dictionary<int, GLSLShaderConfig> GLDeferredUNLITShaderMap = new Dictionary<int, GLSLShaderConfig>();
         public Dictionary<int, GLSLShaderConfig> GLForwardShaderMapTransparent = new Dictionary<int, GLSLShaderConfig>();
@@ -66,13 +61,13 @@ namespace MVCore
         //Procedural Generation Options
         //TODO: This is 99% NOT correct
         //public Dictionary<string, int> procTextureLayerSelections = new Dictionary<string, int>();
-        
+
         //public DebugForm DebugWin;
 
         public void Init()
         {
             initialized = false;
-            
+
             //Add defaults
             addDefaultTextures();
             addDefaultMaterials();
@@ -108,14 +103,14 @@ namespace MVCore
                 intensity = 50,
                 localPosition = new Vector3(100.0f, 100.0f, 100.0f)
             };
-        
+
             light.meshVao = new GLMeshVao();
             light.meshVao.vao = new MVCore.Primitives.LineSegment(1, new Vector3(1.0f, 1.0f, 1.0f)).getVAO();
             light.meshVao.metaData = new MeshMetaData();
             light.meshVao.metaData.batchcount = 2;
             light.meshVao.material = GLmaterials["lightMat"];
-            
-            
+
+
             GLlights.Add(light);
         }
 
@@ -194,6 +189,63 @@ namespace MVCore
             //Assign material to shaders
         }
 
+        private void generateGizmoParts()
+        {
+            //Translation Gizmo
+            Primitives.Arrow translation_x_axis = new Primitives.Arrow(0.015f, 0.25f, new Vector3(1.0f, 0.0f, 0.0f), false, 20);
+            //Move arrowhead up in place
+            Matrix4 t = Matrix4.CreateRotationZ(MathUtils.radians(90));
+            translation_x_axis.applyTransform(t);
+            
+            Primitives.Arrow translation_y_axis = new Primitives.Arrow(0.015f, 0.25f, new Vector3(0.0f, 1.0f, 0.0f), false, 20);
+            Primitives.Arrow translation_z_axis = new Primitives.Arrow(0.015f, 0.25f, new Vector3(0.0f, 0.0f, 1.0f), false, 20);
+            t = Matrix4.CreateRotationX(MathUtils.radians(90));
+            translation_z_axis.applyTransform(t);
+
+            //Generate Geom objects
+            translation_x_axis.geom = translation_x_axis.getGeom();
+            translation_y_axis.geom = translation_y_axis.getGeom();
+            translation_z_axis.geom = translation_z_axis.getGeom();
+
+
+            GLPrimitiveVaos["default_translation_gizmo_x_axis"] = translation_x_axis.getVAO();
+            GLPrimitiveVaos["default_translation_gizmo_y_axis"] = translation_y_axis.getVAO();
+            GLPrimitiveVaos["default_translation_gizmo_z_axis"] = translation_z_axis.getVAO();
+
+
+            //Generate PrimitiveMeshVaos
+            for (int i = 0; i < 3; i++)
+            {
+                string name = "";
+                Primitives.Primitive arr = null;
+                switch (i)
+                {
+                    case 0:
+                        arr = translation_x_axis;
+                        name = "default_translation_gizmo_x_axis";
+                        break;
+                    case 1:
+                        arr = translation_y_axis;
+                        name = "default_translation_gizmo_y_axis";
+                        break;
+                    case 2:
+                        arr = translation_z_axis;
+                        name = "default_translation_gizmo_z_axis";
+                        break;
+                }
+
+                GLPrimitiveMeshVaos[name] = new GLMeshVao();
+                GLPrimitiveMeshVaos[name].type = TYPES.GIZMOPART;
+                GLPrimitiveMeshVaos[name].metaData = new MeshMetaData();
+                GLPrimitiveMeshVaos[name].metaData.batchcount = arr.geom.indicesCount;
+                GLPrimitiveMeshVaos[name].indicesLength = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedInt;
+                GLPrimitiveMeshVaos[name].vao = GLPrimitiveVaos[name];
+                GLPrimitiveMeshVaos[name].material = GLmaterials["crossMat"];
+
+            }
+
+        }
+
         public void addDefaultPrimitives()
         {
             //Setup Primitive Vaos
@@ -235,18 +287,7 @@ namespace MVCore
             GLPrimitiveMeshVaos["default_sphere"] = new GLMeshVao();
             GLPrimitiveMeshVaos["default_sphere"].vao = GLPrimitiveVaos["default_sphere"];
 
-            //Default arrow
-            //Primitives.ArrowHead arr = new Primitives.ArrowHead(new Vector3(1.0f, 0.0f, 0.0f));
-            //Primitives.Arrow arr = new Primitives.Arrow(0.1f, 1.0f, new Vector3(1.0f, 0.0f, 0.0f), true);
-            Primitives.TranslationGizmo arr = new Primitives.TranslationGizmo(new Vector3(1.0f, 1.0f, 1.0f), true);
-            GLPrimitiveVaos["default_translation_gizmo"] = arr.getVAO();
-            GLPrimitiveMeshVaos["default_translation_gizmo"] = new GLMeshVao();
-            GLPrimitiveMeshVaos["default_translation_gizmo"].type = TYPES.GIZMO;
-            GLPrimitiveMeshVaos["default_translation_gizmo"].metaData = new MeshMetaData();
-            GLPrimitiveMeshVaos["default_translation_gizmo"].metaData.batchcount = arr.geom.indicesCount;
-            GLPrimitiveMeshVaos["default_translation_gizmo"].indicesLength = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedInt;
-            GLPrimitiveMeshVaos["default_translation_gizmo"].vao = GLPrimitiveVaos["default_translation_gizmo"];
-            GLPrimitiveMeshVaos["default_translation_gizmo"].material = GLmaterials["crossMat"];
+            generateGizmoParts();
         }
 
         public bool shaderExistsForMaterial(Material mat)

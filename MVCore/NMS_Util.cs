@@ -11,7 +11,6 @@ using System.Linq;
 using OpenTK.Graphics.OpenGL;
 using Microsoft.Win32;
 using Newtonsoft.Json;
-using System.Windows.Shapes;
 using Path = System.IO.Path;
 using MVCore.Common;
 using System.Windows;

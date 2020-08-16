@@ -30,8 +30,7 @@ namespace WPFModelViewer
         private CGLControl glControl;
         private SettingsForm settingsForm;
         private Settings settings;
-        private model activeModel;
-        private model prev_activeModel;
+        
 
         private int itemCounter = 0;
 
@@ -524,14 +523,14 @@ namespace WPFModelViewer
             if (node != null)
             {
                 //Swap activeModels
-                prev_activeModel = activeModel;
-                activeModel = node;
+                model prev_activeModel = glControl.activeModel;
+                glControl.activeModel = node;
 
                 //Set binding to objectinfo box
                 ObjectInfoBox.Content = node;
 
                 //Set Selected
-                activeModel.selected = 1;
+                glControl.activeModel.selected = 1;
 
                 //Deselect Previews model
                 if (prev_activeModel != null)

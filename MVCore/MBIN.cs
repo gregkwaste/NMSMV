@@ -31,6 +31,7 @@ namespace MVCore
         REFERENCE,
         DECAL,
         GIZMO,
+        GIZMOPART,
         UNKNOWN
     }
 
@@ -195,6 +196,7 @@ namespace MVCore
 
             //Store Joint Data
             fs.Seek(jointbindingOffset, SeekOrigin.Begin);
+            geom.jointCount = jointCount;
             for (int i = 0; i < jointCount; i++)
             {
                 JointBindingData jdata = new JointBindingData();
