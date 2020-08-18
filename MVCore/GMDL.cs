@@ -32,6 +32,7 @@ using SharpFont;
 using WPFModelViewer.Properties;
 using WPFModelViewer;
 using System.Windows.Documents.DocumentStructures;
+using MVCore.Common;
 //using Matrix4 = MathNet.Numerics.LinearAlgebra.Matrix<float>;
 
 namespace MVCore.GMDL
@@ -1015,7 +1016,7 @@ namespace MVCore.GMDL
                 return;
             }
             
-            bool fr_status = Common.RenderState.activeCam.frustum_occlude(this);
+            bool fr_status = Common.RenderState.activeCam.frustum_occlude(meshVao, worldMat * RenderState.rotMat);
             bool occluded_status = !fr_status && Common.RenderState.renderSettings.UseFrustumCulling;
 
             //Recalculations && Data uploads
@@ -1226,11 +1227,12 @@ namespace MVCore.GMDL
             if (instance_id < GLMeshVao.MAX_INSTANCES)
             {
                 //Uplod worldMat to the meshVao
-                
-                Matrix4 worldMatInv = m.worldMat.Inverted();
-                setInstanceWorldMat(mesh, instance_id, m.worldMat);
-                setInstanceWorldMatInv(mesh, instance_id, worldMatInv);
-                setInstanceNormalMat(mesh, instance_id, Matrix4.Transpose(worldMatInv));
+
+                Matrix4 actualWorldMat = m.worldMat;
+                Matrix4 actualWorldMatInv = (actualWorldMat).Inverted();
+                setInstanceWorldMat(mesh, instance_id, actualWorldMat);
+                setInstanceWorldMatInv(mesh, instance_id, actualWorldMatInv);
+                setInstanceNormalMat(mesh, instance_id, Matrix4.Transpose(actualWorldMatInv));
 
                 mesh.instanceRefs.Add(m); //Keep reference
                 mesh.instance_count++;
@@ -2084,9 +2086,9 @@ namespace MVCore.GMDL
                 return;
             }
 
-            bool fr_status = Common.RenderState.activeCam.frustum_occlude(this);
+            bool fr_status = Common.RenderState.activeCam.frustum_occlude(meshVao, worldMat * RenderState.rotMat);
             bool occluded_status = !fr_status && Common.RenderState.renderSettings.UseFrustumCulling;
-                
+            
             //Recalculations && Data uploads
             if (!occluded_status)
             {
@@ -5127,7 +5129,9 @@ namespace MVCore.GMDL
                     light_type = LIGHT_TYPE.SPOT;
                 }
 
-                ep = ep * _localRotation;
+                ep = ep * _localRotation * RenderState.rotMat;
+                direction = ep.Xyz; //Set spotlight direction
+                update_struct();
 
                 //Update Vertex Buffer based on the new data
                 float[] verts = new float[6];
@@ -5169,17 +5173,18 @@ namespace MVCore.GMDL
             if (Math.Abs(FOV - 360.0f) <= 1e-4)
             {
                 ep = new Vector4(0.0f, 0.0f, 0.0f, 1.0f);
+                ep = ep * _localRotation;
                 light_type = LIGHT_TYPE.POINT;
             }
             else
             {
                 ep = new Vector4(0.0f, 0.0f, -1.0f, 0.0f);
+                ep = ep * _localRotation * RenderState.rotMat;
                 light_type = LIGHT_TYPE.SPOT;
             }
 
-            ep = ep * _localRotation;
             ep.Normalize();
-
+            
             direction = ep.Xyz; //Set spotlight direction
             update_struct();
 
@@ -5213,7 +5218,7 @@ namespace MVCore.GMDL
         public void update_struct()
         {
             Vector4 old_pos = strct.position;
-            strct.position = new Vector4(worldPosition, renderable ? 1.0f : 0.0f);
+            strct.position = new Vector4((new Vector4(worldPosition, 1.0f) * RenderState.rotMat).Xyz, renderable ? 1.0f : 0.0f);
             strct.color = new Vector4(Color.Vec.Xyz, (float) intensity);
             strct.direction = new Vector4(direction, (float) MathUtils.radians(fov));
             strct.falloff = (int) falloff;

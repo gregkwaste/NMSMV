@@ -514,7 +514,7 @@ namespace WPFModelViewer
 
         private void SceneResetRotation(object sender, RoutedEventArgs e)
         {
-            glControl.updateControlRotation(0.0f, 0.0f);
+            RenderState.rotAngles = new Vector3(0.0f);
         }
 
         private void SceneTreeView_OnSelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)

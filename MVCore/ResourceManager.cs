@@ -104,13 +104,6 @@ namespace MVCore
                 localPosition = new Vector3(100.0f, 100.0f, 100.0f)
             };
 
-            light.meshVao = new GLMeshVao();
-            light.meshVao.vao = new MVCore.Primitives.LineSegment(1, new Vector3(1.0f, 1.0f, 1.0f)).getVAO();
-            light.meshVao.metaData = new MeshMetaData();
-            light.meshVao.metaData.batchcount = 2;
-            light.meshVao.material = GLmaterials["lightMat"];
-
-
             GLlights.Add(light);
         }
 
@@ -269,6 +262,8 @@ namespace MVCore
             GLPrimitiveMeshVaos["default_cross"].type = TYPES.GIZMO;
             GLPrimitiveMeshVaos["default_cross"].metaData = new MeshMetaData();
             GLPrimitiveMeshVaos["default_cross"].metaData.batchcount = c.geom.indicesCount;
+            GLPrimitiveMeshVaos["default_cross"].metaData.AABBMIN = new Vector3(-0.1f);
+            GLPrimitiveMeshVaos["default_cross"].metaData.AABBMAX = new Vector3(0.1f);
             GLPrimitiveMeshVaos["default_cross"].indicesLength = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedInt;
             GLPrimitiveMeshVaos["default_cross"].vao = GLPrimitiveVaos["default_cross"];
             GLPrimitiveMeshVaos["default_cross"].material = GLmaterials["crossMat"];

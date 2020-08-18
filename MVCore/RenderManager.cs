@@ -66,6 +66,7 @@ namespace MVCore
         List<GLMeshVao> collisionMeshList = new List<GLMeshVao>();
         List<GLMeshVao> locatorMeshList = new List<GLMeshVao>();
         List<GLMeshVao> jointMeshList = new List<GLMeshVao>();
+        List<GLMeshVao> lightMeshList = new List<GLMeshVao>();
 
         public ResourceManager resMgr; //REf to the active resource Manager
 
@@ -239,6 +240,7 @@ namespace MVCore
             collisionMeshList.Clear();
             locatorMeshList.Clear();
             jointMeshList.Clear();
+            lightMeshList.Clear();
             staticObjectsQueue.Clear();
             movingMeshQueue.Clear();
             octree.clear();
@@ -296,6 +298,9 @@ namespace MVCore
             globalMeshList.Add(resMgr.GLPrimitiveMeshVaos["default_translation_gizmo_y_axis"]);
             globalMeshList.Add(resMgr.GLPrimitiveMeshVaos["default_translation_gizmo_z_axis"]);
 
+
+            //Add default light mesh
+            process_model(resMgr.GLlights[0].meshVao);
             
             identifyActiveShaders();
 
@@ -307,7 +312,7 @@ namespace MVCore
                 return;
 
             Dictionary<int, List<GLMeshVao>> shaderMeshMap = RenderState.activeResMgr.opaqueMeshShaderMap;
-            if (m.type == TYPES.COLLISION || m.type == TYPES.LOCATOR || m.type == TYPES.JOINT || m.type == TYPES.MODEL || m.type == TYPES.GIZMO) { 
+            if (m.type == TYPES.COLLISION || m.type == TYPES.LOCATOR || m.type == TYPES.JOINT || m.type == TYPES.MODEL || m.type == TYPES.GIZMO || m.type == TYPES.LIGHT) { 
                 shaderMeshMap = RenderState.activeResMgr.defaultMeshShaderMap;
             }
             //Check if the model is a decal
@@ -338,6 +343,9 @@ namespace MVCore
                     break;
                 case (TYPES.JOINT):
                     jointMeshList.Add(m);
+                    break;
+                case (TYPES.LIGHT):
+                    lightMeshList.Add(m);
                     break;
                 default:
                     {
@@ -791,6 +799,26 @@ namespace MVCore
                     GL.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 1, SSBOs["_COMMON_PER_MESH"],
                         (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
                     
+                    m.render(shader, RENDERPASS.DEFERRED);
+                }
+            }
+
+            //Collisions
+            if (RenderState.renderViewSettings.RenderLights)
+            {
+                Material mat = resMgr.GLmaterials["lightMat"];
+                GLSLShaderConfig shader = RenderState.activeResMgr.GLDefaultShaderMap[mat.shaderHash];
+                GL.UseProgram(shader.program_id); //Set Program
+
+                //Render static meshes
+                foreach (GLMeshVao m in lightMeshList)
+                {
+                    if (m.instance_count == 0)
+                        continue;
+
+                    GL.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 1, SSBOs["_COMMON_PER_MESH"],
+                        (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+
                     m.render(shader, RENDERPASS.DEFERRED);
                 }
             }

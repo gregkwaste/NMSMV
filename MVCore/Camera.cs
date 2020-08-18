@@ -175,7 +175,7 @@ namespace MVCore.GMDL
 
         }
 
-        public bool frustum_occlude(Vector3 AABBMIN, Vector3 AABBMAX)
+        public bool frustum_occlude(Vector3 AABBMIN, Vector3 AABBMAX, Matrix4 transform)
         {
             if (!Common.RenderState.renderSettings.UseFrustumCulling)
                 return true;
@@ -184,7 +184,7 @@ namespace MVCore.GMDL
             Vector3 bsh_center = AABBMIN + 0.5f * (AABBMAX - AABBMIN);
 
             //Move sphere to object's root position
-            bsh_center = (new Vector4(bsh_center, 1.0f)).Xyz;
+            bsh_center = (new Vector4(bsh_center, 1.0f) * transform).Xyz;
 
             //This is not accurate for some fucking reason
             //return extFrustum.AABBVsFrustum(cand.Bbox, cand.worldMat * transform);
@@ -194,11 +194,16 @@ namespace MVCore.GMDL
         }
 
 
-        public bool frustum_occlude(GMDL.model cand)
+        public bool frustum_occlude(GMDL.GLMeshVao meshVao, Matrix4 transform)
         {
             if (!culling) return true;
 
-            return frustum_occlude(cand.AABBMIN, cand.AABBMAX);
+            Vector4 v1, v2;
+
+            v1 = new Vector4(meshVao.metaData.AABBMIN, 1.0f);
+            v2 = new Vector4(meshVao.metaData.AABBMAX, 1.0f);
+            
+            return frustum_occlude(v1.Xyz, v2.Xyz, transform);
         }
 
         public void render()

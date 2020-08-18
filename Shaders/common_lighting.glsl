@@ -109,7 +109,7 @@ float calcLightAttenuation(Light light, vec4 _fragPos){
 }
 
 
-vec3 calcLighting(Light light, vec4 fragPos, vec3 fragNormal, vec3 viewDir,
+vec3 calcLighting(Light light, vec4 fragPos, vec3 fragNormal, vec3 cameraPos,
             vec3 albedoColor, float lfMetallic, float lfRoughness, float ao) {
     
     vec3 L;
@@ -122,14 +122,15 @@ vec3 calcLighting(Light light, vec4 fragPos, vec3 fragNormal, vec3 viewDir,
     //ao = 1.0;
     //return vec3(lfRoughness, 0.0, 0.0);
 
-    vec3 V = -viewDir;
+    vec3 V = normalize(cameraPos - fragPos.xyz);
     L = normalize(light.position.xyz - fragPos.xyz);    
     attenuation = calcLightAttenuation(light, fragPos);
-    //float attenuation = 1.0 / (distance * distance); //Default calculation
+    float distance    = length(light.position.xyz - fragPos.xyz);
+    //attenuation = 0.001 * 1.0 / (distance * distance); //Default calculation
 
     vec3 radiance = light.color.xyz * light.color.w * attenuation;
     vec3 H = normalize(V + L);
-    //float distance    = length(light.position.xyz - fragPos.xyz);
+    
     
     // cook-torrance brdf
     float NDF = DistributionGGX(N, H, 1.0 - lfRoughness);        

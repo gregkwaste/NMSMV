@@ -33,7 +33,10 @@ namespace MVCore.Common
         public static Random randgen = new Random();
 
         //Keep the view rotation Matrix
-        public static Matrix4 rotMat;
+        public static Matrix4 rotMat = Matrix4.Identity;
+
+        //Keep the view rotation Angles (in degrees)
+        public static Vector3 rotAngles = new Vector3(0.0f);
 
         //RenderSettings
         public static RenderSettings renderSettings = new RenderSettings();

@@ -26,10 +26,6 @@ namespace Model_Viewer
         public TranslationGizmo gizTranslate;
         
         
-        //Common Transforms
-        //private Matrix4 rotMat, mvp;
-
-        private Vector3 rot = new Vector3(0.0f, 0.0f, 0.0f);
         //private Camera activeCam;
 
         //Use public variables for now because getters/setters are so not worth it for our purpose
@@ -128,7 +124,7 @@ namespace Model_Viewer
             registerFunctions();
 
             //Default Setup
-            rot.Y = 131;
+            RenderState.rotAngles.Y = 131;
             light_angle_y = 190;
 
             //Input Polling Timer
@@ -156,7 +152,7 @@ namespace Model_Viewer
             this.index = index;
             
             //Default Setup
-            this.rot.Y = 131;
+            RenderState.rotAngles.Y = 131;
             this.light_angle_y = 190;
 
             //Assign new palette to GLControl
@@ -286,11 +282,12 @@ namespace Model_Viewer
             RenderState.activeCam.aspect = (float) ClientSize.Width / ClientSize.Height;
                 
             //Apply extra viewport rotation
-            Matrix4 Rotx = Matrix4.CreateRotationX(MathUtils.radians(rot[0]));
-            Matrix4 Roty = Matrix4.CreateRotationY(MathUtils.radians(rot[1]));
-            Matrix4 Rotz = Matrix4.CreateRotationZ(MathUtils.radians(rot[2]));
+            Matrix4 Rotx = Matrix4.CreateRotationX(MathUtils.radians(RenderState.rotAngles.X));
+            Matrix4 Roty = Matrix4.CreateRotationY(MathUtils.radians(RenderState.rotAngles.Y));
+            Matrix4 Rotz = Matrix4.CreateRotationZ(MathUtils.radians(RenderState.rotAngles.Z));
             RenderState.rotMat = Rotz * Rotx * Roty;
-            
+            //RenderState.rotMat = Matrix4.Identity;
+
             resMgr.GLCameras[0].updateViewMatrix();
             resMgr.GLCameras[1].updateViewMatrix();
 
@@ -1142,11 +1139,6 @@ namespace Model_Viewer
 
 #endregion
 
-        public void updateControlRotation(float rx, float ry)
-        {
-            rot.X = rx;
-            rot.Y = ry;
-        }
 
 #region AddObjectMethods
 
@@ -1230,7 +1222,7 @@ namespace Model_Viewer
             
             //Populate RenderManager
             renderMgr.populate(rootObject);
-
+            
             //Clear Instances
             renderMgr.clearInstances();
             rootObject.updateMeshInfo(); //Update all mesh info
@@ -1318,11 +1310,18 @@ namespace Model_Viewer
             y = step * (kbHandler.getKeyStatus(OpenTK.Input.Key.W) - kbHandler.getKeyStatus(OpenTK.Input.Key.S));
             z = step * (kbHandler.getKeyStatus(OpenTK.Input.Key.R) - kbHandler.getKeyStatus(OpenTK.Input.Key.F));
 
-            rotx = 50 * step * (kbHandler.getKeyStatus(OpenTK.Input.Key.E) - kbHandler.getKeyStatus(OpenTK.Input.Key.Q));
-            roty = 50 * step * (kbHandler.getKeyStatus(OpenTK.Input.Key.C) - kbHandler.getKeyStatus(OpenTK.Input.Key.Z));
+
+            //Camera rotation is done exclusively using the mouse
+
+            //rotx = 50 * step * (kbHandler.getKeyStatus(OpenTK.Input.Key.E) - kbHandler.getKeyStatus(OpenTK.Input.Key.Q));
+            //roty = 50 * step * (kbHandler.getKeyStatus(OpenTK.Input.Key.C) - kbHandler.getKeyStatus(OpenTK.Input.Key.Z));
+
+            RenderState.rotAngles.Y += 100 * step * (kbHandler.getKeyStatus(Key.E) - kbHandler.getKeyStatus(Key.Q));
+            RenderState.rotAngles.Y %= 360;
+
 
             //Move Camera
-            RenderState.activeCam.Move(x, y, z, rotx, roty);
+            RenderState.activeCam.Move(x, y, z, 0.0f, 0.0f);
             
         }
 
