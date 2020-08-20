@@ -5094,10 +5094,10 @@ namespace MVCore.GMDL
             //Initialize new MeshVao
             meshVao = new GLMeshVao();
             meshVao.type = TYPES.LIGHT;
-            meshVao.vao = new MVCore.Primitives.LineSegment(1, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
+            meshVao.vao = new Primitives.LineSegment(1, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
             meshVao.metaData = new MeshMetaData();
             meshVao.metaData.batchcount = 2;
-            meshVao.material = Common.RenderState.activeResMgr.GLmaterials["lightMat"];
+            meshVao.material = RenderState.activeResMgr.GLmaterials["lightMat"];
             instanceId = GLMeshBufferManager.addInstance(ref meshVao, this); //Add instance
             
 
@@ -5108,12 +5108,12 @@ namespace MVCore.GMDL
                 lightSpaceMatrices[i] = input.lightSpaceMatrices[i];
 
             update_struct();
-            Common.RenderState.activeResMgr.GLlights.Add(this);
+            RenderState.activeResMgr.GLlights.Add(this);
         }
 
         public override void updateMeshInfo()
         {
-            if (Common.RenderState.renderViewSettings.RenderLights && renderable)
+            if (RenderState.renderViewSettings.RenderLights && renderable)
             {
                 //End Point
                 Vector4 ep;
@@ -5129,7 +5129,7 @@ namespace MVCore.GMDL
                     light_type = LIGHT_TYPE.SPOT;
                 }
 
-                ep = ep * _localRotation * RenderState.rotMat;
+                ep = ep * _localRotation;
                 direction = ep.Xyz; //Set spotlight direction
                 update_struct();
 
@@ -5179,7 +5179,7 @@ namespace MVCore.GMDL
             else
             {
                 ep = new Vector4(0.0f, 0.0f, -1.0f, 0.0f);
-                ep = ep * _localRotation * RenderState.rotMat;
+                ep = ep * _localRotation;
                 light_type = LIGHT_TYPE.SPOT;
             }
 
@@ -5219,8 +5219,8 @@ namespace MVCore.GMDL
         {
             Vector4 old_pos = strct.position;
             strct.position = new Vector4((new Vector4(worldPosition, 1.0f) * RenderState.rotMat).Xyz, renderable ? 1.0f : 0.0f);
-            strct.color = new Vector4(Color.Vec.Xyz, (float) intensity);
-            strct.direction = new Vector4(direction, (float) MathUtils.radians(fov));
+            strct.color = new Vector4(Color.Vec.Xyz, intensity);
+            strct.direction = new Vector4(direction, MathUtils.radians(fov));
             strct.falloff = (int) falloff;
             strct.type = (light_type == LIGHT_TYPE.SPOT) ? 1.0f : 0.0f;
             

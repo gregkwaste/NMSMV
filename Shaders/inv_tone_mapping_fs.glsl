@@ -30,7 +30,7 @@ void main()
 	color.rgb = GammaCorrectInput(color.rgb);
 
 	//Invert exposure tone mapping
-	color.rgb = -log(1 - color.rgb) / mpCommonPerFrame.HDRExposure;
+	color.rgb = -log(1 - color.rgb) / mpCommonPerFrame.cameraPosition.w;
 	
 	fragColour = vec4(color.rgb, color.a);
 }

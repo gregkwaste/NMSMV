@@ -43,13 +43,13 @@ struct CommonPerFrameUniforms
     float cameraFarPlane;
     //Rendering Options
     mat4 rotMat;
+    mat4 rotMatInv;
     mat4 mvp;
     mat4 lookMatInv;
     mat4 projMatInv;
-    vec3 cameraPosition;
-    float HDRExposure;
-    vec3 cameraDirection;
+    vec4 cameraPosition; //w component is the HDR exposure
     int light_count;
+    vec3 cameraDirection;
     Light lights[32];
 };
 

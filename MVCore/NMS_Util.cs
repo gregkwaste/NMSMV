@@ -136,7 +136,7 @@ namespace MVCore
             {
                 Util.showError("File: " + filepath + " Not found in PAKs or local folders. ", "Error");
                 CallBacks.Log("File: " + filepath + " Not found in PAKs or local folders. ");
-                throw new FileNotFoundException("File not found\n " + filepath);
+                return null;
             }
                 
             try

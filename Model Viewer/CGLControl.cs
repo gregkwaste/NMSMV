@@ -124,7 +124,7 @@ namespace Model_Viewer
             registerFunctions();
 
             //Default Setup
-            RenderState.rotAngles.Y = 131;
+            RenderState.rotAngles.Y = 0;
             light_angle_y = 190;
 
             //Input Polling Timer
@@ -152,7 +152,7 @@ namespace Model_Viewer
             this.index = index;
             
             //Default Setup
-            RenderState.rotAngles.Y = 131;
+            RenderState.rotAngles.Y = 0;
             this.light_angle_y = 190;
 
             //Assign new palette to GLControl
@@ -794,6 +794,12 @@ namespace Model_Viewer
             //Attach UBO binding Points
             GLShaderHelper.attachUBOToShaderBindingPoint(shader_conf, "_COMMON_PER_FRAME", 0);
             resMgr.GLShaders[SHADER_TYPE.GIZMO_SHADER] = shader_conf;
+
+
+#if DEBUG
+            //Report UBOs
+            GLShaderHelper.reportUBOs(shader_conf);
+#endif
 
             //Picking Shader
 

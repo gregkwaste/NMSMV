@@ -27,7 +27,7 @@ void main()
 	vec4 color = texelFetch(inTex, ivec2(gl_FragCoord.xy), 0);
 
 	//Exposure tone mapping
-	color.rgb = vec3(1.0) - exp(-color.rgb * mpCommonPerFrame.HDRExposure);
+	color.rgb = vec3(1.0) - exp(-color.rgb * mpCommonPerFrame.cameraPosition.w);
     
     //NMS Kodak Tone Mapping
     //color.rgb = TonemapKodak(color.rgb) / TonemapKodak( vec3(1.0,1.0,1.0) );

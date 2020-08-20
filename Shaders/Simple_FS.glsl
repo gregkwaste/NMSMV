@@ -457,7 +457,7 @@ void pbr_lighting(){
 				if (light.position.w < 1.0)
 		        	continue;
 	    		
-	    		finalColor.rgb += calcLighting(light, fragPos, lNormalVec3, mpCommonPerFrame.cameraDirection,
+	    		finalColor.rgb += calcLighting(light, fragPos, lNormalVec3, mpCommonPerFrame.cameraPosition.xyz,
 		            lColourVec4.rgb, lfMetallic, lfRoughness, ao);
 			} 
 		}

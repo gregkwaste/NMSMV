@@ -452,7 +452,7 @@
                         </DockPanel>
                         <DockPanel Grid.Row="6" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                             <TextBlock HorizontalAlignment="Left">Show Gizmo</TextBlock>
-                            <CheckBox Width="20" HorizontalAlignment="Right" IsEnabled="True" IsChecked="{Binding RenderGizmos}"></CheckBox>
+                            <CheckBox Width="20" HorizontalAlignment="Right" IsEnabled="False" IsChecked="{Binding RenderGizmos}"></CheckBox>
                         </DockPanel>
                     </Grid>
                 </GroupBox>
@@ -557,7 +557,7 @@
                                 </DockPanel>
                                 <DockPanel Grid.Row="1" HorizontalAlignment="Stretch">
                                     <TextBlock Width="80">Cam Speed</TextBlock>
-                                    <Slider x:Name="sliderMovementSpeed"  Value="1" Minimum="1" Maximum="10" SmallChange="0.01"></Slider>
+                                    <Slider x:Name="sliderMovementSpeed"  Value="3" Minimum="1" Maximum="10" SmallChange="0.01"></Slider>
                                 </DockPanel>
                                 <DockPanel Grid.Row="2" HorizontalAlignment="Stretch">
                                     <TextBlock Width="80">Cam Speed Factor</TextBlock>

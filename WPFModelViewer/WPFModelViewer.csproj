@@ -274,6 +274,11 @@
   <ItemGroup>
     <EmbeddedResource Include="Resources\default_mask.dds" />
   </ItemGroup>
+  <ItemGroup>
+    <Resource Include="changelog.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+  </ItemGroup>
   <Import Project="..\MVCore\MVCore.projitems" Label="Shared" />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>

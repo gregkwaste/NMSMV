@@ -1,0 +1,95 @@
+### KNOWN BUGS ###	
+	[*] GENERAL NOTE
+		[*] Now that I'm quite happy with the rendering process, I'll start working on the actual functionality of the viewer once again. So feel free to dm me or e-mail me directly for features you want implemented in the viewer, any suggestions that can improve workflow/QOL or for any bugs or problems that you may have when trying to run it. 
+
+
+
+### WIP ###
+	[*] POSES (BROKEN)
+		Posedata for models that have AnimPoseComponents are parsed during model loading, but I'm still not confident on how to use the actual pose matrices on top of the actual joint matrices. SO DO NOT HIT THE APPLY POSE OR RESET POSE BUTTONS. If you do then simply reload your model :P
+	
+	[*] PROC GEN Button (BROKEN)
+		Repairing this long gone functionality is something that I wanna return to ASAP.
+
+	[*] TRANSLATION GIZMO
+		I've been working on implementing a 3D translation gizmo that will allow for a much faster and much more efficient movement of objects around, without having to set positions manually. Other gizmos will follow.
+	
+
+### CHANGELOG ###
+
+Version 0.89.4 CHANGELOG:
+	[*] BUG FIXES
+		[*] Fixed a bug that prevented loading of multiple scenes in the same session
+		[*] Fixed lighting issues related to scene rotation
+		[*] Reassigned scene rotation to Q/E buttons
+		[*] Added lights in the rendering pipeline
+
+
+Version 0.89.0 CHANGELOG:
+
+	[*] RENDERING PIPELINE OVERHAUL. 
+
+		[*] Generic Rendering Optimizations
+			
+			The constant headache that takes most of the development time of the model viewer is the optimization the rendering process. I was not happy with low framerates on some scenes and I wanted to improve that as much as I could. Instance rendering was adopted for rendering large scenes with multiple copies of the same mesh, this also works for animated meshes which have their own instances of shared animations. Uniform buffers are used to upload common frame parameters, while Shader Block Uniform buffers are used to optimize mesh transformation data uploads to the GPU and support intanced rendering for an arbitrary number of mesh instances. Pixel buffers are used for texture uploading (thank god I didn't have to do streaming yet). Texture buffers are used for uploading skinning matrices for instanced and skinned/animated meshes. Frustum culling was revised (hopefully it properly works now together with instanced rendering XD). Also fixed a critical bug regarding normals transformation matrix which was not properly uploaded to the shaders and caused lighting artifacts.
+
+		[*] Deferred Rendering
+
+			For a while now I've switched from a traditional forward renderer to a hybrid deferred + forward renderer for the model viewer. Since there are some scenes with many lights, Deferred rendering massively helped on improving framerate. Recent versions of the viewer consumed a lot of GPU bandwidth per frame due to a lazy implementation of the G-buffer required for deferred rendering. For this version, I went on and optimized the size of the G-buffer, keeping the essential buffers for minimizing the bandwidth (e.g. only the depth map is used to determine the world position of a pixel replacing the position buffer that I used before), which led to even better performance again especially on large scenes. Since again there are scenes with transparent meshes and decal meshes, the forward renderer is used to render these meshes after the deferred pass and the deferred lighting pass. However this is a current WIP due to some changes introduced in shader compilation (read below). Also due to the 65kb limit of UBOs, I'm unable to upload more than 32 lights simultaneously. This will be fixed in future versions.
+
+		[*] PBR Lighting
+
+			Following NMS material structure, a very basic PBR lighting system was implemented to enhance lighting quality for loaded models. Unfortunately, its very hard to match the actual game lighting, due to a shit ton of missing details regarding the actual rendering process of NMS. I did my best to emulate the NMS shader source code that we had since 1.38, and I still try to add as many features as possible. Any advice on this part is massively appreciated. Regarding lighting, metallic, roughness components are supported atm. Glowing and subsurface effects are a WIP.
+
+		[*] Dynamic Material Shader compilation
+
+			Since I wasn't sure about the actual usage of material flags, old versions of the viewer had a unique ubershader that actually supported a bunch of material flags that had to be uploaded on every frame for every mesh to the GPU for proper rendering of the instances of the mesh. Obviously this caused framedrops on scenes with many objects despite the fact that one shader controlled everything. From now on shaders are dynamically compiled using preprocessor directives (just like NMS) during model import. This means that a unique shader is compiled at runtime and specifically handles all the needs (i.e. the corresponding material flags) for a particular material. If I see that this causes lag during model loading, I'm also thinking of using a shader cache to prevent compilation of the same shaders during different sessions again and again.
+
+		[*] Dynamic GPU Buffer Rendering System
+
+			One of the caveats of the viewer was memory consumption. A dynamic memory management system was implemented to keep UBOs, SSBOs, TBOs, PBOs, as small as possible which dramatically reduced memory consumption both in RAM and VRAM. Buffers are dynamically resized whenever required.
+
+		[*] FXAA
+
+			On previous versions of the viewer I had implemented MSAA for solving anti-aliasing issues. The performance hit with MSAA on was quite big and was also super inconsistent when zooming in and out of a scene. I decided to get rid of that and implement FXAA instead. FXAA's performance impact is really minimal and results look nice so it seems like a good replacement overall.
+
+		[*] WIP - Decals & Detail Maps & BLOOM effect
+
+			Decal rendering is up and running again. There is still some work to be done regarding the proper calculation of decal normals. Regarding glowing materials I tried to implement a bloom filter, but for some reason it glows so fucking much that it looks stupid XD. I'll enable this feature when I'm happy that it works properly. I'm also interested in the detail diffuse/mask/normal maps that some of the models of the game feature, so this is also a WIP. If anyone is already using such maps in mods etc, please let me know, I'll need some feedback.
+
+		[*] Transparency
+			The viewer features an implementation of a weighted blended order independent transparency. This method not only features correct results regarding transparency effects, but also increases performance (there is no need to sort the transparent meshes anymore).
+
+	[*] CPU Side Optimizations
+		[*] Animation Loading
+			Animation data is parsed only when animation playback is requested. This prevents a bit RAM usage from scenes with a stupidly high amount of animations (such as the PLAYERCHARACTER.SCENE.MBIN)
+		[*] Few optimizations on matrix math
+		[*] Implemented triple UBO buffering using mapped opengl buffers for asynchronous data uploads on the GPU.
+		[*] UI has its own dedicated work dispatcher for issuing pure cpu-side work requests without blocking the UI
+
+
+	[*] NEW FEATURES
+
+		[*] UI reorganization
+			Added extra tabs for organizing view and rendering options.
+
+		[*] PAK browsing
+			The viewer does not require unpacking your PAK files anymore. When the app starts for the first time, granted that the NMS installation folder is setup properly, the app uses the libPSARC library to load PAK contents. It creates a map file of all the contents of the PAKs which will be saved in the app's directory with the name "NMSmanifest". On every launch this manifest file is read so that the app knows where to look for fetching files. The viewer prioritizes local folders. This means that if you have everything unpacked, files will be parsed from your unpacked folder first and if they are not found, then they will be loaded from the PAK files. For an AWESOME browsing experience a special "Open File from PAK" menu option has been added to the file menu, which can be used to browse the already parsed pak files for SCENE.MBIN files that can be directly loaded to the viewer.
+
+		
+		[*] Automated NMS Installation Folder detection
+			During the first startup, the viewer tries to locate the NMS installation directory. The implemented routine traces through steam installation directory, reads the library folders and searches for the game installation dir. If not found it should prompt you to set the GAMEDATA directory yourself. For GOG versions some default registry keys are used, I haven't tested them a lot.
+
+			WARNING: I'm still optimizing the process. If you encounter any issues with file loading please let me know
+
+		[*] EXML/MBIN Export based on visible scenegraph
+			EXML/MBIN export of scenenodes of the scenegraph respect the renderability status that the user has set to the nodes of the scenegraph. This means that you can generate a brand new copy of the current scene, with just a selection of all the scenenodes that you are interested in, just by toggling all the rest nodes of your view and then exporting the scene to exml or mbin. Again you have the option to export nodes on any level (either the root or any internal node)
+
+		[*] Multitexture preview support
+			Well this is not exactly a new feature, I've included support for previewing multitexture materials (or so called tiling textures) for a while now. I've reworked on that though and it should be working more efficiently at least. So the applied texture on such materials is controlled both in the game as well as in the viewer using common uniform variables per mesh. I'm not aware of any way that fixes the selection (this could be a part of the save file but idk). The point is that there is preset level of tiles in the texture and these are controlled by the gUserDataVec4 uniform. In particular the 4th component (W) of this 4D vector is what controls the selected texture tile. So by changing this value on materials that include the _F55_MULTITEXTURE flag, you should be able to see the corresponding tile applied to the model. The limit that you can set as the active tile seems to depend entirely on the format of the attached texture.
+
+		[*] New locator models
+			Simple line cross models that were used to represent locator/reference/scene objects are replaced with more detailed 3D meshes with different color grading and indicatos for the positive axes. Rotating and scaling such objects should be easier.
+
+
+	

@@ -90,6 +90,7 @@ void main()
 	}
 
 #ifdef _D_LIGHTING
+	finalColor.rgb = ambient.rgb;
 	if ((mpCommonPerFrame.use_lighting > 0.0)) {
 		for(int i = 0; i < mpCommonPerFrame.light_count; ++i) 
 		{
@@ -98,10 +99,10 @@ void main()
 
 			if (light.position.w < 1.0)
 	        	continue;
-	    	
-	        finalColor.rgb += calcLighting(light, fragPos, fragNormal.xyz, mpCommonPerFrame.cameraPosition,
+
+        	finalColor.rgb += calcLighting(light, fragPos, fragNormal.xyz, mpCommonPerFrame.cameraPosition.xyz,
 	            albedoColor.rgb, lfMetallic, lfRoughness, ao);
-		}  
+		}
 
 		finalColor.a = albedoColor.a;
 	} else {

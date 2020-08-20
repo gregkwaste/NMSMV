@@ -100,7 +100,7 @@ namespace MVCore
             Light light = new Light
             {
                 name = "Default Light",
-                intensity = 50,
+                intensity = 200,
                 localPosition = new Vector3(100.0f, 100.0f, 100.0f)
             };
 

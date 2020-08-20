@@ -39,22 +39,22 @@ namespace MVCore
         [FieldOffset(32)]
         public Matrix4 rotMat;
         [FieldOffset(96)]
-        public Matrix4 mvp;
+        public Matrix4 rotMatInv;
         [FieldOffset(160)]
-        public Matrix4 lookMatInv;
+        public Matrix4 mvp;
         [FieldOffset(224)]
-        public Matrix4 projMatInv;
+        public Matrix4 lookMatInv;
         [FieldOffset(288)]
-        public Vector3 cameraPosition;
-        [FieldOffset(300)]
-        public float HDRExposure; //HDR Exposure
-        [FieldOffset(304)]
-        public Vector3 cameraDirection;
-        [FieldOffset(316)]
+        public Matrix4 projMatInv;
+        [FieldOffset(352)]
+        public Vector4 cameraPositionExposure; //Exposure is the W component
+        [FieldOffset(368)]
         public int light_number;
-        [FieldOffset(320)]
+        [FieldOffset(384)]
+        public Vector3 cameraDirection;
+        [FieldOffset(400)]
         public unsafe fixed float lights[32 * 64];
-        public static readonly int SizeInBytes = 2368;
+        public static readonly int SizeInBytes = 8592;
     };
 
     public class renderManager : baseResourceManager, IDisposable
@@ -494,12 +494,13 @@ namespace MVCore
             cpfu.use_lighting = RenderState.renderSettings._useLighting;
             cpfu.frameDim.X = gbuf.size[0];
             cpfu.frameDim.Y = gbuf.size[1];
-            cpfu.HDRExposure = RenderState.renderSettings._HDRExposure;
             cpfu.mvp = RenderState.activeCam.viewMat;
             cpfu.rotMat = RenderState.rotMat;
+            cpfu.rotMatInv = RenderState.rotMat.Inverted();
             cpfu.lookMatInv = RenderState.activeCam.lookMatInv;
             cpfu.projMatInv = RenderState.activeCam.projMatInv;
-            cpfu.cameraPosition = RenderState.activeCam.Position;
+            cpfu.cameraPositionExposure.Xyz = RenderState.activeCam.Position;
+            cpfu.cameraPositionExposure.W = RenderState.renderSettings._HDRExposure;
             cpfu.cameraDirection = RenderState.activeCam.Front;
             cpfu.cameraNearPlane = RenderState.activeCam.zNear;
             cpfu.cameraFarPlane = RenderState.activeCam.zFar;
