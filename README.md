@@ -1,6 +1,6 @@
 # **No Mans's Model Viewer** #
 
-<div align="center"> <img src="http://i.imgur.com/KkotCjBl.png"></div>
+<div align="center"> <img src="https://i.imgur.com/9NX73V1h.png"></div>
 
 <div align="center">
 <img alt="GitHub tag (latest by date)" src="https://img.shields.io/github/v/tag/gregkwaste/NMSMV">
