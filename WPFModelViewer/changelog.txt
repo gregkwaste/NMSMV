@@ -17,7 +17,7 @@
 
 ### CHANGELOG ###
 
-Version 0.89.4 CHANGELOG:
+Version 0.89.4 (Supported Game version 2.6X) CHANGELOG:
 	[*] BUG FIXES
 		[*] Fixed a bug that prevented loading of multiple scenes in the same session
 		[*] Fixed lighting issues related to scene rotation
