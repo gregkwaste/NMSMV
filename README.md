@@ -3,7 +3,9 @@
 <div align="center"> <img src="http://i.imgur.com/KkotCjBl.png"></div>
 
 <div align="center">
-<a href = "http://google.com"> <img src="https://img.shields.io/badge/Maintained%3F-yes-green.svg"> </a>
+<img alt="GitHub tag (latest by date)" src="https://img.shields.io/github/v/tag/gregkwaste/NMSMV">
+<img alt="GitHub release (latest by date)" src="https://img.shields.io/github/v/release/gregkwaste/NMSMV">
+<a href="https://github.com/gregkwaste/NMSMV/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/gregkwaste/NMSMV"></a>
 </div>
 
 
@@ -11,15 +13,15 @@ No Man's Model Viewer is an application developed to preview No Man's Sky 3D ass
 
 ## **Repo Version** ##
 
-* [Latest Version 0.89.4](https://bitbucket.org/gregkwaste/nms-viewer/downloads)
-* [Wiki Page - OUTDATED](https://bitbucket.org/gregkwaste/nms-viewer/wiki/Home)
+* [Latest Version 0.89.4](https://github.com/gregkwaste/NMSMV/releases)
+* [Wiki Page - OUTDATED](https://github.com/gregkwaste/NMSMV/wiki)
 
 ### Build from Source? ###
 
 TODO
 
 ### Contribution guidelines ###
-* Please Report any Issues or any suggestions you may have.
+* Please use the issue tracker to report any issues or any features/suggestions you may have.
 
 ### Credits ###
 * monkeyman12 main maintainer of the [MBINCompiler](https://github.com/monkeyman192/MBINCompiler)
