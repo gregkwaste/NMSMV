@@ -97,12 +97,11 @@
     <Reference Include="Costura, Version=4.1.0.0, Culture=neutral, PublicKeyToken=9919ef960d84173d, processorArchitecture=MSIL">
       <HintPath>..\packages\Costura.Fody.4.1.0\lib\net40\Costura.dll</HintPath>
     </Reference>
-    <Reference Include="libMBIN, Version=2.15.0.1, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\Model Viewer\lib\libMBIN.dll</HintPath>
+    <Reference Include="libMBIN">
+      <HintPath>..\lib\libMBIN.dll</HintPath>
     </Reference>
     <Reference Include="libPSARC">
-      <HintPath>..\Model Viewer\lib\libPSARC.dll</HintPath>
+      <HintPath>..\lib\libPSARC.dll</HintPath>
     </Reference>
     <Reference Include="MathNet.Numerics, Version=4.9.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\MathNet.Numerics.4.9.0\lib\net461\MathNet.Numerics.dll</HintPath>
@@ -159,7 +158,7 @@
       <Private>False</Private>
     </Reference>
     <Reference Include="zlib.net">
-      <HintPath>..\Model Viewer\lib\zlib.net.dll</HintPath>
+      <HintPath>..\lib\zlib.net.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -167,8 +166,7 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="..\Model Viewer\CGLControl.cs">
-      <Link>CGLControl.cs</Link>
+    <Compile Include="CGLControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="ModelTransform.xaml.cs">
