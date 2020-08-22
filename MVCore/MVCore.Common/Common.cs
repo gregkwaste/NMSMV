@@ -291,8 +291,8 @@ namespace MVCore.Common
 
     //Delegates - Function Types for Callbacks
     public delegate void UpdateStatusCallBack(string msg);
-    public delegate void OpenAnimCallBack(string filepath, MVCore.GMDL.model animScene);
-    public delegate void OpenPoseCallBack(string filepath, MVCore.GMDL.model animScene);
+    public delegate void OpenAnimCallBack(string filepath, model animScene);
+    public delegate void OpenPoseCallBack(string filepath, model animScene);
     public delegate void LogCallBack(string msg);
     public delegate void SendRequestCallBack(ref ThreadRequest req);
     

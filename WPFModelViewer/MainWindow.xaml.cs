@@ -16,6 +16,7 @@ using System.Windows.Data;
 using System.Threading;
 using System.Reflection;
 using OpenTK;
+using MVCore.MVCore.Utils;
 
 namespace WPFModelViewer
 {
@@ -333,6 +334,7 @@ namespace WPFModelViewer
             Console.WriteLine("Window Closed");
             //CLose Logger
             Util.loggingSr.Close();
+
         }
 
         private IntPtr HwndMessageHook(IntPtr wnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -690,7 +692,10 @@ namespace WPFModelViewer
             public Int32 Y;
         };
 
-        
+        private void UpdateLibMBIN_Click(object sender, RoutedEventArgs e)
+        {
+            HTMLUtils.fetchLibMBINDLL();
+        }
     }
 
 

@@ -13,9 +13,7 @@ using MVCore;
 using MVCore.GMDL;
 using Console = System.Console;
 using WPFModelViewer;
-using MVCore.Common;
-using System.Drawing;
-using System.Windows;
+using MVCore.Utils;
 
 namespace MVCore
 {
@@ -491,7 +489,7 @@ namespace MVCore
             Console.WriteLine("Loading Objects from MBINFile");
 
             string sceneName = template.Name;
-            MVCore.Common.CallBacks.Log(string.Format("Trying to load Scene {0}", sceneName));
+            Common.CallBacks.Log(string.Format("Trying to load Scene {0}", sceneName));
             string[] split = sceneName.Split('\\');
             string scnName = split[split.Length - 1];
             Common.CallBacks.updateStatus("Importing Scene: " + scnName);
@@ -542,7 +540,7 @@ namespace MVCore
                 if (fs is null)
                 {
                     Util.showError("Could not find geometry file " + geomfile + ".PC", "Error");
-                    CallBacks.Log(string.Format("Could not find geometry file {0} ", geomfile + ".PC"));
+                    Common.CallBacks.Log(string.Format("Could not find geometry file {0} ", geomfile + ".PC"));
 
                     //Create Dummy Scene
                     scene dummy = new scene();
@@ -697,7 +695,7 @@ namespace MVCore
         {
             Material mat;
 
-            MVCore.Common.CallBacks.Log(string.Format("Trying to load Material {0}", matname));
+            Common.CallBacks.Log(string.Format("Trying to load Material {0}", matname));
             string matkey = matname; //Use the entire path
 
 
@@ -707,7 +705,7 @@ namespace MVCore
             //File probably not found not even in the PAKS, 
             if (mat == null)
             {
-                MVCore.Common.CallBacks.Log(string.Format("Warning Material Missing!!!"));
+                Common.CallBacks.Log(string.Format("Warning Material Missing!!!"));
                 //Generate empty material
                 mat = new Material();
             }
@@ -766,7 +764,7 @@ namespace MVCore
 
             if (typeEnum == TYPES.MESH)
             {
-                MVCore.Common.CallBacks.Log(string.Format("Parsing Mesh {0}", name));
+                Common.CallBacks.Log(string.Format("Parsing Mesh {0}", name));
                 //Create model
                 meshModel so = new meshModel();
 
@@ -785,7 +783,7 @@ namespace MVCore
                 so.metaData.AABBMIN = new Vector3();
                 so.metaData.AABBMAX = new Vector3();
 
-                MVCore.Common.CallBacks.Log(string.Format("Randomized Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]));
+                Common.CallBacks.Log(string.Format("Randomized Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]));
                 //Get Options
                 so.metaData.batchstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHSTARTPHYSI"));
                 so.metaData.vertrstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRSTARTPHYSI"));
@@ -807,7 +805,7 @@ namespace MVCore
                 so.metaData.AABBMAX.Z = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMAXZ"));
                 so.metaData.Hash = ulong.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HASH"));
                 
-                MVCore.Common.CallBacks.Log(string.Format("Batch Physics Start {0} Count {1} Vertex Physics {2} - {3} Vertex Graphics {4} - {5} SkinMats {6}-{7}",
+                Common.CallBacks.Log(string.Format("Batch Physics Start {0} Count {1} Vertex Physics {2} - {3} Vertex Graphics {4} - {5} SkinMats {6}-{7}",
                     so.metaData.batchstart_physics, so.metaData.batchcount, so.metaData.vertrstart_physics,
                     so.metaData.vertrend_physics, so.metaData.vertrstart_graphics, so.metaData.vertrend_graphics,
                     so.metaData.firstskinmat, so.metaData.lastskinmat));
@@ -841,7 +839,7 @@ namespace MVCore
                         so.metaData.lodLevel = (int)Char.GetNumericValue(name[name.IndexOf("LOD") + 3]);
                     } catch (IndexOutOfRangeException ex)
                     {
-                        CallBacks.Log("Unable to fetch lod level from mesh name");
+                        Common.CallBacks.Log("Unable to fetch lod level from mesh name");
                         so.metaData.lodLevel = 0;
                     }
                     
@@ -867,7 +865,7 @@ namespace MVCore
 
                 //Search for the material
                 Material mat;
-                if (MVCore.Common.RenderState.activeResMgr.GLmaterials.ContainsKey(matname))
+                if (Common.RenderState.activeResMgr.GLmaterials.ContainsKey(matname))
                     mat = Common.RenderState.activeResMgr.GLmaterials[matname];
                 else
                 {
@@ -929,7 +927,7 @@ namespace MVCore
                     {
                         meshVao.bHullVao = gobject.getCollisionMeshVao(so.metaData); //Missing data
                     } catch (Exception ex) {
-                        CallBacks.Log("Error while fetching bHull Collision Mesh");
+                        Common.CallBacks.Log("Error while fetching bHull Collision Mesh");
                         meshVao.bHullVao = null;
                     }
                     
@@ -1076,7 +1074,7 @@ namespace MVCore
                 joint.meshVao.type = TYPES.JOINT;
                 joint.meshVao.metaData = new MeshMetaData();
                 //TODO: Find a place to keep references from the joint GLMeshVAOs
-                joint.meshVao.vao = new MVCore.Primitives.LineSegment(children.Count, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
+                joint.meshVao.vao = new Primitives.LineSegment(children.Count, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
                 joint.meshVao.material = Common.RenderState.activeResMgr.GLmaterials["jointMat"];
 
                 //Add joint to scene
@@ -1118,7 +1116,7 @@ namespace MVCore
 
                 scene new_so;
                 //Check if scene has been parsed
-                if (!RenderState.activeResMgr.GLScenes.ContainsKey(scene_ref))
+                if (!Common.RenderState.activeResMgr.GLScenes.ContainsKey(scene_ref))
                 {
                     //Read new Scene
                     new_so = LoadObjects(scene_ref);
@@ -1126,7 +1124,7 @@ namespace MVCore
                 else
                 {
                     //Make a shallow copy of the scene
-                    new_so = (scene) RenderState.activeResMgr.GLScenes[scene_ref].Clone();
+                    new_so = (scene)Common.RenderState.activeResMgr.GLScenes[scene_ref].Clone();
                 }
                     
                 so.ref_scene = new_so;
@@ -1217,7 +1215,7 @@ namespace MVCore
 
                     float radius = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "RADIUS"));
                     float height = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HEIGHT"));
-                    CallBacks.Log(string.Format("Cylinder Collision r:{0} h:{1}", radius, height));
+                    Common.CallBacks.Log(string.Format("Cylinder Collision r:{0} h:{1}", radius, height));
                     
                     metaData.batchstart_graphics = 0;
                     metaData.batchcount = 120;
@@ -1246,7 +1244,7 @@ namespace MVCore
                     so.metaData = metaData;
                     
                     so.meshVao = new GLMeshVao(so.metaData);
-                    so.meshVao.vao = (new MVCore.Primitives.Box(width, height, depth, new Vector3(1.0f), true)).getVAO();
+                    so.meshVao.vao = (new Primitives.Box(width, height, depth, new Vector3(1.0f), true)).getVAO();
                     so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
                     so.collisionType = COLLISIONTYPES.BOX;
                     
@@ -1264,7 +1262,7 @@ namespace MVCore
                     metaData.vertrend_graphics = 144 - 1;
                     so.metaData = metaData;
                     so.meshVao = new GLMeshVao(so.metaData);
-                    so.meshVao.vao = (new MVCore.Primitives.Capsule(new Vector3(), height, radius)).getVAO();
+                    so.meshVao.vao = (new Primitives.Capsule(new Vector3(), height, radius)).getVAO();
                     so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
                     so.collisionType = COLLISIONTYPES.CAPSULE;
                     
@@ -1280,13 +1278,13 @@ namespace MVCore
                     metaData.vertrend_graphics = 121 - 1;
                     so.metaData = metaData;
                     so.meshVao = new GLMeshVao(so.metaData);
-                    so.meshVao.vao = (new MVCore.Primitives.Sphere(new Vector3(), radius)).getVAO();
+                    so.meshVao.vao = (new Primitives.Sphere(new Vector3(), radius)).getVAO();
                     so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
                     so.collisionType = COLLISIONTYPES.SPHERE;
                 }
                 else
                 {
-                    CallBacks.Log("NEW COLLISION TYPE: " + collisionType);
+                    Common.CallBacks.Log("NEW COLLISION TYPE: " + collisionType);
                 }
 
                 //Set metaData and material to the collision Mesh
@@ -1295,7 +1293,7 @@ namespace MVCore
                 so.meshVao.type = TYPES.COLLISION;
                 so.meshVao.collisionType = so.collisionType;
 
-                CallBacks.Log(string.Format("Batch Start {0} Count {1} ",
+                Common.CallBacks.Log(string.Format("Batch Start {0} Count {1} ",
                     metaData.batchstart_physics, metaData.batchcount));
 
                 so.parent = parent;

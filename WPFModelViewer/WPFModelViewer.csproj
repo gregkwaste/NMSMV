@@ -255,9 +255,6 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="logo1_moN_icon.ico" />
-  </ItemGroup>
-  <ItemGroup>
     <Resource Include="ianm32logo_border.ico" />
   </ItemGroup>
   <ItemGroup>

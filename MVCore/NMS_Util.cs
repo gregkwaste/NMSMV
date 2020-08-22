@@ -59,8 +59,7 @@ namespace MVCore
 
                 } else if (ex is System.Reflection.TargetInvocationException)
                 {
-                    Util.showError("libMBIN failed to decompile file. If this is a vanilla file, contact the MbinCompiler developer",
-                    "Error");
+                    Util.showError("libMBIN failed to decompile the file. Try to update the libMBIN.dll (File->updateLibMBIN). If the issue persists contact the developer", "Error");
                 }
                 return null;
 

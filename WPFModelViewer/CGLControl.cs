@@ -15,6 +15,7 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Input;
 using GL = OpenTK.Graphics.OpenGL4.GL;
 
+
 namespace Model_Viewer
 {
     public class CGLControl : GLControl
@@ -978,6 +979,9 @@ namespace Model_Viewer
             if (rootObject != null)
             {
                 Assimp.AssimpContext ctx = new Assimp.AssimpContext();
+                
+                
+                
                 Dictionary<int, int> meshImportStatus = new Dictionary<int, int>();
                 Assimp.Scene aScene = new Assimp.Scene();
                 Assimp.Node rootNode = rootObject.assimpExport(ref aScene, ref meshImportStatus);

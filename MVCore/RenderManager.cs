@@ -389,7 +389,7 @@ namespace MVCore
             //Use QFont
             //string font = "C:\\WINDOWS\\FONTS\\LUCON.TTF";
             string font = "DroidSansMono.ttf";
-            txtRenderer = new MVCore.Text.TextRenderer(font, 10);
+            txtRenderer = new Text.TextRenderer(font, 10);
         }
 
         private void setupFrameUBO()
@@ -1224,27 +1224,27 @@ namespace MVCore
                 {
                     case 0:
                         size = txtRenderer.addDrawing(string.Format("FPS: {0:F1}", RenderStats.fpsCount),
-                            pos, System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS, false);
+                            pos, System.Drawing.Color.Yellow, Text.GLTEXT_INDEX.FPS, false);
                         break;
                     case 1:
                         size = txtRenderer.addDrawing(string.Format("OccludedNum: {0:D1}", RenderStats.occludedNum),
-                            pos, System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS, false);
+                            pos, System.Drawing.Color.Yellow, Text.GLTEXT_INDEX.FPS, false);
                         break;
                     case 2:
                         size = txtRenderer.addDrawing(string.Format("Total Vertices: {0:D1}", RenderStats.vertNum),
-                            pos, System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS, false);
+                            pos, System.Drawing.Color.Yellow, Text.GLTEXT_INDEX.FPS, false);
                         break;
                     case 3:
                         size = txtRenderer.addDrawing(string.Format("Total Triangles: {0:D1}", RenderStats.trisNum),
-                            pos, System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS, false);
+                            pos, System.Drawing.Color.Yellow, Text.GLTEXT_INDEX.FPS, false);
                         break;
                     case 4:
                         size = txtRenderer.addDrawing(string.Format("Textures: {0:D1}", RenderStats.texturesNum),
-                            pos, System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS, false);
+                            pos, System.Drawing.Color.Yellow, Text.GLTEXT_INDEX.FPS, false);
                         break;
                     case 5:
                         size = txtRenderer.addDrawing(string.Format("Controller: {0} ", RenderState.activeGamepad?.getName()),
-                            pos, System.Drawing.Color.Yellow, MVCore.Text.GLTEXT_INDEX.FPS, false);
+                            pos, System.Drawing.Color.Yellow, Text.GLTEXT_INDEX.FPS, false);
                         break;
                 }
                 text_pos_y -= (size.Height + 2.0f);

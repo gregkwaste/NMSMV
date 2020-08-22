@@ -7,6 +7,7 @@ using MVCore;
 using MVCore.Common;
 using System.Windows;
 using WPFModelViewer;
+using MVCore.Utils;
 
 namespace GLSLHelper { 
 

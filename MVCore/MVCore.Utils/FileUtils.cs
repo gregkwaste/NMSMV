@@ -5,7 +5,7 @@ using System.IO;
 using System.Reflection;
 using System.Diagnostics;
 
-namespace MVCore
+namespace MVCore.Utils
 {
     public static class StringUtils
     {
@@ -167,6 +167,8 @@ namespace MVCore
                 return false;
             }
         }
+
+        
 
     }
 }

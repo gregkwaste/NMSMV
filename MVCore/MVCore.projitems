@@ -11,9 +11,9 @@
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)2sComplement.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Camera.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Common.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MVCore.Common\Common.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)DDSImage.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)FileUtils.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MVCore.Utils\FileUtils.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)FontGL.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GamepadHandler.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)gbuffer.cs" />
@@ -25,7 +25,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)GMDL.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)half.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)KeyboardHandler.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)MathUtils.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MVCore.Utils\HTMLUtils.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MVCore.Utils\MathUtils.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MBIN.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ModelProcGen.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)NMS_Util.cs" />
@@ -35,5 +36,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)ResourceManager.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ShadowRenderer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ThreadRequest.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="$(MSBuildThisFileDirectory)MVCore.Common\" />
   </ItemGroup>
 </Project>

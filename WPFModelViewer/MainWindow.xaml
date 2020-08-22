@@ -499,6 +499,7 @@
             <MenuItem Header="File">
                 <MenuItem x:Name="OpenFileHandle" Header ="Open File" Click="OpenFile"/>
                 <MenuItem x:Name="OpenFilePAKHandle" Header ="Open File from .pak" Click="OpenFilePAK"/>
+                <MenuItem Header ="Update libMBIN" Click="UpdateLibMBIN_Click"/>
                 <MenuItem Header ="Settings" Click="showSettingsDialog"/>
                 <MenuItem Header ="Close" Click="FormClose"/>
             </MenuItem>

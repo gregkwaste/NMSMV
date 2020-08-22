@@ -31,9 +31,8 @@ using System.Security.Permissions;
 using SharpFont;
 using WPFModelViewer.Properties;
 using WPFModelViewer;
-using System.Windows.Documents.DocumentStructures;
-using MVCore.Common;
 //using Matrix4 = MathNet.Numerics.LinearAlgebra.Matrix<float>;
+using MVCore.Common;
 
 namespace MVCore.GMDL
 {
@@ -2883,7 +2882,7 @@ namespace MVCore.GMDL
                 //throw new ApplicationException(String.Format("Problem with vertex buffer"));
             }
 
-            MVCore.Common.RenderStats.trisNum += (int) (so.metaData.batchcount / 3); //Accumulate settings
+            RenderStats.trisNum += (int) (so.metaData.batchcount / 3); //Accumulate settings
 
             //Unbind
             GL.BindVertexArray(0);
@@ -3168,7 +3167,7 @@ namespace MVCore.GMDL
                     prepTextures();
                     break;
                 default:
-                    MVCore.Common.CallBacks.Log("Not sure how to handle Sampler " + Name);
+                    CallBacks.Log("Not sure how to handle Sampler " + Name);
                     break;
             }
         }
@@ -3907,7 +3906,7 @@ namespace MVCore.GMDL
 
             if (!fbo_status)
             {
-                MVCore.Common.CallBacks.Log("Unable to mix textures, probably 0x0 textures...\n");
+                CallBacks.Log("Unable to mix textures, probably 0x0 textures...\n");
                 return;
             }
                 
@@ -3934,7 +3933,7 @@ namespace MVCore.GMDL
             //At this point, at least one sampler exists, so for now I assume that the first sampler
             //is always the diffuse sampler and I can initiate the mixing process
             Console.WriteLine("Procedural Texture Detected: " + path);
-            MVCore.Common.CallBacks.Log(string.Format("Parsing Procedural Texture"));
+            CallBacks.Log(string.Format("Parsing Procedural Texture"));
 
             TkProceduralTextureList template = NMSUtils.LoadNMSTemplate(path, ref Common.RenderState.activeResMgr) as TkProceduralTextureList;
     
@@ -4016,7 +4015,7 @@ namespace MVCore.GMDL
                     {
                         //Texture Not Found Continue
                         Console.WriteLine("Diffuse Texture " + partNameDiff + " Not Found, Appending White Tex");
-                        MVCore.Common.CallBacks.Log(string.Format("Diffuse Texture {0} Not Found", partNameDiff));
+                        CallBacks.Log(string.Format("Diffuse Texture {0} Not Found", partNameDiff));
                         baseLayersUsed[i] = 0.0f;
                     }
                 }
@@ -4051,7 +4050,7 @@ namespace MVCore.GMDL
                     {
                         //Mask Texture not found
                         Console.WriteLine("Mask Texture " + partNameMask + " Not Found");
-                        MVCore.Common.CallBacks.Log(string.Format("Mask Texture {0} Not Found", partNameMask));
+                        CallBacks.Log(string.Format("Mask Texture {0} Not Found", partNameMask));
                         alphaLayersUsed[i] = 0.0f;
                     }
                 }
@@ -4084,7 +4083,7 @@ namespace MVCore.GMDL
                     catch (System.IO.FileNotFoundException)
                     {
                         //Normal Texture not found
-                        MVCore.Common.CallBacks.Log(string.Format("Normal Texture {0} Not Found", partNameNormal));
+                        CallBacks.Log(string.Format("Normal Texture {0} Not Found", partNameNormal));
                     }
                 }
                 else
@@ -4239,7 +4238,7 @@ namespace MVCore.GMDL
 
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-            GL.BindVertexArray(MVCore.Common.RenderState.activeResMgr.GLPrimitiveVaos["default_renderquad"].vao_id);
+            GL.BindVertexArray(RenderState.activeResMgr.GLPrimitiveVaos["default_renderquad"].vao_id);
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
             GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, IntPtr.Zero);
 
@@ -4361,7 +4360,7 @@ namespace MVCore.GMDL
             
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-            GL.BindVertexArray(MVCore.Common.RenderState.activeResMgr.GLPrimitiveVaos["default_renderquad"].vao_id);
+            GL.BindVertexArray(RenderState.activeResMgr.GLPrimitiveVaos["default_renderquad"].vao_id);
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
             GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, IntPtr.Zero);
 
@@ -4482,7 +4481,7 @@ namespace MVCore.GMDL
 
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-            GL.BindVertexArray(MVCore.Common.RenderState.activeResMgr.GLPrimitiveVaos["default_renderquad"].vao_id);
+            GL.BindVertexArray(RenderState.activeResMgr.GLPrimitiveVaos["default_renderquad"].vao_id);
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
             GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, IntPtr.Zero);
 
@@ -4597,7 +4596,7 @@ namespace MVCore.GMDL
             name = _name;
             
             ddsImage = new DDSImage(imageData);
-            MVCore.Common.RenderStats.texturesNum += 1; //Accumulate settings
+            RenderStats.texturesNum += 1; //Accumulate settings
 
             Console.WriteLine("Sampler Name Path " + name + " Width {0} Height {1}", ddsImage.header.dwWidth, ddsImage.header.dwHeight);
             width = ddsImage.header.dwWidth;
@@ -4839,7 +4838,7 @@ namespace MVCore.GMDL
             meshVao.type = TYPES.JOINT;
             meshVao.metaData = new MeshMetaData();
             //TODO: Find a place to keep references from the joint GLMeshVAOs
-            meshVao.vao = new MVCore.Primitives.LineSegment(children.Count, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
+            meshVao.vao = new Primitives.LineSegment(children.Count, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
             meshVao.material = Common.RenderState.activeResMgr.GLmaterials["jointMat"];
         }
 
@@ -4890,7 +4889,7 @@ namespace MVCore.GMDL
             j.meshVao.type = TYPES.JOINT;
             j.meshVao.metaData = new MeshMetaData();
             //TODO: Find a place to keep references from the joint GLMeshVAOs
-            j.meshVao.vao = new MVCore.Primitives.LineSegment(this.children.Count, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
+            j.meshVao.vao = new Primitives.LineSegment(this.children.Count, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
             j.meshVao.material = Common.RenderState.activeResMgr.GLmaterials["jointMat"];
 
             //Clone children
@@ -5062,7 +5061,7 @@ namespace MVCore.GMDL
             //Initialize new MeshVao
             meshVao = new GLMeshVao();
             meshVao.type = TYPES.LIGHT;
-            meshVao.vao = new MVCore.Primitives.LineSegment(1, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
+            meshVao.vao = new Primitives.LineSegment(1, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
             meshVao.metaData = new MeshMetaData();
             meshVao.metaData.batchcount = 2;
             meshVao.material = Common.RenderState.activeResMgr.GLmaterials["lightMat"];
@@ -5841,9 +5840,9 @@ namespace MVCore.GMDL
 
         private void fetchAnimMetaData()
         {
-            if (MVCore.Common.RenderState.activeResMgr.Animations.ContainsKey(Filename))
+            if (Common.RenderState.activeResMgr.Animations.ContainsKey(Filename))
             {
-                animMeta = MVCore.Common.RenderState.activeResMgr.Animations[Filename];
+                animMeta = Common.RenderState.activeResMgr.Animations[Filename];
             }
             else
             {
@@ -5851,7 +5850,7 @@ namespace MVCore.GMDL
                     ref Common.RenderState.activeResMgr) as TkAnimMetadata;
                 animMeta = new AnimMetadata(amd);
                 animMeta.load(); //Load data as well
-                MVCore.Common.RenderState.activeResMgr.Animations[Filename] = animMeta;
+                Common.RenderState.activeResMgr.Animations[Filename] = animMeta;
             }
         }
 

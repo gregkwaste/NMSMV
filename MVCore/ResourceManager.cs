@@ -244,19 +244,19 @@ namespace MVCore
             //Setup Primitive Vaos
             
             //Default quad
-            MVCore.Primitives.Quad q = new MVCore.Primitives.Quad(1.0f, 1.0f);
+            Primitives.Quad q = new Primitives.Quad(1.0f, 1.0f);
             GLPrimitiveVaos["default_quad"] = q.getVAO();
             GLPrimitiveMeshVaos["default_quad"] = new GLMeshVao();
             GLPrimitiveMeshVaos["default_quad"].vao = GLPrimitiveVaos["default_quad"];
             
             //Default render quad
-            q = new MVCore.Primitives.Quad();
+            q = new Primitives.Quad();
             GLPrimitiveVaos["default_renderquad"] = q.getVAO();
             GLPrimitiveMeshVaos["default_renderquad"] = new GLMeshVao();
             GLPrimitiveMeshVaos["default_renderquad"].vao = GLPrimitiveVaos["default_renderquad"];
 
             //Default cross
-            MVCore.Primitives.Cross c = new Primitives.Cross(0.1f, true);
+            Primitives.Cross c = new Primitives.Cross(0.1f, true);
             GLPrimitiveMeshVaos["default_cross"] = new GLMeshVao();
             GLPrimitiveVaos["default_cross"] = c.getVAO();
             GLPrimitiveMeshVaos["default_cross"].type = TYPES.GIZMO;
@@ -270,7 +270,7 @@ namespace MVCore
 
 
             //Default cube
-            MVCore.Primitives.Box bx = new MVCore.Primitives.Box(1.0f, 1.0f, 1.0f, new Vector3(1.0f), true);
+            Primitives.Box bx = new Primitives.Box(1.0f, 1.0f, 1.0f, new Vector3(1.0f), true);
             GLPrimitiveVaos["default_box"] = bx.getVAO();
             GLPrimitiveMeshVaos["default_box"] = new GLMeshVao();
             GLPrimitiveMeshVaos["default_box"].vao = GLPrimitiveVaos["default_box"];
