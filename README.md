@@ -1,6 +1,6 @@
 # **No Mans's Model Viewer** #
 
-<div align="center"> <img src="https://i.imgur.com/9NX73V1h.png"></div>
+<div align="center"> <img src="https://i.imgur.com/hdBRZFL.png" style="width:256px;height:256px;"></div>
 
 <div align="center">
 <img alt="GitHub tag (latest by date)" src="https://img.shields.io/github/v/tag/gregkwaste/NMSMV">
@@ -9,7 +9,7 @@
 </div>
 
 
-No Man's Model Viewer is an application developed to preview No Man's Sky 3D assets. It also supports animation playback and also a custom Procedural Generation procedure which tries to emulate the game's behavior during the asset creation process. Experimental features allow the live editing of MBIN files. 
+No Man's Model Viewer is an application developed to preview No Man's Sky 3D assets. It also supports animation playback and also a custom proc-gen procedure which tries to emulate the game's behavior during the procedural asset creation process. Experimental features allow the live editing of MBIN files. 
 
 ## **Repo Version** ##
 
@@ -30,7 +30,7 @@ No Man's Model Viewer is an application developed to preview No Man's Sky 3D ass
 
 ## **WIP** ##
 * 3D Gizmo implementation for a much more robust node manipulation.
-* The project includes 2 more subprojects, a) a texture mixing app that provides a testbench of the procedural texture mixing process of NMS as implemented in the viewer and b) a texture viewer that interfaces with a custom DDS library to allow the preview of DX10 textures as well as multi-textures. I'm planning to organize them and provide them in the releases as separate tools.
+* The project includes 2 more subprojects, a) a texture mixing app that provides a testbench of the procedural texture mixing process of NMS as implemented in the viewer and b) a texture viewer that interfaces with a custom DDS library to allow the preview of DX10 textures as well as multi-textures. I'm planning to better organize and maintain their code and eventually pack them together with the viewer in future releases.
 * Assemble some wiki pages to explain the functionality and editing capabilities of the viewer.
 
 
@@ -41,9 +41,14 @@ TODO
 ### Contribution guidelines ###
 * Please use the issue tracker to report any issues or any features/suggestions you may have.
 
+
+## **Screenshots** ##
+<div align="center"> <img src="https://i.imgur.com/9NX73V1h.png"></div>
+
 ## **Credits** ##
 * monkeyman12 main maintainer of [libMBIN](https://github.com/monkeyman192/MBINCompiler)
 * Fuzzy-Logik main maintainer of [libPSARC](https://github.com/Fuzzy-Logik/libPSARC)
+* IanM32 for the amazing logo
 
 ## **Contact** ##
 * Send me an email at gregkwaste@gmail.com
