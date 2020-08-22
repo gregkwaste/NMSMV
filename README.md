@@ -1,6 +1,6 @@
 # **No Mans's Model Viewer** #
 
-<div align="center"> <img src="https://i.imgur.com/hdBRZFL.png" width="256px"> </div>
+<div align="center"> <img src="https://i.imgur.com/hdBRZFL.png" width="400px"> </div>
 <p></p>
 
 
