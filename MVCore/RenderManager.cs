@@ -554,9 +554,6 @@ namespace MVCore
             if (m.instance_count == 0)
                 return 1;
 
-            if (m.skinned)
-                m.uploadSkinningData();
-            
             //Calculate aligned size
             m.UBO_aligned_size = 4 * m.dataBuffer.Length;
             m.UBO_aligned_size = ((m.UBO_aligned_size >> 8) + 1) * 256;
@@ -568,7 +565,10 @@ namespace MVCore
 #endif
                 return -1;
             }
-            
+
+            if (m.skinned)
+                m.uploadSkinningData();
+
             unsafe
             {
                 fixed(void* p = m.dataBuffer)

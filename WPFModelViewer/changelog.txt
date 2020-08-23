@@ -11,8 +11,11 @@
 	[*] PROC GEN Button (BROKEN)
 		Repairing this long gone functionality is something that I wanna return to ASAP.
 
-	[*] TRANSLATION GIZMO
+	[*] TRANSLATION GIZMO (Experimental)
 		I've been working on implementing a 3D translation gizmo that will allow for a much faster and much more efficient movement of objects around, without having to set positions manually. Other gizmos will follow.
+
+	[*] MODEL IMPORT/EXPORT using the Assimp (Experimental)
+		Interfacing with the Assimp library will allow the viewer to robustly export models (with animations) to any desired format, but also in teh future to hopefully be able to import models (again with animations) back to the viewer and then to MBIN files. This is a current WIP.
 	
 
 ### CHANGELOG ###

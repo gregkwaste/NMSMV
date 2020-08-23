@@ -126,7 +126,7 @@ namespace MVCore
                 load_mode = 1; //Load MBIN from file
             else if (resMgr.NMSFileToArchiveMap.ContainsKey(filepath))
                 load_mode = 2; //Extract file from archive
-            else if (resMgr.NMSFileToArchiveMap.ContainsKey("/" + filepath)) //AMUMSS BULLSHIT{
+            else if (resMgr.NMSFileToArchiveMap.ContainsKey("/" + filepath)) //AMUMSS BULLSHIT
             {
                 effective_filepath = "/" + filepath;
                 load_mode = 2; //Extract file from archive

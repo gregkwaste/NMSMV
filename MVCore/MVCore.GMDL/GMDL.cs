@@ -13,26 +13,16 @@ using OpenTK;
 using KUtility;
 using Model_Viewer;
 using System.Linq;
-using System.Net.Mime;
-using System.Xml;
 using libMBIN.NMS.Toolkit;
-using System.Reflection;
 using System.ComponentModel;
-using MVCore;
-using ExtTextureFilterAnisotropic = OpenTK.Graphics.ES30.ExtTextureFilterAnisotropic;
 using PixelFormat = OpenTK.Graphics.OpenGL4.PixelFormat;
 using System.Collections.ObjectModel;
-using System.Windows;
 using System.Windows.Input;
 using System.Runtime.InteropServices;
 using GLSLHelper;
-using System.Windows.Forms;
-using System.Security.Permissions;
-using SharpFont;
-using WPFModelViewer.Properties;
 using WPFModelViewer;
-//using Matrix4 = MathNet.Numerics.LinearAlgebra.Matrix<float>;
 using MVCore.Common;
+
 
 namespace MVCore.GMDL
 {
@@ -1126,7 +1116,10 @@ namespace MVCore.GMDL
         public int batchcount;
         public int firstskinmat;
         public int lastskinmat;
-        public int lodLevel;
+        //LOD Properties
+        public int LODLevel;
+        public int LODDistance1;
+        public int LODDistance2;
         //New stuff Properties
         public int boundhullstart;
         public int boundhullend;
@@ -1168,271 +1161,13 @@ namespace MVCore.GMDL
             boundhullstart = input.boundhullstart;
             boundhullend = input.boundhullend;
             Hash = input.Hash;
-            lodLevel = input.lodLevel;
+            LODLevel = input.LODLevel;
             AABBMIN = new Vector3(input.AABBMIN);
             AABBMAX = new Vector3(input.AABBMAX);
         }
     }
 
-    public static class GLMeshBufferManager
-    {
-        public const int color_Float_Offset = 0;
-        public const int color_Byte_Offset = 0;
-
-        public const int skinned_Float_Offset = 3;
-        public const int skinned_Byte_Offset = 12;
-
-        public const int instanceData_Float_Offset = 4;
-        public const int instanceData_Byte_Offset = 16;
-
-        //Relative Instance Offsets
-
-        //public static int instance_Uniforms_Offset = 0;
-        public const int instance_Uniforms_Float_Offset = 0;
-        //public static int instance_worldMat_Offset = 64;
-        public const int instance_worldMat_Float_Offset = 16;
-        //public static int instance_normalMat_Offset = 128;
-        public const int instance_normalMat_Float_Offset = 32;
-        //public static int instance_worldMatInv_Offset = 192;
-        public const int instance_worldMatInv_Float_Offset = 48;
-        //public static int instance_isOccluded_Offset = 256;
-        public const int instance_isOccluded_Float_Offset = 64;
-        //public static int instance_isSelected_Offset = 260;
-        public const int instance_isSelected_Float_Offset = 65;
-        //public static int instance_color_Offset = 264; //TODO make that a vec4
-        public const int instance_color_Float_Offset = 66;
-        public static int instance_struct_size_bytes = 272;
-        public const int instance_struct_size_floats = 68;
-
-        //Instance Data Format:
-        //0-16 : instance WorldMatrix
-        //16-17: isOccluded
-        //17-18: isSelected
-        //18-20: padding
-
-
-        public static int addInstance(ref GLMeshVao mesh, model m)
-        {
-            int instance_id = mesh.instance_count;
-
-            //Expand mesh data buffer if required
-            if (instance_id * instance_struct_size_bytes > mesh.dataBuffer.Length)
-            {
-                float[] newBuffer = new float[mesh.dataBuffer.Length + 256];
-                Array.Copy(mesh.dataBuffer, newBuffer, mesh.dataBuffer.Length);
-                mesh.dataBuffer = newBuffer;
-            }
-            
-            if (instance_id < GLMeshVao.MAX_INSTANCES)
-            {
-                //Uplod worldMat to the meshVao
-
-                Matrix4 actualWorldMat = m.worldMat;
-                Matrix4 actualWorldMatInv = (actualWorldMat).Inverted();
-                setInstanceWorldMat(mesh, instance_id, actualWorldMat);
-                setInstanceWorldMatInv(mesh, instance_id, actualWorldMatInv);
-                setInstanceNormalMat(mesh, instance_id, Matrix4.Transpose(actualWorldMatInv));
-
-                mesh.instanceRefs.Add(m); //Keep reference
-                mesh.instance_count++;
-            }
-
-            return instance_id;
-        }
-
-        //Overload with transform overrides
-        public static int addInstance(GLMeshVao mesh, model m, Matrix4 worldMat, Matrix4 worldMatInv, Matrix4 normMat)
-        {
-            int instance_id = mesh.instance_count;
-
-            //Expand mesh data buffer if required
-            if (instance_id * instance_struct_size_bytes > mesh.dataBuffer.Length)
-            {
-                float[] newBuffer = new float[mesh.dataBuffer.Length + 256];
-                Array.Copy(mesh.dataBuffer, newBuffer, mesh.dataBuffer.Length);
-                mesh.dataBuffer = newBuffer;
-            }
-            
-            if (instance_id < GLMeshVao.MAX_INSTANCES)
-            {
-                setInstanceWorldMat(mesh, instance_id, worldMat);
-                setInstanceWorldMatInv(mesh, instance_id, worldMatInv);
-                setInstanceNormalMat(mesh, instance_id, normMat);
-                
-                mesh.instanceRefs.Add(m); //Keep reference
-                mesh.instance_count++;
-            }
-
-            return instance_id;
-        }
-
-        public static void clearInstances(GLMeshVao mesh)
-        {
-            mesh.instanceRefs.Clear();
-            mesh.instance_count = 0;
-        }
-
-        public static void removeInstance(GLMeshVao mesh, model m)
-        {
-            int id = mesh.instanceRefs.IndexOf(m);
-
-            //TODO: Make all the memory shit to push the instances backwards
-        }
-
-
-        public static void setInstanceOccludedStatus(GLMeshVao mesh, int instance_id, bool status)
-        {
-            mesh.visible_instances += (status ? -1 : 1);
-            unsafe
-            {
-                mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_isOccluded_Float_Offset] = status ? 1.0f : 0.0f;
-            }
-        }
-
-        public static bool getInstanceOccludedStatus(GLMeshVao mesh, int instance_id)
-        {
-            unsafe
-            {
-                return mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_isOccluded_Float_Offset] > 0.0f;
-            }
-        }
-
-        public static void setInstanceSelectedStatus(GLMeshVao mesh, int instance_id, bool status)
-        {
-            unsafe
-            {
-                mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_isSelected_Float_Offset] = status ? 1.0f : 0.0f;
-            }
-        }
-
-        public static bool getInstanceSelectedStatus(GLMeshVao mesh, int instance_id)
-        {
-            unsafe
-            {
-                return mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_isSelected_Float_Offset] > 0.0f;
-            }
-        }
-
-        public static Matrix4 getInstanceWorldMat(GLMeshVao mesh, int instance_id)
-        {
-            unsafe
-            {
-                fixed (float* ar = mesh.dataBuffer)
-                {
-                    int offset = instanceData_Float_Offset + instance_id * instance_struct_size_floats + instance_worldMat_Float_Offset;
-                    return MathUtils.Matrix4FromArray(ar, offset);
-                }
-            }
-
-        }
-
-        public static Matrix4 getInstanceNormalMat(GLMeshVao mesh, int instance_id)
-        {
-            unsafe
-            {
-                fixed (float* ar = mesh.dataBuffer)
-                {
-                    return MathUtils.Matrix4FromArray(ar, instance_id * instance_struct_size_floats + instance_normalMat_Float_Offset);
-                }
-            }
-        }
-
-        public static Vector3 getInstanceColor(GLMeshVao mesh, int instance_id)
-        {
-            float col;
-            unsafe
-            {
-                col = mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_color_Float_Offset];
-            }
-
-            return new Vector3(col, col, col);
-        }
-
-        public static void setInstanceUniform4(GLMeshVao mesh, int instance_id, string un_name, Vector4 un)
-        {
-            unsafe
-            {
-                int offset = instanceData_Float_Offset + instance_id * instance_struct_size_floats + instance_Uniforms_Float_Offset;
-                int uniform_id = 0;
-                switch (un_name)
-                {
-                    case "gUserDataVec4":
-                        uniform_id = 0;
-                        break;
-                }
-
-                offset += uniform_id * 4;
-
-                mesh.dataBuffer[offset] = un.X;
-                mesh.dataBuffer[offset + 1] = un.Y;
-                mesh.dataBuffer[offset + 2] = un.Z;
-                mesh.dataBuffer[offset + 3] = un.W;
-            }
-        }
-
-        public static Vector4 getInstanceUniform(GLMeshVao mesh, int instance_id, string un_name)
-        {
-            Vector4 un;
-            unsafe
-            {
-                int offset = instanceData_Float_Offset + instance_id * instance_struct_size_floats + instance_Uniforms_Float_Offset;
-                int uniform_id = 0;
-                switch (un_name)
-                {
-                    case "gUserDataVec4":
-                        uniform_id = 0;
-                        break;
-                }
-
-                offset += uniform_id * 4;
-
-                un.X = mesh.dataBuffer[offset];
-                un.Y = mesh.dataBuffer[offset + 1];
-                un.Z = mesh.dataBuffer[offset + 2];
-                un.W = mesh.dataBuffer[offset + 3];
-            }
-
-            return un;
-        }
-
-        public static void setInstanceWorldMat(GLMeshVao mesh, int instance_id, Matrix4 mat)
-        {
-            unsafe
-            {
-                fixed (float* ar = mesh.dataBuffer)
-                {
-                    int offset = instanceData_Float_Offset + instance_id * instance_struct_size_floats + instance_worldMat_Float_Offset;
-                    MathUtils.insertMatToArray16(ar, offset, mat);
-                }
-            }
-        }
-
-        public static void setInstanceWorldMatInv(GLMeshVao mesh, int instance_id, Matrix4 mat)
-        {
-            unsafe
-            {
-                fixed (float* ar = mesh.dataBuffer)
-                {
-                    int offset = instanceData_Float_Offset + instance_id * instance_struct_size_floats + instance_worldMatInv_Float_Offset;
-                    MathUtils.insertMatToArray16(ar, offset, mat);
-                }
-            }
-        }
-
-        public static void setInstanceNormalMat(GLMeshVao mesh, int instance_id, Matrix4 mat)
-        {
-            unsafe
-            {
-                fixed (float* ar = mesh.dataBuffer)
-                {
-                    int offset = instanceData_Float_Offset + instance_id * instance_struct_size_floats + instance_normalMat_Float_Offset;
-                    MathUtils.insertMatToArray16(ar, offset, mat);
-                }
-            }
-        }
-
-
-    }
+    
 
     public class GLMeshVao : IDisposable
     {
@@ -1941,9 +1676,9 @@ namespace MVCore.GMDL
         {
             get
             {
-                return metaData.lodLevel;
+                return metaData.LODLevel;
             }
-            
+
         }
 
         public ulong Hash
@@ -1953,11 +1688,11 @@ namespace MVCore.GMDL
                 return metaData.Hash;
             }
         }
-        
+
         public MeshMetaData metaData = new MeshMetaData();
         public Vector3 color = new Vector3(); //Per instance
         public bool hasLOD = false;
-        public bool Skinned { 
+        public bool Skinned {
             get
             {
                 if (meshVao.material != null)
@@ -1967,10 +1702,10 @@ namespace MVCore.GMDL
                 return false;
             }
         }
-        
+
         public GLVao bHull_Vao;
         public GeomObject gobject; //Ref to the geometry shit
-        
+
         public Material material
         {
             get
@@ -2009,13 +1744,13 @@ namespace MVCore.GMDL
         {
             //Copy attributes
             this.metaData = new MeshMetaData(input.metaData);
-            
+
             //Copy Vao Refs
             this.meshVao = input.meshVao;
-            
+
             //Material Stuff
             this.color = input.color;
-            
+
             this.palette = input.palette;
             this.gobject = input.gobject; //Leave geometry file intact, no need to copy anything here
         }
@@ -2045,7 +1780,7 @@ namespace MVCore.GMDL
 
             new_m.meshVao = this.meshVao;
             new_m.instanceId = GLMeshBufferManager.addInstance(ref new_m.meshVao, new_m);
-            
+
             //Clone children
             foreach (model child in children)
             {
@@ -2053,7 +1788,7 @@ namespace MVCore.GMDL
                 new_child.parent = new_m;
                 new_m.children.Add(new_child);
             }
-            
+
             return new_m;
         }
 
@@ -2068,17 +1803,20 @@ namespace MVCore.GMDL
             meshVao?.initializeSkinMatrices(parentScene);
 
             base.setupSkinMatrixArrays();
-        
+
         }
 
         public override void updateMeshInfo()
         {
+
+#if(DEBUG)
             if (instanceId < 0)
                 Console.WriteLine("test");
             if (meshVao.BoneRemapIndicesCount > 128)
                 Console.WriteLine("test");
+#endif
 
-            if (!renderable)
+            if (!renderable || (parentScene.activeLOD != LodLevel) && RenderState.renderSettings.LODFiltering)
             {
                 base.updateMeshInfo();
                 Common.RenderStats.occludedNum += 1;

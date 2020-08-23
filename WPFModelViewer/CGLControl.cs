@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Windows.Forms;
+using Assimp.Unmanaged;
 using GLSLHelper;
 //Custom Imports
 using MVCore;
@@ -980,8 +981,6 @@ namespace Model_Viewer
             if (rootObject != null)
             {
                 Assimp.AssimpContext ctx = new Assimp.AssimpContext();
-                
-                
                 
                 Dictionary<int, int> meshImportStatus = new Dictionary<int, int>();
                 Assimp.Scene aScene = new Assimp.Scene();

@@ -13,6 +13,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Camera.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MVCore.Common\Common.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)DDSImage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MVCore.GMDL\GLMeshBufferManager.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MVCore.Utils\FileUtils.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)FontGL.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GamepadHandler.cs" />
@@ -22,7 +23,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)GLPrimitives.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GLShaderHelper.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GLSL_Preprocessor.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)GMDL.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MVCore.GMDL\GMDL.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)half.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)KeyboardHandler.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MVCore.Utils\HTMLUtils.cs" />

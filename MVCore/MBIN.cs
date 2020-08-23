@@ -794,7 +794,7 @@ namespace MVCore
                 so.metaData.vertrend_graphics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRENDGRAPHIC"));
                 so.metaData.firstskinmat = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "FIRSTSKINMAT"));
                 so.metaData.lastskinmat = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LASTSKINMAT"));
-                so.metaData.lodLevel = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LODLEVEL"));
+                so.metaData.LODLevel = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LODLEVEL"));
                 so.metaData.boundhullstart = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BOUNDHULLST"));
                 so.metaData.boundhullend = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BOUNDHULLED"));
                 so.metaData.AABBMIN.X = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMINX"));
@@ -836,11 +836,11 @@ namespace MVCore
                     //Override LOD level using the name
                     try
                     {
-                        so.metaData.lodLevel = (int)Char.GetNumericValue(name[name.IndexOf("LOD") + 3]);
+                        so.metaData.LODLevel = (int)Char.GetNumericValue(name[name.IndexOf("LOD") + 3]);
                     } catch (IndexOutOfRangeException ex)
                     {
                         Common.CallBacks.Log("Unable to fetch lod level from mesh name");
-                        so.metaData.lodLevel = 0;
+                        so.metaData.LODLevel = 0;
                     }
                     
                 }
