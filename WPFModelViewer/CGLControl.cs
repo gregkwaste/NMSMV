@@ -722,6 +722,7 @@ namespace Model_Viewer
             this.exportToAssimpMenuItem.Size = new System.Drawing.Size(180, 22);
             this.exportToAssimpMenuItem.Text = "Export to assimp";
             this.exportToAssimpMenuItem.Click += new System.EventHandler(this.exportToAssimp);
+            this.exportToAssimpMenuItem.Enabled = false;
             // 
             // openFileDialog1
             // 
