@@ -20,6 +20,19 @@
 
 ### CHANGELOG ###
 
+Version 0.90.0 (Supported Game version 2.6X) CHANGELOG:
+	[*] BUG FIXES
+		[*] Fixed an issue that prevented SettingsForm to re-open.
+		[*] Fixed an issue that caused multiple instance of locator objects to re-render
+		[*] Fixed an issue related to the animation time interval calculation.
+
+	[*] REVAMPED TEXT RENDERER
+		New custom text renderer implemented to support custom text on screen rendering using signed distance field fonts.
+	
+	[*] REVAMPED CAMERA MOVEMENT
+		[*] Reworked camera movement, that now works with movement states which get interpolated per frame.
+
+
 Version 0.89.4 (Supported Game version 2.6X) CHANGELOG:
 	[*] BUG FIXES
 		[*] Fixed a bug that prevented loading of multiple scenes in the same session

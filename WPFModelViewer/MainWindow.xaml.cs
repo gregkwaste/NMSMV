@@ -457,6 +457,7 @@ namespace WPFModelViewer
 #if (DEBUG)
             //Enable the Test options if it is a debug version
             TestOptions.Visibility = Visibility.Visible;
+            setTestComponents();
 #endif
 
             //Issue work request 
@@ -469,6 +470,59 @@ namespace WPFModelViewer
 
             issuedRequests.Add(rq);
         }
+
+#if (DEBUG)
+        void setTestComponents()
+        {
+            //Add Components programmatically
+            Grid g = new Grid();
+            RowDefinition rd = new RowDefinition();
+            rd.Height = new GridLength(20.0);
+            g.RowDefinitions.Add(rd);
+            g.RowDefinitions.Add(rd);
+            g.RowDefinitions.Add(rd);
+
+            //Add Options
+            TextBlock tb = new TextBlock();
+            tb.SetValue(Grid.RowProperty, 0);
+            tb.SetValue(Grid.ColumnProperty, 0);
+            g.Children.Add(tb);
+            Slider sr = new Slider();
+            sr.SetValue(Grid.RowProperty, 0);
+            sr.SetValue(Grid.ColumnProperty, 1);
+            sr.Minimum = 0.0;
+            sr.Maximum = 1.0;
+            sr.ValueChanged += TestOpts_ValueChanged;
+            g.Children.Add(tb);
+            g.Children.Add(sr);
+
+            tb = new TextBlock();
+            tb.SetValue(Grid.RowProperty, 1);
+            tb.SetValue(Grid.ColumnProperty, 0);
+            sr = new Slider();
+            sr.SetValue(Grid.RowProperty, 1);
+            sr.SetValue(Grid.ColumnProperty, 1);
+            sr.Minimum = 0.0;
+            sr.Maximum = 1.0;
+            sr.ValueChanged += TestOpts_ValueChanged;
+            g.Children.Add(tb);
+            g.Children.Add(sr);
+
+            tb = new TextBlock();
+            tb.SetValue(Grid.RowProperty, 2);
+            tb.SetValue(Grid.ColumnProperty, 0);
+            sr = new Slider();
+            sr.SetValue(Grid.RowProperty, 2);
+            sr.SetValue(Grid.ColumnProperty, 1);
+            sr.Minimum = 0.0;
+            sr.Maximum = 1000.0;
+            sr.ValueChanged += TestOpts_ValueChanged;
+            g.Children.Add(tb);
+            g.Children.Add(sr);
+
+            TestOptions.Content = g;
+        }
+#endif
 
         void OnDispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
         {
@@ -695,6 +749,7 @@ namespace WPFModelViewer
             HTMLUtils.fetchLibMBINDLL();
         }
 
+#if (DEBUG)
         private void TestOpts_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             Slider s = (Slider) sender;
@@ -713,8 +768,8 @@ namespace WPFModelViewer
                     break;
             }
         }
+#endif
     }
-
 
     public class BindingErrorTraceListener : System.Diagnostics.TraceListener
     {
