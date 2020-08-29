@@ -15,8 +15,8 @@ uniform float recolor_flag;
 uniform float use_alpha_textures;
 uniform int baseLayerIndex;
 
-varying vec2 uv0;
-varying vec3 color;
+in vec2 uv0;
+in vec3 color;
 
 #include "/common.glsl"
 

@@ -623,7 +623,6 @@ namespace GLSLHelper {
             int[] attached_shaders = new int[20];
             int count;
             int status_code;
-            string info;
             GL.GetAttachedShaders(shader_conf.program_id, 20, out count, attached_shaders);
 
             for (int i = 0; i < count; i++)

@@ -18,12 +18,16 @@ layout (std140, binding=0) uniform _COMMON_PER_FRAME
 };
 
 in vec4 vertColor;
+out vec4 fragColor;
+
 uniform float color_mult;
 uniform float is_active;
+
+
 
 void main(){
 	float avg_col = 0.33 * (vertColor.r + vertColor.g + vertColor.b);
 	vec4 gray = vec4(avg_col, avg_col, avg_col, 1.0);
 	vec4 col = mix(vertColor, gray, 0.5);
-	gl_FragColor = mix(vertColor, col, is_active);
+	fragColor = mix(vertColor, col, is_active);
 }

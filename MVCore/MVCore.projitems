@@ -9,36 +9,54 @@
     <Import_RootNamespace>MVCore</Import_RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="$(MSBuildThisFileDirectory)2sComplement.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Camera.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)MVCore.Common\Common.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)DDSImage.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)MVCore.GMDL\GLMeshBufferManager.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)MVCore.Utils\FileUtils.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)FontGL.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)GamepadHandler.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)gbuffer.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)gImage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\AnimData.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\Components\AnimComponent.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\Camera.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Common.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\Components\AnimPoseComponent.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\Components\Component.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\Components\LODModelComponent.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\Joint.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\Light.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\Locator.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\Material.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\Mesh.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\Model.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\Reference.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\Scene.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\TextureMixer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Image\DDSImage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\GLMeshBufferManager.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\TextureManager.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Text\Font.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Text\FontManager.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Text\Text.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Text\TextManager.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Text\TextRenderer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Utils\FileUtils.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Input\GamepadHandler.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Engine\Gbuffer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Gizmo.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)GLPrimitives.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\GLPrimitives.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GLShaderHelper.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)GLSL_Preprocessor.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)MVCore.GMDL\GMDL.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)half.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)KeyboardHandler.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)MVCore.Utils\HTMLUtils.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)MVCore.Utils\MathUtils.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\GMDL.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Input\KeyboardHandler.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Utils\HTMLUtils.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Utils\MathUtils.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MBIN.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ModelProcGen.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)NMS_Util.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Octree.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Utils\NMS_Util.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Engine\Octree.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Palettes.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)RenderManager.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)ResourceManager.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)ShadowRenderer.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)ThreadRequest.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Engine\RenderManager.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\ResourceManager.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Engine\ShadowRenderer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\ThreadRequest.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="$(MSBuildThisFileDirectory)MVCore.Common\" />
+    <Folder Include="$(MSBuildThisFileDirectory)Common\" />
+    <Folder Include="$(MSBuildThisFileDirectory)Image\" />
+    <Folder Include="$(MSBuildThisFileDirectory)Input\" />
+    <Folder Include="$(MSBuildThisFileDirectory)Engine\" />
   </ItemGroup>
 </Project>

@@ -72,8 +72,20 @@ namespace WPFModelViewer
 
         }
 
+        public static void showInfo(Window parent, string message, string caption)
+        {
+            Application.Current.Dispatcher.Invoke((Action)(() =>
+            {
+                if (parent is null)
+                    MessageBox.Show(message, caption, MessageBoxButton.OK, MessageBoxImage.Information);
+                else
+                    MessageBox.Show(parent, message, caption, MessageBoxButton.OK, MessageBoxImage.Information);
+            }));
+
+        }
+
         //Generic Procedures - File Loading
-        public static void loadAnimationFile(string path, MVCore.GMDL.model scn)
+        public static void loadAnimationFile(string path, MVCore.GMDL.Model scn)
         {
             libMBIN.MBINFile mbinf = new libMBIN.MBINFile(path);
             mbinf.Load();

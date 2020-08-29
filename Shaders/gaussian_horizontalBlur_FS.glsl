@@ -11,6 +11,8 @@
 //Diffuse Textures
 uniform sampler2D diffuseTex;
 
+out vec4 fragColor;
+
 //Uniform Blocks
 layout (std140, binding=0) uniform _COMMON_PER_FRAME
 {
@@ -34,5 +36,5 @@ vec3 gaussianBlur(){
 
 void main()
 {
-	gl_FragColor = vec4(gaussianBlur(), 1.0);
+	fragColor = vec4(gaussianBlur(), 1.0);
 }

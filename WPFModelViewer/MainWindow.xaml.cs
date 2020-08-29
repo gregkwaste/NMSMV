@@ -16,7 +16,7 @@ using System.Windows.Data;
 using System.Threading;
 using System.Reflection;
 using OpenTK;
-using MVCore.MVCore.Utils;
+using MVCore.Utils;
 
 namespace WPFModelViewer
 {
@@ -29,10 +29,6 @@ namespace WPFModelViewer
     public partial class MainWindow : Window
     {
         private CGLControl glControl;
-        private SettingsForm settingsForm;
-        private Settings settings;
-        
-
         private int itemCounter = 0;
 
 
@@ -47,8 +43,8 @@ namespace WPFModelViewer
         //Treeview Helpers
         TextBlock old_tb;
         TextBlock start_tb;
-        model init_drag;
-        model target_drag;
+        Model init_drag;
+        Model target_drag;
 
         
 
@@ -325,8 +321,6 @@ namespace WPFModelViewer
             glControl.resMgr.Cleanup();
             glControl.Dispose();
 
-            //CLose settings form if opened
-            settingsForm?.Close();
         }
 
         private void MainWindow_OnClosed(object sender, EventArgs e)
@@ -410,9 +404,9 @@ namespace WPFModelViewer
 
             while(req.status != THREAD_REQUEST_STATUS.FINISHED)
                 System.Threading.Thread.Sleep(10);
-            
+
             //Populate GLControl
-            scene scene = new scene();
+            Scene scene = new Scene();
             scene.type = TYPES.MODEL;
             scene.name = "DEFAULT SCENE";
 
@@ -448,6 +442,7 @@ namespace WPFModelViewer
             sliderLightIntensity.ValueChanged += Sliders_OnValueChanged;
             sliderlightDistance.ValueChanged += Sliders_OnValueChanged;
             sliderMovementSpeed.ValueChanged += Sliders_OnValueChanged;
+            sliderMovementFactor.ValueChanged += Sliders_OnValueChanged;
 
             //Invoke the method in order to setup the control at startup
             Sliders_OnValueChanged(null, new RoutedPropertyChangedEventArgs<double>(0.0f,0.0f));
@@ -457,6 +452,12 @@ namespace WPFModelViewer
             //Disable Open File Functions
             OpenFileHandle.IsEnabled = false;
             OpenFilePAKHandle.IsEnabled = false;
+            TestOptions.Visibility = Visibility.Hidden; //Hide the test options by default
+
+#if (DEBUG)
+            //Enable the Test options if it is a debug version
+            TestOptions.Visibility = Visibility.Visible;
+#endif
 
             //Issue work request 
             ThreadRequest rq = new ThreadRequest();
@@ -501,9 +502,10 @@ namespace WPFModelViewer
             float zNear = (float) sliderzNear.Value;
             float zFar = (float) sliderzFar.Value;
             int FOV = (int) sliderFOV.Value;
+            float speed = (float) sliderMovementSpeed.Value;
+            float speedPower = (float) sliderMovementFactor.Value;
 
-            glControl.updateActiveCam(FOV, zNear, zFar);
-            glControl.movement_speed = (int) Math.Floor(Math.Pow(sliderMovementFactor.Value, sliderMovementSpeed.Value));
+            glControl.updateActiveCam(FOV, zNear, zFar, speed, speedPower);
             glControl.light_distance = (float) Math.Pow(1.25f, sliderlightDistance.Value) - 1.0f;
             glControl.light_intensity = (float) sliderLightIntensity.Value;
         }
@@ -521,11 +523,11 @@ namespace WPFModelViewer
 
         private void SceneTreeView_OnSelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
         {
-            model node = (model) SceneTreeView.SelectedItem;
+            Model node = (Model) SceneTreeView.SelectedItem;
             if (node != null)
             {
                 //Swap activeModels
-                model prev_activeModel = glControl.activeModel;
+                Model prev_activeModel = glControl.activeModel;
                 glControl.activeModel = node;
 
                 //Set binding to objectinfo box
@@ -550,11 +552,7 @@ namespace WPFModelViewer
 
         private void showSettingsDialog(object sender, RoutedEventArgs e)
         {
-            //Do not open a new settings window if the current one is not closed
-            if (settingsForm != null)
-                return;
-            
-            settingsForm = new SettingsForm();
+            SettingsForm settingsForm = new SettingsForm();
             settingsForm.KeyUp += new KeyEventHandler(delegate (object s, KeyEventArgs ee)
             {
                 if (ee.Key == Key.Escape)
@@ -573,7 +571,7 @@ namespace WPFModelViewer
 
             if ((e.OriginalSource is TextBlock) && (SceneTreeView.SelectedItem != null))
             {
-                model node = (model) SceneTreeView.SelectedItem;
+                Model node = (Model) SceneTreeView.SelectedItem;
                 init_drag = node; //Set start model node
                 //Console.WriteLine("Grabbed " + node.Name);
                 var tv = sender as TreeView;
@@ -656,7 +654,7 @@ namespace WPFModelViewer
                         tb.Background = System.Windows.Media.Brushes.DarkGray;
                         var s1 = System.Windows.Media.VisualTreeHelper.GetParent(tb);
                         StackPanel s2 = (StackPanel)System.Windows.Media.VisualTreeHelper.GetParent(s1);
-                        target_drag = (model) s2.DataContext; //Set current target drag
+                        target_drag = (Model) s2.DataContext; //Set current target drag
                         //Console.WriteLine("Cursor Over " + target_drag.Name);
                     }
 
@@ -695,6 +693,25 @@ namespace WPFModelViewer
         private void UpdateLibMBIN_Click(object sender, RoutedEventArgs e)
         {
             HTMLUtils.fetchLibMBINDLL();
+        }
+
+        private void TestOpts_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            Slider s = (Slider) sender;
+            string name = s.Name;
+            
+            switch (name)
+            {
+                case "TestOpt1":
+                    RenderState.renderSettings.testOpt1 = (float) s.Value;
+                    break;
+                case "TestOpt2":
+                    RenderState.renderSettings.testOpt2 = (float)s.Value;
+                    break;
+                case "TestOpt3":
+                    RenderState.renderSettings.testOpt3 = (float)s.Value;
+                    break;
+            }
         }
     }
 

@@ -10,19 +10,21 @@ using GLSLHelper;
 using MVCore;
 using MVCore.Common;
 using MVCore.GMDL;
+using MVCore.Text;
+using MVCore.Utils;
+using MVCore.Input;
 using OpenTK;
 using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Input;
-using GL = OpenTK.Graphics.OpenGL4.GL;
-
+using System.Timers;
 
 namespace Model_Viewer
 {
     public class CGLControl : GLControl
     {
-        public model rootObject;
-        public model activeModel; //Active Model Reference
+        public Model rootObject;
+        public Model activeModel; //Active Model Reference
 
         public Gizmo activeGizmo;
         public TranslationGizmo gizTranslate;
@@ -40,9 +42,10 @@ namespace Model_Viewer
         //Mouse Pos
         private MouseMovementState mouseState = new MouseMovementState();
         private MouseMovementStatus mouseMovementStatus = MouseMovementStatus.IDLE;
-        
+
         //Camera Movement Speed
-        public int movement_speed = 1;
+        public CameraPos targetCameraPos;
+        //public int movement_speed = 1;
 
         //Control Identifier
         private int index;
@@ -67,8 +70,8 @@ namespace Model_Viewer
             }
         }
 
-        public List<model> animScenes = new List<model>();
-        public Queue<model> modelUpdateQueue = new Queue<model>();
+        public List<Model> animScenes = new List<Model>();
+        public Queue<Model> modelUpdateQueue = new Queue<Model>();
         public List<Tuple<AnimComponent, AnimData>> activeAnimScenes = new List<Tuple<AnimComponent, AnimData>>();
 
         //Control private Managers
@@ -85,6 +88,7 @@ namespace Model_Viewer
 
         //Timers
         public System.Timers.Timer inputPollTimer;
+        public System.Timers.Timer cameraMovementTimer;
         public System.Timers.Timer resizeTimer;
 
         //Private fps Counter
@@ -121,7 +125,7 @@ namespace Model_Viewer
         }
 
         //Default Constructor
-        public CGLControl(): base(new GraphicsMode(32, 24, 0, 8))
+        public CGLControl(): base(new GraphicsMode(32, 24, 0, 8), 4, 6, GraphicsContextFlags.ForwardCompatible)
         {
             registerFunctions();
 
@@ -131,18 +135,32 @@ namespace Model_Viewer
 
             //Input Polling Timer
             inputPollTimer = new System.Timers.Timer();
-            inputPollTimer.Elapsed += new System.Timers.ElapsedEventHandler(input_poller);
+            inputPollTimer.Elapsed += new ElapsedEventHandler(input_poller);
             inputPollTimer.Interval = 1;
-            
+
+            //Camera Movement Timer
+            cameraMovementTimer = new System.Timers.Timer();
+            cameraMovementTimer.Elapsed += new ElapsedEventHandler(camera_timer);
+            cameraMovementTimer.Interval = 20;
+            cameraMovementTimer.Start();
+
             //Resize Timer
             resizeTimer = new System.Timers.Timer();
-            resizeTimer.Elapsed += new System.Timers.ElapsedEventHandler(ResizeControl);
+            resizeTimer.Elapsed += new ElapsedEventHandler(ResizeControl);
             resizeTimer.Interval = 10;
 
             //Set properties
             DoubleBuffered = true;
             VSync = RenderState.renderSettings.UseVSYNC;
 
+        }
+
+        private void camera_timer(object sender, ElapsedEventArgs e)
+        {
+            //Update Target for camera
+            RenderState.activeCam?.updateTarget(targetCameraPos,
+                (float) cameraMovementTimer.Interval);
+            targetCameraPos.Reset();
         }
 
         //Constructor
@@ -177,9 +195,13 @@ namespace Model_Viewer
             //gpHandler.reportButtons();
             //gamepadController(); //Move camera according to input
 
+            //Move Camera
+            keyboardController();
+            //gamepadController();
+            
             bool focused = false;
 
-            this.Invoke((MethodInvoker) delegate
+            Invoke((MethodInvoker) delegate
             {
                 focused = Focused;
             });
@@ -189,6 +211,8 @@ namespace Model_Viewer
                 kbHandler?.updateState();
                 //gpHandler?.updateState();
             }
+
+            
         }
 
         private void rt_render()
@@ -203,12 +227,12 @@ namespace Model_Viewer
             Thread.Sleep(1);
         }
         
-        public void findAnimScenes(model node)
+        public void findAnimScenes(Model node)
         {
             if (node.animComponentID >= 0)
                 animScenes.Add(node);
             
-            foreach (model child in node.children)
+            foreach (Model child in node.children)
                 findAnimScenes(child);
         }
 
@@ -219,27 +243,24 @@ namespace Model_Viewer
 
             //Console.WriteLine(RenderState.renderSettings.RENDERMODE);
 
-            //Update movement
-            keyboardController();
-            //gamepadController();
-
             //Gizmo Picking
             //Send picking request
             //Make new request
-            ThreadRequest req = new ThreadRequest();
-            req.type = THREAD_REQUEST_TYPE.GIZMO_PICKING_REQUEST;
-            req.arguments.Clear();
-            req.arguments.Add(activeGizmo);
-            req.arguments.Add(mouseState.Position);
-
-            issueRequest(ref req);
-
+            activeGizmo = null;
+            if (RenderState.renderViewSettings.RenderGizmos)
+            {
+                ThreadRequest req = new ThreadRequest();
+                req.type = THREAD_REQUEST_TYPE.GIZMO_PICKING_REQUEST;
+                req.arguments.Clear();
+                req.arguments.Add(activeGizmo);
+                req.arguments.Add(mouseState.Position);
+                issueRequest(ref req);
+            }
+            
             //No need to wait for the request
             //while (req.status != THREAD_REQUEST_STATUS.FINISHED)
             //    Thread.Sleep(2);
 
-            
-            
             //Set time to the renderManager
             renderMgr.progressTime(dt);
 
@@ -249,7 +270,7 @@ namespace Model_Viewer
             //Update moving queue
             while (modelUpdateQueue.Count > 0)
             {
-                model m = modelUpdateQueue.Dequeue();
+                Model m = modelUpdateQueue.Dequeue();
                 m.update();
             }
 
@@ -259,7 +280,6 @@ namespace Model_Viewer
             rootObject?.updateMeshInfo(); //Reapply frustum culling and re-setup visible instances
 
             //Update gizmo
-
             if (activeModel != null)
             {
                 //TODO: Move gizmos
@@ -270,7 +290,7 @@ namespace Model_Viewer
             }
                 
             //Identify dynamic Objects
-            foreach (model s in animScenes)
+            foreach (Model s in animScenes)
             {
                 modelUpdateQueue.Enqueue(s.parentScene);
             }
@@ -290,17 +310,26 @@ namespace Model_Viewer
             RenderState.rotMat = Rotz * Rotx * Roty;
             //RenderState.rotMat = Matrix4.Identity;
 
+            resMgr.GLCameras[0].Move(dt);
             resMgr.GLCameras[0].updateViewMatrix();
             resMgr.GLCameras[1].updateViewMatrix();
 
             //Update Frame Counter
             fps();
+
+            //Update Text Counters
+            
+            resMgr.txtMgr.getText(TextManager.Semantic.FPS).update(string.Format("FPS: {0:000.0}",
+                                                                        (float) RenderStats.fpsCount));
+            resMgr.txtMgr.getText(TextManager.Semantic.OCCLUDED_COUNT).update(string.Format("OccludedNum: {0:0000}", 
+                                                                        RenderStats.occludedNum));
+
         }
 
         private void progressAnimations()
         {
             //Update active animations
-            foreach (model anim_model in animScenes)
+            foreach (Model anim_model in animScenes)
             {
                 AnimComponent ac = anim_model._components[anim_model.hasComponent(typeof(AnimComponent))] as AnimComponent;
                 bool found_first_active_anim = false;
@@ -341,8 +370,8 @@ namespace Model_Viewer
             IGraphicsContext new_context = new GraphicsContext(new GraphicsMode(32, 24, 0, 8), WindowInfo, 4, 3,
                 GraphicsContextFlags.Debug);
 #else
-            IGraphicsContext new_context = new GraphicsContext(new GraphicsMode(32, 24, 0, 8), WindowInfo, 4 ,3,
-                GraphicsContextFlags.Default);
+            IGraphicsContext new_context = new GraphicsContext(new GraphicsMode(32, 24, 0, 8), WindowInfo, 4 , 6,
+                GraphicsContextFlags.ForwardCompatible);
 #endif
             new_context.MakeCurrent(WindowInfo);
             MakeCurrent(); //This is essential
@@ -396,8 +425,8 @@ namespace Model_Viewer
                                 }
                                 break;
                             case THREAD_REQUEST_TYPE.CHANGE_MODEL_PARENT_REQUEST:
-                                model source = (model) req.arguments[0];
-                                model target = (model) req.arguments[1];
+                                Model source = (Model) req.arguments[0];
+                                Model target = (Model) req.arguments[1];
 
                                 System.Windows.Application.Current.Dispatcher.Invoke((Action)(() =>
                                 {
@@ -412,7 +441,7 @@ namespace Model_Viewer
                                 req.status = THREAD_REQUEST_STATUS.FINISHED;
                                 break;
                             case THREAD_REQUEST_TYPE.UPDATE_SCENE_REQUEST:
-                                scene req_scn = (scene) req.arguments[0];
+                                Scene req_scn = (Scene) req.arguments[0];
                                 req_scn.update();
                                 req.status = THREAD_REQUEST_STATUS.FINISHED;
                                 break;
@@ -527,8 +556,9 @@ namespace Model_Viewer
             //Debug.WriteLine("Mouse moving on {0}", this.TabIndex);
             //int delta_x = (int) (Math.Pow(activeCam.fov, 4) * (e.X - mouse_x));
             //int delta_y = (int) (Math.Pow(activeCam.fov, 4) * (e.Y - mouse_y));
-            mouseState.Delta.X = (e.X - mouseState.Position.X);
-            mouseState.Delta.Y = (e.Y - mouseState.Position.Y);
+            System.Drawing.Point p = PointToClient(Cursor.Position);
+            mouseState.Delta.X = (p.X - mouseState.Position.X);
+            mouseState.Delta.Y = (p.Y - mouseState.Position.Y);
 
             mouseState.Delta.X = Math.Min(Math.Max(mouseState.Delta.X, -10), 10);
             mouseState.Delta.Y = Math.Min(Math.Max(mouseState.Delta.Y, -10), 10);
@@ -539,7 +569,8 @@ namespace Model_Viewer
                 case MouseMovementStatus.CAMERA_MOVEMENT:
                     {
                         // Debug.WriteLine("Deltas {0} {1} {2}", mouseState.Delta.X, mouseState.Delta.Y, e.Button);
-                        RenderState.activeCam.Move(0, 0, 0, mouseState.Delta.X, mouseState.Delta.Y);
+                        targetCameraPos.Rotation.X += mouseState.Delta.X;
+                        targetCameraPos.Rotation.Y += mouseState.Delta.Y;
                         break;
                     }
                 case MouseMovementStatus.GIZMO_MOVEMENT:
@@ -573,8 +604,8 @@ namespace Model_Viewer
             }
 
             
-            mouseState.Position.X = e.X;
-            mouseState.Position.Y = e.Y;
+            mouseState.Position.X = p.X;
+            mouseState.Position.Y = p.Y;
 
         }
 
@@ -589,7 +620,6 @@ namespace Model_Viewer
             {
                 mouseMovementStatus = MouseMovementStatus.CAMERA_MOVEMENT;
             }
-            
         }
 
         private void genericMouseUp(object sender, System.Windows.Forms.MouseEventArgs e)
@@ -925,8 +955,14 @@ namespace Model_Viewer
 
 
             //Text Shaders
-            //TODO: CHECK IF A TEXT SHADER WILL BE REQUIRED FOR CUSTOM TEXT RENDERING
-
+            GLSLShaderText text_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText text_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            text_shader_vs.addStringFromFile("Shaders/Text_VS.glsl");
+            text_shader_fs.addStringFromFile("Shaders/Text_FS.glsl");
+            shader_conf = GLShaderHelper.compileShader(text_shader_vs, text_shader_fs, null, null, null,
+                            SHADER_TYPE.TEXT_SHADER, ref log);
+            resMgr.GLShaders[SHADER_TYPE.TEXT_SHADER] = shader_conf;
+            
             //Camera Shaders
             //TODO: Add Camera Shaders if required
             resMgr.GLShaders[GLSLHelper.SHADER_TYPE.CAMERA_SHADER] = null;
@@ -1010,14 +1046,14 @@ namespace Model_Viewer
             
         }
 
-        private void findGeoms(model m, StreamWriter s, ref uint index)
+        private void findGeoms(Model m, StreamWriter s, ref uint index)
         {
             switch (m.type)
             {
                 case TYPES.MESH:
                     {
                         //Get converted text
-                        meshModel me = (meshModel)m;
+                        Mesh me = (Mesh) m;
                         me.writeGeomToStream(s, ref index);
                         break;
                     }
@@ -1028,7 +1064,7 @@ namespace Model_Viewer
                     break;
             }
             
-            foreach (model c in m.children)
+            foreach (Model c in m.children)
                 if (c.renderable) findGeoms(c, s, ref index);
         }
 
@@ -1061,7 +1097,7 @@ namespace Model_Viewer
             Console.WriteLine("Ray Vector : {0}, {1}, {2} ", v.X, v.Y, v.Z);
 
             //Intersect Ray with scene
-            model intersectedModel = null;
+            Model intersectedModel = null;
             bool intersectionStatus = false;
             float intersectionDistance = float.MaxValue;
             findIntersectedModel(rootObject, v, ref intersectionStatus, ref intersectedModel, ref intersectionDistance);
@@ -1076,7 +1112,7 @@ namespace Model_Viewer
         }
 
         
-        private void findIntersectedModel(model m, Vector3 ray, ref bool foundIntersection, ref model interSectedModel, ref float intersectionDistance)
+        private void findIntersectedModel(Model m, Vector3 ray, ref bool foundIntersection, ref Model interSectedModel, ref float intersectionDistance)
         {
             if (!m.renderable)
                 return;
@@ -1094,7 +1130,7 @@ namespace Model_Viewer
             }
                 
             //Iterate in children
-            foreach (model c in m.children)
+            foreach (Model c in m.children)
             { 
                 findIntersectedModel(c, ray, ref foundIntersection, ref interSectedModel, ref intersectionDistance);
             }
@@ -1131,20 +1167,26 @@ namespace Model_Viewer
             Console.WriteLine("Switching Camera to {0}", index);
         }
 
-        public void updateActiveCam(int FOV, float zNear, float zFar)
+        public void updateActiveCam(int FOV, float zNear, float zFar, float speed, float speedPower)
         {
             //TODO: REMOVE, FOR TESTING I"M WORKING ONLY ON THE FIRST CAM
             resMgr.GLCameras[0].setFOV(FOV);
             resMgr.GLCameras[0].zFar = zFar;
             resMgr.GLCameras[0].zNear = zNear;
+            resMgr.GLCameras[0].Speed = speed;
+            resMgr.GLCameras[0].SpeedPower = speedPower;
         }
 
         public void updateActiveCam(Vector3 pos, Vector3 rot)
         {
             RenderState.activeCam.Position = pos;
-            RenderState.activeCam.pitch = rot.X; //Radians rotation on X axis
-            RenderState.activeCam.yaw = rot.Y; //Radians rotation on Y axis
-            RenderState.activeCam.roll = rot.Z; //Radians rotation on Z axis
+            
+
+
+
+            //RenderState.activeCam.pitch = rot.X; //Radians rotation on X axis
+            //RenderState.activeCam.yaw = rot.Y; //Radians rotation on Y axis
+            //RenderState.activeCam.roll = rot.Z; //Radians rotation on Z axis
     }
 
 #endregion
@@ -1156,8 +1198,6 @@ namespace Model_Viewer
         {
             //Set Camera position
             Camera cam = new Camera(90, -1, 0, cull);
-            for (int i = 0; i < 20; i++)
-                cam.Move(0.0f, -0.1f, 0.0f, 0, 0);
             cam.isActive = false;
             resMgr.GLCameras.Add(cam);
         }
@@ -1270,7 +1310,6 @@ namespace Model_Viewer
             
             if (time.TotalMilliseconds > 1000)
             {
-                RenderStats.fpsCount = frames;
                 //Console.WriteLine("{0} {1} {2}", frames, RenderStats.fpsCount, time.TotalMilliseconds);
                 //Reset
                 frames = 0;
@@ -1281,6 +1320,8 @@ namespace Model_Viewer
                 frames += 1;
                 prevtime = now;
             }
+
+            RenderStats.fpsCount = 1000.0f * frames / (float)time.TotalMilliseconds;
         }
 
 
@@ -1293,18 +1334,20 @@ namespace Model_Viewer
             if (!gpHandler.isConnected()) return;
 
             //Camera Movement
-            float step = movement_speed * 0.002f; 
             float cameraSensitivity = 2.0f;
             float x, y, z, rotx, roty;
 
-            x = step * gpHandler.getAction(ControllerActions.MOVE_X);
-            y = step * (gpHandler.getAction(ControllerActions.ACCELERATE) - gpHandler.getAction(ControllerActions.DECELERATE));
-            z = step * (gpHandler.getAction(ControllerActions.MOVE_Y_NEG) - gpHandler.getAction(ControllerActions.MOVE_Y_POS));
+            x = gpHandler.getAction(ControllerActions.MOVE_X);
+            y = gpHandler.getAction(ControllerActions.ACCELERATE) - gpHandler.getAction(ControllerActions.DECELERATE);
+            z = gpHandler.getAction(ControllerActions.MOVE_Y_NEG) - gpHandler.getAction(ControllerActions.MOVE_Y_POS);
             rotx = -cameraSensitivity * gpHandler.getAction(ControllerActions.CAMERA_MOVE_H);
             roty = cameraSensitivity * gpHandler.getAction(ControllerActions.CAMERA_MOVE_V);
 
-            RenderState.activeCam.Move(x, y, z, rotx, roty);
-
+            targetCameraPos.PosImpulse.X = x;
+            targetCameraPos.PosImpulse.Y = y;
+            targetCameraPos.PosImpulse.Z = z;
+            targetCameraPos.Rotation.X = rotx;
+            targetCameraPos.Rotation.Y = roty;
         }
 
         //Keyboard handler
@@ -1313,26 +1356,25 @@ namespace Model_Viewer
             if (kbHandler == null) return;
 
             //Camera Movement
-            float step = movement_speed * 0.002f;
-            float x, y, z, rotx, roty;
+            float step = 0.002f;
+            float x, y, z;
 
-            x = step * (kbHandler.getKeyStatus(OpenTK.Input.Key.D) - kbHandler.getKeyStatus(OpenTK.Input.Key.A));
-            y = step * (kbHandler.getKeyStatus(OpenTK.Input.Key.W) - kbHandler.getKeyStatus(OpenTK.Input.Key.S));
-            z = step * (kbHandler.getKeyStatus(OpenTK.Input.Key.R) - kbHandler.getKeyStatus(OpenTK.Input.Key.F));
-
+            x = kbHandler.getKeyStatus(Key.D) - kbHandler.getKeyStatus(Key.A);
+            y = kbHandler.getKeyStatus(Key.W) - kbHandler.getKeyStatus(Key.S);
+            z = kbHandler.getKeyStatus(Key.R) - kbHandler.getKeyStatus(Key.F);
 
             //Camera rotation is done exclusively using the mouse
 
             //rotx = 50 * step * (kbHandler.getKeyStatus(OpenTK.Input.Key.E) - kbHandler.getKeyStatus(OpenTK.Input.Key.Q));
-            //roty = 50 * step * (kbHandler.getKeyStatus(OpenTK.Input.Key.C) - kbHandler.getKeyStatus(OpenTK.Input.Key.Z));
+            //float roty = (kbHandler.getKeyStatus(Key.C) - kbHandler.getKeyStatus(Key.Z));
 
             RenderState.rotAngles.Y += 100 * step * (kbHandler.getKeyStatus(Key.E) - kbHandler.getKeyStatus(Key.Q));
             RenderState.rotAngles.Y %= 360;
 
-
             //Move Camera
-            RenderState.activeCam.Move(x, y, z, 0.0f, 0.0f);
-            
+            targetCameraPos.PosImpulse.X = x;
+            targetCameraPos.PosImpulse.Y = y;
+            targetCameraPos.PosImpulse.Z = z;
         }
 
 #endregion

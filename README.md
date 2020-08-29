@@ -28,7 +28,7 @@ No Man's Model Viewer is an application developed to preview No Man's Sky 3D ass
 * Procedural model generation (broken for a while, repair pending)
 * Basic scenegraph editing (scenenode translation/rotation/scaling)
 * Interface with libMbin to allow for a much more robust asset import and export directly to MBIN/EXML file format.
-* Interface with libPSARC to allow for direct browsing of PAK contents (No need to unpack game files to browse through the models)
+* Interface with libPSARC to allow for direct browsing of PAK contents including mods (No need to unpack game files to browse through the models)
 
 ## **WIP** ##
 * 3D Gizmo implementation for a much more robust node manipulation.

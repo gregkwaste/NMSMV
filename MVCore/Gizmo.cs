@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using MVCore;
 using MVCore.GMDL;
-using MVCore.Primitives;
+using MVCore.GMDL.Primitives;
 using OpenTK;
 
 public enum GIZMO_PART_TYPE{
@@ -59,7 +59,7 @@ public abstract class Gizmo
 {
 	
 	public List<GizmoPart> gizmoParts;
-	public model reference;
+	public Model reference;
 
 	public bool isActive
     {
@@ -131,7 +131,7 @@ public class TranslationGizmo : Gizmo
 			g.update();
 	}
 
-	public void setReference(model m)
+	public void setReference(Model m)
     {
 		reference = m;
 		updateTransform();

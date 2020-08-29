@@ -6,6 +6,8 @@
 //Diffuse Textures
 uniform sampler2D diffuseTex;
 
+out vec4 fragColor;
+
 vec3 gaussianBlur(){
 	float offset = 3.9;  
 
@@ -36,5 +38,5 @@ vec3 gaussianBlur(){
 
 void main()
 {
-	gl_FragColor = vec4(gaussianBlur(), 1.0);
+	fragColor = vec4(gaussianBlur(), 1.0);
 }

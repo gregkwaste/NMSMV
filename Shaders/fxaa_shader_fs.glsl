@@ -17,6 +17,7 @@
 
 //Diffuse Textures
 uniform sampler2D diffuseTex;
+out vec4 finalColor;
 
 //Uniform Blocks
 layout (std140, binding=0) uniform _COMMON_PER_FRAME
@@ -159,5 +160,5 @@ void main()
     uv = vec4(uv2, uv2 - (texelSize * (0.5 + FXAA_SUBPIX_SHIFT)));
 
     //gl_FragColor = vec4(FxaaPixelShader(uv, diffuseTex, texelSize), 1.0);
-    gl_FragColor = fxaa(uv2, texelSize);
+    finalColor = fxaa(uv2, texelSize);
 }

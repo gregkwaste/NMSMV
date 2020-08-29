@@ -103,10 +103,10 @@ namespace MVCore
         }
 
 
-        public static GMDL.model get_procgen_parts(ref List<string> descriptors, GMDL.model root)
+        public static GMDL.Model get_procgen_parts(ref List<string> descriptors, GMDL.Model root)
         {
             //Make deep copy of root 
-            GMDL.model newRoot = ((GMDL.scene) root).Clone();
+            GMDL.Model newRoot = ((GMDL.Scene) root).Clone();
             root.procFlag = true; //Always keep the root node
 
             //PHASE 1
@@ -125,10 +125,10 @@ namespace MVCore
             return newRoot;
         }
 
-        public static void get_procgen_parts_phase1(ref List<string> descriptors, GMDL.model root)
+        public static void get_procgen_parts_phase1(ref List<string> descriptors, GMDL.Model root)
         {
             //During phase one all procgen parts are flagged
-            foreach (GMDL.model child in root.children)
+            foreach (GMDL.Model child in root.children)
             {
                 //Identify Descriptors
                 if (child.name.StartsWith("_"))
@@ -162,9 +162,9 @@ namespace MVCore
             }
         }
 
-        public static void get_procgen_parts_phase2(ref List<string> dellist, GMDL.model root)
+        public static void get_procgen_parts_phase2(ref List<string> dellist, GMDL.Model root)
         {
-            foreach (GMDL.model child in root.children)
+            foreach (GMDL.Model child in root.children)
             {
                 if (!child.procFlag)
                     dellist.Add(child.name);
@@ -173,17 +173,17 @@ namespace MVCore
             }   
         }
 
-        public static void get_procgen_parts_phase3(List<string> dellist, GMDL.model root)
+        public static void get_procgen_parts_phase3(List<string> dellist, GMDL.Model root)
         {
             for (int i = 0; i < dellist.Count; i++)
             {
                 string part_name = dellist[i];
-                GMDL.model child;
+                GMDL.Model child;
                 child = collectPart(root.children, part_name);
 
                 if (child != null)
                 {
-                    GMDL.model parent = child.parent;
+                    GMDL.Model parent = child.parent;
                     parent.children.Remove(child);
                 }
                 
@@ -216,9 +216,9 @@ namespace MVCore
             }
         }
 
-        public static GMDL.model collectPart(List<GMDL.model> coll, string name)
+        public static GMDL.Model collectPart(List<GMDL.Model> coll, string name)
         {
-            foreach (GMDL.model child in coll)
+            foreach (GMDL.Model child in coll)
             {
                 if (child.name == name)
                 {
@@ -227,7 +227,7 @@ namespace MVCore
                 else
                 {
 
-                    GMDL.model ret = collectPart(child.children, name);
+                    GMDL.Model ret = collectPart(child.children, name);
                     if (ret != null)
                         return ret;
                     else

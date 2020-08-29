@@ -7,20 +7,12 @@ using System.Security.RightsManagement;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Forms;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
-using libMBIN.NMS.Toolkit;
-using MVCore;
 using MVCore.Common;
+using MVCore.Utils;
 using Newtonsoft.Json;
 using MessageBox = System.Windows.MessageBox;
-using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+
 
 namespace WPFModelViewer
 {
@@ -143,7 +135,8 @@ namespace WPFModelViewer
         private void saveSettings(object sender, RoutedEventArgs e)
         {
             saveSettingsStatic();
-            Util.showInfo("Settings Saved", "Info");
+            Util.showInfo(this, "Settings Saved", "Info");
+            this.Focus(); //Bring focus back to the settings form
         }
 
         private void Dirpath_OnGotFocus(object sender, RoutedEventArgs e)
@@ -162,7 +155,7 @@ namespace WPFModelViewer
             if (but.Name == "GameDirSetButton")
             {
                 RenderState.settings.GameDir = path;
-                Util.showInfo("Please restart the application to reload pak files.", "Info");
+                Util.showInfo(this, "Please restart the application to reload pak files.", "Info");
             }
             else
                 RenderState.settings.UnpackDir = path;

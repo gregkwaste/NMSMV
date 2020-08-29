@@ -16,7 +16,7 @@
         Loaded="MainWindow_OnLoaded">
     <Window.Resources>
         <ResourceDictionary>
-            <DataTemplate x:Key="basemodel" DataType="{x:Type gmdl:model}">
+            <DataTemplate x:Key="basemodel" DataType="{x:Type gmdl:Model}">
                 <Grid VerticalAlignment="Stretch">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -229,7 +229,7 @@
             </DataTemplate>
 
 
-            <DataTemplate DataType="{x:Type gmdl:scene}">
+            <DataTemplate DataType="{x:Type gmdl:Scene}">
                 <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}" Grid.Row="0"/>
             </DataTemplate>
 
@@ -290,7 +290,7 @@
                 </StackPanel>
             </DataTemplate>
 
-            <DataTemplate DataType="{x:Type gmdl:locator}">
+            <DataTemplate DataType="{x:Type gmdl:Locator}">
                 <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}" Grid.Row="0"/>
             </DataTemplate>
 
@@ -302,7 +302,7 @@
                 <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}" Grid.Row="0"/>
             </DataTemplate>
 
-            <DataTemplate DataType="{x:Type gmdl:meshModel}">
+            <DataTemplate DataType="{x:Type gmdl:Mesh}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -465,7 +465,7 @@
                 <!--Setter Property="dw:VirtualToggleButton.IsVirtualToggleButton" Value="True" /-->
                 <!--Setter Property="dw:VirtualToggleButton.IsChecked" Value="{Binding IsChecked}" /-->
             </Style>
-            <HierarchicalDataTemplate x:Key="CheckBoxItemTemplate" DataType="{x:Type gmdl:model}" ItemsSource="{Binding Children, Mode=OneTime}">
+            <HierarchicalDataTemplate x:Key="CheckBoxItemTemplate" DataType="{x:Type gmdl:Model}" ItemsSource="{Binding Children, Mode=OneTime}">
                 <StackPanel Orientation="Horizontal">
                     <!-- These elements are bound to a FooViewModel object. -->
                     <CheckBox
@@ -553,31 +553,31 @@
                                     <RowDefinition Height="20"/>
                                     </Grid.RowDefinitions>
                                 <DockPanel Grid.Row="0" HorizontalAlignment="Stretch">
-                                    <TextBlock Width="80">FOV</TextBlock>
+                                    <TextBlock Width="100">FOV</TextBlock>
                                     <Slider x:Name="sliderFOV"  Value="90" Minimum="1" Maximum="100" SmallChange="1"></Slider>
                                 </DockPanel>
                                 <DockPanel Grid.Row="1" HorizontalAlignment="Stretch">
-                                    <TextBlock Width="80">Cam Speed</TextBlock>
-                                    <Slider x:Name="sliderMovementSpeed"  Value="3" Minimum="1" Maximum="10" SmallChange="0.01"></Slider>
+                                    <TextBlock Width="100">Cam Speed</TextBlock>
+                                    <Slider x:Name="sliderMovementSpeed"  Value="2" Minimum="1" Maximum="20" SmallChange="1"></Slider>
                                 </DockPanel>
                                 <DockPanel Grid.Row="2" HorizontalAlignment="Stretch">
-                                    <TextBlock Width="80">Cam Speed Factor</TextBlock>
-                                    <Slider x:Name="sliderMovementFactor"  Value="2" Minimum="1" Maximum="10" SmallChange="1"></Slider>
+                                    <TextBlock Width="100">Cam Speed Boost</TextBlock>
+                                    <Slider x:Name="sliderMovementFactor"  Value="1" Minimum="1" Maximum="10" SmallChange="0.5"></Slider>
                                 </DockPanel>
                                 <DockPanel Grid.Row="3" HorizontalAlignment="Stretch">
-                                    <TextBlock Width="80">zNear</TextBlock>
+                                        <TextBlock Width="100">zNear</TextBlock>
                                     <Slider x:Name="sliderzNear"  Value="0.01" Minimum="0.01" Maximum="1" SmallChange="0.1"></Slider>
                                 </DockPanel>
                                 <DockPanel Grid.Row="4" HorizontalAlignment="Stretch">
-                                    <TextBlock Width="80">zFar</TextBlock>
+                                        <TextBlock Width="100">zFar</TextBlock>
                                     <Slider x:Name="sliderzFar" Value="15000" Minimum="101" Maximum="30000" SmallChange="5"></Slider>
                                 </DockPanel>
                                 <DockPanel Grid.Row="5" HorizontalAlignment="Stretch">
-                                    <TextBlock Width="80">Light Distance</TextBlock>
+                                        <TextBlock Width="100">Light Distance</TextBlock>
                                     <Slider x:Name="sliderlightDistance" Value="2.0" Minimum="0" Maximum="20" SmallChange="0.2"></Slider>
                                 </DockPanel>
                                 <DockPanel Grid.Row="6" HorizontalAlignment="Stretch">
-                                    <TextBlock Width="80">Light Intensity</TextBlock>
+                                        <TextBlock Width="100">Light Intensity</TextBlock>
                                     <Slider x:Name="sliderLightIntensity"  Value="3.0" Minimum="0.0" Maximum="20.0" SmallChange="0.1"></Slider>
                                 </DockPanel>
                                 <Grid Grid.Row="7">
@@ -620,6 +620,25 @@
                     </TabItem>
                     <TabItem Header="View Options" x:Name="ViewInfoOptions">
                         <ContentControl x:Name="RenderViewOptionsControl"/>
+                    </TabItem>
+                    <TabItem Header="Τest Options" x:Name="TestOptions">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="20"/>
+                                <RowDefinition Height="20"/>
+                                <RowDefinition Height="20"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="50*"/>
+                                <ColumnDefinition Width="50*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Row="0" Grid.Column="0">Test (0.0 - 1.0)</TextBlock>
+                            <Slider Grid.Row="0" Grid.Column="1" x:Name="TestOpt1" Minimum="0.0" Maximum="1.0" ValueChanged="TestOpts_ValueChanged"></Slider>
+                            <TextBlock Grid.Row="1" Grid.Column="0">Test (0.0 - 1.0)</TextBlock>
+                            <Slider Grid.Row="1" Grid.Column="1" x:Name="TestOpt2" Minimum="0.0" Maximum="1.0" ValueChanged="TestOpts_ValueChanged"></Slider>
+                            <TextBlock Grid.Row="2" Grid.Column="0">Test (0.0 - 30.0)</TextBlock>
+                            <Slider Grid.Row="2" Grid.Column="1" x:Name="TestOpt3" Minimum="0.0" Maximum="2000.0" ValueChanged="TestOpts_ValueChanged"></Slider>
+                        </Grid>
                     </TabItem>
                     <TabItem Header="Render Options" x:Name="RenderInfoOptions">
                         <ContentControl x:Name="RenderOptionsControl"/>

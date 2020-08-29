@@ -22,7 +22,7 @@ namespace WPFModelViewer.Properties {
     [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "16.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
-    public class Resources {
+    internal class Resources {
         
         private static global::System.Resources.ResourceManager resourceMan;
         
@@ -36,7 +36,7 @@ namespace WPFModelViewer.Properties {
         ///   Returns the cached ResourceManager instance used by this class.
         /// </summary>
         [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Advanced)]
-        public static global::System.Resources.ResourceManager ResourceManager {
+        internal static global::System.Resources.ResourceManager ResourceManager {
             get {
                 if (object.ReferenceEquals(resourceMan, null)) {
                     global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("WPFModelViewer.Properties.Resources", typeof(Resources).Assembly);
@@ -51,7 +51,7 @@ namespace WPFModelViewer.Properties {
         ///   resource lookups using this strongly typed resource class.
         /// </summary>
         [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Advanced)]
-        public static global::System.Globalization.CultureInfo Culture {
+        internal static global::System.Globalization.CultureInfo Culture {
             get {
                 return resourceCulture;
             }
@@ -63,7 +63,7 @@ namespace WPFModelViewer.Properties {
         /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
         /// </summary>
-        public static byte[] _default {
+        internal static byte[] _default {
             get {
                 object obj = ResourceManager.GetObject("_default", resourceCulture);
                 return ((byte[])(obj));
@@ -76,7 +76,7 @@ namespace WPFModelViewer.Properties {
         ///	gl_FragColor = vec4(0.8, 0.0, 0.0, 1.0);	
         ///}.
         /// </summary>
-        public static string camera_frag {
+        internal static string camera_frag {
             get {
                 return ResourceManager.GetString("camera_frag", resourceCulture);
             }
@@ -103,7 +103,7 @@ namespace WPFModelViewer.Properties {
         ///	gl_Position = gl_Position * 1.0f/gl_Position.w;
         ///}.
         /// </summary>
-        public static string camera_vert {
+        internal static string camera_vert {
             get {
                 return ResourceManager.GetString("camera_vert", resourceCulture);
             }
@@ -112,7 +112,7 @@ namespace WPFModelViewer.Properties {
         /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
         /// </summary>
-        public static byte[] default_mask {
+        internal static byte[] default_mask {
             get {
                 object obj = ResourceManager.GetObject("default_mask", resourceCulture);
                 return ((byte[])(obj));
@@ -120,11 +120,51 @@ namespace WPFModelViewer.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] droid_fnt {
+            get {
+                object obj = ResourceManager.GetObject("droid_fnt", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Bitmap.
         /// </summary>
-        public static System.Drawing.Bitmap ianm32logo_border {
+        internal static System.Drawing.Bitmap droid_png {
+            get {
+                object obj = ResourceManager.GetObject("droid_png", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap ianm32logo_border {
             get {
                 object obj = ResourceManager.GetObject("ianm32logo_border", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] segoe_fnt {
+            get {
+                object obj = ResourceManager.GetObject("segoe_fnt", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap segoe_png {
+            get {
+                object obj = ResourceManager.GetObject("segoe_png", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
             }
         }

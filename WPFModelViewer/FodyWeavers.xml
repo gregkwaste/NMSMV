@@ -7,8 +7,8 @@
       OpenTK.GLControl
       MathNet.Numerics
       Newtonsoft.Json
-      Quickfont
-      SharpFont
+      AssimpNet
+      NLog
     </IncludeAssemblies>
   </Costura>
 </Weavers>

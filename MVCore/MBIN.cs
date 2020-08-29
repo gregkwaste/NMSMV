@@ -30,6 +30,7 @@ namespace MVCore
         DECAL,
         GIZMO,
         GIZMOPART,
+        TEXT,
         UNKNOWN
     }
 
@@ -166,7 +167,7 @@ namespace MVCore
 
             //Initialize geometry object
             var geom = new GeomObject();
-
+            
             //Store Counts
             geom.indicesCount = indices_num;
             if (indices_flag == 0x1)
@@ -294,6 +295,11 @@ namespace MVCore
                 var buf_elem_count = br.ReadInt32();
                 var buf_type = br.ReadInt32();
                 var buf_localoffset = br.ReadInt32();
+                //var buf_test1 = br.ReadInt32();
+                //var buf_test2 = br.ReadInt32();
+                //var buf_test3 = br.ReadInt32();
+                //var buf_test4 = br.ReadInt32();
+                
                 geom.bufInfo[buf_id]= get_bufInfo_item(buf_id, buf_localoffset, buf_elem_count, buf_type);
                 mesh_offsets[buf_id] = buf_localoffset;
                 fs.Seek(0x10, SeekOrigin.Current);
@@ -361,16 +367,16 @@ namespace MVCore
         }
 
 
-        private static bufInfo get_bufInfo_item(int buf_id, int buf_localoffset, int count, int buf_type)
+        private static bufInfo get_bufInfo_item(int buf_id, int offset, int count, int buf_type)
         {
             int sem = buf_id;
-            int off = buf_localoffset;
+            int off = offset;
             OpenTK.Graphics.OpenGL4.VertexAttribPointerType typ = get_type(buf_type);
             string text = get_shader_sem(buf_id);
             bool normalize = false;
             if (text == "bPosition")
                 normalize = true;
-            return new bufInfo(sem, typ, count, off, text, normalize);
+            return new bufInfo(sem, typ, count, 0, off, text, normalize);
         }
 
 
@@ -472,7 +478,7 @@ namespace MVCore
         }
 
         private static textureManager localTexMgr;
-        private static List<model> localAnimScenes = new List<model>();
+        private static List<Model> localAnimScenes = new List<Model>();
 
         private static Dictionary<Type, int> SupportedComponents = new Dictionary<Type, int>
         {
@@ -482,7 +488,7 @@ namespace MVCore
         };
 
 
-        public static scene LoadObjects(string path)
+        public static Scene LoadObjects(string path)
         {
             TkSceneNodeData template = (TkSceneNodeData) NMSUtils.LoadNMSTemplate(path, ref Common.RenderState.activeResMgr);
             
@@ -543,7 +549,7 @@ namespace MVCore
                     Common.CallBacks.Log(string.Format("Could not find geometry file {0} ", geomfile + ".PC"));
 
                     //Create Dummy Scene
-                    scene dummy = new scene();
+                    Scene dummy = new Scene();
                     dummy.name = "DUMMY_SCENE";
                     dummy.nms_template = null;
                     dummy.type = TYPES.MODEL;
@@ -564,7 +570,7 @@ namespace MVCore
             Random randgen = new Random();
 
             //Parse root scene
-            scene root = (scene) parseNode(template, gobject, null, null);
+            Scene root = (Scene) parseNode(template, gobject, null, null);
             root.nms_template = template;
 
             //Save scene path to resourcemanager
@@ -596,7 +602,7 @@ namespace MVCore
             return -1;
         }
 
-        private static void ProcessAnimPoseComponent(model node, TkAnimPoseComponentData component)
+        private static void ProcessAnimPoseComponent(Model node, TkAnimPoseComponentData component)
         {
             //Load PoseFile
             AnimPoseComponent apc = new AnimPoseComponent(component);
@@ -605,14 +611,14 @@ namespace MVCore
             node.Components.Add(apc);
         }
 
-        private static void ProcessAnimationComponent(model node, TkAnimationComponentData component)
+        private static void ProcessAnimationComponent(Model node, TkAnimationComponentData component)
         {
             AnimComponent ac = new AnimComponent(component);
             node.animComponentID = node.Components.Count;
             node.Components.Add(ac); //Create Animation Component and add attach it to the component
         }
 
-        private static void ProcessLODComponent(model node, TkLODComponentData component)
+        private static void ProcessLODComponent(Model node, TkLODComponentData component)
         {
             //Load all LOD models as children to the node
             LODModelComponent lodmdlcomp = new LODModelComponent();
@@ -621,7 +627,7 @@ namespace MVCore
             {
                 string filepath = component.LODModel[i].LODModel.Filename;
                 Console.WriteLine("Loading LOD " + filepath);
-                scene so = LoadObjects(filepath);
+                Scene so = LoadObjects(filepath);
                 so.parent = node; //Set parent
                 node.children.Add(so);
                 //Create LOD Resource
@@ -632,7 +638,7 @@ namespace MVCore
             node.Components.Add(lodmdlcomp);
         }
 
-        private static void ProcessComponents(model node, TkAttachmentData attachment)
+        private static void ProcessComponents(Model node, TkAttachmentData attachment)
         {
             if (attachment == null)
                 return;
@@ -675,18 +681,18 @@ namespace MVCore
         }
 
 
-        private static void findAnimScenes(model node)
+        private static void findAnimScenes(Model node)
         {
             if (node.type == TYPES.MODEL)
             {
-                scene s = (scene)node;
+                Scene s = (Scene)node;
 
                 if (s.jointDict.Values.Count > 0)
                     localAnimScenes.Add(node);
             }
                 
 
-            foreach (model child in node.children)
+            foreach (Model child in node.children)
                 findAnimScenes(child);
         }
 
@@ -719,13 +725,13 @@ namespace MVCore
         }
 
 
-        private static model parseNode(TkSceneNodeData node, 
-            GeomObject gobject, model parent, scene scene)
+        private static Mesh parseMesh(TkSceneNodeData node,
+            GeomObject gobject, Model parent, Scene scene)
         {
             TkTransformData transform = node.Transform;
             List<TkSceneNodeAttributeData> attribs = node.Attributes;
             List<TkSceneNodeData> children = node.Children;
-        
+
             //Load Transforms
             //Get Transformation
             var transforms = new float[] { transform.TransX,
@@ -742,651 +748,817 @@ namespace MVCore
             //XmlElement opts = (XmlElement)node.ChildNodes[1];
             //XmlElement childs = (XmlElement)node.ChildNodes[2];
 
-            string name = node.Name;
             ulong nameHash = node.NameHash;
             string type = node.Type;
 
-
             //Fix double underscore names
-            if (name.StartsWith("_"))
-                name = "_" + name.TrimStart('_');
+            //TODO: CHeck if we need this again (probably affects the procedural descriptors)
+            //if (name.StartsWith("_"))
+            //    name = "_" + name.TrimStart('_');
 
-            //Notify
-            Common.CallBacks.Log(string.Format("Importing Scene {0} Node {1}", scene?.name, name));
-            Common.CallBacks.Log(string.Format("Transform {0} {1} {2} {3} {4} {5} {6} {7} {8}",
-                transform.TransX,transform.TransY,transform.TransZ,
-                transform.RotX,transform.RotY,transform.RotZ,
-                transform.ScaleX,transform.ScaleY,transform.ScaleZ));
-            Common.CallBacks.updateStatus("Importing Scene: " + scene?.name + " Part: " + name);
+            //Create model
+            Mesh so = new Mesh();
+
+            so.name = node.Name;
+            so.nameHash = nameHash;
+            so.debuggable = true;
+            so.parentScene = scene;
+
+            //Set Random Color
+            so.color[0] = Common.RenderState.randgen.Next(255) / 255.0f;
+            so.color[1] = Common.RenderState.randgen.Next(255) / 255.0f;
+            so.color[2] = Common.RenderState.randgen.Next(255) / 255.0f;
+
+
+            so.metaData = new MeshMetaData();
+            so.metaData.AABBMIN = new Vector3();
+            so.metaData.AABBMAX = new Vector3();
+
+            Common.CallBacks.Log(string.Format("Randomized Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]));
+            //Get Options
+            so.metaData.batchstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHSTARTPHYSI"));
+            so.metaData.vertrstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRSTARTPHYSI"));
+            so.metaData.vertrend_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRENDPHYSICS"));
+            so.metaData.batchstart_graphics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHSTARTGRAPH"));
+            so.metaData.batchcount = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHCOUNT"));
+            so.metaData.vertrstart_graphics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRSTARTGRAPH"));
+            so.metaData.vertrend_graphics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRENDGRAPHIC"));
+            so.metaData.firstskinmat = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "FIRSTSKINMAT"));
+            so.metaData.lastskinmat = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LASTSKINMAT"));
+            so.metaData.LODLevel = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LODLEVEL"));
+            so.metaData.boundhullstart = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BOUNDHULLST"));
+            so.metaData.boundhullend = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BOUNDHULLED"));
+            so.metaData.AABBMIN.X = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMINX"));
+            so.metaData.AABBMIN.Y = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMINY"));
+            so.metaData.AABBMIN.Z = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMINZ"));
+            so.metaData.AABBMAX.X = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMAXX"));
+            so.metaData.AABBMAX.Y = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMAXY"));
+            so.metaData.AABBMAX.Z = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMAXZ"));
+            so.metaData.Hash = ulong.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HASH"));
+
+            Common.CallBacks.Log(string.Format("Batch Physics Start {0} Count {1} Vertex Physics {2} - {3} Vertex Graphics {4} - {5} SkinMats {6}-{7}",
+                so.metaData.batchstart_physics, so.metaData.batchcount, so.metaData.vertrstart_physics,
+                so.metaData.vertrend_physics, so.metaData.vertrstart_graphics, so.metaData.vertrend_graphics,
+                so.metaData.firstskinmat, so.metaData.lastskinmat));
+
+            //For now fetch only one attachment
+            string attachment = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "ATTACHMENT");
+            TkAttachmentData attachment_data = null;
+            if (attachment != "")
+            {
+                attachment_data = NMSUtils.LoadNMSTemplate(attachment, ref Common.RenderState.activeResMgr) as TkAttachmentData;
+            }
+
+            //so.Bbox = gobject.bboxes[iid]; //Use scene parameters
+            //so.setupBSphere();
+            so.parent = parent;
+            so.nms_template = node;
+            so.gobject = gobject; //Store the gobject for easier access of uniforms
+            so.init(transforms); //Init object transforms
+
+            //PASS AABB info to the main object, The information in the metadata of the mesh regarding AABB SHOULD NOT BE TOUCHED
+            so.AABBMIN = so.metaData.AABBMIN;
+            so.AABBMAX = so.metaData.AABBMAX;
+
+            //Check if the model should be subjected to LOD filtering
+            if (so.name.Contains("LOD"))
+            {
+                so.hasLOD = true;
+                //Override LOD level using the name
+                try
+                {
+                    so.metaData.LODLevel = (int)Char.GetNumericValue(so.name[so.name.IndexOf("LOD") + 3]);
+                }
+                catch (IndexOutOfRangeException ex)
+                {
+                    Common.CallBacks.Log("Unable to fetch lod level from mesh name");
+                    so.metaData.LODLevel = 0;
+                }
+
+            }
+
+            //Process Attachments
+            ProcessComponents(so, attachment_data);
+            so.animComponentID = so.hasComponent(typeof(AnimComponent));
+            so.animPoseComponentID = so.hasComponent(typeof(AnimPoseComponent));
+
+            //Search for the vao
+            GLVao vao = gobject.findVao(so.metaData.Hash);
+
+            if (vao == null)
+            {
+                //Generate VAO and Save vao
+                vao = gobject.generateVAO(so);
+                gobject.saveVAO(so.metaData.Hash, vao);
+            }
+
+            //Get Material Name
+            string matname = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "MATERIAL");
+
+            //Search for the material
+            Material mat;
+            if (Common.RenderState.activeResMgr.GLmaterials.ContainsKey(matname))
+                mat = Common.RenderState.activeResMgr.GLmaterials[matname];
+            else
+            {
+                //Parse material
+                mat = parseMaterial(matname);
+                //Save Material to the resource manager
+                Common.RenderState.activeResMgr.addMaterial(mat);
+            }
+
+            //Search for the meshVao in the gobject
+            GLMeshVao meshVao = gobject.findGLMeshVao(matname, so.metaData.Hash);
+
+            if (meshVao == null)
+            {
+                //Generate new meshVao
+                meshVao = new GLMeshVao(so.metaData);
+                meshVao.type = TYPES.MESH;
+                meshVao.vao = vao;
+                meshVao.material = mat; //Set meshVao Material
+
+                //Set indicesLength
+                //Calculate indiceslength per index buffer
+                if (so.metaData.batchcount > 0)
+                {
+                    int indicesLength = (int)gobject.meshMetaDataDict[so.metaData.Hash].is_size / so.metaData.batchcount;
+
+
+                    switch (indicesLength)
+                    {
+                        case 1:
+                            meshVao.indicesLength = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedByte;
+                            break;
+                        case 2:
+                            meshVao.indicesLength = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedShort;
+                            break;
+                        case 4:
+                            meshVao.indicesLength = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedInt;
+                            break;
+                    }
+
+                }
+
+                //Configure boneRemap properly
+                meshVao.BoneRemapIndicesCount = so.metaData.lastskinmat - so.metaData.firstskinmat;
+                meshVao.BoneRemapIndices = new int[meshVao.BoneRemapIndicesCount];
+                for (int i = 0; i < so.metaData.lastskinmat - so.metaData.firstskinmat; i++)
+                    meshVao.BoneRemapIndices[i] = gobject.boneRemap[so.metaData.firstskinmat + i];
+
+                //Set skinned flag
+                if (meshVao.BoneRemapIndicesCount > 0 && so.animComponentID >= 0)
+                    meshVao.skinned = true;
+
+                //Set skinned flag if its set as a metarial flag
+                if (mat.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F02_SKINNED))
+                    meshVao.skinned = true;
+
+                //Generate collision mesh vao
+                try
+                {
+                    meshVao.bHullVao = gobject.getCollisionMeshVao(so.metaData); //Missing data
+                }
+                catch (Exception ex)
+                {
+                    Common.CallBacks.Log("Error while fetching bHull Collision Mesh");
+                    meshVao.bHullVao = null;
+                }
+
+                //so.setupBSphere(); //Setup Bounding Sphere Mesh
+
+                //Save meshvao to the gobject
+                gobject.saveGLMeshVAO(so.metaData.Hash, matname, meshVao);
+            }
+
+            so.meshVao = meshVao;
+            so.instanceId = GLMeshBufferManager.addInstance(ref meshVao, so); //Add instance
+
+            Console.WriteLine("Object {0}, Number of skinmatrices required: {1}", so.name, so.metaData.lastskinmat - so.metaData.firstskinmat);
+
+            //Console.WriteLine("Children Count {0}", childs.ChildNodes.Count);
+            foreach (TkSceneNodeData child in children)
+            {
+                Model part = parseNode(child, gobject, so, scene);
+                so.children.Add(part);
+            }
+
+            //Finally Order children by name
+            so.children.OrderBy(i => i.Name);
+            return so;
+        }
+
+        private static Scene parseScene(TkSceneNodeData node,
+            GeomObject gobject, Model parent, Scene scene)
+        {
+            Scene so = new Scene();
+            so.name = node.Name;
+            so.nameHash = node.NameHash;
+
+            TkTransformData transform = node.Transform;
+            List<TkSceneNodeAttributeData> attribs = node.Attributes;
+            List<TkSceneNodeData> children = node.Children;
+
+            //Load Transforms
+            //Get Transformation
+            var transforms = new float[] { transform.TransX,
+                transform.TransY,
+                transform.TransZ,
+                transform.RotX,
+                transform.RotY,
+                transform.RotZ,
+                transform.ScaleX,
+                transform.ScaleY,
+                transform.ScaleZ};
+
+            //Get Transformation
+            so.parent = parent;
+            so.nms_template = node;
+            so.init(transforms);
+            so.gobject = gobject;
+
+            //Fetch attributes
+            so._LODDistances = new float[5];
+            so._LODNum = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "NUMLODS"));
+
+            //Fetch extra LOD attributes
+            for (int i = 1; i < so._LODNum; i++)
+            {
+                float attr_val = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LODDIST" + i));
+                so._LODDistances[i - 1] = attr_val;
+            }
+
+            //Setup model texture manager
+            so.texMgr = new textureManager();
+            so.texMgr.setMasterTexManager(Common.RenderState.activeResMgr.texMgr);
+            localTexMgr = so.texMgr; //setup local texMgr
+
+            //Handle Children
+            foreach (TkSceneNodeData child in children)
+            {
+                Model part = parseNode(child, gobject, so, so);
+                so.children.Add(part);
+            }
+
+            return so;
+        }
+
+
+        private static Locator parseLocator(TkSceneNodeData node,
+            GeomObject gobject, Model parent, Scene scene)
+        {
+            TkTransformData transform = node.Transform;
+            List<TkSceneNodeAttributeData> attribs = node.Attributes;
+            List<TkSceneNodeData> children = node.Children;
+
+            //Load Transforms
+            //Get Transformation
+            var transforms = new float[] { transform.TransX,
+                transform.TransY,
+                transform.TransZ,
+                transform.RotX,
+                transform.RotY,
+                transform.RotZ,
+                transform.ScaleX,
+                transform.ScaleY,
+                transform.ScaleZ};
+
+            Locator so = new Locator();
+            //Fetch attributes
+
+            //For now fetch only one attachment
+            string attachment = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "ATTACHMENT");
+            TkAttachmentData attachment_data = null;
+            if (attachment != "")
+            {
+                try
+                {
+                    attachment_data = NMSUtils.LoadNMSTemplate(attachment, ref Common.RenderState.activeResMgr) as TkAttachmentData;
+                }
+                catch (Exception e)
+                {
+                    attachment_data = null;
+                }
+            }
+
+            if (node.Attributes.Count > 1)
+                Util.showError("DM THE IDIOT TO ADD SUPPORT FOR FUCKING MULTIPLE ATTACHMENTS...", "DM THE IDIOT");
+
+            //Set Properties
+            //Testingso.Name = name + "_LOC";
+            so.name = node.Name;
+            so.nameHash = node.NameHash;
+            so.nms_template = node;
+
+            //Get Transformation
+            so.parent = parent;
+            so.parentScene = scene;
+            so.init(transforms);
+
+            //Process Locator Attachments
+            ProcessComponents(so, attachment_data);
+            so.animComponentID = so.hasComponent(typeof(AnimComponent));
+            so.animPoseComponentID = so.hasComponent(typeof(AnimPoseComponent));
+
+            //Handle Children
+            foreach (TkSceneNodeData child in children)
+            {
+                Model part = parseNode(child, gobject, so, scene);
+                so.children.Add(part);
+            }
+
+            //Finally Order children by name
+            so.children.OrderBy(i => i.Name);
+
+            //Do not restore the old AnimScene let them flow
+            //localAnimScene = old_localAnimScene; //Restore old_localAnimScene
+            return so;
+
+        }
+
+
+        private static Joint parseJoint(TkSceneNodeData node,
+            GeomObject gobject, Model parent, Scene scene)
+        {
+            TkTransformData transform = node.Transform;
+            List<TkSceneNodeAttributeData> attribs = node.Attributes;
+            List<TkSceneNodeData> children = node.Children;
+
+            //Load Transforms
+            //Get Transformation
+            var transforms = new float[] { transform.TransX,
+                transform.TransY,
+                transform.TransZ,
+                transform.RotX,
+                transform.RotY,
+                transform.RotZ,
+                transform.ScaleX,
+                transform.ScaleY,
+                transform.ScaleZ};
+
+            Joint so = new Joint();
+            //Set properties
+            so.name = node.Name;
+            so.nameHash = node.NameHash;
+            so.nms_template = node;
+            //Get Transformation
+            so.parent = parent;
+            so.parentScene = scene;
+            so.init(transforms);
+
+            //Get JointIndex
+            so.jointIndex = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "JOINTINDEX").Value);
+            //Get InvBMatrix from gobject
+            if (so.jointIndex < gobject.jointData.Count)
+            {
+                so.invBMat = gobject.jointData[so.jointIndex].invBindMatrix;
+                so.BindMat = gobject.jointData[so.jointIndex].BindMatrix;
+            }
+
+            //Set Random Color
+            so.color[0] = Common.RenderState.randgen.Next(255) / 255.0f;
+            so.color[1] = Common.RenderState.randgen.Next(255) / 255.0f;
+            so.color[2] = Common.RenderState.randgen.Next(255) / 255.0f;
+
+
+            so.meshVao = new GLMeshVao();
+            so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
+            so.meshVao.type = TYPES.JOINT;
+            so.meshVao.metaData = new MeshMetaData();
+            //TODO: Find a place to keep references from the joint GLMeshVAOs
+
+            so.meshVao.vao = new GMDL.Primitives.LineSegment(children.Count, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
+            so.meshVao.material = Common.RenderState.activeResMgr.GLmaterials["jointMat"];
+
+            //Add joint to scene
+            scene.jointDict[so.Name] = so;
+
+            //Handle Children
+            foreach (TkSceneNodeData child in children)
+            {
+                Model part = parseNode(child, gobject, so, scene);
+                so.children.Add(part);
+            }
+
+            //Finally Order children by name
+            so.children.OrderBy(i => i.Name);
+            return so;
+
+        }
+
+        private static Collision parseCollision(TkSceneNodeData node,
+            GeomObject gobject, Model parent, Scene scene)
+        {
+            TkTransformData transform = node.Transform;
+            List<TkSceneNodeAttributeData> attribs = node.Attributes;
+            List<TkSceneNodeData> children = node.Children;
+
+            //Load Transforms
+            //Get Transformation
+            var transforms = new float[] { transform.TransX,
+                transform.TransY,
+                transform.TransZ,
+                transform.RotX,
+                transform.RotY,
+                transform.RotZ,
+                transform.ScaleX,
+                transform.ScaleY,
+                transform.ScaleZ};
+
+            //Create model
+            Collision so = new Collision();
+
+            so.debuggable = true;
+            so.name = node.Name + "_COLLISION";
+            so.nameHash = node.NameHash;
+            so.type = TYPES.COLLISION;
+            so.nms_template = node;
+
+            //Get Options
+            //In collision objects first child is probably the type
+            //string collisionType = ((XmlElement)attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']")).GetAttribute("value").ToUpper();
+            string collisionType = node.Attributes.FirstOrDefault(item => item.Name == "TYPE").Value.ToUpper();
+
+            Common.CallBacks.Log(string.Format("Collision Detected {0} {1}", node.Name, collisionType));
+
+            //Get Material for all types
+            string matkey = node.Name; //I will index the collision materials by their name, it shouldn't hurt anywhere
+                                  // + cleaning up will be up to the resource manager
+
+            MeshMetaData metaData = new MeshMetaData();
+            if (collisionType == "MESH")
+            {
+                so.collisionType = (int)COLLISIONTYPES.MESH;
+                metaData.batchstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHSTART"));
+                metaData.batchcount = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHCOUNT"));
+                metaData.vertrstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRSTART"));
+                metaData.vertrend_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTREND"));
+                metaData.firstskinmat = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "FIRSTSKINMAT"));
+                metaData.lastskinmat = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LASTSKINMAT"));
+                metaData.boundhullstart = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BOUNDHULLST"));
+                metaData.boundhullend = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BOUNDHULLED"));
+
+                so.gobject = gobject;
+                so.metaData = metaData; //Set metadata
+
+                //Find id within the vbo
+                int iid = -1;
+                for (int i = 0; i < gobject.vstarts.Count; i++)
+                    if (gobject.vstarts[i] == metaData.vertrstart_physics)
+                    {
+                        iid = i;
+                        break;
+                    }
+
+                if (metaData.lastskinmat - metaData.firstskinmat > 0)
+                {
+                    throw new Exception("SKINNED COLLISION. CHECK YOUR SHIT!");
+                }
+
+                //Set vao
+                try
+                {
+                    so.meshVao = new GLMeshVao(so.metaData);
+                    so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
+                    so.meshVao.vao = gobject.getCollisionMeshVao(so.metaData);
+                    //Use indiceslength from the gobject
+                    so.meshVao.indicesLength = so.gobject.indicesLengthType;
+                }
+                catch (System.Collections.Generic.KeyNotFoundException e)
+                {
+                    Common.CallBacks.Log("Missing Collision Mesh " + so.name);
+                    so.meshVao = null;
+                }
+
+            }
+            else if (collisionType == "CYLINDER")
+            {
+                //Console.WriteLine("CYLINDER NODE PARSING NOT IMPLEMENTED");
+                //Set cvbo
+
+                float radius = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "RADIUS"));
+                float height = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HEIGHT"));
+                Common.CallBacks.Log(string.Format("Cylinder Collision r:{0} h:{1}", radius, height));
+
+                metaData.batchstart_graphics = 0;
+                metaData.batchcount = 120;
+                metaData.vertrstart_graphics = 0;
+                metaData.vertrend_graphics = 22 - 1;
+                so.metaData = metaData;
+                so.meshVao = new GLMeshVao(so.metaData);
+                so.meshVao.vao = (new GMDL.Primitives.Cylinder(radius, height, new Vector3(0.0f, 0.0f, 0.0f), true)).getVAO();
+                so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
+                so.collisionType = COLLISIONTYPES.CYLINDER;
+
+            }
+            else if (collisionType == "BOX")
+            {
+                //Console.WriteLine("BOX NODE PARSING NOT IMPLEMENTED");
+                //Set cvbo
+                float width = MathUtils.FloatParse(node.Attributes.FirstOrDefault(item => item.Name == "WIDTH").Value);
+                float height = MathUtils.FloatParse(node.Attributes.FirstOrDefault(item => item.Name == "HEIGHT").Value);
+                float depth = MathUtils.FloatParse(node.Attributes.FirstOrDefault(item => item.Name == "DEPTH").Value);
+                Common.CallBacks.Log(string.Format("Sphere Collision w:{0} h:{0} d:{0}", width, height, depth));
+                //Set general vao properties
+                metaData.batchstart_graphics = 0;
+                metaData.batchcount = 36;
+                metaData.vertrstart_graphics = 0;
+                metaData.vertrend_graphics = 8 - 1;
+                so.metaData = metaData;
+
+                so.meshVao = new GLMeshVao(so.metaData);
+                so.meshVao.vao = (new GMDL.Primitives.Box(width, height, depth, new Vector3(1.0f), true)).getVAO();
+                so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
+                so.collisionType = COLLISIONTYPES.BOX;
+
+
+            }
+            else if (collisionType == "CAPSULE")
+            {
+                //Set cvbo
+                float radius = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "RADIUS"));
+                float height = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HEIGHT"));
+                Common.CallBacks.Log(string.Format("Capsule Collision r:{0} h:{1}", radius, height));
+                metaData.batchstart_graphics = 0;
+                metaData.batchcount = 726;
+                metaData.vertrstart_graphics = 0;
+                metaData.vertrend_graphics = 144 - 1;
+                so.metaData = metaData;
+                so.meshVao = new GLMeshVao(so.metaData);
+                so.meshVao.vao = (new GMDL.Primitives.Capsule(new Vector3(), height, radius)).getVAO();
+                so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
+                so.collisionType = COLLISIONTYPES.CAPSULE;
+
+            }
+            else if (collisionType == "SPHERE")
+            {
+                //Set cvbo
+                float radius = MathUtils.FloatParse(node.Attributes.FirstOrDefault(item => item.Name == "RADIUS").Value);
+                Common.CallBacks.Log(string.Format("Sphere Collision r:{0}", radius));
+                metaData.batchstart_graphics = 0;
+                metaData.batchcount = 600;
+                metaData.vertrstart_graphics = 0;
+                metaData.vertrend_graphics = 121 - 1;
+                so.metaData = metaData;
+                so.meshVao = new GLMeshVao(so.metaData);
+                so.meshVao.vao = (new GMDL.Primitives.Sphere(new Vector3(), radius)).getVAO();
+                so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
+                so.collisionType = COLLISIONTYPES.SPHERE;
+            }
+            else
+            {
+                Common.CallBacks.Log("NEW COLLISION TYPE: " + collisionType);
+            }
+
+            //Set metaData and material to the collision Mesh
+            so.meshVao.metaData = new MeshMetaData(so.metaData);
+            so.meshVao.material = Common.RenderState.activeResMgr.GLmaterials["collisionMat"];
+            so.meshVao.type = TYPES.COLLISION;
+            so.meshVao.collisionType = so.collisionType;
+
+            Common.CallBacks.Log(string.Format("Batch Start {0} Count {1} ",
+                metaData.batchstart_physics, metaData.batchcount));
+
+            so.parent = parent;
+            so.init(transforms);
+
+            //Collision probably has no children biut I'm leaving that code here
+            foreach (TkSceneNodeData child in children)
+                so.children.Add(parseNode(child, gobject, so, scene));
+
+            return so;
+
+        }
+
+
+        private static Light parseLight(TkSceneNodeData node,
+            GeomObject gobject, Model parent, Scene scene)
+        {
+            TkTransformData transform = node.Transform;
+            List<TkSceneNodeAttributeData> attribs = node.Attributes;
+            List<TkSceneNodeData> children = node.Children;
+
+            //Load Transforms
+            //Get Transformation
+            var transforms = new float[] { transform.TransX,
+                transform.TransY,
+                transform.TransZ,
+                transform.RotX,
+                transform.RotY,
+                transform.RotZ,
+                transform.ScaleX,
+                transform.ScaleY,
+                transform.ScaleZ};
+
+
+            Light so = new Light();
+            //Set Properties
+            so.name = node.Name;
+            so.nameHash = node.NameHash;
+            so.type = TYPES.LIGHT;
+            so.nms_template = node;
+
+            so.parent = parent;
+            so.init(transforms);
+
+            //Parse Light Attributes
+            so.Color.X = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "COL_R"));
+            so.Color.Y = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "COL_G"));
+            so.Color.Z = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "COL_B"));
+            so.fov = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "FOV"));
+            so.intensity = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "INTENSITY"));
+
+            string attenuation = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "FALLOFF");
+            if (!Enum.TryParse<ATTENUATION_TYPE>(attenuation.ToUpper(), out so.falloff))
+                throw new Exception("Light attenuation Type " + attenuation + " Not supported");
+
+            //Add Light to the resource Manager
+            so.update_struct();
+            Common.RenderState.activeResMgr.GLlights.Add(so);
+
+            return so;
+
+        }
+
+            private static Reference parseReference(TkSceneNodeData node,
+            GeomObject gobject, Model parent, Scene scene)
+        {
+            TkTransformData transform = node.Transform;
+            List<TkSceneNodeAttributeData> attribs = node.Attributes;
+            List<TkSceneNodeData> children = node.Children;
+
+            //Load Transforms
+            //Get Transformation
+            var transforms = new float[] { transform.TransX,
+                transform.TransY,
+                transform.TransZ,
+                transform.RotX,
+                transform.RotY,
+                transform.RotZ,
+                transform.ScaleX,
+                transform.ScaleY,
+                transform.ScaleZ};
+
+            //Another Scene file referenced
+            Console.WriteLine("Reference Detected");
+
+            string scene_ref = node.Attributes.FirstOrDefault(item => item.Name == "SCENEGRAPH").Value;
+            Common.CallBacks.Log(string.Format("Loading Reference {0}", scene_ref));
+
+            //Getting Scene MBIN file
+            //string exmlPath = Path.GetFullPath(Util.getFullExmlPath(path));
+            //Console.WriteLine("Loading Scene " + path);
+            //Parse MBIN to xml
+
+            //Generate Reference object
+            Reference so = new Reference();
+            so.name = node.Name;
+            so.nameHash = node.NameHash;
+
+            //Get Transformation
+            so.parent = parent;
+            so.nms_template = node;
+            so.init(transforms);
+
+            Scene new_so;
+            //Check if scene has been parsed
+            if (!Common.RenderState.activeResMgr.GLScenes.ContainsKey(scene_ref))
+            {
+                //Read new Scene
+                new_so = LoadObjects(scene_ref);
+            }
+            else
+            {
+                //Make a shallow copy of the scene
+                new_so = (Scene)Common.RenderState.activeResMgr.GLScenes[scene_ref].Clone();
+            }
+
+            so.ref_scene = new_so;
+            new_so.parent = so;
+            so.children.Add(new_so); //Keep it also as a child so the rest of pipeline is not affected
+
+            //Handle Children
+            //Console.WriteLine("Children Count {0}", childs.ChildNodes.Count);
+            foreach (TkSceneNodeData child in children)
+            {
+                Model part = parseNode(child, gobject, so, scene);
+                so.children.Add(part);
+            }
+
+            return so;
+
+        }
+
+        private static Locator parseEmitter(TkSceneNodeData node,
+            GeomObject gobject, Model parent, Scene scene)
+        {
+            TkTransformData transform = node.Transform;
+            List<TkSceneNodeAttributeData> attribs = node.Attributes;
+            List<TkSceneNodeData> children = node.Children;
+
+            //Load Transforms
+            //Get Transformation
+            var transforms = new float[] { transform.TransX,
+                transform.TransY,
+                transform.TransZ,
+                transform.RotX,
+                transform.RotY,
+                transform.RotZ,
+                transform.ScaleX,
+                transform.ScaleY,
+                transform.ScaleZ};
+            Locator so = new Locator();
+            so.type = TYPES.EMITTER;
+            //Fetch attributes
+
+            //For now fetch only one attachment
+            string attachment = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "ATTACHMENT");
+            TkAttachmentData attachment_data = null;
+            if (attachment != "")
+            {
+                attachment_data = NMSUtils.LoadNMSTemplate(attachment, ref Common.RenderState.activeResMgr) as TkAttachmentData;
+            }
+
+            //TODO: Parse Emitter material and Emission data. from the node attributes
+
+
+            //Set Properties
+            //Testingso.Name = name + "_LOC";
+            so.name = node.Name;
+            so.nameHash = node.NameHash;
+            so.nms_template = node;
+
+            //Get Transformation
+            so.parent = parent;
+            so.init(transforms);
+
+            //Process Locator Attachments
+            ProcessComponents(so, attachment_data);
+
+            //Handle Children
+            foreach (TkSceneNodeData child in children)
+            {
+                Model part = parseNode(child, gobject, so, scene);
+                so.children.Add(part);
+            }
+
+            //Do not restore the old AnimScene let them flow
+            //localAnimScene = old_localAnimScene; //Restore old_localAnimScene
+            return so;
+        }
+
+            private static Model parseNode(TkSceneNodeData node, 
+            GeomObject gobject, Model parent, Scene scene)
+        {
+            Common.CallBacks.Log(string.Format("Importing Scene {0} Node {1}", scene?.name, node.Name));
+            Common.CallBacks.updateStatus("Importing Scene: " + scene?.name + " Part: " + node.Name);
+
             TYPES typeEnum;
             if (!Enum.TryParse<TYPES>(node.Type, out typeEnum))
                 throw new Exception("Node Type " + node.Type + "Not supported");
 
             if (typeEnum == TYPES.MESH)
             {
-                Common.CallBacks.Log(string.Format("Parsing Mesh {0}", name));
-                //Create model
-                meshModel so = new meshModel();
-
-                so.name = name;
-                so.nameHash = nameHash;
-                so.debuggable = true;
-                so.parentScene = scene;
-                
-                //Set Random Color
-                so.color[0] = Common.RenderState.randgen.Next(255) / 255.0f;
-                so.color[1] = Common.RenderState.randgen.Next(255) / 255.0f;
-                so.color[2] = Common.RenderState.randgen.Next(255) / 255.0f;
-
-
-                so.metaData = new MeshMetaData();
-                so.metaData.AABBMIN = new Vector3();
-                so.metaData.AABBMAX = new Vector3();
-
-                Common.CallBacks.Log(string.Format("Randomized Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]));
-                //Get Options
-                so.metaData.batchstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHSTARTPHYSI"));
-                so.metaData.vertrstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRSTARTPHYSI"));
-                so.metaData.vertrend_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRENDPHYSICS"));
-                so.metaData.batchstart_graphics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHSTARTGRAPH"));
-                so.metaData.batchcount = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHCOUNT"));
-                so.metaData.vertrstart_graphics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRSTARTGRAPH"));
-                so.metaData.vertrend_graphics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRENDGRAPHIC"));
-                so.metaData.firstskinmat = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "FIRSTSKINMAT"));
-                so.metaData.lastskinmat = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LASTSKINMAT"));
-                so.metaData.LODLevel = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LODLEVEL"));
-                so.metaData.boundhullstart = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BOUNDHULLST"));
-                so.metaData.boundhullend = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BOUNDHULLED"));
-                so.metaData.AABBMIN.X = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMINX"));
-                so.metaData.AABBMIN.Y = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMINY"));
-                so.metaData.AABBMIN.Z = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMINZ"));
-                so.metaData.AABBMAX.X = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMAXX"));
-                so.metaData.AABBMAX.Y = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMAXY"));
-                so.metaData.AABBMAX.Z = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMAXZ"));
-                so.metaData.Hash = ulong.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HASH"));
-                
-                Common.CallBacks.Log(string.Format("Batch Physics Start {0} Count {1} Vertex Physics {2} - {3} Vertex Graphics {4} - {5} SkinMats {6}-{7}",
-                    so.metaData.batchstart_physics, so.metaData.batchcount, so.metaData.vertrstart_physics,
-                    so.metaData.vertrend_physics, so.metaData.vertrstart_graphics, so.metaData.vertrend_graphics,
-                    so.metaData.firstskinmat, so.metaData.lastskinmat));
-
-                //For now fetch only one attachment
-                string attachment = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "ATTACHMENT");
-                TkAttachmentData attachment_data = null;
-                if (attachment != "")
-                {
-                    attachment_data = NMSUtils.LoadNMSTemplate(attachment, ref Common.RenderState.activeResMgr) as TkAttachmentData;
-                }
-
-                //so.Bbox = gobject.bboxes[iid]; //Use scene parameters
-                //so.setupBSphere();
-                so.parent = parent;
-                so.nms_template = node;
-                so.gobject = gobject; //Store the gobject for easier access of uniforms
-                so.init(transforms); //Init object transforms
-
-                //PASS AABB info to the main object, The information in the metadata of the mesh regarding AABB SHOULD NOT BE TOUCHED
-                so.AABBMIN = so.metaData.AABBMIN;
-                so.AABBMAX = so.metaData.AABBMAX;
-
-                //Check if the model should be subjected to LOD filtering
-                if (name.Contains("LOD"))
-                {
-                    so.hasLOD = true;
-                    //Override LOD level using the name
-                    try
-                    {
-                        so.metaData.LODLevel = (int)Char.GetNumericValue(name[name.IndexOf("LOD") + 3]);
-                    } catch (IndexOutOfRangeException ex)
-                    {
-                        Common.CallBacks.Log("Unable to fetch lod level from mesh name");
-                        so.metaData.LODLevel = 0;
-                    }
-                    
-                }
-                    
-                //Process Attachments
-                ProcessComponents(so, attachment_data);
-                so.animComponentID = so.hasComponent(typeof(AnimComponent));
-                so.animPoseComponentID = so.hasComponent(typeof(AnimPoseComponent));
-                
-                //Search for the vao
-                GLVao vao = gobject.findVao(so.metaData.Hash);
-
-                if (vao == null)
-                {
-                    //Generate VAO and Save vao
-                    vao = gobject.generateVAO(so);
-                    gobject.saveVAO(so.metaData.Hash, vao);
-                }
-
-                //Get Material Name
-                string matname = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "MATERIAL");
-
-                //Search for the material
-                Material mat;
-                if (Common.RenderState.activeResMgr.GLmaterials.ContainsKey(matname))
-                    mat = Common.RenderState.activeResMgr.GLmaterials[matname];
-                else
-                {
-                    //Parse material
-                    mat = parseMaterial(matname);
-                    //Save Material to the resource manager
-                    Common.RenderState.activeResMgr.addMaterial(mat);
-                }
-
-                //Search for the meshVao in the gobject
-                GLMeshVao meshVao = gobject.findGLMeshVao(matname, so.metaData.Hash);
-
-                if (meshVao == null)
-                {
-                    //Generate new meshVao
-                    meshVao = new GLMeshVao(so.metaData);
-                    meshVao.type = TYPES.MESH;
-                    meshVao.vao = vao;
-                    meshVao.material = mat; //Set meshVao Material
-
-                    //Set indicesLength
-                    //Calculate indiceslength per index buffer
-                    if (so.metaData.batchcount > 0)
-                    {
-                        int indicesLength = (int)gobject.meshMetaDataDict[so.metaData.Hash].is_size / so.metaData.batchcount;
-
-                        
-                        switch (indicesLength)
-                        {
-                            case 1:
-                                meshVao.indicesLength =  OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedByte;
-                                break;
-                            case 2:
-                                meshVao.indicesLength = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedShort;
-                                break;
-                            case 4:
-                                meshVao.indicesLength = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedInt;
-                                break;
-                        }
-                        
-                    }
-                    
-                    //Configure boneRemap properly
-                    meshVao.BoneRemapIndicesCount = so.metaData.lastskinmat - so.metaData.firstskinmat;
-                    meshVao.BoneRemapIndices = new int[meshVao.BoneRemapIndicesCount];
-                    for (int i = 0; i < so.metaData.lastskinmat - so.metaData.firstskinmat; i++)
-                        meshVao.BoneRemapIndices[i] = gobject.boneRemap[so.metaData.firstskinmat + i];
-
-                    //Set skinned flag
-                    if (meshVao.BoneRemapIndicesCount > 0 && so.animComponentID >= 0)
-                        meshVao.skinned = true;
-
-                    //Set skinned flag if its set as a metarial flag
-                    if (mat.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F02_SKINNED))
-                        meshVao.skinned = true;
-
-                    //Generate collision mesh vao
-                    try
-                    {
-                        meshVao.bHullVao = gobject.getCollisionMeshVao(so.metaData); //Missing data
-                    } catch (Exception ex) {
-                        Common.CallBacks.Log("Error while fetching bHull Collision Mesh");
-                        meshVao.bHullVao = null;
-                    }
-                    
-                    //so.setupBSphere(); //Setup Bounding Sphere Mesh
-
-                    //Save meshvao to the gobject
-                    gobject.saveGLMeshVAO(so.metaData.Hash, matname, meshVao);
-                }
-
-                so.meshVao = meshVao;
-                so.instanceId = GLMeshBufferManager.addInstance(ref meshVao, so); //Add instance
-
-                Console.WriteLine("Object {0}, Number of skinmatrices required: {1}", so.name, so.metaData.lastskinmat - so.metaData.firstskinmat);
-
-                //Console.WriteLine("Children Count {0}", childs.ChildNodes.Count);
-                foreach (TkSceneNodeData child in children)
-                {
-                    model part = parseNode(child, gobject, so, scene);
-                    so.children.Add(part);
-                }
-                
-                //Finally Order children by name
-                so.children.OrderBy(i => i.Name);
-                return so;
+                Common.CallBacks.Log(string.Format("Parsing Mesh {0}", node.Name));
+                return parseMesh(node, gobject, parent, scene);
             }
             else if (typeEnum == TYPES.MODEL)
             {
-                scene so = new scene();
-                so.name = name;
-                so.nameHash = nameHash;
-                
-                //Get Transformation
-                so.parent = parent;
-                so.nms_template = node;
-                so.init(transforms);
-                so.gobject = gobject;
-
-                //Fetch attributes
-                so._LODDistances = new float[5];
-                so._LODNum = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "NUMLODS"));
-                
-                //Fetch extra LOD attributes
-                for (int i = 1; i < so._LODNum; i++)
-                {
-                    float attr_val = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LODDIST" + i));
-                    so._LODDistances[i - 1] = attr_val;
-                }
-                
-                //Setup model texture manager
-                so.texMgr = new textureManager();
-                so.texMgr.setMasterTexManager(Common.RenderState.activeResMgr.texMgr);
-                localTexMgr = so.texMgr; //setup local texMgr
-
-                //Handle Children
-                foreach (TkSceneNodeData child in children)
-                {
-                    model part = parseNode(child, gobject, so, so);
-                    so.children.Add(part);
-                }
-
-                return so;
+                return parseScene(node, gobject, parent, scene);
             }
             else if (typeEnum == TYPES.LOCATOR)
             {
-                locator so = new locator();
-                //Fetch attributes
-                
-                //For now fetch only one attachment
-                string attachment = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "ATTACHMENT");
-                TkAttachmentData attachment_data = null;
-                if (attachment != "")
-                {
-                    try
-                    {
-                        attachment_data = NMSUtils.LoadNMSTemplate(attachment, ref Common.RenderState.activeResMgr) as TkAttachmentData;
-                    } catch (Exception e)
-                    {
-                        attachment_data = null;
-                    }
-                }
-
-                if (node.Attributes.Count > 1)
-                    Util.showError("DM THE IDIOT TO ADD SUPPORT FOR FUCKING MULTIPLE ATTACHMENTS...", "DM THE IDIOT");
-                    
-                //Set Properties
-                //Testingso.Name = name + "_LOC";
-                so.name = name;
-                so.nameHash = nameHash;
-                so.nms_template = node;
-                
-                //Get Transformation
-                so.parent = parent;
-                so.parentScene = scene;
-                so.init(transforms);
-
-                //Process Locator Attachments
-                ProcessComponents(so, attachment_data);
-                so.animComponentID = so.hasComponent(typeof(AnimComponent));
-                so.animPoseComponentID = so.hasComponent(typeof(AnimPoseComponent));
-
-                //Handle Children
-                foreach (TkSceneNodeData child in children)
-                {
-                    model part = parseNode(child, gobject, so, scene);
-                    so.children.Add(part);
-                }
-                
-                //Finally Order children by name
-                so.children.OrderBy(i => i.Name);
-                
-                //Do not restore the old AnimScene let them flow
-                //localAnimScene = old_localAnimScene; //Restore old_localAnimScene
-                return so;
+                return parseLocator(node, gobject, parent, scene);
             }
             else if (typeEnum == TYPES.JOINT)
             {
-                Joint joint = new Joint();
-                //Set properties
-                joint.name = name;
-                joint.nameHash = nameHash;
-                joint.nms_template = node;
-                //Get Transformation
-                joint.parent = parent;
-                joint.parentScene = scene;
-                joint.init(transforms);
-                
-                //Get JointIndex
-                joint.jointIndex = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "JOINTINDEX").Value);
-                //Get InvBMatrix from gobject
-                if (joint.jointIndex < gobject.jointData.Count)
-                {
-                    joint.invBMat = gobject.jointData[joint.jointIndex].invBindMatrix;
-                    joint.BindMat = gobject.jointData[joint.jointIndex].BindMatrix;
-                }
-                
-                //Set Random Color
-                joint.color[0] = Common.RenderState.randgen.Next(255) / 255.0f;
-                joint.color[1] = Common.RenderState.randgen.Next(255) / 255.0f;
-                joint.color[2] = Common.RenderState.randgen.Next(255) / 255.0f;
-
-
-                joint.meshVao = new GLMeshVao();
-                joint.instanceId = GLMeshBufferManager.addInstance(ref joint.meshVao, joint); //Add instance
-                joint.meshVao.type = TYPES.JOINT;
-                joint.meshVao.metaData = new MeshMetaData();
-                //TODO: Find a place to keep references from the joint GLMeshVAOs
-                joint.meshVao.vao = new Primitives.LineSegment(children.Count, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
-                joint.meshVao.material = Common.RenderState.activeResMgr.GLmaterials["jointMat"];
-
-                //Add joint to scene
-                scene.jointDict[joint.Name] = joint;
-
-                //Handle Children
-                foreach (TkSceneNodeData child in children)
-                {
-                    model part = parseNode(child, gobject, joint, scene);
-                    joint.children.Add(part);
-                }
-                
-                //Finally Order children by name
-                joint.children.OrderBy(i => i.Name);
-                return joint;
+                return parseJoint(node, gobject, parent, scene);
             }
             else if (typeEnum == TYPES.REFERENCE)
             {
-                //Another Scene file referenced
-                Console.WriteLine("Reference Detected");
-
-                string scene_ref = node.Attributes.FirstOrDefault(item => item.Name == "SCENEGRAPH").Value;
-                Common.CallBacks.Log(string.Format("Loading Reference {0}", scene_ref));
-
-                //Getting Scene MBIN file
-                //string exmlPath = Path.GetFullPath(Util.getFullExmlPath(path));
-                //Console.WriteLine("Loading Scene " + path);
-                //Parse MBIN to xml
-
-                //Generate Reference object
-                reference so = new reference();
-                so.name = name;
-                so.nameHash = nameHash;
-
-                //Get Transformation
-                so.parent = parent;
-                so.nms_template = node;
-                so.init(transforms);
-
-                scene new_so;
-                //Check if scene has been parsed
-                if (!Common.RenderState.activeResMgr.GLScenes.ContainsKey(scene_ref))
-                {
-                    //Read new Scene
-                    new_so = LoadObjects(scene_ref);
-                }
-                else
-                {
-                    //Make a shallow copy of the scene
-                    new_so = (scene)Common.RenderState.activeResMgr.GLScenes[scene_ref].Clone();
-                }
-                    
-                so.ref_scene = new_so;
-                new_so.parent = so;
-                so.children.Add(new_so); //Keep it also as a child so the rest of pipeline is not affected
-
-                //Handle Children
-                //Console.WriteLine("Children Count {0}", childs.ChildNodes.Count);
-                foreach (TkSceneNodeData child in children)
-                {
-                    model part = parseNode(child, gobject, so, scene);
-                    so.children.Add(part);
-                }
-                
-                return so;
+                return parseReference(node, gobject, parent, scene);
             }
             else if (typeEnum == TYPES.COLLISION)
             {
-                //Create model
-                Collision so = new Collision();
-
-                so.debuggable = true;
-                so.name = name + "_COLLISION";
-                so.nameHash = nameHash;
-                so.type = typeEnum;
-                so.nms_template = node;
-
-                //Get Options
-                //In collision objects first child is probably the type
-                //string collisionType = ((XmlElement)attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']")).GetAttribute("value").ToUpper();
-                string collisionType = node.Attributes.FirstOrDefault(item => item.Name == "TYPE").Value.ToUpper();
-
-                Common.CallBacks.Log(string.Format("Collision Detected {0} {1}", name, collisionType));
-
-                //Get Material for all types
-                string matkey = name; //I will index the collision materials by their name, it shouldn't hurt anywhere
-                                      // + cleaning up will be up to the resource manager
-
-                MeshMetaData metaData = new MeshMetaData();
-                if (collisionType == "MESH")
-                {
-                    so.collisionType = (int) COLLISIONTYPES.MESH;
-                    metaData.batchstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHSTART"));
-                    metaData.batchcount = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHCOUNT"));
-                    metaData.vertrstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRSTART"));
-                    metaData.vertrend_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTREND"));
-                    metaData.firstskinmat = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "FIRSTSKINMAT"));
-                    metaData.lastskinmat = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LASTSKINMAT"));
-                    metaData.boundhullstart = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BOUNDHULLST"));
-                    metaData.boundhullend = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BOUNDHULLED"));
-                    
-                    so.gobject = gobject;
-                    so.metaData = metaData; //Set metadata
-
-                    //Find id within the vbo
-                    int iid = -1;
-                    for (int i = 0; i < gobject.vstarts.Count; i++)
-                        if (gobject.vstarts[i] == metaData.vertrstart_physics)
-                        {
-                            iid = i;
-                            break;
-                        }
-
-                    if (metaData.lastskinmat - metaData.firstskinmat > 0)
-                    {
-                        throw new Exception("SKINNED COLLISION. CHECK YOUR SHIT!");
-                    }
-
-                    //Set vao
-                    try
-                    {
-                        so.meshVao = new GLMeshVao(so.metaData);
-                        so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
-                        so.meshVao.vao = gobject.getCollisionMeshVao(so.metaData);
-                        //Use indiceslength from the gobject
-                        so.meshVao.indicesLength = so.gobject.indicesLengthType;
-                    } catch (System.Collections.Generic.KeyNotFoundException e)
-                    {
-                        Common.CallBacks.Log("Missing Collision Mesh " + so.name);
-                        so.meshVao = null;
-                    }
-
-                }
-                else if (collisionType == "CYLINDER")
-                {
-                    //Console.WriteLine("CYLINDER NODE PARSING NOT IMPLEMENTED");
-                    //Set cvbo
-
-                    float radius = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "RADIUS"));
-                    float height = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HEIGHT"));
-                    Common.CallBacks.Log(string.Format("Cylinder Collision r:{0} h:{1}", radius, height));
-                    
-                    metaData.batchstart_graphics = 0;
-                    metaData.batchcount = 120;
-                    metaData.vertrstart_graphics = 0;
-                    metaData.vertrend_graphics = 22 - 1;
-                    so.metaData = metaData;
-                    so.meshVao = new GLMeshVao(so.metaData);
-                    so.meshVao.vao = (new Primitives.Cylinder(radius,height, new Vector3(0.0f, 0.0f, 0.0f), true)).getVAO();
-                    so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
-                    so.collisionType = COLLISIONTYPES.CYLINDER;
-                    
-                }
-                else if (collisionType == "BOX")
-                {
-                    //Console.WriteLine("BOX NODE PARSING NOT IMPLEMENTED");
-                    //Set cvbo
-                    float width = MathUtils.FloatParse(node.Attributes.FirstOrDefault(item => item.Name == "WIDTH").Value);
-                    float height = MathUtils.FloatParse(node.Attributes.FirstOrDefault(item => item.Name == "HEIGHT").Value);
-                    float depth = MathUtils.FloatParse(node.Attributes.FirstOrDefault(item => item.Name == "DEPTH").Value);
-                    Common.CallBacks.Log(string.Format("Sphere Collision w:{0} h:{0} d:{0}", width, height, depth));
-                    //Set general vao properties
-                    metaData.batchstart_graphics = 0;
-                    metaData.batchcount = 36;
-                    metaData.vertrstart_graphics = 0;
-                    metaData.vertrend_graphics = 8 - 1;
-                    so.metaData = metaData;
-                    
-                    so.meshVao = new GLMeshVao(so.metaData);
-                    so.meshVao.vao = (new Primitives.Box(width, height, depth, new Vector3(1.0f), true)).getVAO();
-                    so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
-                    so.collisionType = COLLISIONTYPES.BOX;
-                    
-
-                }
-                else if (collisionType == "CAPSULE")
-                {
-                    //Set cvbo
-                    float radius = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "RADIUS"));
-                    float height = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HEIGHT"));
-                    Common.CallBacks.Log(string.Format("Capsule Collision r:{0} h:{1}", radius, height));
-                    metaData.batchstart_graphics = 0;
-                    metaData.batchcount = 726;
-                    metaData.vertrstart_graphics = 0;
-                    metaData.vertrend_graphics = 144 - 1;
-                    so.metaData = metaData;
-                    so.meshVao = new GLMeshVao(so.metaData);
-                    so.meshVao.vao = (new Primitives.Capsule(new Vector3(), height, radius)).getVAO();
-                    so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
-                    so.collisionType = COLLISIONTYPES.CAPSULE;
-                    
-                }
-                else if (collisionType == "SPHERE")
-                {
-                    //Set cvbo
-                    float radius = MathUtils.FloatParse(node.Attributes.FirstOrDefault(item => item.Name == "RADIUS").Value);
-                    Common.CallBacks.Log(string.Format("Sphere Collision r:{0}", radius));
-                    metaData.batchstart_graphics = 0;
-                    metaData.batchcount = 600;
-                    metaData.vertrstart_graphics = 0;
-                    metaData.vertrend_graphics = 121 - 1;
-                    so.metaData = metaData;
-                    so.meshVao = new GLMeshVao(so.metaData);
-                    so.meshVao.vao = (new Primitives.Sphere(new Vector3(), radius)).getVAO();
-                    so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
-                    so.collisionType = COLLISIONTYPES.SPHERE;
-                }
-                else
-                {
-                    Common.CallBacks.Log("NEW COLLISION TYPE: " + collisionType);
-                }
-
-                //Set metaData and material to the collision Mesh
-                so.meshVao.metaData = new MeshMetaData(so.metaData);
-                so.meshVao.material = Common.RenderState.activeResMgr.GLmaterials["collisionMat"];
-                so.meshVao.type = TYPES.COLLISION;
-                so.meshVao.collisionType = so.collisionType;
-
-                Common.CallBacks.Log(string.Format("Batch Start {0} Count {1} ",
-                    metaData.batchstart_physics, metaData.batchcount));
-
-                so.parent = parent;
-                so.init(transforms);
-
-                //Collision probably has no children biut I'm leaving that code here
-                foreach (TkSceneNodeData child in children)
-                    so.children.Add(parseNode(child, gobject, so, scene));
-
-                return so;
-
+                return parseCollision(node, gobject, parent, scene);
             }
             else if (typeEnum == TYPES.LIGHT)
             {
-                Common.CallBacks.Log(string.Format("Parsing Light, {0}", name));
-                Light so = new Light();
-                //Set Properties
-                so.name = name;
-                so.nameHash = nameHash;
-                so.type = TYPES.LIGHT;
-                so.nms_template = node;
-
-                so.parent = parent;
-                so.init(transforms);
-
-                //Parse Light Attributes
-                so.Color.X = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "COL_R"));
-                so.Color.Y = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "COL_G"));
-                so.Color.Z = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "COL_B"));
-                so.fov = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "FOV"));
-                so.intensity = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "INTENSITY"));
-
-                string attenuation = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "FALLOFF");
-                if (!Enum.TryParse<ATTENUATION_TYPE>(attenuation.ToUpper(), out so.falloff))
-                    throw new Exception("Light attenuation Type " + attenuation + " Not supported");
-
-                //Add Light to the resource Manager
-                so.update_struct();
-                Common.RenderState.activeResMgr.GLlights.Add(so);
-
-                return so;
+                Common.CallBacks.Log(string.Format("Parsing Light, {0}", node.Name));
+                return parseLight(node, gobject, parent, scene);
             }
 
             else if (typeEnum == TYPES.EMITTER)
             {
-                locator so = new locator();
-                so.type = TYPES.EMITTER;
-                //Fetch attributes
-
-                //For now fetch only one attachment
-                string attachment = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "ATTACHMENT");
-                TkAttachmentData attachment_data = null;
-                if (attachment != "")
-                {
-                    attachment_data = NMSUtils.LoadNMSTemplate(attachment, ref Common.RenderState.activeResMgr) as TkAttachmentData;
-                }
-
-                //TODO: Parse Emitter material and Emission data. from the node attributes
-
-
-                //Set Properties
-                //Testingso.Name = name + "_LOC";
-                so.name = name;
-                so.nameHash = nameHash;
-                so.nms_template = node;
-
-                //Get Transformation
-                so.parent = parent;
-                so.init(transforms);
-
-                //Process Locator Attachments
-                ProcessComponents(so, attachment_data);
-
-                //Handle Children
-                foreach (TkSceneNodeData child in children)
-                {
-                    model part = parseNode(child, gobject, so, scene);
-                    so.children.Add(part);
-                }
-                
-                //Do not restore the old AnimScene let them flow
-                //localAnimScene = old_localAnimScene; //Restore old_localAnimScene
-                return so;
+                return parseEmitter(node, gobject, parent, scene);
             }
-
-
             else
             {
-                Common.CallBacks.Log(string.Format("Unknown Type, {0}", type));
-                locator so = new locator();
+                Common.CallBacks.Log(string.Format("Unknown Type, {0}", node.Type));
+                Locator so = new Locator();
                 //Set Properties
-                so.name = name + "_UNKNOWN";
-                so.nameHash = nameHash;
+                so.name = node.Name + "_UNKNOWN";
+                so.nameHash = node.NameHash;
                 so.type = TYPES.UNKNOWN;
                 so.nms_template = node;
                 //Locator Objects don't have options

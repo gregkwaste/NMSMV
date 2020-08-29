@@ -1,13 +1,11 @@
 ﻿using System;
-using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
-using libMBIN;
 using libMBIN.NMS.Toolkit;
-using MVCore;
 using MVCore.GMDL;
 using OpenTK;
+using MVCore.Utils;
 
 namespace WPFModelViewer
 {
@@ -21,16 +19,16 @@ namespace WPFModelViewer
         private Matrix4 oldrotation;
         private Vector3 oldscale;
 
-        private model _mdl;
+        private Model _mdl;
 
         public static readonly DependencyProperty ModelProperty =
-         DependencyProperty.Register("Model", typeof(model), typeof(ModelTransform), new
-            PropertyMetadata((model) null, new PropertyChangedCallback(OnModelChanged)));
+         DependencyProperty.Register("Model", typeof(Model), typeof(ModelTransform), new
+            PropertyMetadata((Model) null, new PropertyChangedCallback(OnModelChanged)));
 
-        public model Model
+        public Model Model
         {
             get {
-                return (model) GetValue(ModelProperty);
+                return (Model) GetValue(ModelProperty);
             }
 
             set {
@@ -44,7 +42,7 @@ namespace WPFModelViewer
         {
             ModelTransform mt = d as ModelTransform;
             if (e.NewValue != null)
-                mt.loadModel((model)e.NewValue);
+                mt.loadModel((Model)e.NewValue);
         }
 
         public ModelTransform()
@@ -52,7 +50,7 @@ namespace WPFModelViewer
             InitializeComponent();
         }
 
-        public void loadModel(model m)
+        public void loadModel(Model m)
         {
 
             //Store model locally

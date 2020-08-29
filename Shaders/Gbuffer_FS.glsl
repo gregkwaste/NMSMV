@@ -17,6 +17,7 @@ uniform sampler2D parameterTex;
 
 uniform mat4 mvp;
 in vec2 uv0;
+out vec4 fragColor;
 
 
 uniform CommonPerFrameSamplers mpCommonPerFrameSamplers;
@@ -85,7 +86,7 @@ void main()
 	vec4 ambient = vec4(vec3(0.03) * albedoColor.rgb, 0.0);
 
 	if (dot(albedoColor, vec4(1.0)) < 1e-3){
-		gl_FragColor = vec4(clearColor, 1.0);
+		fragColor = vec4(clearColor, 1.0);
 		return;
 	}
 
@@ -119,22 +120,21 @@ void main()
     
 	//TODO: Add glow depending on the material parameters cached in the gbuffer (normalmap.a) if necessary
 	
-	//gl_FragColor = vec4(albedoColor.rgb, 1.0);
-	//gl_FragColor = vec4(mix(clearColor, finalColor.rgb, albedoColor.a), 1.0);
-	gl_FragColor = finalColor;
-	//gl_FragColor = vec4(fragPos.rgb, 1.0);
-	//gl_FragColor = vec4(clearColor, 1.0);
-	//gl_FragColor = fragNormal;
-	//gl_FragColor = vec4(texture2D(depthTex, uv0).rrr, 1.0);
+	//fragColor = vec4(albedoColor.rgb, 1.0);
+	//fragColor = vec4(mix(clearColor, finalColor.rgb, albedoColor.a), 1.0);
+	fragColor = finalColor;
+	//fragColor = vec4(fragPos.rgb, 1.0);
+	//fragColor = vec4(clearColor, 1.0);
+	//fragColor = fragNormal;
+	//fragColor = vec4(texture2D(depthTex, uv0).rrr, 1.0);
 	
-
 	//Transform from clip to view space
 	//world = inverse(mvp) * world;
 	//Fix w
 	//world /= world.w;
 	
-	//gl_FragColor = texture2D(positionTex, uv0) - world;
-	//gl_FragColor = vec4(texture2D(positionTex, uv0).rgb, 1.0) - vec4(world.xyz, 1.0);
-	//gl_FragColor = vec4(worldfromDepth().zzz, 1.0);
-	//gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0);
+	//fragColor = texture2D(positionTex, uv0) - world;
+	//fragColor = vec4(texture2D(positionTex, uv0).rgb, 1.0) - vec4(world.xyz, 1.0);
+	//fragColor = vec4(worldfromDepth().zzz, 1.0);
+	//fragColor = vec4(1.0, 0.0, 1.0, 1.0);
 }

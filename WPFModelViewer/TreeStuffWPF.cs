@@ -13,7 +13,7 @@ namespace WPFModelViewer
     public class ModelNode : INotifyPropertyChanged
     {
         public ObservableCollection<ModelNode> Children { get; set; }
-        public model mdl;
+        public Model mdl;
         private bool _isChecked;
         public bool IsInitiallySelected { get; }
         public string Name { set; get; } = "";
@@ -32,7 +32,7 @@ namespace WPFModelViewer
             }
         }
 
-        public ModelNode(model md)
+        public ModelNode(Model md)
         {
             Name = md.name;
             mdl = md;
