@@ -9,6 +9,9 @@
     <Import_RootNamespace>MVCore</Import_RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)Engine\Engine.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Engine\RequestHandler.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Engine\Systems\ActionSystem.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\AnimData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Components\AnimComponent.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Camera.cs" />
@@ -16,6 +19,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Components\AnimPoseComponent.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Components\Component.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Components\LODModelComponent.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\Components\PhysicsComponent.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\Components\TriggerActionComponent.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Joint.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Light.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Locator.cs" />
@@ -57,6 +62,5 @@
     <Folder Include="$(MSBuildThisFileDirectory)Common\" />
     <Folder Include="$(MSBuildThisFileDirectory)Image\" />
     <Folder Include="$(MSBuildThisFileDirectory)Input\" />
-    <Folder Include="$(MSBuildThisFileDirectory)Engine\" />
   </ItemGroup>
 </Project>

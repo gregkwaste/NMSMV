@@ -149,7 +149,7 @@ namespace MVCore.GMDL
         public void updateTarget(CameraPos target, float interval)
         {
             //Interval is the update interval of the movement defined in the control camera timer
-
+            
             //Cache current Position + Orientation
             PrevPosition = Position;
             PrevDirection = Direction;
@@ -163,6 +163,7 @@ namespace MVCore.GMDL
             TargetDirection = Direction * rx * ry;
 
             float actual_speed = (float) Math.Pow(Speed, SpeedPower);
+            
 
             float step = 0.001f;
             Vector3 offset = new Vector3();
@@ -174,6 +175,7 @@ namespace MVCore.GMDL
             TargetPosition += offset;
 
             //Calculate Time for movement
+            
             /*
             Console.WriteLine("TargetPos {0} {1} {2}",
                 TargetPosition.X, TargetPosition.Y, TargetPosition.Z);
@@ -184,10 +186,13 @@ namespace MVCore.GMDL
             Console.WriteLine("PrevRotation {0} {1} {2} {3}",
                 PrevDirection.X, PrevDirection.Y, PrevDirection.Z, PrevDirection.W);
             */
+
             float eff_speed = interval * actual_speed / 1000.0f;
             t_pos_move = (TargetPosition - PrevPosition).Length / eff_speed;
             t_rot_move = (TargetDirection - PrevDirection).Length / eff_speed;
             t_start = 0.0f; //Reset time_counter
+
+            //Console.WriteLine("t_pos {0}, t_rot {1}", t_pos_move, t_rot_move);
 
         }
 
@@ -195,11 +200,16 @@ namespace MVCore.GMDL
         {
              //calculate interpolation coeff
             t_start += (float) dt;
-            float pos_lerp_coeff = t_start / t_pos_move;
-            pos_lerp_coeff = MathUtils.clamp(pos_lerp_coeff, 0.0f, 1.0f);
-            float rot_lerp_coeff = t_start / t_rot_move;
-            rot_lerp_coeff = MathUtils.clamp(rot_lerp_coeff, 0.0f, 1.0f);
+            float pos_lerp_coeff, rot_lerp_coeff;
 
+            
+            pos_lerp_coeff = t_start / (float) Math.Max(t_pos_move, 1e-4);
+            pos_lerp_coeff = MathUtils.clamp(pos_lerp_coeff, 0.0f, 1.0f);
+            
+            
+            rot_lerp_coeff = t_start / (float)Math.Max(t_rot_move, 1e-4);
+            rot_lerp_coeff = MathUtils.clamp(rot_lerp_coeff, 0.0f, 1.0f);
+            
 
             //Interpolate Quaternions/Vectors
             Direction = PrevDirection * (1.0f - rot_lerp_coeff) +

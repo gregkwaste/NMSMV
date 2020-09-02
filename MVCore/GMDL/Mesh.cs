@@ -797,7 +797,7 @@ namespace MVCore.GMDL
                 Console.WriteLine("test");
 #endif
 
-            if (!renderable || (parentScene.activeLOD != LodLevel) && RenderState.renderSettings.LODFiltering)
+            if (!active || !renderable || (parentScene.activeLOD != LodLevel) && RenderState.renderSettings.LODFiltering)
             {
                 base.updateMeshInfo();
                 Common.RenderStats.occludedNum += 1;

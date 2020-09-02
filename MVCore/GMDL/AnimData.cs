@@ -230,19 +230,22 @@ namespace MVCore.GMDL
             //Fetch prevFrame stuff
             Quaternion prev_q = animMeta.anim_rotations[node][prevFrameIndex];
             Vector3 prev_p = animMeta.anim_positions[node][prevFrameIndex];
+            Vector3 prev_s = animMeta.anim_scales[node][prevFrameIndex];
 
             //Fetch nextFrame stuff
-            Quaternion next_q = animMeta.anim_rotations[node][prevFrameIndex];
-            Vector3 next_p = animMeta.anim_positions[node][prevFrameIndex];
+            Quaternion next_q = animMeta.anim_rotations[node][nextFrameIndex];
+            Vector3 next_p = animMeta.anim_positions[node][nextFrameIndex];
+            Vector3 next_s = animMeta.anim_scales[node][nextFrameIndex];
 
             //Interpolate
-
-            Quaternion q = Quaternion.Slerp(prev_q, next_q, LERP_coeff);
-            Vector3 p = prev_p * LERP_coeff + next_p * (1.0f - LERP_coeff);
+            Quaternion q = Quaternion.Slerp(next_q, prev_q, LERP_coeff);
+            Vector3 p = next_p * LERP_coeff + prev_p * (1.0f - LERP_coeff);
+            Vector3 s = next_s * LERP_coeff + prev_s * (1.0f - LERP_coeff);
 
             //Convert transforms
             m.localRotation = Matrix4.CreateFromQuaternion(q);
             m.localPosition = p;
+            m.localScale = s;
         }
 
     }

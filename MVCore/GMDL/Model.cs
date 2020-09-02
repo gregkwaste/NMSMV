@@ -1,19 +1,20 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Text;
 using OpenTK;
 using libMBIN.NMS.Toolkit;
 using System.Collections.ObjectModel;
 using MVCore.Utils;
 using System.Linq;
 
+
 namespace MVCore.GMDL
 {
     public abstract class Model : IDisposable, INotifyPropertyChanged
     {
-        public bool renderable;
-        public bool occluded;
+        public bool renderable; //Used to toggle visibility from the UI
+        public bool active; //Used internally
+        public bool occluded; //Used by the occluder
         public bool debuggable;
         public int selected;
         //public GLSLHelper.GLSLShaderConfig[] shader_programs;
@@ -34,6 +35,9 @@ namespace MVCore.GMDL
         public Matrix4 normMat;
         public Matrix4 localMat;
 
+        public Vector3 __localPosition; //Original Position
+        public Vector3 __localScale; //Original Scale
+        public Matrix4 __localRotation; //Original Rotation
         public Vector3 _localPosition;
         public Vector3 _localScale;
         public Vector3 _localRotationAngles;
@@ -319,6 +323,22 @@ namespace MVCore.GMDL
             updated = true; //Transform changed, trigger mesh updates
         }
 
+
+        public void findNode(string name, ref Model m)
+        {
+            if (Name == name)
+            {
+                m = this;
+                return;
+            }
+                
+            foreach (Model child in children)
+            {
+                child.findNode(name, ref m);
+            }
+        }
+
+
         //Properties for Data Binding
         public ObservableCollection<Model> Children
         {
@@ -340,6 +360,7 @@ namespace MVCore.GMDL
             //Get Local Position
             Vector3 rotation;
             _localPosition = new Vector3(trans[0], trans[1], trans[2]);
+            __localPosition = _localPosition;
 
             //Save raw rotations
             rotation.X = MathUtils.radians(trans[3]);
@@ -361,9 +382,11 @@ namespace MVCore.GMDL
             Matrix4 roty = Matrix4.CreateRotationY(rotation.Y);
             Matrix4 rotz = Matrix4.CreateRotationZ(rotation.Z);
             _localRotation = rotz * rotx * roty;
+            __localRotation = _localRotation;
 
             //Get Local Scale
             _localScale = new Vector3(trans[6], trans[7], trans[8]);
+            __localScale = _localScale;
 
             //Set paths
             if (parent != null)
@@ -374,6 +397,7 @@ namespace MVCore.GMDL
         protected Model()
         {
             renderable = true;
+            active = true;
             debuggable = false;
             occluded = false;
             updated = true;
@@ -555,7 +579,7 @@ namespace MVCore.GMDL
                 }
 
                 float fact = 1.0f / quats.Count;
-                OpenTK.Quaternion fq = new OpenTK.Quaternion();
+                Quaternion fq = new Quaternion();
                 Vector3 f_vt = new Vector3();
                 Vector3 f_vs = new Vector3();
 
@@ -567,15 +591,19 @@ namespace MVCore.GMDL
                 //Interpolate all data
                 for (int i = 1; i < quats.Count; i++)
                 {
-                    OpenTK.Quaternion.Slerp(fq, quats[i], 0.5f);
-                    Vector3.Lerp(f_vt, translations[i], 0.5f);
-                    Vector3.Lerp(f_vs, scales[i], 0.5f);
+                    //Method A: Interpolate
+                    //Quaternion.Slerp(fq, quats[i], 0.5f);
+                    //Vector3.Lerp(f_vt, translations[i], 0.5f);
+                    //Vector3.Lerp(f_vs, scales[i], 0.5f);
+
+                    //Addup
+                    f_vs *= scales[i];
                 }
 
                 //Generate Transformation Matrix
                 //Matrix4 poseMat = Matrix4.CreateScale(f_vs) * Matrix4.CreateFromQuaternion(fq) * Matrix4.CreateTranslation(f_vt);
-                Matrix4 poseMat = Matrix4.CreateScale(f_vs) * Matrix4.CreateFromQuaternion(fq);
-                //Matrix4 poseMat = Matrix4.CreateScale(f_vs);
+                //Matrix4 poseMat = Matrix4.CreateScale(f_vs) * Matrix4.CreateFromQuaternion(fq);
+                Matrix4 poseMat = Matrix4.CreateScale(f_vs);
                 posematrices[node.Node] = poseMat;
 
             }

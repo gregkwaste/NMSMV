@@ -14,6 +14,7 @@ using MVCore.GMDL;
 using Console = System.Console;
 using WPFModelViewer;
 using MVCore.Utils;
+using libMBIN.NMS.GameComponents;
 
 namespace MVCore
 {
@@ -484,7 +485,9 @@ namespace MVCore
         {
             {typeof(TkAnimPoseComponentData), 0},
             {typeof(TkAnimationComponentData), 1},
-            {typeof(TkLODComponentData), 2}
+            {typeof(TkLODComponentData), 2},
+            {typeof(TkPhysicsComponentData), 3},
+            {typeof(GcTriggerActionComponentData), 4}
         };
 
 
@@ -501,11 +504,6 @@ namespace MVCore
             Common.CallBacks.updateStatus("Importing Scene: " + scnName);
             Common.CallBacks.Log(string.Format("Importing Scene: {0}", scnName));
             
-#if DEBUG
-            //Save NMSTemplate to exml
-            var xmlstring = EXmlFile.WriteTemplate(template);
-            File.WriteAllText("Temp\\" + scnName + ".exml", xmlstring);
-#endif
             //Get Geometry File
             //Parse geometry once
             string geomfile = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(template.Attributes, "GEOMETRY");
@@ -524,7 +522,7 @@ namespace MVCore
                 //Use libMBIN to decompile the file
                 TkGeometryData geomdata = (TkGeometryData)NMSUtils.LoadNMSTemplate(geomfile + ".PC", ref Common.RenderState.activeResMgr);
                 //Save NMSTemplate to exml
-                xmlstring = EXmlFile.WriteTemplate(geomdata);
+                string xmlstring = EXmlFile.WriteTemplate(geomdata);
                 File.WriteAllText("Temp\\temp_geom.exml", xmlstring);
 #endif
                 //Load Gstream and Create gobject
@@ -618,11 +616,23 @@ namespace MVCore
             node.Components.Add(ac); //Create Animation Component and add attach it to the component
         }
 
+        private static void ProcessPhysicsComponent(Model node, TkPhysicsComponentData component)
+        {
+            PhysicsComponent pc = new PhysicsComponent(component);
+            node.Components.Add(pc);
+        }
+
+        private static void ProcessTriggerActionComponent(Model node, GcTriggerActionComponentData component)
+        {
+            TriggerActionComponent tac = new TriggerActionComponent(component);
+            node.Components.Add(tac);
+        }
+
         private static void ProcessLODComponent(Model node, TkLODComponentData component)
         {
             //Load all LOD models as children to the node
             LODModelComponent lodmdlcomp = new LODModelComponent();
-
+            
             for (int i = 0; i < component.LODModel.Count; i++)
             {
                 string filepath = component.LODModel[i].LODModel.Filename;
@@ -664,6 +674,12 @@ namespace MVCore
                         break;
                     case 2:
                         ProcessLODComponent(node, comp as TkLODComponentData);
+                        break;
+                    case 3:
+                        ProcessPhysicsComponent(node, comp as TkPhysicsComponentData);
+                        break;
+                    case 4:
+                        ProcessTriggerActionComponent(node, comp as GcTriggerActionComponentData);
                         break;
                 }   
             
@@ -1059,6 +1075,7 @@ namespace MVCore
             ProcessComponents(so, attachment_data);
             so.animComponentID = so.hasComponent(typeof(AnimComponent));
             so.animPoseComponentID = so.hasComponent(typeof(AnimPoseComponent));
+            so.actionComponentID = so.hasComponent(typeof(TriggerActionComponent));
 
             //Handle Children
             foreach (TkSceneNodeData child in children)

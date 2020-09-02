@@ -71,13 +71,15 @@ namespace WPFModelViewer
             CallBacks.openAnim = Util.loadAnimationFile;
             CallBacks.Log = Util.Log;
             CallBacks.issueRequestToGLControl = Util.sendRequest;
-            
+
             //Toggle waiting to attach renderdoc
             //System.Threading.Thread.Sleep(10000);
 
+            //Initialize Resource Manager
+            RenderState.activeResMgr = new ResourceManager();
+            
             //Generate CGLControl
             glControl = new CGLControl();
-            RenderState.activeResMgr = glControl.resMgr;
             
             Host.Child = glControl;
 
@@ -109,41 +111,46 @@ namespace WPFModelViewer
         {
             Console.WriteLine("Importing " + filename);
             ThreadRequest req;
-
+            
             //Pause renderer
             req = new ThreadRequest();
             req.type = THREAD_REQUEST_TYPE.GL_PAUSE_RENDER_REQUEST;
             req.arguments.Clear();
-
+            
             //Send request
-            glControl.issueRequest(ref req);
-
-            while (req.status != THREAD_REQUEST_STATUS.FINISHED)
-                Thread.Sleep(10);
+            glControl.issueRenderingRequest(ref req);
+            glControl.waitForRenderingRequest(ref req);
 
             //Clear treeview
-            Application.Current.Dispatcher.BeginInvoke((Action)(() =>
+            Application.Current.Dispatcher.BeginInvoke((System.Action)(() =>
             {
                 SceneTreeView.Items.Clear();
-                glControl.rootObject.Dispose();
+                
             }));
 
-            //Generate Request for rendering thread
-            req = new ThreadRequest();
-            req.type = THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST;
-            req.arguments.Clear();
-            req.arguments.Add(filename);
+            
+            RenderState.rootObject?.Dispose();
+            glControl.addScene(filename);
 
-            glControl.issueRequest(ref req);
-            issuedRequests.Add(req);
+
+            //Populate 
+            RenderState.rootObject.ID = itemCounter;
+            Util.setStatus("Creating Treeview...");
+            //Add to UI
+            Application.Current.Dispatcher.BeginInvoke((System.Action)(() =>
+            {
+                SceneTreeView.Items.Add(RenderState.rootObject);
+            }));
+            Util.setStatus("Ready");
 
             //Generate Request for resuming rendering
-            req = new ThreadRequest();
-            req.type = THREAD_REQUEST_TYPE.GL_RESUME_RENDER_REQUEST;
-            req.arguments.Clear();
+            ThreadRequest req2 = new ThreadRequest();
+            req2.type = THREAD_REQUEST_TYPE.GL_RESUME_RENDER_REQUEST;
+            req2.arguments.Clear();
 
-            glControl.issueRequest(ref req);
-            issuedRequests.Add(req);
+            glControl.issueRenderingRequest(ref req2);
+            //glControl.waitForRenderingRequest(ref req2);
+
         }
 
         private void OpenFile(object sender, RoutedEventArgs e)
@@ -255,19 +262,12 @@ namespace WPFModelViewer
                             switch (req.type)
                             {
                                 case THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST:
-                                    glControl.rootObject.ID = itemCounter;
-                                    Util.setStatus("Creating Treeview...");
-                                    //Add to UI
-                                    Application.Current.Dispatcher.BeginInvoke((Action)(() =>
-                                    {
-                                        SceneTreeView.Items.Add(glControl.rootObject);
-                                    }));
-                                    Util.setStatus("Ready");
+                                    Console.WriteLine("Shouldn't be here");
                                     break;
                                 case THREAD_REQUEST_TYPE.LOAD_NMS_ARCHIVES_REQUEST:
                                     
                                     //Enable Open File Functions
-                                    Application.Current.Dispatcher.BeginInvoke((Action)(() =>
+                                    Application.Current.Dispatcher.BeginInvoke((System.Action)(() =>
                                     {
                                         OpenFileHandle.IsEnabled = true;
                                         if (req.response == 0)
@@ -304,7 +304,7 @@ namespace WPFModelViewer
             //Send Terminate Rendering request to the rt_thread
             ThreadRequest req = new ThreadRequest();
             req.type = THREAD_REQUEST_TYPE.TERMINATE_REQUEST;
-            glControl.issueRequest(ref req);
+            glControl.engine.issueRenderingRequest(ref req);
 
             //Wait for the request to finish
             while (true)
@@ -317,8 +317,7 @@ namespace WPFModelViewer
             }
 
             //Cleanup GL Context
-            glControl.rootObject?.Dispose();
-            glControl.resMgr.Cleanup();
+            glControl.engine.resMgr.Cleanup();
             glControl.Dispose();
 
         }
@@ -344,15 +343,15 @@ namespace WPFModelViewer
                         req.arguments.Add(glControl.Height);
 
                         //Send request
-                        glControl.issueRequest(ref req);
+                        glControl.engine.issueRenderingRequest(ref req);
                         issuedRequests.Add(req);
 
                         //Send Unpause rendering requenst
                         req = new ThreadRequest();
                         req.type = THREAD_REQUEST_TYPE.GL_RESUME_RENDER_REQUEST;
-                        
+
                         //Send request
-                        glControl.issueRequest(ref req);
+                        glControl.issueRenderingRequest(ref req);
                         issuedRequests.Add(req);
 
                         //Mark as handled event
@@ -367,7 +366,7 @@ namespace WPFModelViewer
                         req.arguments.Clear();
 
                         //Send request
-                        glControl.issueRequest(ref req);
+                        glControl.engine.issueRenderingRequest(ref req);
                         issuedRequests.Add(req);
 
                         //Mark as handled event
@@ -395,15 +394,16 @@ namespace WPFModelViewer
 
             //Load Settings
             SettingsForm.loadSettingsStatic();
+            glControl.StartWorkThreads();
             
             //Check if the rt_thread is ready
             ThreadRequest req = new ThreadRequest();
             req.type = THREAD_REQUEST_TYPE.QUERY_GLCONTROL_STATUS_REQUEST;
             issuedRequests.Add(req);
-            glControl.issueRequest(ref req);
+            glControl.issueRenderingRequest(ref req);
 
             while(req.status != THREAD_REQUEST_STATUS.FINISHED)
-                System.Threading.Thread.Sleep(10);
+                Thread.Sleep(10);
 
             //Populate GLControl
             Scene scene = new Scene();
@@ -414,9 +414,9 @@ namespace WPFModelViewer
             RenderState.activeResMgr.GLScenes["DEFAULT_SCENE"] = scene;
 
             //Force rootobject
-            glControl.rootObject = scene;
+            RenderState.rootObject = scene;
             glControl.modelUpdateQueue.Enqueue(scene);
-            glControl.renderMgr.populate(scene);
+            glControl.engine.renderMgr.populate(scene);
             
             SceneTreeView.Items.Clear();
             SceneTreeView.Items.Add(scene);
@@ -476,17 +476,24 @@ namespace WPFModelViewer
         {
             //Add Components programmatically
             Grid g = new Grid();
-            RowDefinition rd = new RowDefinition();
-            rd.Height = new GridLength(20.0);
-            g.RowDefinitions.Add(rd);
-            g.RowDefinitions.Add(rd);
-            g.RowDefinitions.Add(rd);
+            for (int i = 0; i < 3; i++)
+            {
+                RowDefinition rd = new RowDefinition();
+                rd.Height = new GridLength(20.0);
+                g.RowDefinitions.Add(rd);
+            }
+
+            for (int i = 0; i < 2; i++)
+            {
+                ColumnDefinition cd = new ColumnDefinition();
+                cd.Width = new GridLength(50.0);
+                g.ColumnDefinitions.Add(cd);
+            }
 
             //Add Options
             TextBlock tb = new TextBlock();
             tb.SetValue(Grid.RowProperty, 0);
             tb.SetValue(Grid.ColumnProperty, 0);
-            g.Children.Add(tb);
             Slider sr = new Slider();
             sr.SetValue(Grid.RowProperty, 0);
             sr.SetValue(Grid.ColumnProperty, 1);
@@ -537,11 +544,6 @@ namespace WPFModelViewer
             MessageBox.Show(Util.activeWindow, "HOOOOOOOOLA");
         }
 
-        private void PlayStop_Click(object sender, RoutedEventArgs e)
-        {
-            glControl.toggleAnimation();
-        }
-
         private void RegenPose_Click(object sender, RoutedEventArgs e)
         {
             MessageBox.Show(Util.activeWindow, "This button should set random values to the pose slider of the active locator object");
@@ -560,13 +562,13 @@ namespace WPFModelViewer
             float speedPower = (float) sliderMovementFactor.Value;
 
             glControl.updateActiveCam(FOV, zNear, zFar, speed, speedPower);
-            glControl.light_distance = (float) Math.Pow(1.25f, sliderlightDistance.Value) - 1.0f;
-            glControl.light_intensity = (float) sliderLightIntensity.Value;
+            glControl.engine.light_distance = (float) Math.Pow(1.25f, sliderlightDistance.Value) - 1.0f;
+            glControl.engine.light_intensity = (float) sliderLightIntensity.Value;
         }
 
         private void CameraResetPos(object sender, RoutedEventArgs e)
         {
-            glControl.updateActiveCam(new Vector3(0.0f, 0.0f, 0.0f), 
+            glControl.engine.updateActiveCam(new Vector3(0.0f, 0.0f, 0.0f), 
                                       new Vector3(0.0f, (float)Math.PI/2.0f, 0.0f));
         }
 
@@ -657,7 +659,7 @@ namespace WPFModelViewer
                 req.type = THREAD_REQUEST_TYPE.CHANGE_MODEL_PARENT_REQUEST;
                 req.arguments.Add(init_drag);
                 req.arguments.Add(target_drag);
-                glControl.issueRequest(ref req);
+                glControl.engine.issueRenderingRequest(ref req);
 
                 /*
                 lock (init_drag)

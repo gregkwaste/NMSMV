@@ -110,7 +110,6 @@ namespace GLSLHelper {
             
             //Compile Shader
             GL.ShaderSource(shader_object_id, string_num, strings, (int[]) null);
-            
             //Get resolved shader text
             GL.GetShaderSource(shader_object_id, 32768, out actual_shader_length, out actual_shader_source);
             resolved_text = actual_shader_source; //Store full shader code

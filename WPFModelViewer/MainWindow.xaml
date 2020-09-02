@@ -270,24 +270,153 @@
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:AnimPoseComponent}">
-                <StackPanel>
-                    <TextBlock Text="Model Pose"></TextBlock>
-                    <ListBox ItemsSource="{Binding poseData}" Height="200" HorizontalContentAlignment="Stretch" VerticalAlignment="Stretch">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <ContentControl Content="{Binding}"/>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="5*"/>
-                            <ColumnDefinition Width="5*"/>
-                        </Grid.ColumnDefinitions>
-                        <Button Grid.Column="0" Command="{Binding Path=ApplyPose}" CommandParameter="{Binding}">Apply Pose</Button>
-                        <Button Grid.Column="1" Command="{Binding Path=ResetPose}" CommandParameter="{Binding}">Reset Pose</Button>
-                    </Grid>
-                </StackPanel>
+                <Expander>
+                    <Expander.Header>
+                        <TextBlock Text="TkAnimPoseComponentData"/>
+                    </Expander.Header>
+                    <StackPanel>
+                        <TextBlock Text="Model Pose"></TextBlock>
+                        <ListBox ItemsSource="{Binding poseData}" Height="200" HorizontalContentAlignment="Stretch" VerticalAlignment="Stretch">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <ContentControl Content="{Binding}"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="5*"/>
+                                <ColumnDefinition Width="5*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Command="{Binding Path=ApplyPose}" CommandParameter="{Binding}">Apply Pose</Button>
+                            <Button Grid.Column="1" Command="{Binding Path=ResetPose}" CommandParameter="{Binding}">Reset Pose</Button>
+                        </Grid>
+                    </StackPanel>
+                </Expander>
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type gmdl:PhysicsData}">
+                <Expander>
+                    <Expander.Header>
+                        <TextBlock Text="TkPhysicsData"/>
+                    </Expander.Header>
+                    <GroupBox>
+                        <StackPanel>
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Height="20">
+                                    <TextBlock Text="Mass"/>
+                                    <TextBlock HorizontalAlignment="Right" Text="{Binding PMass}"/>
+                                </DockPanel>
+                                <DockPanel Grid.Row="1" HorizontalAlignment="Stretch" Height="20">
+                                    <TextBlock Text="Friction"/>
+                                    <TextBlock HorizontalAlignment="Right" Text="{Binding PFriction}"/>
+                                </DockPanel>
+                                <DockPanel Grid.Row="2" HorizontalAlignment="Stretch" Height="20">
+                                    <TextBlock Text="RollingFriction"/>
+                                    <TextBlock HorizontalAlignment="Right" Text="{Binding PRollingFriction}"/>
+                                </DockPanel>
+                                <DockPanel Grid.Row="3" HorizontalAlignment="Stretch" Height="20">
+                                    <TextBlock Text="AngularDamping"/>
+                                    <TextBlock HorizontalAlignment="Right" Text="{Binding PAngularDamping}"/>
+                                </DockPanel>
+                                <DockPanel Grid.Row="4" HorizontalAlignment="Stretch" Height="20">
+                                    <TextBlock Text="LinearDamping"/>
+                                    <TextBlock HorizontalAlignment="Right" Text="{Binding PLinearDamping}"/>
+                                </DockPanel>
+                                <DockPanel Grid.Row="5" HorizontalAlignment="Stretch" Height="20">
+                                    <TextBlock Text="Gravity"/>
+                                    <TextBlock HorizontalAlignment="Right" Text="{Binding PGravity}"/>
+                                </DockPanel>
+                            </Grid>
+                        </StackPanel>
+                    </GroupBox>
+                </Expander>
+            </DataTemplate>
+
+
+            <DataTemplate DataType="{x:Type gmdl:PhysicsComponent}">
+                <Expander>
+                    <Expander.Header>
+                        <TextBlock Text="TkPhysicsComponentData"/>
+                    </Expander.Header>
+                    <GroupBox>
+                        <StackPanel>
+                            <ContentControl Content="{Binding Data}"/>
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Height="20">
+                                    <TextBlock Text="TriggerVolume"/>
+                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding TriggerVolume, Mode=OneWay}"/>
+                                </DockPanel>
+                                <DockPanel Grid.Row="1" HorizontalAlignment="Stretch" Height="20">
+                                    <TextBlock Text="Climbable"/>
+                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding Climbable, Mode=OneWay}"/>
+                                </DockPanel>
+                                <DockPanel Grid.Row="2" HorizontalAlignment="Stretch" Height="20">
+                                    <TextBlock Text="Floor"/>
+                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding Floor, Mode=OneWay}"/>
+                                </DockPanel>
+                                <DockPanel Grid.Row="3" HorizontalAlignment="Stretch" Height="20">
+                                    <TextBlock Text="IgnoreModelOwner"/>
+                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding IgnoreModelOwner, Mode=OneWay}"/>
+                                </DockPanel>
+                                <DockPanel Grid.Row="4" HorizontalAlignment="Stretch" Height="20">
+                                    <TextBlock Text="NoVehicleCollide"/>
+                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding NoVehicleCollide, Mode=OneWay}"/>
+                                </DockPanel>
+                                <DockPanel Grid.Row="5" HorizontalAlignment="Stretch" Height="20">
+                                    <TextBlock Text="NoVehicleCollide"/>
+                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding NoVehicleCollide, Mode=OneWay}"/>
+                                </DockPanel>
+                                <DockPanel Grid.Row="6" HorizontalAlignment="Stretch" Height="20">
+                                    <TextBlock Text="NoPlayerCollide"/>
+                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding NoPlayerCollide, Mode=OneWay}"/>
+                                </DockPanel>
+                                <DockPanel Grid.Row="7" HorizontalAlignment="Stretch" Height="20">
+                                    <TextBlock Text="CameraInvisible"/>
+                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding CameraInvisible, Mode=OneWay}"/>
+                                </DockPanel>
+                                <DockPanel Grid.Row="8" HorizontalAlignment="Stretch" Height="20">
+                                    <TextBlock Text="InvisibleForInteraction"/>
+                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding InvisibleForInteraction, Mode=OneWay}"/>
+                                </DockPanel>
+                                <DockPanel Grid.Row="9" HorizontalAlignment="Stretch" Height="20">
+                                    <TextBlock Text="AllowTeleporter"/>
+                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding AllowTeleporter, Mode=OneWay}"/>
+                                </DockPanel>
+                                <DockPanel Grid.Row="10" HorizontalAlignment="Stretch" Height="20">
+                                    <TextBlock Text="BlockTeleporter"/>
+                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding BlockTeleporter, Mode=OneWay}"/>
+                                </DockPanel>
+                                <DockPanel Grid.Row="11" HorizontalAlignment="Stretch" Height="20">
+                                    <TextBlock Text="DisableGravity"/>
+                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding DisableGravity, Mode=OneWay}"/>
+                                </DockPanel>
+                            </Grid>
+                        </StackPanel>
+                    </GroupBox>
+                </Expander>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:Locator}">

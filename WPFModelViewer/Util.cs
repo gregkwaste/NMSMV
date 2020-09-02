@@ -107,7 +107,7 @@ namespace WPFModelViewer
             //It is the senders responsibility to handle and keep track of any results if necessary
 
             //Should be awesome for blind requests that have to 
-            activeControl?.issueRequest(ref req);
+            activeControl?.issueRenderingRequest(ref req);
         }
     }
 

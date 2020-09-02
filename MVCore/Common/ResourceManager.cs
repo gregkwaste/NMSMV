@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using GLSLHelper;
 using libMBIN.NMS.Toolkit;
@@ -7,7 +8,8 @@ using MVCore.GMDL;
 using MVCore.Text;
 using MVCore.Utils;
 using OpenTK;
-using OpenTK.Graphics.OpenGL;
+using OpenTK.Graphics.OpenGL4;
+
 
 namespace MVCore
 {
@@ -82,8 +84,226 @@ namespace MVCore
             addDefaultLights();
             addDefaultFonts();
             addDefaultTexts();
+            addDefaultCameras();
+            compileMainShaders();
 
             initialized = true;
+        }
+
+        public void compileMainShaders()
+        {
+
+#if (DEBUG)
+            //Query GL Extensions
+            Console.WriteLine("OPENGL AVAILABLE EXTENSIONS:");
+            string[] ext = GL.GetString(StringName.Extensions).Split(' ');
+            foreach (string s in ext)
+            {
+                if (s.Contains("explicit"))
+                    Console.WriteLine(s);
+                if (s.Contains("texture"))
+                    Console.WriteLine(s);
+                if (s.Contains("16"))
+                    Console.WriteLine(s);
+            }
+
+            //Query maximum buffer sizes
+            Console.WriteLine("MaxUniformBlock Size {0}", GL.GetInteger(GetPName.MaxUniformBlockSize));
+#endif
+
+            //Populate shader list
+            string log = "";
+            GLSLHelper.GLSLShaderConfig shader_conf;
+
+            //Geometry Shader
+            //Compile Object Shaders
+            GLSLShaderText geometry_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText geometry_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            GLSLShaderText geometry_shader_gs = new GLSLShaderText(ShaderType.GeometryShader);
+            geometry_shader_vs.addStringFromFile("Shaders/Simple_VSEmpty.glsl");
+            geometry_shader_fs.addStringFromFile("Shaders/Simple_FSEmpty.glsl");
+            geometry_shader_gs.addStringFromFile("Shaders/Simple_GS.glsl");
+
+            GLShaderHelper.compileShader(geometry_shader_vs, geometry_shader_fs, geometry_shader_gs, null, null,
+                            SHADER_TYPE.DEBUG_MESH_SHADER, ref log);
+
+
+            //Compile Object Shaders
+            GLSLShaderText gizmo_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText gizmo_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gizmo_shader_vs.addStringFromFile("Shaders/Gizmo_VS.glsl");
+            gizmo_shader_fs.addStringFromFile("Shaders/Gizmo_FS.glsl");
+            shader_conf = GLShaderHelper.compileShader(gizmo_shader_vs, gizmo_shader_fs, null, null, null,
+                            SHADER_TYPE.GIZMO_SHADER, ref log);
+
+            //Attach UBO binding Points
+            GLShaderHelper.attachUBOToShaderBindingPoint(shader_conf, "_COMMON_PER_FRAME", 0);
+            GLShaders[SHADER_TYPE.GIZMO_SHADER] = shader_conf;
+
+
+#if DEBUG
+            //Report UBOs
+            GLShaderHelper.reportUBOs(shader_conf);
+#endif
+
+            //Picking Shader
+
+            //Compile Default Shaders
+
+            //BoundBox Shader
+            GLSLShaderText bbox_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText bbox_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            bbox_shader_vs.addStringFromFile("Shaders/Bound_VS.glsl");
+            bbox_shader_fs.addStringFromFile("Shaders/Bound_FS.glsl");
+            GLShaderHelper.compileShader(bbox_shader_vs, bbox_shader_fs, null, null, null,
+                GLSLHelper.SHADER_TYPE.BBOX_SHADER, ref log);
+
+            //Texture Mixing Shader
+            GLSLShaderText texture_mixing_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText texture_mixing_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            texture_mixing_shader_vs.addStringFromFile("Shaders/texture_mixer_VS.glsl");
+            texture_mixing_shader_fs.addStringFromFile("Shaders/texture_mixer_FS.glsl");
+            shader_conf = GLShaderHelper.compileShader(texture_mixing_shader_vs, texture_mixing_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.TEXTURE_MIX_SHADER, ref log);
+            GLShaders[GLSLHelper.SHADER_TYPE.TEXTURE_MIX_SHADER] = shader_conf;
+
+            //GBuffer Shaders
+
+            //UNLIT
+            GLSLShaderText gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gbuffer_shader_fs.addStringFromFile("Shaders/Gbuffer_FS.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.GBUFFER_UNLIT_SHADER, ref log);
+            GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_UNLIT_SHADER] = shader_conf;
+
+            //LIT
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gbuffer_shader_fs.addString("#define _D_LIGHTING");
+            gbuffer_shader_fs.addStringFromFile("Shaders/Gbuffer_FS.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.GBUFFER_LIT_SHADER, ref log);
+            GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_LIT_SHADER] = shader_conf;
+
+
+            //GAUSSIAN HORIZONTAL BLUR SHADER
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText gaussian_blur_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gaussian_blur_shader_fs.addStringFromFile("Shaders/gaussian_horizontalBlur_FS.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gaussian_blur_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.GAUSSIAN_HORIZONTAL_BLUR_SHADER, ref log);
+            GLShaders[GLSLHelper.SHADER_TYPE.GAUSSIAN_HORIZONTAL_BLUR_SHADER] = shader_conf;
+
+
+            //GAUSSIAN VERTICAL BLUR SHADER
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            gaussian_blur_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gaussian_blur_shader_fs.addStringFromFile("Shaders/gaussian_verticalBlur_FS.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gaussian_blur_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.GAUSSIAN_VERTICAL_BLUR_SHADER, ref log);
+            GLShaders[GLSLHelper.SHADER_TYPE.GAUSSIAN_VERTICAL_BLUR_SHADER] = shader_conf;
+
+
+            //BRIGHTNESS EXTRACTION SHADER
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gbuffer_shader_fs.addStringFromFile("Shaders/brightness_extract_shader_fs.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.BRIGHTNESS_EXTRACT_SHADER, ref log);
+            GLShaders[GLSLHelper.SHADER_TYPE.BRIGHTNESS_EXTRACT_SHADER] = shader_conf;
+
+
+            //ADDITIVE BLEND
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gbuffer_shader_fs.addStringFromFile("Shaders/additive_blend_fs.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.ADDITIVE_BLEND_SHADER, ref log);
+            GLShaders[GLSLHelper.SHADER_TYPE.ADDITIVE_BLEND_SHADER] = shader_conf;
+
+            //FXAA
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gbuffer_shader_fs.addStringFromFile("Shaders/fxaa_shader_fs.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.FXAA_SHADER, ref log);
+            GLShaders[GLSLHelper.SHADER_TYPE.FXAA_SHADER] = shader_conf;
+
+            //TONE MAPPING + GAMMA CORRECTION
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gbuffer_shader_fs.addStringFromFile("Shaders/tone_mapping_fs.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
+                            GLSLHelper.SHADER_TYPE.TONE_MAPPING, ref log);
+            GLShaders[GLSLHelper.SHADER_TYPE.TONE_MAPPING] = shader_conf;
+
+            //INV TONE MAPPING + GAMMA CORRECTION
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gbuffer_shader_fs.addStringFromFile("Shaders/inv_tone_mapping_fs.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
+                            SHADER_TYPE.INV_TONE_MAPPING, ref log);
+            GLShaders[SHADER_TYPE.INV_TONE_MAPPING] = shader_conf;
+
+
+            //BWOIT SHADER
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            gbuffer_shader_fs.addStringFromFile("Shaders/bwoit_shader_fs.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
+                            SHADER_TYPE.BWOIT_COMPOSITE_SHADER, ref log);
+            GLShaders[SHADER_TYPE.BWOIT_COMPOSITE_SHADER] = shader_conf;
+
+
+            //Text Shaders
+            GLSLShaderText text_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText text_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            text_shader_vs.addStringFromFile("Shaders/Text_VS.glsl");
+            text_shader_fs.addStringFromFile("Shaders/Text_FS.glsl");
+            shader_conf = GLShaderHelper.compileShader(text_shader_vs, text_shader_fs, null, null, null,
+                            SHADER_TYPE.TEXT_SHADER, ref log);
+            GLShaders[SHADER_TYPE.TEXT_SHADER] = shader_conf;
+
+            //Camera Shaders
+            //TODO: Add Camera Shaders if required
+            GLShaders[GLSLHelper.SHADER_TYPE.CAMERA_SHADER] = null;
+
+            //FILTERS - EFFECTS
+
+            //Pass Shader
+            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText passthrough_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
+            passthrough_shader_fs.addStringFromFile("Shaders/PassThrough_FS.glsl");
+            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, passthrough_shader_fs, null, null, null,
+                            SHADER_TYPE.PASSTHROUGH_SHADER, ref log);
+            GLShaders[SHADER_TYPE.PASSTHROUGH_SHADER] = shader_conf;
+
+        }
+
+        private void addDefaultCameras()
+        {
+            Camera cam = new Camera(90, -1, 0, true);
+            cam.isActive = false;
+            GLCameras.Add(cam);
+
+            cam = new Camera(90, -1, 0, false);
+            cam.isActive = false;
+            GLCameras.Add(cam);
+
+            //Set as active camera the first one by default
+            RenderState.activeCam = GLCameras[0];
         }
 
         private void addDefaultTextures()

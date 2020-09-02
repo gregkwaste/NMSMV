@@ -48,7 +48,7 @@ TODO
 <div align="center"> <img src="https://i.imgur.com/9NX73V1h.png"></div>
 
 ## **Credits** ##
-* monkeyman12 main maintainer of [libMBIN](https://github.com/monkeyman192/MBINCompiler)
+* monkeyman192 main maintainer of [libMBIN](https://github.com/monkeyman192/MBINCompiler)
 * Fuzzy-Logik main maintainer of [libPSARC](https://github.com/Fuzzy-Logik/libPSARC)
 * IanM32 for the amazing logo
 

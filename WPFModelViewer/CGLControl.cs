@@ -13,71 +13,54 @@ using MVCore.GMDL;
 using MVCore.Text;
 using MVCore.Utils;
 using MVCore.Input;
+using MVCore.Engine.Systems;
 using OpenTK;
 using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Input;
 using System.Timers;
+using MVCore.Engine;
 
 namespace Model_Viewer
 {
     public class CGLControl : GLControl
     {
-        public Model rootObject;
-        public Model activeModel; //Active Model Reference
-
-        public Gizmo activeGizmo;
-        public TranslationGizmo gizTranslate;
-        
-        
-        //private Camera activeCam;
-
-        //Use public variables for now because getters/setters are so not worth it for our purpose
-        public float light_angle_y = 0.0f;
-        public float light_angle_x = 0.0f;
-        public float light_distance = 5.0f;
-        public float light_intensity = 1.0f;
-        public float scale = 1.0f;
-
         //Mouse Pos
         private MouseMovementState mouseState = new MouseMovementState();
         private MouseMovementStatus mouseMovementStatus = MouseMovementStatus.IDLE;
 
-        //Camera Movement Speed
-        public CameraPos targetCameraPos;
-        //public int movement_speed = 1;
-
         //Control Identifier
         private int index;
         
-        //Custom Palette
-        private Dictionary<string,Dictionary<string,Vector4>> palette;
-
         //Animation Stuff
         private bool animationStatus = false;
 
-        
-        public bool PAnimationStatus
-        {
-            get
-            {
-                return animationStatus;
-            }
 
-            set
-            {
-                animationStatus = value;
-            }
-        }
-
+        //Scene Stuff
+        //public Model rootObject;
+        public Model activeModel; //Active Model Reference
         public List<Model> animScenes = new List<Model>();
         public Queue<Model> modelUpdateQueue = new Queue<Model>();
         public List<Tuple<AnimComponent, AnimData>> activeAnimScenes = new List<Tuple<AnimComponent, AnimData>>();
 
-        //Control private Managers
-        public ResourceManager resMgr = new ResourceManager();
-        public renderManager renderMgr = new renderManager();
-        
+
+        //Gizmo
+        public Gizmo activeGizmo;
+        public TranslationGizmo gizTranslate;
+
+
+        //Rendering Engine
+        public Engine engine;
+
+        //Rendering Thread
+        private bool rt_flag;
+        private bool rt_exit;
+        private Thread rendering_thread;
+        private bool rendering_thread_initialized = false;
+
+        //Main Work Thread
+        private Thread work_thread;
+
         //Init-GUI Related
         private ContextMenuStrip contextMenuStrip1;
         private System.ComponentModel.IContainer components;
@@ -86,9 +69,7 @@ namespace Model_Viewer
         private OpenFileDialog openFileDialog1;
         private Form pform;
 
-        //Timers
-        public System.Timers.Timer inputPollTimer;
-        public System.Timers.Timer cameraMovementTimer;
+        //Resize Timer
         public System.Timers.Timer resizeTimer;
 
         //Private fps Counter
@@ -98,52 +79,32 @@ namespace Model_Viewer
         private DateTime prevtime;
 
         //Gamepad Setup
-        public BaseGamepadHandler gpHandler;
-        public KeyboardHandler kbHandler;
         private bool disposed;
         public Microsoft.Win32.SafeHandles.SafeFileHandle handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(IntPtr.Zero, true);
 
-        //Rendering Thread Stuff
-        private Thread rendering_thread;
-        private Queue<ThreadRequest> rt_req_queue = new Queue<ThreadRequest>();
-        private bool rt_exit;
-        
         private void registerFunctions()
         {
             this.Load += new System.EventHandler(genericLoad);
             //this.Paint += new System.Windows.Forms.PaintEventHandler(this.genericPaint);
             this.Resize += new System.EventHandler(OnResize); 
-            this.MouseHover += new System.EventHandler(genericHover);
             this.MouseDown += new System.Windows.Forms.MouseEventHandler(genericMouseDown);
             this.MouseMove += new System.Windows.Forms.MouseEventHandler(genericMouseMove);
             this.MouseUp += new System.Windows.Forms.MouseEventHandler(genericMouseUp);
             this.MouseClick += new System.Windows.Forms.MouseEventHandler(genericMouseClick);
             //this.glControl1.MouseWheel += new System.Windows.Forms.MouseEventHandler(this.glControl1_Scroll);
             this.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(generic_KeyDown);
-            this.Enter += new System.EventHandler(genericEnter);
-            this.Leave += new System.EventHandler(genericLeave);
+            this.MouseEnter += new System.EventHandler(genericEnter);
+            this.MouseLeave += new System.EventHandler(genericLeave);
         }
 
         //Default Constructor
         public CGLControl(): base(new GraphicsMode(32, 24, 0, 8), 4, 6, GraphicsContextFlags.ForwardCompatible)
         {
             registerFunctions();
-
+            
             //Default Setup
             RenderState.rotAngles.Y = 0;
-            light_angle_y = 190;
-
-            //Input Polling Timer
-            inputPollTimer = new System.Timers.Timer();
-            inputPollTimer.Elapsed += new ElapsedEventHandler(input_poller);
-            inputPollTimer.Interval = 1;
-
-            //Camera Movement Timer
-            cameraMovementTimer = new System.Timers.Timer();
-            cameraMovementTimer.Elapsed += new ElapsedEventHandler(camera_timer);
-            cameraMovementTimer.Interval = 20;
-            cameraMovementTimer.Start();
-
+            
             //Resize Timer
             resizeTimer = new System.Timers.Timer();
             resizeTimer.Elapsed += new ElapsedEventHandler(ResizeControl);
@@ -153,15 +114,83 @@ namespace Model_Viewer
             DoubleBuffered = true;
             VSync = RenderState.renderSettings.UseVSYNC;
 
+            //Generate Engine instance
+            engine = new Engine();
+            
+            //Initialize Rendering Thread
+            rendering_thread = new Thread(Render);
+            rendering_thread.IsBackground = true;
+            rendering_thread.Priority = ThreadPriority.Normal;
+
+            //Initialize Work Thread
+            work_thread = new Thread(Work);
+            work_thread.IsBackground = true;
+            work_thread.Priority = ThreadPriority.Normal;
+
         }
 
-        private void camera_timer(object sender, ElapsedEventArgs e)
+        public void StartWorkThreads()
         {
-            //Update Target for camera
-            RenderState.activeCam?.updateTarget(targetCameraPos,
-                (float) cameraMovementTimer.Interval);
-            targetCameraPos.Reset();
+            Context.MakeCurrent(null); //Release GL Context from the GLControl
+            resizeTimer.Start();
+            rendering_thread.Start(); //A new context is created in the rendering thread
+            //work_thread.Start();
         }
+
+        private void Render()
+        {
+            
+            //Setup new Context
+            Console.WriteLine("Intializing Rendering Thread");
+#if (DEBUG)
+            GraphicsContext gfx_context = new GraphicsContext(new GraphicsMode(32, 24, 0, 8), WindowInfo, 4, 3,
+                GraphicsContextFlags.Debug);
+#else
+            GraphicsContext gfx_context = new GraphicsContext(new GraphicsMode(32, 24, 0, 8), WindowInfo, 4 , 6,
+            GraphicsContextFlags.ForwardCompatible);
+#endif
+            gfx_context.MakeCurrent(WindowInfo);
+            MakeCurrent();
+
+            engine.SetControl(this); //Set engine Window to the GLControl
+            engine.init();
+            rendering_thread_initialized = true;
+
+            while (engine.rt_State != EngineRenderingState.EXIT)
+            {
+                engine.handleRequests();
+                
+                if (engine.rt_State == EngineRenderingState.ACTIVE)
+                {
+                    frameUpdate();
+                    engine.renderMgr.render(); //Render Everything
+                    SwapBuffers();
+                }
+                
+                Thread.Sleep(1); //TODO: Replace that in the future with some smarter logic to maintain constant framerates
+            }
+            
+        }
+
+        public void setActiveCam(int index)
+        {
+            if (RenderState.activeCam != null)
+                RenderState.activeCam.isActive = false;
+            RenderState.activeCam = RenderState.activeResMgr.GLCameras[index];
+            RenderState.activeCam.isActive = true;
+            Console.WriteLine("Switching Camera to {0}", index);
+        }
+
+        public void updateActiveCam(int FOV, float zNear, float zFar, float speed, float speedPower)
+        {
+            //TODO: REMOVE, FOR TESTING I"M WORKING ONLY ON THE FIRST CAM
+            RenderState.activeResMgr.GLCameras[0].setFOV(FOV);
+            RenderState.activeResMgr.GLCameras[0].zFar = zFar;
+            RenderState.activeResMgr.GLCameras[0].zNear = zNear;
+            RenderState.activeResMgr.GLCameras[0].Speed = speed;
+            RenderState.activeResMgr.GLCameras[0].SpeedPower = speedPower;
+        }
+
 
         //Constructor
         public CGLControl(int index, Form parent)
@@ -171,384 +200,50 @@ namespace Model_Viewer
             //Set Control Identifiers
             this.index = index;
             
-            //Default Setup
-            RenderState.rotAngles.Y = 0;
-            this.light_angle_y = 190;
-
-            //Assign new palette to GLControl
-            palette = Model_Viewer.Palettes.createPalettefromBasePalettes();
-
             //Set parent form
             if (parent != null)
                 pform = parent;
 
-            //Control Timer
-            inputPollTimer = new System.Timers.Timer();
-            inputPollTimer.Elapsed += new System.Timers.ElapsedEventHandler(input_poller);
-            inputPollTimer.Interval = 10;
-            inputPollTimer.Start();
+            
         }
 
-        private void input_poller(object sender, System.Timers.ElapsedEventArgs e)
+
+#region AddObjectMethods
+
+        private void addCamera(bool cull = true)
         {
-            //Console.WriteLine(gpHandler.getAxsState(0, 0).ToString() + " " +  gpHandler.getAxsState(0, 1).ToString());
-            //gpHandler.reportButtons();
-            //gamepadController(); //Move camera according to input
-
-            //Move Camera
-            keyboardController();
-            //gamepadController();
-            
-            bool focused = false;
-
-            Invoke((MethodInvoker) delegate
-            {
-                focused = Focused;
-            });
-
-            if (focused)
-            {
-                kbHandler?.updateState();
-                //gpHandler?.updateState();
-            }
-
-            
+            //Set Camera position
+            Camera cam = new Camera(90, -1, 0, cull);
+            cam.isActive = false;
+            RenderState.activeResMgr.GLCameras.Add(cam);
         }
 
-        private void rt_render()
-        {
-            //Update per frame data
-            frameUpdate();
-            
-            SwapBuffers();
 
-            renderMgr.render(); //Render Everything
+#endregion AddObjectMethods
 
-            Thread.Sleep(1);
-        }
-        
-        public void findAnimScenes(Model node)
-        {
-            if (node.animComponentID >= 0)
-                animScenes.Add(node);
-            
-            foreach (Model child in node.children)
-                findAnimScenes(child);
-        }
 
-        //Per Frame Updates
-        private void frameUpdate()
-        {
-            VSync = RenderState.renderSettings.UseVSYNC; //Update Vsync 
-
-            //Console.WriteLine(RenderState.renderSettings.RENDERMODE);
-
-            //Gizmo Picking
-            //Send picking request
-            //Make new request
-            activeGizmo = null;
-            if (RenderState.renderViewSettings.RenderGizmos)
-            {
-                ThreadRequest req = new ThreadRequest();
-                req.type = THREAD_REQUEST_TYPE.GIZMO_PICKING_REQUEST;
-                req.arguments.Clear();
-                req.arguments.Add(activeGizmo);
-                req.arguments.Add(mouseState.Position);
-                issueRequest(ref req);
-            }
-            
-            //No need to wait for the request
-            //while (req.status != THREAD_REQUEST_STATUS.FINISHED)
-            //    Thread.Sleep(2);
-
-            //Set time to the renderManager
-            renderMgr.progressTime(dt);
-
-            //Reset Stats
-            RenderStats.occludedNum = 0;
-
-            //Update moving queue
-            while (modelUpdateQueue.Count > 0)
-            {
-                Model m = modelUpdateQueue.Dequeue();
-                m.update();
-            }
-
-            //rootObject?.update(); //Update Distances from camera
-            rootObject?.updateLODDistances(); //Update Distances from camera
-            renderMgr.clearInstances(); //Clear All mesh instances
-            rootObject?.updateMeshInfo(); //Reapply frustum culling and re-setup visible instances
-
-            //Update gizmo
-            if (activeModel != null)
-            {
-                //TODO: Move gizmos
-                gizTranslate.setReference(activeModel);
-                gizTranslate.updateMeshInfo();
-                //GLMeshVao gz = resMgr.GLPrimitiveMeshVaos["default_translation_gizmo"];
-                //GLMeshBufferManager.addInstance(ref gz, TranslationGizmo);
-            }
-                
-            //Identify dynamic Objects
-            foreach (Model s in animScenes)
-            {
-                modelUpdateQueue.Enqueue(s.parentScene);
-            }
-            
-            //Progress animations
-            if (RenderState.renderSettings.ToggleAnimations)
-                progressAnimations();
-            
-            //Camera & Light Positions
-            //Update common transforms
-            RenderState.activeCam.aspect = (float) ClientSize.Width / ClientSize.Height;
-                
-            //Apply extra viewport rotation
-            Matrix4 Rotx = Matrix4.CreateRotationX(MathUtils.radians(RenderState.rotAngles.X));
-            Matrix4 Roty = Matrix4.CreateRotationY(MathUtils.radians(RenderState.rotAngles.Y));
-            Matrix4 Rotz = Matrix4.CreateRotationZ(MathUtils.radians(RenderState.rotAngles.Z));
-            RenderState.rotMat = Rotz * Rotx * Roty;
-            //RenderState.rotMat = Matrix4.Identity;
-
-            resMgr.GLCameras[0].Move(dt);
-            resMgr.GLCameras[0].updateViewMatrix();
-            resMgr.GLCameras[1].updateViewMatrix();
-
-            //Update Frame Counter
-            fps();
-
-            //Update Text Counters
-            
-            resMgr.txtMgr.getText(TextManager.Semantic.FPS).update(string.Format("FPS: {0:000.0}",
-                                                                        (float) RenderStats.fpsCount));
-            resMgr.txtMgr.getText(TextManager.Semantic.OCCLUDED_COUNT).update(string.Format("OccludedNum: {0:0000}", 
-                                                                        RenderStats.occludedNum));
-
-        }
-
-        private void progressAnimations()
-        {
-            //Update active animations
-            foreach (Model anim_model in animScenes)
-            {
-                AnimComponent ac = anim_model._components[anim_model.hasComponent(typeof(AnimComponent))] as AnimComponent;
-                bool found_first_active_anim = false;
-
-                foreach (AnimData ad in ac.Animations)
-                {
-                    if (ad._animationToggle)
-                    {
-                        if (!ad.loaded)
-                            ad.loadData();
-
-                        found_first_active_anim = true;
-                        //Load updated local joint transforms
-                        foreach (libMBIN.NMS.Toolkit.TkAnimNodeData node in ad.animMeta.NodeData)
-                        {
-                            if (!anim_model.parentScene.jointDict.ContainsKey(node.Node))
-                                continue;
-
-                            Joint tj = anim_model.parentScene.jointDict[node.Node];
-                            ad.applyNodeTransform(tj, node.Node);
-                        }
-
-                        //Once the current frame data is fetched, progress to the next frame
-                        ad.animate((float)dt);
-                    }
-                    //TODO: For now I'm just using the first active animation. Blending should be kinda more sophisticated
-                    if (found_first_active_anim)
-                        break;
-                }
-            }
-        }
-
-        //Main Rendering Routines
-        private void ControlLoop()
-        {
-            //Setup new Context
-#if(DEBUG)
-            IGraphicsContext new_context = new GraphicsContext(new GraphicsMode(32, 24, 0, 8), WindowInfo, 4, 3,
-                GraphicsContextFlags.Debug);
-#else
-            IGraphicsContext new_context = new GraphicsContext(new GraphicsMode(32, 24, 0, 8), WindowInfo, 4 , 6,
-                GraphicsContextFlags.ForwardCompatible);
-#endif
-            new_context.MakeCurrent(WindowInfo);
-            MakeCurrent(); //This is essential
-
-            //Add default primitives trying to avoid Vao Request queue traffic
-            resMgr.Cleanup();
-            resMgr.Init();
-            addCamera();
-            addCamera(cull:false); //Add second camera
-            setActiveCam(0);
-            addTestObjects();
-
-            //Init Gizmos
-            gizTranslate = new TranslationGizmo();
-            activeGizmo = gizTranslate;
-
-            //Initialize the render manager
-            renderMgr.init(resMgr);
-            renderMgr.setupGBuffer(ClientSize.Width, ClientSize.Height);
-
-            bool renderFlag = true; //Toggle rendering on/off
-            
-            //Rendering Loop
-            while (!rt_exit)
-            {
-                //Check for new scene request
-                if (rt_req_queue.Count > 0)
-                {
-                    ThreadRequest req;
-                    lock (rt_req_queue)
-                    {
-                        //Try to group  Resizing requests
-                        req = rt_req_queue.Dequeue();
-                    }
-
-                    lock (req)
-                    {
-                        switch (req.type)
-                        {
-                            case THREAD_REQUEST_TYPE.QUERY_GLCONTROL_STATUS_REQUEST:
-                                //At this point the renderer is up and running
-                                req.status = THREAD_REQUEST_STATUS.FINISHED;
-                                break;
-                            case THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST:
-                                lock (inputPollTimer)
-                                {
-                                    inputPollTimer.Stop();
-                                    rt_addRootScene((string)req.arguments[0]);
-                                    req.status = THREAD_REQUEST_STATUS.FINISHED;
-                                    inputPollTimer.Start();
-                                }
-                                break;
-                            case THREAD_REQUEST_TYPE.CHANGE_MODEL_PARENT_REQUEST:
-                                Model source = (Model) req.arguments[0];
-                                Model target = (Model) req.arguments[1];
-
-                                System.Windows.Application.Current.Dispatcher.Invoke((Action)(() =>
-                                {
-                                    if (source.parent != null)
-                                        source.parent.Children.Remove(source);
-
-                                    //Add to target node
-                                    source.parent = target;
-                                    target.Children.Add(source);
-                                }));
-                                
-                                req.status = THREAD_REQUEST_STATUS.FINISHED;
-                                break;
-                            case THREAD_REQUEST_TYPE.UPDATE_SCENE_REQUEST:
-                                Scene req_scn = (Scene) req.arguments[0];
-                                req_scn.update();
-                                req.status = THREAD_REQUEST_STATUS.FINISHED;
-                                break;
-                            case THREAD_REQUEST_TYPE.MOUSEPOSITION_INFO_REQUEST:
-                                Vector4[] t = (Vector4[]) req.arguments[2];
-                                renderMgr.getMousePosInfo((int)req.arguments[0], (int)req.arguments[1],
-                                    ref t);
-                                req.status = THREAD_REQUEST_STATUS.FINISHED;
-                                break;
-                            case THREAD_REQUEST_TYPE.GL_RESIZE_REQUEST:
-                                rt_ResizeViewport((int)req.arguments[0], (int)req.arguments[1]);
-                                req.status = THREAD_REQUEST_STATUS.FINISHED;
-                                break;
-                            case THREAD_REQUEST_TYPE.GL_MODIFY_SHADER_REQUEST:
-                                GLShaderHelper.modifyShader((GLSLShaderConfig) req.arguments[0],
-                                             (GLSLShaderText) req.arguments[1]);
-                                req.status = THREAD_REQUEST_STATUS.FINISHED;
-                                break;
-                            case THREAD_REQUEST_TYPE.GIZMO_PICKING_REQUEST:
-                                //TODO: Send the nessessary arguments to the render manager and mark the active gizmoparts
-                                Gizmo g = (Gizmo) req.arguments[0];
-                                renderMgr.gizmoPick(ref g, (Vector2)req.arguments[1]);
-                                req.status = THREAD_REQUEST_STATUS.FINISHED;
-                                break;
-                            case THREAD_REQUEST_TYPE.TERMINATE_REQUEST:
-                                rt_exit = true;
-                                renderFlag = false;
-                                inputPollTimer.Stop();
-                                req.status = THREAD_REQUEST_STATUS.FINISHED;
-                                break;
-                            case THREAD_REQUEST_TYPE.GL_PAUSE_RENDER_REQUEST:
-                                renderFlag = false;
-                                req.status = THREAD_REQUEST_STATUS.FINISHED;
-                                break;
-                            case THREAD_REQUEST_TYPE.GL_RESUME_RENDER_REQUEST:
-                                renderFlag = true;
-                                req.status = THREAD_REQUEST_STATUS.FINISHED;
-                                break;
-                            case THREAD_REQUEST_TYPE.NULL:
-                                break;
-                        }
-                    }
-                }
-                
-                if (renderFlag)
-                {
-                    rt_render();
-                }
-
-            }
-        }
-
-        
-
-#region GLControl Methods
+        #region GLControl Methods
         private void genericEnter(object sender, EventArgs e)
         {
-            //Start Timer when the glControl gets focus
-            //Debug.WriteLine("Entered Focus Control " + index);
-            inputPollTimer.Start();
-        }
-
-        private void genericHover(object sender, EventArgs e)
-        {
-            //Start Timer when the glControl gets focus
-            //this.MakeCurrent(); //Control should have been active on hover
-            inputPollTimer.Start();
+            engine.CaptureInput(true);
         }
 
         private void genericLeave(object sender, EventArgs e)
         {
-            //Don't update the control when its not focused
-            //Debug.WriteLine("Left Focus of Control "+ index);
-            inputPollTimer.Stop();
-
+            engine.CaptureInput(false);
         }
 
-        private void genericPaint(object sender, PaintEventArgs e)
+        private void Work()
         {
-            //TODO: Should I add more stuff in here?
-            //SwapBuffers();
-            Console.WriteLine("Painting");
+            
         }
 
+        
         private void genericLoad(object sender, EventArgs e)
         {
 
             InitializeComponent();
             MakeCurrent();
-
-            //Once the context is initialized compile the shaders
-            compileMainShaders();
-
-            kbHandler = new KeyboardHandler();
-            //gpHandler = new PS4GamePadHandler(0); //TODO: Add support for PS4 controller
-
-            RenderState.activeGamepad = gpHandler;
-
-            //Everything ready to swap threads
-            setupRenderingThread();
-
-            //Start Timers
-            inputPollTimer.Start();
-
-            //Start rendering Thread
-            rendering_thread.Start();
-
         }
 
         private void genericMouseMove(object sender, System.Windows.Forms.MouseEventArgs e)
@@ -569,8 +264,8 @@ namespace Model_Viewer
                 case MouseMovementStatus.CAMERA_MOVEMENT:
                     {
                         // Debug.WriteLine("Deltas {0} {1} {2}", mouseState.Delta.X, mouseState.Delta.Y, e.Button);
-                        targetCameraPos.Rotation.X += mouseState.Delta.X;
-                        targetCameraPos.Rotation.Y += mouseState.Delta.Y;
+                        engine.targetCameraPos.Rotation.X += mouseState.Delta.X;
+                        engine.targetCameraPos.Rotation.Y += mouseState.Delta.Y;
                         break;
                     }
                 case MouseMovementStatus.GIZMO_MOVEMENT:
@@ -652,16 +347,16 @@ namespace Model_Viewer
             {
                 //Light Rotation
                 case Keys.N:
-                    this.light_angle_y -= 1;
+                    engine.light_angle_y -= 1;
                     break;
                 case Keys.M:
-                    this.light_angle_y += 1;
+                    engine.light_angle_y += 1;
                     break;
                 case Keys.Oemcomma:
-                    this.light_angle_x -= 1;
+                    engine.light_angle_x -= 1;
                     break;
                 case Keys.OemPeriod:
-                    this.light_angle_x += 1;
+                    engine.light_angle_x += 1;
                     break;
                 /*
                 //Toggle Wireframe
@@ -686,15 +381,15 @@ namespace Model_Viewer
                 */
                 //Switch cameras
                 case Keys.NumPad0:
-                    if (this.resMgr.GLCameras[0].isActive)
+                    if (engine.resMgr.GLCameras[0].isActive)
                         setActiveCam(1);
                     else
                         setActiveCam(0);
                     break;
                 //Animation playback (Play/Pause Mode) with Space
-                case Keys.Space:
-                    toggleAnimation();
-                    break;
+                //case Keys.Space:
+                //    toggleAnimation();
+                //    break;
                 default:
                     //Console.WriteLine("Not Implemented Yet");
                     break;
@@ -712,7 +407,7 @@ namespace Model_Viewer
             req.arguments.Add(ClientSize.Width);
             req.arguments.Add(ClientSize.Height);
 
-            issueRequest(ref req);
+            engine.issueRenderingRequest(ref req);
         }
 
         
@@ -778,211 +473,6 @@ namespace Model_Viewer
 
 #endregion ShaderMethods
 
-        private void compileMainShaders()
-        {
-
-#if (DEBUG)
-            //Query GL Extensions
-            Console.WriteLine("OPENGL AVAILABLE EXTENSIONS:");
-            string[] ext = GL.GetString(StringName.Extensions).Split(' ');
-            foreach (string s in ext)
-            {
-                if (s.Contains("explicit"))
-                    Console.WriteLine(s);
-                if (s.Contains("texture"))
-                    Console.WriteLine(s);
-                if (s.Contains("16"))
-                    Console.WriteLine(s);
-            }
-
-            //Query maximum buffer sizes
-            Console.WriteLine("MaxUniformBlock Size {0}", GL.GetInteger(GetPName.MaxUniformBlockSize));
-#endif
-
-            //Populate shader list
-            string log = "";
-            GLSLHelper.GLSLShaderConfig shader_conf;
-
-            //Geometry Shader
-            //Compile Object Shaders
-            GLSLShaderText geometry_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText geometry_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            GLSLShaderText geometry_shader_gs = new GLSLShaderText(ShaderType.GeometryShader);
-            geometry_shader_vs.addStringFromFile("Shaders/Simple_VSEmpty.glsl");
-            geometry_shader_fs.addStringFromFile("Shaders/Simple_FSEmpty.glsl");
-            geometry_shader_gs.addStringFromFile("Shaders/Simple_GS.glsl");
-
-            GLShaderHelper.compileShader(geometry_shader_vs, geometry_shader_fs, geometry_shader_gs, null, null,
-                            SHADER_TYPE.DEBUG_MESH_SHADER, ref log);
-
-
-            //Compile Object Shaders
-            GLSLShaderText gizmo_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText gizmo_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            gizmo_shader_vs.addStringFromFile("Shaders/Gizmo_VS.glsl");
-            gizmo_shader_fs.addStringFromFile("Shaders/Gizmo_FS.glsl");
-            shader_conf = GLShaderHelper.compileShader(gizmo_shader_vs, gizmo_shader_fs, null, null, null,
-                            SHADER_TYPE.GIZMO_SHADER, ref log);
-            
-            //Attach UBO binding Points
-            GLShaderHelper.attachUBOToShaderBindingPoint(shader_conf, "_COMMON_PER_FRAME", 0);
-            resMgr.GLShaders[SHADER_TYPE.GIZMO_SHADER] = shader_conf;
-
-
-#if DEBUG
-            //Report UBOs
-            GLShaderHelper.reportUBOs(shader_conf);
-#endif
-
-            //Picking Shader
-
-            //Compile Default Shaders
-
-            //BoundBox Shader
-            GLSLShaderText bbox_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText bbox_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            bbox_shader_vs.addStringFromFile("Shaders/Bound_VS.glsl");
-            bbox_shader_fs.addStringFromFile("Shaders/Bound_FS.glsl");
-            GLShaderHelper.compileShader(bbox_shader_vs, bbox_shader_fs, null, null, null,
-                GLSLHelper.SHADER_TYPE.BBOX_SHADER, ref log);
-
-            //Texture Mixing Shader
-            GLSLShaderText texture_mixing_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText texture_mixing_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            texture_mixing_shader_vs.addStringFromFile("Shaders/texture_mixer_VS.glsl");
-            texture_mixing_shader_fs.addStringFromFile("Shaders/texture_mixer_FS.glsl");
-            shader_conf = GLShaderHelper.compileShader(texture_mixing_shader_vs, texture_mixing_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.TEXTURE_MIX_SHADER, ref log);
-            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.TEXTURE_MIX_SHADER] = shader_conf;
-
-            //GBuffer Shaders
-
-            //UNLIT
-            GLSLShaderText gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
-            gbuffer_shader_fs.addStringFromFile("Shaders/Gbuffer_FS.glsl");
-            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.GBUFFER_UNLIT_SHADER, ref log);
-            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_UNLIT_SHADER] = shader_conf;
-
-            //LIT
-            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
-            gbuffer_shader_fs.addString("#define _D_LIGHTING");
-            gbuffer_shader_fs.addStringFromFile("Shaders/Gbuffer_FS.glsl");
-            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.GBUFFER_LIT_SHADER, ref log);
-            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_LIT_SHADER] = shader_conf;
-
-
-            //GAUSSIAN HORIZONTAL BLUR SHADER
-            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText gaussian_blur_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
-            gaussian_blur_shader_fs.addStringFromFile("Shaders/gaussian_horizontalBlur_FS.glsl");
-            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gaussian_blur_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.GAUSSIAN_HORIZONTAL_BLUR_SHADER, ref log);
-            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GAUSSIAN_HORIZONTAL_BLUR_SHADER] = shader_conf;
-
-
-            //GAUSSIAN VERTICAL BLUR SHADER
-            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            gaussian_blur_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
-            gaussian_blur_shader_fs.addStringFromFile("Shaders/gaussian_verticalBlur_FS.glsl");
-            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gaussian_blur_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.GAUSSIAN_VERTICAL_BLUR_SHADER, ref log);
-            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GAUSSIAN_VERTICAL_BLUR_SHADER] = shader_conf;
-
-            
-            //BRIGHTNESS EXTRACTION SHADER
-            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
-            gbuffer_shader_fs.addStringFromFile("Shaders/brightness_extract_shader_fs.glsl");
-            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.BRIGHTNESS_EXTRACT_SHADER, ref log);
-            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.BRIGHTNESS_EXTRACT_SHADER] = shader_conf;
-
-
-            //ADDITIVE BLEND
-            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
-            gbuffer_shader_fs.addStringFromFile("Shaders/additive_blend_fs.glsl");
-            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.ADDITIVE_BLEND_SHADER, ref log);
-            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.ADDITIVE_BLEND_SHADER] = shader_conf;
-
-            //FXAA
-            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
-            gbuffer_shader_fs.addStringFromFile("Shaders/fxaa_shader_fs.glsl");
-            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.FXAA_SHADER, ref log);
-            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.FXAA_SHADER] = shader_conf;
-
-            //TONE MAPPING + GAMMA CORRECTION
-            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
-            gbuffer_shader_fs.addStringFromFile("Shaders/tone_mapping_fs.glsl");
-            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.TONE_MAPPING, ref log);
-            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.TONE_MAPPING] = shader_conf;
-
-            //INV TONE MAPPING + GAMMA CORRECTION
-            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
-            gbuffer_shader_fs.addStringFromFile("Shaders/inv_tone_mapping_fs.glsl");
-            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
-                            SHADER_TYPE.INV_TONE_MAPPING, ref log);
-            resMgr.GLShaders[SHADER_TYPE.INV_TONE_MAPPING] = shader_conf;
-
-
-            //BWOIT SHADER
-            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
-            gbuffer_shader_fs.addStringFromFile("Shaders/bwoit_shader_fs.glsl");
-            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
-                            SHADER_TYPE.BWOIT_COMPOSITE_SHADER, ref log);
-            resMgr.GLShaders[SHADER_TYPE.BWOIT_COMPOSITE_SHADER] = shader_conf;
-
-
-            //Text Shaders
-            GLSLShaderText text_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText text_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            text_shader_vs.addStringFromFile("Shaders/Text_VS.glsl");
-            text_shader_fs.addStringFromFile("Shaders/Text_FS.glsl");
-            shader_conf = GLShaderHelper.compileShader(text_shader_vs, text_shader_fs, null, null, null,
-                            SHADER_TYPE.TEXT_SHADER, ref log);
-            resMgr.GLShaders[SHADER_TYPE.TEXT_SHADER] = shader_conf;
-            
-            //Camera Shaders
-            //TODO: Add Camera Shaders if required
-            resMgr.GLShaders[GLSLHelper.SHADER_TYPE.CAMERA_SHADER] = null;
-
-            //FILTERS - EFFECTS
-
-            //Pass Shader
-            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText passthrough_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
-            passthrough_shader_fs.addStringFromFile("Shaders/PassThrough_FS.glsl");
-            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, passthrough_shader_fs, null, null, null,
-                            SHADER_TYPE.PASSTHROUGH_SHADER, ref log);
-            resMgr.GLShaders[SHADER_TYPE.PASSTHROUGH_SHADER] = shader_conf;
-
-            
-
-        }
-
-
 #region ContextMethods
 
         private void exportToObjToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1003,7 +493,7 @@ namespace Model_Viewer
 
             //Iterate in objects
             uint index = 1;
-            findGeoms(rootObject, obj, ref index);
+            findGeoms(RenderState.rootObject, obj, ref index);
             
 
             obj.Close();
@@ -1014,13 +504,13 @@ namespace Model_Viewer
         {
             Debug.WriteLine("Exporting to assimp");
 
-            if (rootObject != null)
+            if (RenderState.rootObject != null)
             {
                 Assimp.AssimpContext ctx = new Assimp.AssimpContext();
                 
                 Dictionary<int, int> meshImportStatus = new Dictionary<int, int>();
                 Assimp.Scene aScene = new Assimp.Scene();
-                Assimp.Node rootNode = rootObject.assimpExport(ref aScene, ref meshImportStatus);
+                Assimp.Node rootNode = RenderState.rootObject.assimpExport(ref aScene, ref meshImportStatus);
                 aScene.RootNode = rootNode;
 
                 //add a single material for now
@@ -1100,7 +590,7 @@ namespace Model_Viewer
             Model intersectedModel = null;
             bool intersectionStatus = false;
             float intersectionDistance = float.MaxValue;
-            findIntersectedModel(rootObject, v, ref intersectionStatus, ref intersectedModel, ref intersectionDistance);
+            findIntersectedModel(RenderState.rootObject, v, ref intersectionStatus, ref intersectedModel, ref intersectionDistance);
 
             if (intersectedModel != null)
             {
@@ -1138,167 +628,177 @@ namespace Model_Viewer
 
         }
 
-#endregion ContextMethods
+        #endregion ContextMethods
 
-#region ControlSetup_Init
-
-        //Setup
-        
-        public void setupRenderingThread()
+        public void issueRenderingRequest (ref ThreadRequest req)
         {
-            
-            //Setup rendering thread
-            Context.MakeCurrent(null);
-            rendering_thread = new Thread(ControlLoop);
-            rendering_thread.IsBackground = true;
-            rendering_thread.Priority = ThreadPriority.Normal;
-        
+            engine.issueRenderingRequest(ref req);
         }
 
-#endregion ControlSetup_Init
-
-#region Camera Update Functions
-        public void setActiveCam(int index)
+        public void waitForRenderingRequest(ref ThreadRequest req)
         {
-            if (RenderState.activeCam != null)
-                RenderState.activeCam.isActive = false;
-            RenderState.activeCam = resMgr.GLCameras[index];
-            RenderState.activeCam.isActive = true;
-            Console.WriteLine("Switching Camera to {0}", index);
-        }
-
-        public void updateActiveCam(int FOV, float zNear, float zFar, float speed, float speedPower)
-        {
-            //TODO: REMOVE, FOR TESTING I"M WORKING ONLY ON THE FIRST CAM
-            resMgr.GLCameras[0].setFOV(FOV);
-            resMgr.GLCameras[0].zFar = zFar;
-            resMgr.GLCameras[0].zNear = zNear;
-            resMgr.GLCameras[0].Speed = speed;
-            resMgr.GLCameras[0].SpeedPower = speedPower;
-        }
-
-        public void updateActiveCam(Vector3 pos, Vector3 rot)
-        {
-            RenderState.activeCam.Position = pos;
-            
-
-
-
-            //RenderState.activeCam.pitch = rot.X; //Radians rotation on X axis
-            //RenderState.activeCam.yaw = rot.Y; //Radians rotation on Y axis
-            //RenderState.activeCam.roll = rot.Z; //Radians rotation on Z axis
-    }
-
-#endregion
-
-
-#region AddObjectMethods
-
-        private void addCamera(bool cull = true)
-        {
-            //Set Camera position
-            Camera cam = new Camera(90, -1, 0, cull);
-            cam.isActive = false;
-            resMgr.GLCameras.Add(cam);
-        }
-
-        
-        private void addTestObjects()
-        {
-            
-        }
-
-#endregion AddObjectMethods
-
-
-        public void issueRequest(ref ThreadRequest r)
-        {
-            lock (rt_req_queue)
+            while (true)
             {
-                rt_req_queue.Enqueue(r);
+                lock (req)
+                {
+                    if (req.status == THREAD_REQUEST_STATUS.FINISHED)
+                        return;
+                    else
+                        Thread.Sleep(2);
+                }
             }
         }
 
-        private void rt_ResizeViewport(int w, int h)
+        public void addScene(string filename)
         {
-            renderMgr.resize(w, h);
-        }
+            //Cleanup first
+            animScenes.Clear(); //Clear animScenes
+            modelUpdateQueue.Clear(); //Clear Update Queues
 
-        private void rt_addRootScene(string filename)
-        {
-            //Once the new scene has been loaded, 
-            //Initialize Palettes
-            Palettes.set_palleteColors();
+            //Generate Request for rendering thread
+            ThreadRequest req1 = new ThreadRequest();
+            req1.type = THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST;
+            req1.arguments.Clear();
+            req1.arguments.Add(filename);
 
-            //Clear Form Resources
-            resMgr.Cleanup();
-            resMgr.Init();
-            MVCore.Common.RenderState.activeResMgr = resMgr;
-            ModelProcGen.procDecisions.Clear();
-            //Clear animScenes
-            animScenes.Clear();
-            rootObject = null;
-            activeModel = null;
-            //Clear Gizmos
-            gizTranslate = null;
-            activeGizmo = null;
-
-            //Clear Update Queues
-            modelUpdateQueue.Clear();
-
-            //Clear RenderStats
-            RenderStats.ClearStats();
+            issueRenderingRequest(ref req1);
             
-            //Stop animation if on
-            if (RenderState.renderSettings.ToggleAnimations)
-                toggleAnimation();
-            
-            addCamera();
-            addCamera(cull: false); //Add second camera
-            setActiveCam(0);
-
-            //Setup new object
-            rootObject = GEOMMBIN.LoadObjects(filename);
-
-            //Explicitly add default light to the rootObject
-            rootObject.children.Add(resMgr.GLlights[0]);
+            //Wait for requests to finish before return
+            waitForRenderingRequest(ref req1);
 
             //find Animation Capable nodes
-            findAnimScenes(rootObject);
+            activeModel = null; //TODO: Fix that with the gizmos
+            findAnimScenes(RenderState.rootObject); //Repopulate animScenes
 
-            rootObject.updateLODDistances();
-            rootObject.update(); //Refresh all transforms
-            rootObject.setupSkinMatrixArrays();
-            
-            //Populate RenderManager
-            renderMgr.populate(rootObject);
-            
-            //Clear Instances
-            renderMgr.clearInstances();
-            rootObject.updateMeshInfo(); //Update all mesh info
-
-            activeModel = rootObject; //Set the new scene as the new activeModel
-            activeModel.selected = 1;
-
-            //Reinitialize gizmos
-            gizTranslate = new TranslationGizmo();
-            activeGizmo = gizTranslate;
-
-            //Restart anim worker if it was active
-            if (!RenderState.renderSettings.ToggleAnimations)
-                toggleAnimation();
         }
 
-        //Light Functions
-        
-        public void updateLightPosition(int light_id)
+        public void findAnimScenes(Model node)
         {
-            Light light = resMgr.GLlights[light_id];
-            light.updatePosition(new Vector3 ((float)(light_distance * Math.Cos(MathUtils.radians(light_angle_x)) *
-                                                            Math.Sin(MathUtils.radians(light_angle_y))),
-                                                (float)(light_distance * Math.Sin(MathUtils.radians(light_angle_x))),
-                                                (float)(light_distance * Math.Cos(MathUtils.radians(light_angle_x)) *
-                                                            Math.Cos(MathUtils.radians(light_angle_y)))));
+            if (node.animComponentID >= 0)
+                animScenes.Add(node);
+
+            foreach (Model child in node.children)
+                findAnimScenes(child);
+        }
+
+        private void frameUpdate()
+        {
+            VSync = RenderState.renderSettings.UseVSYNC; //Update Vsync 
+
+            //Console.WriteLine(RenderState.renderSettings.RENDERMODE);
+
+            //Gizmo Picking
+            //Send picking request
+            //Make new request
+            activeGizmo = null;
+            if (RenderState.renderViewSettings.RenderGizmos)
+            {
+                ThreadRequest req = new ThreadRequest();
+                req.type = THREAD_REQUEST_TYPE.GIZMO_PICKING_REQUEST;
+                req.arguments.Clear();
+                req.arguments.Add(activeGizmo);
+                req.arguments.Add(mouseState.Position);
+                engine.issueRenderingRequest(ref req);
+            }
+
+            //Set time to the renderManager
+            engine.renderMgr.progressTime(dt);
+            
+            //Reset Stats
+            RenderStats.occludedNum = 0;
+
+            //Update moving queue
+            while (modelUpdateQueue.Count > 0)
+            {
+                Model m = modelUpdateQueue.Dequeue();
+                m.update();
+            }
+
+            //rootObject?.update(); //Update Distances from camera
+            RenderState.rootObject?.updateLODDistances(); //Update Distances from camera
+            engine.renderMgr.clearInstances(); //Clear All mesh instances
+            RenderState.rootObject?.updateMeshInfo(); //Reapply frustum culling and re-setup visible instances
+
+            //Update gizmo
+            if (activeModel != null)
+            {
+                //TODO: Move gizmos
+                gizTranslate.setReference(activeModel);
+                gizTranslate.updateMeshInfo();
+                //GLMeshVao gz = resMgr.GLPrimitiveMeshVaos["default_translation_gizmo"];
+                //GLMeshBufferManager.addInstance(ref gz, TranslationGizmo);
+            }
+
+            //Identify dynamic Objects
+            foreach (Model s in animScenes)
+            {
+                modelUpdateQueue.Enqueue(s.parentScene);
+            }
+
+            //Progress animations
+            if (RenderState.renderSettings.ToggleAnimations)
+                progressAnimations();
+
+            //Camera & Light Positions
+            //Update common transforms
+            RenderState.activeResMgr.GLCameras[0].aspect = (float) ClientSize.Width / ClientSize.Height;
+
+            //Apply extra viewport rotation
+            Matrix4 Rotx = Matrix4.CreateRotationX(MathUtils.radians(RenderState.rotAngles.X));
+            Matrix4 Roty = Matrix4.CreateRotationY(MathUtils.radians(RenderState.rotAngles.Y));
+            Matrix4 Rotz = Matrix4.CreateRotationZ(MathUtils.radians(RenderState.rotAngles.Z));
+            RenderState.rotMat = Rotz * Rotx * Roty;
+            //RenderState.rotMat = Matrix4.Identity;
+
+            RenderState.activeResMgr.GLCameras[0].Move(dt);
+            RenderState.activeResMgr.GLCameras[0].updateViewMatrix();
+            RenderState.activeResMgr.GLCameras[1].updateViewMatrix();
+
+            //Update Frame Counter
+            fps();
+
+            //Update Text Counters
+            RenderState.activeResMgr.txtMgr.getText(TextManager.Semantic.FPS).update(string.Format("FPS: {0:000.0}",
+                                                                        (float)RenderStats.fpsCount));
+            RenderState.activeResMgr.txtMgr.getText(TextManager.Semantic.OCCLUDED_COUNT).update(string.Format("OccludedNum: {0:0000}",
+                                                                        RenderStats.occludedNum));
+
+        }
+
+        private void progressAnimations()
+        {
+            //Update active animations
+            foreach (Model anim_model in animScenes)
+            {
+                AnimComponent ac = anim_model._components[anim_model.hasComponent(typeof(AnimComponent))] as AnimComponent;
+                bool found_first_active_anim = false;
+
+                foreach (AnimData ad in ac.Animations)
+                {
+                    if (ad._animationToggle)
+                    {
+                        if (!ad.loaded)
+                            ad.loadData();
+
+                        found_first_active_anim = true;
+                        //Load updated local joint transforms
+                        foreach (libMBIN.NMS.Toolkit.TkAnimNodeData node in ad.animMeta.NodeData)
+                        {
+                            if (!anim_model.parentScene.jointDict.ContainsKey(node.Node))
+                                continue;
+
+                            Joint tj = anim_model.parentScene.jointDict[node.Node];
+                            ad.applyNodeTransform(tj, node.Node);
+                        }
+
+                        //Once the current frame data is fetched, progress to the next frame
+                        ad.animate((float)dt);
+                    }
+                    //TODO: For now I'm just using the first active animation. Blending should be kinda more sophisticated
+                    if (found_first_active_anim)
+                        break;
+                }
+            }
         }
 
         private void fps()
@@ -1307,7 +807,7 @@ namespace Model_Viewer
             DateTime now = DateTime.UtcNow;
             TimeSpan time = now - oldtime;
             dt = (now - prevtime).TotalMilliseconds;
-            
+
             if (time.TotalMilliseconds > 1000)
             {
                 //Console.WriteLine("{0} {1} {2}", frames, RenderStats.fpsCount, time.TotalMilliseconds);
@@ -1325,71 +825,8 @@ namespace Model_Viewer
         }
 
 
-#region INPUT_HANDLERS
 
-        //Gamepad handler
-        private void gamepadController()
-        {
-            if (gpHandler == null) return;
-            if (!gpHandler.isConnected()) return;
-
-            //Camera Movement
-            float cameraSensitivity = 2.0f;
-            float x, y, z, rotx, roty;
-
-            x = gpHandler.getAction(ControllerActions.MOVE_X);
-            y = gpHandler.getAction(ControllerActions.ACCELERATE) - gpHandler.getAction(ControllerActions.DECELERATE);
-            z = gpHandler.getAction(ControllerActions.MOVE_Y_NEG) - gpHandler.getAction(ControllerActions.MOVE_Y_POS);
-            rotx = -cameraSensitivity * gpHandler.getAction(ControllerActions.CAMERA_MOVE_H);
-            roty = cameraSensitivity * gpHandler.getAction(ControllerActions.CAMERA_MOVE_V);
-
-            targetCameraPos.PosImpulse.X = x;
-            targetCameraPos.PosImpulse.Y = y;
-            targetCameraPos.PosImpulse.Z = z;
-            targetCameraPos.Rotation.X = rotx;
-            targetCameraPos.Rotation.Y = roty;
-        }
-
-        //Keyboard handler
-        private void keyboardController()
-        {
-            if (kbHandler == null) return;
-
-            //Camera Movement
-            float step = 0.002f;
-            float x, y, z;
-
-            x = kbHandler.getKeyStatus(Key.D) - kbHandler.getKeyStatus(Key.A);
-            y = kbHandler.getKeyStatus(Key.W) - kbHandler.getKeyStatus(Key.S);
-            z = kbHandler.getKeyStatus(Key.R) - kbHandler.getKeyStatus(Key.F);
-
-            //Camera rotation is done exclusively using the mouse
-
-            //rotx = 50 * step * (kbHandler.getKeyStatus(OpenTK.Input.Key.E) - kbHandler.getKeyStatus(OpenTK.Input.Key.Q));
-            //float roty = (kbHandler.getKeyStatus(Key.C) - kbHandler.getKeyStatus(Key.Z));
-
-            RenderState.rotAngles.Y += 100 * step * (kbHandler.getKeyStatus(Key.E) - kbHandler.getKeyStatus(Key.Q));
-            RenderState.rotAngles.Y %= 360;
-
-            //Move Camera
-            targetCameraPos.PosImpulse.X = x;
-            targetCameraPos.PosImpulse.Y = y;
-            targetCameraPos.PosImpulse.Z = z;
-        }
-
-#endregion
-
-#region ANIMATION_PLAYBACK
-        //Animation Playback
-
-        public void toggleAnimation()
-        {
-            RenderState.renderSettings.ToggleAnimations = !RenderState.renderSettings.ToggleAnimations;
-        }
-
-#endregion ANIMATION_PLAYBACK
-
-#region DISPOSE_METHODS
+        #region DISPOSE_METHODS
 
         protected override void Dispose(bool disposing)
         {
@@ -1401,7 +838,7 @@ namespace Model_Viewer
                 handle.Dispose();
 
                 //Free other resources here
-                rootObject.Dispose();
+                RenderState.rootObject.Dispose();
             }
 
             //Free unmanaged resources

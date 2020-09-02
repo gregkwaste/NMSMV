@@ -136,7 +136,7 @@ namespace MVCore.Utils
                 CallBacks.Log("File: " + filepath + " Not found in PAKs or local folders. ");
                 return null;
             }
-                
+
             try
             {
                 switch (load_mode)
@@ -144,7 +144,8 @@ namespace MVCore.Utils
                     case 0: //Load EXML
                         {
                             string xml = File.ReadAllText(Path.Combine(RenderState.settings.UnpackDir, exmlpath));
-                            return EXmlFile.ReadTemplateFromString(xml);
+                            template = EXmlFile.ReadTemplateFromString(xml);
+                            break;
                         }
                     case 1: //Load MBIN
                         {
@@ -153,7 +154,7 @@ namespace MVCore.Utils
                             mbinf.Load();
                             template = mbinf.GetData();
                             mbinf.Dispose();
-                            return template;
+                            break;
                         }
                     case 2: //Load File from Archive
                         {
@@ -162,7 +163,7 @@ namespace MVCore.Utils
                             mbinf.Load();
                             template = mbinf.GetData();
                             mbinf.Dispose();
-                            return template;
+                            break;
                         }
                 }
             } catch (Exception ex)
@@ -181,6 +182,13 @@ namespace MVCore.Utils
 
             }
 
+#if DEBUG
+            //Save NMSTemplate to exml
+            string data = EXmlFile.WriteTemplate(template);
+            string path =  Path.Combine("Temp", filepath + ".exml");
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            File.WriteAllText(path, data);
+#endif
             return template;
         }
 

@@ -10,6 +10,8 @@ namespace MVCore.GMDL
 {
     public class Locator : Model
     {
+        public int actionComponentID = -1;
+
         public Locator()
         {
             //Set type
@@ -25,6 +27,7 @@ namespace MVCore.GMDL
 
         public void copyFrom(Locator input)
         {
+            actionComponentID = input.actionComponentID;
             base.copyFrom(input); //Copy stuff from base class
         }
 

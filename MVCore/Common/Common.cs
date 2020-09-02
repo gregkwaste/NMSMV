@@ -52,11 +52,26 @@ namespace MVCore.Common
         public static Camera activeCam;
         //Active ResourceManager
         public static ResourceManager activeResMgr;
+        //RootObject
+        public static Model rootObject;
+        //ActiveModel
+        public static Model activeModel;
+        //ActiveGizmo
+        public static Gizmo activeGizmo;
         //Active GamePad
         public static BaseGamepadHandler activeGamepad;
 
         public static bool enableShaderCompilationLog = true;
         public static string shaderCompilationLog;
+
+        //Static methods
+
+        public static float progressTime(double dt)
+        {
+            float new_time = (float) dt / 500;
+            new_time = new_time % 1000.0f;
+            return new_time;
+        }
 
     }
 

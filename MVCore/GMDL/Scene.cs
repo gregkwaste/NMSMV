@@ -15,6 +15,7 @@ namespace MVCore.GMDL
         public float[] skinMats; //Final Matrices
         public Dictionary<string, Joint> jointDict;
         public int activeLOD = 0;
+        public int actionComponentID = -1;
 
         public Scene()
         {
@@ -51,8 +52,8 @@ namespace MVCore.GMDL
                     //j.localRotation = Matrix4.CreateFromQuaternion(q);
                     //j.localPosition = tr;
 
-                    j.localRotation = Matrix4.CreateFromQuaternion(q) * j.localRotation;
-                    j.localScale *= sc;
+                    j.localRotation = Matrix4.CreateFromQuaternion(q) * j.__localRotation;
+                    j.localScale = sc;
 
                     //j.localPoseMatrix = kp.Value;
                 }
@@ -89,6 +90,7 @@ namespace MVCore.GMDL
             base.copyFrom(input); //Copy base stuff
             gobject = input.gobject;
             texMgr = input.texMgr;
+            
         }
 
         public override Model Clone()
@@ -156,8 +158,6 @@ namespace MVCore.GMDL
                 Matrix4 jointSkinMat = j.invBMat * j.worldMat;
                 MathUtils.insertMatToArray16(skinMats, j.jointIndex * 16, jointSkinMat);
             }
-
-
 
             base.updateMeshInfo();
         }

@@ -74,7 +74,7 @@ namespace MVCore.GMDL
             void ICommand.Execute(object parameter)
             {
                 AnimPoseComponent apc = parameter as AnimPoseComponent;
-                ((Scene)apc.ref_object.parentScene).applyPoses(apc.ref_object.loadPose());
+                apc.ref_object.parentScene.applyPoses(apc.ref_object.loadPose());
             }
         }
 
