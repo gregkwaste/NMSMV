@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Runtime.InteropServices;
@@ -135,7 +135,7 @@ namespace MVCore
             setupFrameUBO();
 
             //Setup SSBOs
-            setupSSBOs(1024 * 1024); //Init SSBOs to 1MB
+            setupSSBOs(2 * 1024 * 1024); //Init SSBOs to 2MB
             multiBufferActiveId = 0;
             SSBOs["_COMMON_PER_MESH"] = multiBufferSSBOs[0];
             
@@ -975,7 +975,8 @@ namespace MVCore
             //Copy depth channel to pbuf
             FBO.copyDepthChannel(gbuf.fbo, pbuf.fbo, pbuf.size[0], pbuf.size[1], gbuf.size[0], gbuf.size[1]);
             renderTransparent();
-        
+
+                    
         }
         
         private void renderDecalMeshes()
@@ -1063,7 +1064,8 @@ namespace MVCore
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
             GL.BlendFunc(BlendingFactor.OneMinusSrcAlpha, BlendingFactor.SrcAlpha); //Set compositing blend func
             //GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); //Set compositing blend func
-            render_quad(new string[] { }, new float[] { }, new string[] { "in1Tex", "in2Tex" }, new int[] { pbuf.blur1, pbuf.blur2 }, bwoit_composite_shader);
+            render_quad(new string[] { }, new float[] { }, new string[] { "in1Tex", "in2Tex" }, new TextureTarget[] {TextureTarget.Texture2D, TextureTarget.Texture2D },
+                new int[] { pbuf.blur1, pbuf.blur2 }, bwoit_composite_shader);
             GL.Disable(EnableCap.Blend);
             
         }
@@ -1157,6 +1159,8 @@ namespace MVCore
             //Setup FENCE AFTER ALL THE MAIN GEOMETRY DRAWCALLS ARE ISSUED
             multiBufferSyncStatuses[multiBufferActiveId] = GL.FenceSync(SyncCondition.SyncGpuCommandsComplete, 0);
 
+            
+
             //POST-PROCESSING
             post_process();
 
@@ -1166,6 +1170,8 @@ namespace MVCore
             //Render UI();
 
             renderUI();
+
+            
 
         }
 
@@ -1207,7 +1213,7 @@ namespace MVCore
 
         }
 
-        private void render_quad(string[] uniforms, float[] uniform_values, string[] sampler_names, int[] texture_ids, GLSLHelper.GLSLShaderConfig shaderConf)
+        private void render_quad(string[] uniforms, float[] uniform_values, string[] sampler_names, TextureTarget[] sampler_targets, int[] texture_ids, GLSLHelper.GLSLShaderConfig shaderConf)
         {
             int quad_vao = resMgr.GLPrimitiveVaos["default_renderquad"].vao_id;
 
@@ -1219,7 +1225,7 @@ namespace MVCore
             {
                 GL.Uniform1(shaderConf.uniformLocations[sampler_names[i]], i);
                 GL.ActiveTexture(TextureUnit.Texture0 + i);
-                GL.BindTexture(TextureTarget.Texture2D, texture_ids[i]);
+                GL.BindTexture(sampler_targets[i], texture_ids[i]);
             }
 
             //Upload uniforms - Assuming single float uniforms for now
@@ -1245,7 +1251,7 @@ namespace MVCore
             GL.Clear(ClearBufferMask.ColorBufferBit);
             GLSLShaderConfig shader = RenderState.activeResMgr.GLShaders[SHADER_TYPE.PASSTHROUGH_SHADER];
             //render_quad(new string[] {"sizeX", "sizeY" }, new float[] { to_buf_size[0], to_buf_size[1]}, new string[] { "InTex" }, new int[] { InTex }, shader);
-            render_quad(new string[] { }, new float[] { }, new string[] { "InTex" }, new int[] { InTex }, shader);
+            render_quad(new string[] { }, new float[] { }, new string[] { "InTex" }, new TextureTarget[] { TextureTarget.Texture2D },  new int[] { InTex }, shader);
             GL.Enable(EnableCap.DepthTest); //Re-enable Depth test
         }
 
@@ -1268,7 +1274,7 @@ namespace MVCore
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, blur_fbo.fbo);
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0); //Write to blur1
             
-            render_quad(new string[] { }, new float[] { }, new string[] { "inTex" }, new int[] { blur_fbo.channels[1] }, br_extract_program);
+            render_quad(new string[] { }, new float[] { }, new string[] { "inTex" }, new TextureTarget[] { TextureTarget.Texture2D }, new int[] { blur_fbo.channels[1] }, br_extract_program);
 
 
 
@@ -1290,13 +1296,13 @@ namespace MVCore
                 GL.DrawBuffer(DrawBufferMode.ColorAttachment1); //blur2
                 GL.Clear(ClearBufferMask.ColorBufferBit);
                 
-                render_quad(new string[] { }, new float[] { }, new string[] { "diffuseTex" }, new int[] { blur_fbo.channels[0]}, gs_horizontal_blur_program);
+                render_quad(new string[] { }, new float[] { }, new string[] { "diffuseTex" }, new TextureTarget[] { TextureTarget.Texture2D }, new int[] { blur_fbo.channels[0]}, gs_horizontal_blur_program);
 
                 //Step 2- Apply horizontal blur
                 GL.DrawBuffer(DrawBufferMode.ColorAttachment0); //blur2
                 GL.Clear(ClearBufferMask.ColorBufferBit);
 
-                render_quad(new string[] { }, new float[] { }, new string[] { "diffuseTex" }, new int[] { blur_fbo.channels[1] }, gs_vertical_blur_program);
+                render_quad(new string[] { }, new float[] { }, new string[] { "diffuseTex" }, new TextureTarget[] { TextureTarget.Texture2D }, new int[] { blur_fbo.channels[1] }, gs_vertical_blur_program);
             }
 
             //Blit to screen
@@ -1322,14 +1328,14 @@ namespace MVCore
 
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-            render_quad(new string[] { }, new float[] { }, new string[] { "in1Tex", "in2Tex" }, new int[] { pbuf.blur2, pbuf.blur1 }, add_program);
+            render_quad(new string[] { }, new float[] { }, new string[] { "in1Tex", "in2Tex" }, new TextureTarget[] { TextureTarget.Texture2D, TextureTarget.Texture2D }, new int[] { pbuf.blur2, pbuf.blur1 }, add_program);
             //render_quad(new string[] { }, new float[] { }, new string[] { "blurTex" }, new int[] { pbuf.blur1 }, gs_bloom_program);
 
         }
 
         private void fxaa()
         {
-            tone_mapping(); //Apply tone mapping pbuf.color shoud be ready
+            //inv_tone_mapping(); //Apply tone mapping pbuf.color shoud be ready
             
             //Load Programs
             GLSLShaderConfig fxaa_program = resMgr.GLShaders[SHADER_TYPE.FXAA_SHADER];
@@ -1343,9 +1349,9 @@ namespace MVCore
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
 
-            render_quad(new string[] { }, new float[] { }, new string[] { "diffuseTex" }, new int[] { pbuf.blur1 }, fxaa_program);
+            render_quad(new string[] { }, new float[] { }, new string[] { "diffuseTex" }, new TextureTarget[] { TextureTarget.Texture2D }, new int[] { pbuf.blur1 }, fxaa_program);
 
-            inv_tone_mapping(); //Invert Tone Mapping
+            //tone_mapping(); //Invert Tone Mapping
 
         }
 
@@ -1361,7 +1367,7 @@ namespace MVCore
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
 
-            render_quad(new string[] { }, new float[] { }, new string[] { "inTex" }, new int[] { pbuf.blur1 }, tone_mapping_program);
+            render_quad(new string[] { }, new float[] { }, new string[] { "inTex" }, new TextureTarget[] { TextureTarget.Texture2D }, new int[] { pbuf.blur1 }, tone_mapping_program);
 
         }
 
@@ -1377,22 +1383,20 @@ namespace MVCore
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
 
-            render_quad(new string[] { }, new float[] { }, new string[] { "inTex" }, new int[] { pbuf.blur1 }, inv_tone_mapping_program);
+            render_quad(new string[] { }, new float[] { }, new string[] { "inTex" }, new TextureTarget[] { TextureTarget.Texture2D }, new int[] { pbuf.blur1 }, inv_tone_mapping_program);
 
         }
 
         private void post_process()
         {
-            if (RenderState.renderSettings.UseFXAA)
-                fxaa(); //FXAA (INCLUDING TONE/UNTONE)
-
             //Actuall Post Process effects in AA space without tone mapping
-            
             if (RenderState.renderSettings.UseBLOOM)
                 bloom(); //BLOOM
 
             tone_mapping(); //FINAL TONE MAPPING, INCLUDES GAMMA CORRECTION
 
+            if (RenderState.renderSettings.UseFXAA)
+                fxaa(); //FXAA (INCLUDING TONE/UNTONE)
         }
 
         private void backupDepth()
@@ -1430,7 +1434,9 @@ namespace MVCore
             //GL.ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-            render_quad(new string[] { }, new float[] { }, new string[] { "albedoTex", "depthTex", "normalTex", "parameterTex"}, 
+            render_quad(new string[] { }, new float[] { }, new string[] { "albedoTex", "depthTex", "normalTex", "parameterTex"},
+                                                            new TextureTarget[] { TextureTarget.Texture2D, TextureTarget.Texture2D,
+                                                            TextureTarget.Texture2D, TextureTarget.Texture2D},
                                                             new int[] { gbuf.albedo, gbuf.depth, gbuf.normals, gbuf.info}, shader_conf);
         }
 
@@ -1446,7 +1452,7 @@ namespace MVCore
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
             GL.Disable(EnableCap.DepthTest); //Disable Depth test
-            render_quad(new string[] { }, new float[] { }, new string[] { "albedoTex" },
+            render_quad(new string[] { }, new float[] { }, new string[] { "albedoTex" }, new TextureTarget[] { TextureTarget.Texture2D },
                                                             new int[] { gbuf.albedo }, shader_conf);
             GL.Enable(EnableCap.DepthTest); //Re-enable Depth test
 

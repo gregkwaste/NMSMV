@@ -98,6 +98,7 @@ namespace MVCore.GMDL
         public int LODDistance1;
         public int LODDistance2;
         //New stuff Properties
+        public DrawElementsType indicesLength = DrawElementsType.UnsignedShort;
         public int boundhullstart;
         public int boundhullend;
         public Vector3 AABBMIN;
@@ -139,6 +140,7 @@ namespace MVCore.GMDL
             boundhullend = input.boundhullend;
             Hash = input.Hash;
             LODLevel = input.LODLevel;
+            indicesLength = input.indicesLength;
             AABBMIN = new Vector3(input.AABBMIN);
             AABBMAX = new Vector3(input.AABBMAX);
         }
@@ -178,8 +180,6 @@ namespace MVCore.GMDL
         //public float[] BoneRemapMatrices = new float[16 * 128];
         public bool skinned = false;
 
-
-        public DrawElementsType indicesLength = DrawElementsType.UnsignedShort;
 
         //Material Properties
         public Material material;
@@ -335,8 +335,8 @@ namespace MVCore.GMDL
         private void renderMesh()
         {
             GL.BindVertexArray(vao.vao_id);
-            GL.DrawElementsInstanced(PrimitiveType.Triangles, metaData.batchcount, indicesLength,
-                IntPtr.Zero, instance_count);
+            GL.DrawElementsInstanced(PrimitiveType.Triangles, 
+                metaData.batchcount, metaData.indicesLength, IntPtr.Zero, instance_count);
             GL.BindVertexArray(0);
         }
 
@@ -360,9 +360,9 @@ namespace MVCore.GMDL
                 //Rendering based on the original mesh buffers
                 case COLLISIONTYPES.MESH:
                     GL.DrawElementsInstancedBaseVertex(PrimitiveType.Points, metaData.batchcount,
-                        indicesLength, IntPtr.Zero, instance_count, -metaData.vertrstart_physics);
+                        metaData.indicesLength, IntPtr.Zero, instance_count, -metaData.vertrstart_physics);
                     GL.DrawElementsInstancedBaseVertex(PrimitiveType.Triangles, metaData.batchcount,
-                        indicesLength, IntPtr.Zero, instance_count, -metaData.vertrstart_physics);
+                        metaData.indicesLength, IntPtr.Zero, instance_count, -metaData.vertrstart_physics);
                     break;
 
                 //Rendering custom geometry
@@ -383,7 +383,8 @@ namespace MVCore.GMDL
         private void renderLocator()
         {
             GL.BindVertexArray(vao.vao_id);
-            GL.DrawElementsInstanced(PrimitiveType.Lines, 6, indicesLength, IntPtr.Zero, instance_count); //Use Instancing
+            GL.DrawElementsInstanced(PrimitiveType.Lines, 6, 
+                metaData.indicesLength, IntPtr.Zero, instance_count); //Use Instancing
             GL.BindVertexArray(0);
         }
 
@@ -456,7 +457,7 @@ namespace MVCore.GMDL
             }
         }
 
-        private void renderBHull(GLSLHelper.GLSLShaderConfig shader)
+        private void renderBHull(GLSLShaderConfig shader)
         {
             if (bHullVao == null) return;
             //I ASSUME THAT EVERYTHING I NEED IS ALREADY UPLODED FROM A PREVIOUS PASS
@@ -464,9 +465,9 @@ namespace MVCore.GMDL
             GL.BindVertexArray(bHullVao.vao_id);
 
             GL.DrawElementsBaseVertex(PrimitiveType.Points, metaData.batchcount,
-                        indicesLength, IntPtr.Zero, -metaData.vertrstart_physics);
+                        metaData.indicesLength, IntPtr.Zero, -metaData.vertrstart_physics);
             GL.DrawElementsBaseVertex(PrimitiveType.Triangles, metaData.batchcount,
-                        indicesLength, IntPtr.Zero, -metaData.vertrstart_physics);
+                        metaData.indicesLength, IntPtr.Zero, -metaData.vertrstart_physics);
             GL.BindVertexArray(0);
         }
 
@@ -561,8 +562,9 @@ namespace MVCore.GMDL
 
         public void initializeSkinMatrices(Scene animScene)
         {
-            if (instance_count == 0)
+            if (instance_count == 0 || animScene == null)
                 return;
+
             int jointCount = animScene.jointDict.Values.Count;
 
             //TODO: Use the jointCount to adaptively setup the instanceBoneMatrices
@@ -787,7 +789,7 @@ namespace MVCore.GMDL
 
         }
 
-        public override void updateMeshInfo()
+        public override void updateMeshInfo(bool lod_filter = false)
         {
 
 #if(DEBUG)
@@ -799,8 +801,8 @@ namespace MVCore.GMDL
 
             if (!active || !renderable || (parentScene.activeLOD != LodLevel) && RenderState.renderSettings.LODFiltering)
             {
-                base.updateMeshInfo();
-                Common.RenderStats.occludedNum += 1;
+                base.updateMeshInfo(true);
+                RenderStats.occludedNum += 1;
                 return;
             }
 

@@ -93,7 +93,8 @@ namespace MVCore.Common
 
         public bool RenderGizmos { get; set; } = false;
 
-        
+        public bool EmulateActions { get; set; } = false;
+
         public event PropertyChangedEventHandler PropertyChanged;
 
         private void NotifyPropertyChanged(String info)
@@ -107,13 +108,12 @@ namespace MVCore.Common
     {
         public int animFPS = 60;
         public bool _useVSYNC = false;
-        public float _HDRExposure = 0.2f;
+        public float _HDRExposure = 0.005f;
         //Set Full rendermode by default
         public PolygonMode RENDERMODE = PolygonMode.Fill;
         public System.Drawing.Color clearColor = System.Drawing.Color.FromArgb(255, 33, 33, 33);
         public float _useTextures = 1.0f;
         public float _useLighting = 1.0f;
-
 
         //Test Settings
 #if (DEBUG)
@@ -213,7 +213,7 @@ namespace MVCore.Common
             }
         }
 
-        public bool ToggleAnimations { get; set; }
+        public bool ToggleAnimations { get; set; } = true;
 
         public event PropertyChangedEventHandler PropertyChanged;
 

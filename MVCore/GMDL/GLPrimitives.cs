@@ -116,10 +116,10 @@ namespace MVCore.GMDL.Primitives
     public class Sphere : Primitive {
         
         //Constructor
-        public Sphere(Vector3 center, float radius)
+        public Sphere(Vector3 center, float radius, int bands=10)
         {
-            int latBands = 10;
-            int longBands = 10;
+            int latBands = bands;
+            int longBands = bands;
 
             //Init Arrays
             int arraysize = (latBands + 1) * (longBands + 1) * 3;
@@ -128,7 +128,7 @@ namespace MVCore.GMDL.Primitives
             normals = new float[arraysize];
             indices = new int[2 * indarraysize];
             
-
+            
             for (int lat = 0; lat <= latBands; lat++)
             {
                 float theta = lat * (float)Math.PI / latBands;

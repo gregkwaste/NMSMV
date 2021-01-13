@@ -2,21 +2,55 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Text;
+using System.Windows.Forms;
+using System.Windows.Media.Animation;
 using libMBIN.NMS.Toolkit;
 using MVCore.Utils;
 using OpenTK;
 
 namespace MVCore.GMDL
 {
+    public class AnimTransform
+    {
+        public Vector3 position;
+        public Quaternion rotation;
+        public Vector3 scale;
+
+        public AnimTransform()
+        {
+            position = new Vector3();
+            rotation = new Quaternion();
+            scale = new Vector3();
+        }
+
+        public static AnimTransform Lerp(AnimTransform prev, AnimTransform next, float x)
+        {
+            AnimTransform t = new AnimTransform();
+            t.position = Vector3.Lerp(prev.position, next.position, x);
+            t.rotation = Quaternion.Slerp(prev.rotation, next.rotation, x);
+            t.scale = Vector3.Lerp(prev.scale, next.scale, x);
+
+            return t;
+        }
+    }
+
+
+
     public class AnimData : TkAnimationData, INotifyPropertyChanged
     {
         public AnimMetadata animMeta;
-        public float animationTime = 0.0f;
-        public bool _animationToggle = false;
         private int prevFrameIndex = 0;
+        private int activeFrameIndex = 0;
         private int nextFrameIndex = 0;
+        //private AnimTransform prevFrameTransform;
+        //private AnimTransform nextFrameTransform;
+        //public AnimTransform activeFrameTransform;
+        private float animationTime = 0.0f;
+        private float prevFrameTime = 0.0f;
+        private float nextFrameTime = 0.0f;
         private float LERP_coeff = 0.0f;
         public bool loaded = false;
+        private bool _playing = false;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -42,8 +76,6 @@ namespace MVCore.GMDL
         {
             Assimp.Animation asAnim = new Assimp.Animation();
             asAnim.Name = Anim;
-
-
 
 
             //Make sure keyframe data is loaded from the files
@@ -120,20 +152,51 @@ namespace MVCore.GMDL
             set { Anim = value; }
         }
 
+        public bool IsPlaying
+        {
+            get { return _playing; }
+            set
+            {
+                _playing = value;
+                prevFrameIndex = 0; //Reset frame counter on animation
+                NotifyPropertyChanged("IsPlaying");
+            }
+        }
+
         public bool PActive
         {
             get { return Active; }
-            set { Active = value; }
+            set 
+            { 
+                Active = value;
+                NotifyPropertyChanged("Active");
+            }
         }
 
-        public bool AnimationToggle
+        public bool _override = false;
+        public bool Override
         {
-            get { return _animationToggle; }
+            get { return _override; }
             set
             {
-                _animationToggle = value;
-                NotifyPropertyChanged("AnimationToggle");
+                _override = value;
+                NotifyPropertyChanged("Override");
             }
+        }
+
+        public int ActiveFrame
+        {
+            get { return activeFrameIndex; }
+            set
+            {
+                activeFrameIndex = value;
+                NotifyPropertyChanged("ActiveFrame");
+            }
+        }
+
+        public int FrameCount
+        {
+            get { return (animMeta != null) ?  animMeta.FrameCount - 1 : 0;}
         }
 
         public bool isValid
@@ -188,39 +251,79 @@ namespace MVCore.GMDL
                 animMeta.load(); //Load data as well
                 Common.RenderState.activeResMgr.Animations[Filename] = animMeta;
             }
+            NotifyPropertyChanged("FrameCount");
         }
 
 
-        public void animate(float dt) //time in milliseconds
+        public void update(float dt) //time in milliseconds
         {
             if (!loaded)
             {
                 fetchAnimMetaData();
                 loaded = true;
             }
+            
+            animationTime += dt;
+            progress();
+        }
 
-            if (animMeta != null)
+
+        public void progress() 
+        {
+            //Override frame based on the GUI
+            if (Override)
             {
-                float activeAnimDuration = animMeta.FrameCount * 1000.0f / Common.RenderState.renderSettings.animFPS; // In ms
-                float activeAnimInterval = activeAnimDuration / (animMeta.FrameCount - 1);
+                //Find frames
+                prevFrameIndex = ActiveFrame;
+                nextFrameIndex = ActiveFrame;
+                LERP_coeff = 0.0f;
+                return;
+            }
 
-                animationTime += dt; //Progress time
+            int activeFrameCount = (FrameEnd == 0 ? animMeta.FrameCount : Math.Min(FrameEnd, animMeta.FrameCount)) - (FrameStart != 0 ? FrameStart : 0);
+            float activeAnimDuration = activeFrameCount * 1000.0f / Common.RenderState.renderSettings.animFPS; // In ms TOTAL
+            float activeAnimInterval = activeAnimDuration / (activeFrameCount - 1); // Per frame time
 
+            if (animationTime > activeAnimDuration)
+            {
                 if ((AnimType == AnimTypeEnum.OneShot) && animationTime > activeAnimDuration)
                 {
                     animationTime = 0.0f;
-                    AnimationToggle = false;
+                    prevFrameTime = 0.0f;
+                    nextFrameTime = 0.0f;
+                    IsPlaying = false;
                     return;
                 }
                 else
-                    animationTime = animationTime % activeAnimDuration; //Clamp to correct time span
+                {
+                    animationTime %= activeAnimDuration; //Clamp to correct time span
 
-                //Find frames
-                prevFrameIndex = (int) Math.Floor(animationTime * animMeta.FrameCount / activeAnimDuration) % animMeta.FrameCount;
-                nextFrameIndex = (prevFrameIndex + 1) % animMeta.FrameCount;
-
-                LERP_coeff = (animationTime % activeAnimInterval) / activeAnimInterval;
+                    //Properly calculate previous and nextFrameTimes
+                    prevFrameIndex = (int) Math.Floor(animationTime / activeAnimInterval);
+                    nextFrameIndex = (prevFrameIndex + 1) % activeFrameCount;
+                    prevFrameTime = activeAnimInterval * prevFrameIndex;
+                    nextFrameTime = prevFrameTime + activeAnimInterval;
+                }
+                    
             }
+
+
+            if (animationTime > nextFrameTime)
+            {
+                //Progress animation
+                prevFrameIndex = nextFrameIndex;
+                ActiveFrame = prevFrameIndex;
+                prevFrameTime = nextFrameTime;
+                
+                nextFrameIndex = (prevFrameIndex + 1) % activeFrameCount;
+                nextFrameTime = prevFrameTime + activeAnimInterval;
+            }
+
+            LERP_coeff = (animationTime - prevFrameTime) / activeAnimInterval;
+
+            //Console.WriteLine("AnimationTime {0} PrevAnimationTime {1} NextAnimationTime {2} LERP Coeff {3}",
+            //    animationTime, prevFrameTime, nextFrameTime, LERP_coeff);
+
         }
 
         //TODO: Use this new definition for animation blending
@@ -246,6 +349,26 @@ namespace MVCore.GMDL
             m.localRotation = Matrix4.CreateFromQuaternion(q);
             m.localPosition = p;
             m.localScale = s;
+        }
+
+        public void getCurrentTransform(ref Vector3 p, ref Vector3 s, ref Quaternion q, string node)
+        {
+            //Fetch prevFrame stuff
+            Quaternion prev_q = animMeta.anim_rotations[node][prevFrameIndex];
+            Vector3 prev_p = animMeta.anim_positions[node][prevFrameIndex];
+            Vector3 prev_s = animMeta.anim_scales[node][prevFrameIndex];
+
+            //Fetch nextFrame stuff
+            Quaternion next_q = animMeta.anim_rotations[node][nextFrameIndex];
+            Vector3 next_p = animMeta.anim_positions[node][nextFrameIndex];
+            Vector3 next_s = animMeta.anim_scales[node][nextFrameIndex];
+
+            //Interpolate
+            q = Quaternion.Slerp(next_q, prev_q, LERP_coeff);
+            p = next_p * LERP_coeff + prev_p * (1.0f - LERP_coeff);
+            s = next_s * LERP_coeff + prev_s * (1.0f - LERP_coeff);
+
+            
         }
 
     }

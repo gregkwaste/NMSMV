@@ -13,7 +13,7 @@ namespace WPFModelViewer
     {
         public static int VersionMajor = 0;
         public static int VersionMedium = 90;
-        public static int VersionMinor = 0;
+        public static int VersionMinor = 1;
         
         public static string donateLink = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=4365XYBWGTBSU&currency_code=USD&source=url";
         public static readonly Random randgen = new Random();
@@ -45,12 +45,11 @@ namespace WPFModelViewer
             {
                 activeStatusStrip.Text = status;
             }));
-            
         }
 
         public static void showError(string message, string caption)
         {
-            Application.Current.Dispatcher.Invoke((Action)(() =>
+            Application.Current.Dispatcher.BeginInvoke((Action)(() =>
             {
                 if (activeWindow is null)
                     MessageBox.Show(message, caption, MessageBoxButton.OK, MessageBoxImage.Error);
@@ -62,7 +61,7 @@ namespace WPFModelViewer
 
         public static void showInfo(string message, string caption)
         {
-            Application.Current.Dispatcher.Invoke((Action)(() =>
+            Application.Current.Dispatcher.BeginInvoke((Action)(() =>
             {
                 if (activeWindow is null)
                     MessageBox.Show(message, caption, MessageBoxButton.OK, MessageBoxImage.Information);
@@ -74,7 +73,7 @@ namespace WPFModelViewer
 
         public static void showInfo(Window parent, string message, string caption)
         {
-            Application.Current.Dispatcher.Invoke((Action)(() =>
+            Application.Current.Dispatcher.BeginInvoke((Action)(() =>
             {
                 if (parent is null)
                     MessageBox.Show(message, caption, MessageBoxButton.OK, MessageBoxImage.Information);

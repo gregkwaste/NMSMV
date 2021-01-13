@@ -9,6 +9,8 @@ namespace MVCore.GMDL
     {
         //animations list Contains all the animations bound to the locator through Tkanimationcomponent
         public List<AnimData> _animations = new List<AnimData>();
+        public Dictionary<string, AnimData> _animDict = new Dictionary<string, AnimData>();
+
         public List<AnimData> Animations
         {
             get
@@ -23,6 +25,27 @@ namespace MVCore.GMDL
 
         }
 
+        public AnimData getAnimation(string Name)
+        {
+            if (!_animDict.ContainsKey(Name))
+                return null;
+            return _animDict[Name];
+        }
+
+        public List<AnimData> getActiveAnimations()
+        {
+            List<AnimData> animList = new List<AnimData>();
+            
+            foreach (AnimData ad in _animations)
+            {
+                if (ad.IsPlaying)
+                    animList.Add(ad);
+            }
+                
+            return animList;
+        }
+
+
         public void assimpExport(ref Assimp.Scene scn)
         {
             foreach (AnimData ad in Animations)
@@ -36,13 +59,18 @@ namespace MVCore.GMDL
         {
             //Load Animations
             if (data.Idle.Anim != "")
+            {
                 _animations.Add(new AnimData(data.Idle)); //Add Idle Animation
+                _animDict[data.Idle.Anim] = _animations[0];
+            }
+                
 
             for (int i = 0; i < data.Anims.Count; i++)
             {
                 //Check if the animation is already loaded
                 AnimData my_ad = new AnimData(data.Anims[i]);
                 _animations.Add(my_ad);
+                _animDict[my_ad.PName] = my_ad;
             }
 
         }
@@ -62,8 +90,12 @@ namespace MVCore.GMDL
 
             //Copy Animations
             foreach (AnimData ad in _animations)
-                ac.Animations.Add(ad.Clone());
-
+            {
+                AnimData clone = ad.Clone();
+                ac.Animations.Add(clone);
+                ac._animDict[clone.PName] = clone;
+            }
+                
             return ac;
         }
 

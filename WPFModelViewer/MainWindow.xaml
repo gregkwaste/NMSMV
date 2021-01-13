@@ -140,6 +140,7 @@
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="*"/>
+                            <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="8*"/>
@@ -157,8 +158,12 @@
                             <TextBlock Text="Additive"></TextBlock >
                             <TextBlock HorizontalAlignment="Right" Text="{Binding PAdditive}"></TextBlock>
                         </DockPanel>
-
-                        <ToggleButton Grid.Column="1" Grid.RowSpan="3" IsEnabled="{Binding isValid, Mode=OneWay}" IsChecked="{Binding AnimationToggle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                        <DockPanel Grid.Row="3"  Grid.Column="0" HorizontalAlignment="Stretch" Height="20">
+                            <TextBlock Text="Frame "></TextBlock >
+                            <CheckBox VerticalAlignment="Center" IsChecked="{Binding Override}" HorizontalAlignment="Left"/>
+                            <Slider HorizontalAlignment="Stretch" Value="{Binding ActiveFrame, Mode=TwoWay}" IsEnabled="{Binding Override}" Maximum="{Binding FrameCount}" Minimum="0"></Slider>
+                        </DockPanel>
+                        <ToggleButton Grid.Column="1" Grid.RowSpan="4" IsEnabled="{Binding isValid, Mode=OneWay}" IsChecked="{Binding IsPlaying, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
                             <ToggleButton.Style>
                                 <Style TargetType="{x:Type ToggleButton}">
                                     <Style.Triggers>
@@ -554,6 +559,7 @@
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
+                            <RowDefinition Height="20"/>
                         </Grid.RowDefinitions>
                         <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                             <TextBlock HorizontalAlignment="Left">Show Info</TextBlock>
@@ -582,6 +588,10 @@
                         <DockPanel Grid.Row="6" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                             <TextBlock HorizontalAlignment="Left">Show Gizmo</TextBlock>
                             <CheckBox Width="20" HorizontalAlignment="Right" IsEnabled="False" IsChecked="{Binding RenderGizmos}"></CheckBox>
+                        </DockPanel>
+                        <DockPanel Grid.Row="7" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                            <TextBlock HorizontalAlignment="Left">Emulate Actions</TextBlock>
+                            <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding EmulateActions}"></CheckBox>
                         </DockPanel>
                     </Grid>
                 </GroupBox>

@@ -55,7 +55,7 @@ float calcLightAttenuation(Light light, vec4 _fragPos){
 
     //vec3 lightDir = normalize(mpCommonPerFrame.cameraDirection);
     float l_distance = distance(lightPos, _fragPos.xyz); //Calculate distance of 
-    float lfDistanceSquared = dot(lPosToLight, lPosToLight); //Distance to light squared
+    float lfDistanceSquared = l_distance * l_distance; //Distance to light squared
     
 
     float lfFalloffType = light.falloff;
@@ -74,7 +74,7 @@ float calcLightAttenuation(Light light, vec4 _fragPos){
     {
         // Quadratic Distance attenuation
         //attenuation = 1.0 / max(1.0, 0.5 * lfDistanceSquared * lfDistanceSquared);
-        attenuation = 1.0 / max(1.0, 200 * lfDistanceSquared);
+        attenuation = 1.0 / max(1e-6, lfDistanceSquared);
     } else if (lfFalloffType < 2.0) {
         //Constant
         attenuation = 1.0;
@@ -87,6 +87,7 @@ float calcLightAttenuation(Light light, vec4 _fragPos){
         //attenuation *= lfLightIntensity;
     }
 
+    /*
     //Doing it the NMS way :D
     float lfLightFOV = cos(light.direction.w / 2.0);
     float lfConeAngle = dot(lspotDir, lightDir);
@@ -98,6 +99,7 @@ float calcLightAttenuation(Light light, vec4 _fragPos){
     {
         return 0.0;
     }
+    */
 
     //Old working
     //if (lfConeAngle < lfLightFOV + lfCutOff) {
@@ -108,7 +110,7 @@ float calcLightAttenuation(Light light, vec4 _fragPos){
 }
 
 
-vec3 calcLighting(Light light, vec4 fragPos, vec3 fragNormal, vec3 cameraPos,
+vec3 calcLighting(Light light, vec4 fragPos, vec3 fragNormal, vec3 cameraPos, vec3 cameraDir,
             vec3 albedoColor, float lfMetallic, float lfRoughness, float ao) {
     
     vec3 L;
@@ -121,15 +123,15 @@ vec3 calcLighting(Light light, vec4 fragPos, vec3 fragNormal, vec3 cameraPos,
     //ao = 1.0;
     //return vec3(lfRoughness, 0.0, 0.0);
 
-    vec3 V = normalize(cameraPos - fragPos.xyz);
+    vec3 V = normalize(cameraPos - fragPos.xyz); //Calculate viewer vector based on camera position
     L = normalize(light.position.xyz - fragPos.xyz);    
     attenuation = calcLightAttenuation(light, fragPos);
-    float distance    = length(light.position.xyz - fragPos.xyz);
+    float distance  = length(light.position.xyz - fragPos.xyz);
     //attenuation = 0.001 * 1.0 / (distance * distance); //Default calculation
 
     vec3 radiance = light.color.xyz * light.color.w * attenuation;
+    //vec3 radiance = light.color.xyz * light.color.w / (distance * distance);
     vec3 H = normalize(V + L);
-    
     
     // cook-torrance brdf
     float NDF = DistributionGGX(N, H, lfRoughness);        
@@ -145,25 +147,10 @@ vec3 calcLighting(Light light, vec4 fragPos, vec3 fragNormal, vec3 cameraPos,
     vec3 specular     = numerator / max(denominator, 0.001);
     //specular = vec3(0.0);
 
-
-    //TRANSLUCENCY
-    float _Sharpness = 10;
-    vec3 _ForwardTranslucentColor = vec3(1.0, 1.0, 1.0);
-    vec3 _DiffuseTranslucentColor = vec3(1.0, 1.0, 1.0);
-    
-    vec3 diffuseTranslucency = vec3(_DiffuseTranslucentColor) * max(0.0, dot(L, -N));
-    vec3 forwardTranslucency;
-    
-    if (dot(N, L) > 0.0) {
-        forwardTranslucency = vec3(0.0, 0.0, 0.0);
-    } else {
-        forwardTranslucency = vec3(_ForwardTranslucentColor) * pow(max(0.0, dot(-L, V)), _Sharpness);
-    }
-
-    
     // add to outgoing radiance finalColor
     float NdotL = max(dot(N, L), 0.0);
     vec3 finalColor = (kD * albedoColor / PI + specular) * radiance * NdotL; 
-    
+
     return finalColor;
 }
+

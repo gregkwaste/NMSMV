@@ -222,7 +222,16 @@ namespace MVCore.GMDL
             shaderHash = GLShaderHelper.calculateShaderHash(includes);
 
             if (!Common.RenderState.activeResMgr.shaderExistsForMaterial(this))
-                compileMaterialShader();
+            {
+                try
+                {
+                    compileMaterialShader();
+                } catch (Exception e)
+                {
+                    Common.CallBacks.Log("Error during material shader compilation: " + e.Message);
+                }
+            }
+                
 
         }
 

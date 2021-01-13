@@ -150,7 +150,7 @@ namespace MVCore.GMDL
         }
 
 
-        public override void updateMeshInfo()
+        public override void updateMeshInfo(bool lod_filter = false)
         {
             //Update Skin Matrices
             foreach (Joint j in jointDict.Values)
@@ -159,7 +159,7 @@ namespace MVCore.GMDL
                 MathUtils.insertMatToArray16(skinMats, j.jointIndex * 16, jointSkinMat);
             }
 
-            base.updateMeshInfo();
+            base.updateMeshInfo(lod_filter);
         }
 
 

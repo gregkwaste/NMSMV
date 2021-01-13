@@ -10,8 +10,6 @@ namespace MVCore.GMDL
 {
     public class Locator : Model
     {
-        public int actionComponentID = -1;
-
         public Locator()
         {
             //Set type
@@ -58,11 +56,11 @@ namespace MVCore.GMDL
             recalculateAABB(); //Update AABB
         }
 
-        public override void updateMeshInfo()
+        public override void updateMeshInfo(bool lod_filter=false)
         {
-            if (!renderable)
+            if (!renderable || lod_filter)
             {
-                base.updateMeshInfo();
+                base.updateMeshInfo(lod_filter);
                 return;
             }
 

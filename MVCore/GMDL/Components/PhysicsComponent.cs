@@ -1,14 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Windows.Input;
 using libMBIN.NMS.Toolkit;
-using MVCore.Utils;
-using OpenTK.Graphics.OpenGL;
-using libMBIN.NMS.GameComponents;
 
 namespace MVCore.GMDL
 {
@@ -82,16 +73,39 @@ namespace MVCore.GMDL
             data = new PhysicsData();
         }
 
+        public PhysicsComponent(PhysicsComponent pc)
+        {
+            _template = new TkPhysicsComponentData()
+            {
+                AllowTeleporter = pc._template.AllowTeleporter,
+                BlockTeleporter = pc._template.BlockTeleporter,
+                Data = pc._template.Data,
+                SpinOnCreate = pc._template.SpinOnCreate,
+                DisableGravity = pc._template.DisableGravity,
+                InvisibleForInteraction = pc._template.InvisibleForInteraction,
+                CameraInvisible = pc._template.CameraInvisible,
+                NoPlayerCollide = pc._template.NoPlayerCollide,
+                NoVehicleCollide = pc._template.NoVehicleCollide,
+                IgnoreModelOwner = pc._template.IgnoreModelOwner,
+                Floor = pc._template.Floor,
+                Climbable = pc._template.Climbable,
+                TriggerVolume = pc._template.TriggerVolume,
+                SurfaceProperties = pc._template.SurfaceProperties,
+                VolumeTriggerType = pc._template.VolumeTriggerType,
+                RagdollData = pc._template.RagdollData
+            };
+            data = new PhysicsData(pc.data);
+        }
+
         public PhysicsComponent(TkPhysicsComponentData pcd)
         {
             _template = pcd;
             data = new PhysicsData(pcd.Data);
-        
         }
 
         public override Component Clone()
         {
-            throw new Exception("Not Implemented");
+            return new PhysicsComponent(this);
         }
 
         //Exposed Properties

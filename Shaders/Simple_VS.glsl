@@ -57,6 +57,9 @@ mat4 get_skin_matrix(int offset)
 }
 
 
+
+
+
 void main()
 {
     //Pass uv to fragment shader
@@ -104,26 +107,30 @@ void main()
     //Nullify w components
     vec4 lLocalTangentVec4 = tPosition;
     vec4 lLocalNormalVec4 = nPosition;
+    vec4 lLocalBitangentVec4 = bPosition;
     
     //mat4 nMat = instanceData[gl_InstanceID].normalMat;
     //Recalculate nMat to test the rotMat here
     //mat4 nMat =  instanceData[gl_InstanceID].normalMat * transpose(mpCommonPerFrame.rotMatInv);
     mat4 nMat =  transpose(inverse(mpCommonPerFrame.rotMat * instanceData[gl_InstanceID].worldMat));
-
-
+    //mat4 nMat =  transpose(inverse(instanceData[gl_InstanceID].worldMat));
+    
     //OLD
-    vec4 lWorldTangentVec4 = nMat * (lLocalTangentVec4);
-    vec4 lWorldNormalVec4 = nMat * (lLocalNormalVec4);
+    vec4 lWorldTangentVec4 = normalize(nMat * lLocalTangentVec4);
+    vec4 lWorldNormalVec4 = normalize(nMat * lLocalNormalVec4);
+    vec4 lWorldBitangentVec4 = normalize(nMat * lLocalBitangentVec4);
     
-    vec4 lWorldBitangentVec4 = vec4( cross(lWorldNormalVec4.xyz, lWorldTangentVec4.xyz), 0.0);
+    //Re-orthogonalize tangent
+    //lWorldTangentVec4.xyz = normalize(lWorldTangentVec4.xyz - dot(lWorldTangentVec4.xyz, lWorldNormalVec4.xyz) * lWorldNormalVec4.xyz);
     
-    TBN = mat3( normalize(lWorldTangentVec4.xyz),
-                normalize(lWorldBitangentVec4.xyz),
-                normalize(lWorldNormalVec4.xyz) );
+    //vec4 lWorldBitangentVec4 = normalize(vec4( cross(lWorldNormalVec4.xyz, lWorldTangentVec4.xyz), 0.0));
+    
+    TBN = mat3( lWorldTangentVec4.xyz,
+                lWorldBitangentVec4.xyz,
+                lWorldNormalVec4.xyz );
 
     //Send world normal to fragment shader
-    mTangentSpaceNormalVec3 = normalize(lWorldNormalVec4).xyz;
-
+    mTangentSpaceNormalVec3 = lWorldNormalVec4.xyz;
 }
 
 

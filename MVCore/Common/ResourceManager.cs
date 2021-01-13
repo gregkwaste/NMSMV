@@ -96,7 +96,7 @@ namespace MVCore
 #if (DEBUG)
             //Query GL Extensions
             Console.WriteLine("OPENGL AVAILABLE EXTENSIONS:");
-            string[] ext = GL.GetString(StringName.Extensions).Split(' ');
+            string[] ext = GL.GetString(StringNameIndexed.Extensions, 0).Split(' ');
             foreach (string s in ext)
             {
                 if (s.Contains("explicit"))
@@ -514,7 +514,7 @@ namespace MVCore
                 GLPrimitiveMeshVaos[name].type = TYPES.GIZMOPART;
                 GLPrimitiveMeshVaos[name].metaData = new MeshMetaData();
                 GLPrimitiveMeshVaos[name].metaData.batchcount = arr.geom.indicesCount;
-                GLPrimitiveMeshVaos[name].indicesLength = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedInt;
+                GLPrimitiveMeshVaos[name].metaData.indicesLength = DrawElementsType.UnsignedInt;
                 GLPrimitiveMeshVaos[name].vao = GLPrimitiveVaos[name];
                 GLPrimitiveMeshVaos[name].material = GLmaterials["crossMat"];
 
@@ -547,7 +547,7 @@ namespace MVCore
             GLPrimitiveMeshVaos["default_cross"].metaData.batchcount = c.geom.indicesCount;
             GLPrimitiveMeshVaos["default_cross"].metaData.AABBMIN = new Vector3(-0.1f);
             GLPrimitiveMeshVaos["default_cross"].metaData.AABBMAX = new Vector3(0.1f);
-            GLPrimitiveMeshVaos["default_cross"].indicesLength = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedInt;
+            GLPrimitiveMeshVaos["default_cross"].metaData.indicesLength = DrawElementsType.UnsignedInt;
             GLPrimitiveMeshVaos["default_cross"].vao = GLPrimitiveVaos["default_cross"];
             GLPrimitiveMeshVaos["default_cross"].material = GLmaterials["crossMat"];
 

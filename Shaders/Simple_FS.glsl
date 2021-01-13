@@ -69,7 +69,7 @@ out vec4 outcolors[3];
 
 //New Decoding function - RGTC
 vec3 DecodeNormalMap(vec4 lNormalTexVec4 ){
-    lNormalTexVec4 = ( lNormalTexVec4 * ( 2.0 * 255.0 / 256.0 ) ) - 1.0;
+    lNormalTexVec4 = normalize(2.0 * lNormalTexVec4 - 1.0);
     return ( vec3( lNormalTexVec4.r, lNormalTexVec4.g, sqrt( max( 1.0 - lNormalTexVec4.r*lNormalTexVec4.r - lNormalTexVec4.g*lNormalTexVec4.g, 0.0 ) ) ) );
 }
 
@@ -213,9 +213,9 @@ void pbr_lighting(){
 	 	
 		#ifdef __F01_DIFFUSEMAP
 			#ifdef __F55_MULTITEXTURE
-				lColourVec4 = textureLod(mpCustomPerMaterial.gDiffuseMap, vec3(lTexCoordsVec4.xy, lfMultiTextureIndex), mipmaplevel);
+				lColourVec4 = texture(mpCustomPerMaterial.gDiffuseMap, vec3(lTexCoordsVec4.xy, lfMultiTextureIndex));
 			#else
-				lColourVec4 = textureLod(mpCustomPerMaterial.gDiffuseMap, vec3(lTexCoordsVec4.xy, 0.0), mipmaplevel);
+				lColourVec4 = texture(mpCustomPerMaterial.gDiffuseMap, vec3(lTexCoordsVec4.xy, 0.0));
 			#endif
 
 			#if !defined(__F07_UNLIT) && defined(__F39_METALLIC_MASK)
@@ -239,14 +239,14 @@ void pbr_lighting(){
 
 		#ifdef D_MASKS
 	    	#ifdef __F55_MULTITEXTURE
-	            vec4 lMasks = textureLod(mpCustomPerMaterial.gMasksMap, vec3(lTexCoordsVec4.xy, lfMultiTextureIndex), mipmaplevel);
+	            vec4 lMasks = texture(mpCustomPerMaterial.gMasksMap, vec3(lTexCoordsVec4.xy, lfMultiTextureIndex));
 	        #else
-	            vec4 lMasks = textureLod(mpCustomPerMaterial.gMasksMap, vec3(lTexCoordsVec4.xy, 0.0), mipmaplevel);
+	            vec4 lMasks = texture(mpCustomPerMaterial.gMasksMap, vec3(lTexCoordsVec4.xy, 0.0));
 	        #endif
 	    #endif
 
 	    #ifdef __F16_DIFFUSE2MAP
-			vec4 lDiffuse2Vec4 = textureLod(mpCustomPerMaterial.gDiffuse2Map, vec3(lTexCoordsVec4.zw, 0.0), mipmaplevel);
+			vec4 lDiffuse2Vec4 = texture(mpCustomPerMaterial.gDiffuse2Map, vec3(lTexCoordsVec4.zw, 0.0));
 			diffTex2Factor = lDiffuse2Vec4.a;
 
 			#ifndef __F17_MULTIPLYDIFFUSE2MAP
@@ -299,20 +299,20 @@ void pbr_lighting(){
 	        #endif
 	        
 	        #if defined( __F44_IMPOSTER )
-	            vec4 lTexColour = textureLod(mpCustomPerMaterial.gNormalMap, vec3(lTexCoordsVec4.xy, 0.0), 1.0);
+	            vec4 lTexColour = texture(mpCustomPerMaterial.gNormalMap, vec3(lTexCoordsVec4.xy, 0.0));
 	            vec3 lNormalTexVec3 = normalize(lTexColour.xyz * 2.0 - 1.0);
 	        #else
 	            #ifdef __F55_MULTITEXTURE
-	                vec4 lTexColour = textureLod(mpCustomPerMaterial.gNormalMap, vec3(lTexCoordsVec4.xy, lfMultiTextureIndex), mipmaplevel);
+	                vec4 lTexColour = texture(mpCustomPerMaterial.gNormalMap, vec3(lTexCoordsVec4.xy, lfMultiTextureIndex));
 	            #else
-	                vec4 lTexColour = textureLod(mpCustomPerMaterial.gNormalMap, vec3(lTexCoordsVec4.xy, 0.0), mipmaplevel );
+					vec4 lTexColour = texture(mpCustomPerMaterial.gNormalMap, vec3(lTexCoordsVec4.xy, 0.0));
 	            #endif 
 	        
-	        vec3 lNormalTexVec3 = DecodeNormalMap( lTexColour );
+	        	vec3 lNormalTexVec3 = DecodeNormalMap( lTexColour );
 	        #endif
 	            
 	         lNormalVec3 = lNormalTexVec3;
-	    #elif defined( D_USES_VERTEX_NORMAL )
+		#elif defined( D_USES_VERTEX_NORMAL )
 	    	lNormalVec3 = mTangentSpaceNormalVec3;
 		#endif
 
@@ -343,7 +343,7 @@ void pbr_lighting(){
 	        #endif
 	        */
 
-        	lNormalVec3 = normalize(TBN * lNormalVec3);        
+			lNormalVec3 = normalize(TBN * lNormalVec3);        
     	}
 	    #endif
 
@@ -402,7 +402,6 @@ void pbr_lighting(){
 		lNormalVec3 = mTangentSpaceNormalVec3;
 	}
 
-	
 	#ifdef __F34_GLOW
     {
         #if defined(__F35_GLOW_MASK) && !defined(__F09_TRANSPARENT)
@@ -457,7 +456,8 @@ void pbr_lighting(){
 				if (light.position.w < 1.0)
 		        	continue;
 	    		
-	    		finalColor.rgb += calcLighting(light, fragPos, lNormalVec3, mpCommonPerFrame.cameraPosition.xyz,
+	    		finalColor.rgb += calcLighting(light, fragPos, lNormalVec3, 
+				mpCommonPerFrame.cameraPosition.xyz, mpCommonPerFrame.cameraDirection.xyz,
 		            lColourVec4.rgb, lfMetallic, lfRoughness, ao);
 			} 
 		}

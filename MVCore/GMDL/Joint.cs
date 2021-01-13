@@ -19,6 +19,13 @@ namespace MVCore.GMDL
         public Matrix4 invBMat = Matrix4.Identity; //This is the inverse of the local Bind Matrix related to the parent
                                                    //DO NOT MIX WITH THE gobject.invBMat which is reverts the transformation to the global space
 
+
+        //Blending Queues
+        public List<Vector3> PositionQueue = new List<Vector3>();
+        public List<Vector3> ScaleQueue = new List<Vector3>();
+        public List<Quaternion> RotationQueue = new List<Quaternion>();
+        
+
         //Props
         public Matrix4 localPoseMatrix
         {
@@ -48,7 +55,7 @@ namespace MVCore.GMDL
             meshVao.material = Common.RenderState.activeResMgr.GLmaterials["jointMat"];
         }
 
-        public override void updateMeshInfo()
+        public override void updateMeshInfo(bool lod_filter=false)
         {
             //We do not apply frustum occlusion on joint objects
             if (renderable && (children.Count > 0))
@@ -96,8 +103,8 @@ namespace MVCore.GMDL
             j.meshVao.metaData = new MeshMetaData();
             //TODO: Find a place to keep references from the Joint GLMeshVAOs
             j.meshVao.vao = new Primitives.LineSegment(this.children.Count, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
-            j.meshVao.material = Common.RenderState.activeResMgr.GLmaterials["JointMat"];
-
+            j.meshVao.material = Common.RenderState.activeResMgr.GLmaterials["jointMat"];
+            
             //Clone children
             foreach (Model child in children)
             {
@@ -109,7 +116,7 @@ namespace MVCore.GMDL
             return j;
         }
 
-        //DIsposal
+        //Disposal
         protected override void Dispose(bool disposing)
         {
             //Dispose GL Stuff

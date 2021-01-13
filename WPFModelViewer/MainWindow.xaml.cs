@@ -107,7 +107,7 @@ namespace WPFModelViewer
         }
 
         //Open File
-        private void OpenFile(string filename)
+        private void OpenFile(string filename, bool testScene, int testSceneID)
         {
             Console.WriteLine("Importing " + filename);
             ThreadRequest req;
@@ -130,9 +130,12 @@ namespace WPFModelViewer
 
             
             RenderState.rootObject?.Dispose();
-            glControl.addScene(filename);
 
-
+            if (testScene)
+                glControl.addTestScene(testSceneID);
+            else
+                glControl.addScene(filename);
+            
             //Populate 
             RenderState.rootObject.ID = itemCounter;
             Util.setStatus("Creating Treeview...");
@@ -153,6 +156,7 @@ namespace WPFModelViewer
 
         }
 
+
         private void OpenFile(object sender, RoutedEventArgs e)
         {
             Console.WriteLine("Opening File");
@@ -164,7 +168,7 @@ namespace WPFModelViewer
                 return;
             
             var filename = openFileDlg.FileName;
-            OpenFile(filename);
+            OpenFile(filename, false, 0);
         }
 
         private void OpenFilePAK(object sender, RoutedEventArgs e)
@@ -206,7 +210,7 @@ namespace WPFModelViewer
             {
                 string selected = (string)lb.SelectedItem;
                 win.Close();
-                OpenFile(selected);
+                OpenFile(selected, false, 0);
             };
 
             CollectionView viewSource = (CollectionView)CollectionViewSource.GetDefaultView(lb.ItemsSource);
@@ -261,6 +265,7 @@ namespace WPFModelViewer
                         {
                             switch (req.type)
                             {
+                                case THREAD_REQUEST_TYPE.NEW_TEST_SCENE_REQUEST:
                                 case THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST:
                                     Console.WriteLine("Shouldn't be here");
                                     break;
@@ -472,11 +477,28 @@ namespace WPFModelViewer
         }
 
 #if (DEBUG)
+
+        void addToGrid(Control c, int row_id, int col_id)
+        {
+            if (row_id > 0)
+                c.SetValue(Grid.RowProperty, row_id);
+            if (col_id > 0)
+                c.SetValue(Grid.ColumnProperty, col_id);
+        }
+
+        void addToGrid(TextBlock c, int row_id, int col_id)
+        {
+            if (row_id > 0)
+                c.SetValue(Grid.RowProperty, row_id);
+            if (col_id > 0)
+                c.SetValue(Grid.ColumnProperty, col_id);
+        }
+
         void setTestComponents()
         {
             //Add Components programmatically
             Grid g = new Grid();
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 4; i++)
             {
                 RowDefinition rd = new RowDefinition();
                 rd.Height = new GridLength(20.0);
@@ -491,42 +513,50 @@ namespace WPFModelViewer
             }
 
             //Add Options
+            //Test Option 1
             TextBlock tb = new TextBlock();
-            tb.SetValue(Grid.RowProperty, 0);
-            tb.SetValue(Grid.ColumnProperty, 0);
+            addToGrid(tb, 0, 0);
             Slider sr = new Slider();
-            sr.SetValue(Grid.RowProperty, 0);
-            sr.SetValue(Grid.ColumnProperty, 1);
+            addToGrid(sr, 0, 1);
             sr.Minimum = 0.0;
             sr.Maximum = 1.0;
             sr.ValueChanged += TestOpts_ValueChanged;
             g.Children.Add(tb);
             g.Children.Add(sr);
 
+            //Test Option 2
             tb = new TextBlock();
-            tb.SetValue(Grid.RowProperty, 1);
-            tb.SetValue(Grid.ColumnProperty, 0);
+            addToGrid(tb, 1, 0);
             sr = new Slider();
-            sr.SetValue(Grid.RowProperty, 1);
-            sr.SetValue(Grid.ColumnProperty, 1);
+            addToGrid(sr, 1, 1);
             sr.Minimum = 0.0;
             sr.Maximum = 1.0;
             sr.ValueChanged += TestOpts_ValueChanged;
             g.Children.Add(tb);
             g.Children.Add(sr);
 
+            //Test Option 3
             tb = new TextBlock();
-            tb.SetValue(Grid.RowProperty, 2);
-            tb.SetValue(Grid.ColumnProperty, 0);
+            addToGrid(tb, 2, 0);
             sr = new Slider();
-            sr.SetValue(Grid.RowProperty, 2);
-            sr.SetValue(Grid.ColumnProperty, 1);
+            addToGrid(sr, 2, 1);
             sr.Minimum = 0.0;
             sr.Maximum = 1000.0;
             sr.ValueChanged += TestOpts_ValueChanged;
             g.Children.Add(tb);
             g.Children.Add(sr);
 
+            //Test Scene Button 1
+            Button bt = new Button();
+            bt.Content = "Test Scene 1";
+            bt.SetValue(Grid.ColumnSpanProperty, 2);
+            addToGrid(bt, 3, 0);
+            bt.Click += new RoutedEventHandler(delegate (object s, RoutedEventArgs ee)
+            {
+                OpenFile("", true, 0);
+            });
+            g.Children.Add(bt);
+            
             TestOptions.Content = g;
         }
 #endif

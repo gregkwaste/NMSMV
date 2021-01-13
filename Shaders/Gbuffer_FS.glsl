@@ -49,21 +49,37 @@ vec4 worldfromDepth(in vec2 screen, in float depth)
 	return world;
 }
 
+// Converts post-projection z/w to linear z
+float LinearDepth(float perspectiveDepth)
+{
+	float n = mpCommonPerFrame.cameraNearPlane;
+	float f = mpCommonPerFrame.cameraFarPlane;
+
+	float ProjectionA = f / (f - n);
+    float ProjectionB = (-f * n) / (f - n);
+	
+	return ProjectionB / (perspectiveDepth - ProjectionA);
+}
+
+
 void main()
 {
 	//sample our texture
 	vec4 bloomColor = vec4(0.0, 0.0, 0.0, 0.0);
-	
+	vec3 clearColor = vec3(0.13, 0.13, 0.13);
 	vec2 uv = gl_FragCoord.xy / (1.0 * mpCommonPerFrame.frameDim);
     
-    vec4 albedoColor = texelFetch(albedoTex, ivec2(gl_FragCoord.xy), 0);	
+	//vec4 albedoColor = texelFetch(albedoTex, ivec2(gl_FragCoord.xy), 0);	
+	vec4 albedoColor = texture(albedoTex, uv);	
+	//vec4 fragNormal = texelFetch(normalTex, ivec2(gl_FragCoord.xy), 0);	
+	vec4 fragNormal = texture(normalTex, uv);
+	//vec4 fragParams = texelFetch(parameterTex, ivec2(gl_FragCoord.xy), 0);
+	vec4 fragParams = texture(parameterTex, uv);
 	//vec4 depthColor = texelFetch(depthTex, ivec2(gl_FragCoord.xy), 0);	
 	vec4 depthColor = texture(depthTex, uv);
-	vec4 fragNormal = texelFetch(normalTex, ivec2(gl_FragCoord.xy), 0);	
-	vec4 fragParams = texelFetch(parameterTex, ivec2(gl_FragCoord.xy), 0);
 	
-	vec3 clearColor = vec3(0.13, 0.13, 0.13);
-	
+	//Resolve Colors
+
 	//get back from sRGB
 	//albedoColor.rgb = pow(albedoColor.rgb, vec3(2.2));
 
@@ -101,8 +117,8 @@ void main()
 			if (light.position.w < 1.0)
 	        	continue;
 
-        	finalColor.rgb += calcLighting(light, fragPos, fragNormal.xyz, mpCommonPerFrame.cameraPosition.xyz,
-	            albedoColor.rgb, lfMetallic, lfRoughness, ao);
+        	finalColor.rgb += calcLighting(light, fragPos, fragNormal.xyz, 
+			mpCommonPerFrame.cameraPosition.xyz, mpCommonPerFrame.cameraDirection.xyz, albedoColor.rgb, lfMetallic, lfRoughness, ao);
 		}
 
 		finalColor.a = albedoColor.a;

@@ -91,8 +91,8 @@ namespace MVCore.Utils
                 load_mode = 2; //Extract file from archive
             } else
             {
-                Util.showError("File: " + filepath + " Not found in PAKs or local folders. ", "Error");
                 CallBacks.Log("File: " + filepath + " Not found in PAKs or local folders. ");
+                Util.showError("File: " + filepath + " Not found in PAKs or local folders. ", "Error");
                 throw new FileNotFoundException("File not found\n " + filepath);
             }
             switch (load_mode)
@@ -102,7 +102,17 @@ namespace MVCore.Utils
                 case 1: //Load MBIN
                     return new FileStream(Path.Combine(RenderState.settings.UnpackDir, filepath), FileMode.Open);
                 case 2: //Load File from Archive
-                    return resMgr.NMSFileToArchiveMap[effective_filepath].ExtractFile(effective_filepath);
+                    {
+                        CallBacks.Log("Trying to export File" + effective_filepath);
+                        if (resMgr.NMSFileToArchiveMap.ContainsKey(effective_filepath))
+                        {
+                            CallBacks.Log("File was found in archives. File Index: " + resMgr.NMSFileToArchiveMap[effective_filepath].GetFileIndex(effective_filepath));
+                        }
+
+                        int fileIndex = resMgr.NMSFileToArchiveMap[effective_filepath].GetFileIndex(effective_filepath);
+                        return resMgr.NMSFileToArchiveMap[effective_filepath].ExtractFile(fileIndex);
+                    }
+                    
             }
 
             return null;
@@ -114,6 +124,10 @@ namespace MVCore.Utils
             NMSTemplate template = null;
             filepath = filepath.Replace('\\', '/');
             string effective_filepath = filepath;
+
+            //Checks to prevent malformed paths from further processing
+            if (filepath.Contains(' '))
+                return null;
 
             string exmlpath = Path.ChangeExtension(filepath, "exml");
             exmlpath = exmlpath.ToUpper(); //Make upper case
@@ -132,8 +146,8 @@ namespace MVCore.Utils
             }
             else
             {
-                Util.showError("File: " + filepath + " Not found in PAKs or local folders. ", "Error");
                 CallBacks.Log("File: " + filepath + " Not found in PAKs or local folders. ");
+                Util.showError("File: " + filepath + " Not found in PAKs or local folders. ", "Error");
                 return null;
             }
 
@@ -168,7 +182,6 @@ namespace MVCore.Utils
                 }
             } catch (Exception ex)
             {
-
                 if (ex is System.IO.DirectoryNotFoundException || ex is System.IO.FileNotFoundException)
                     Util.showError("File " + effective_filepath + " Not Found...", "Error");
                 else if (ex is System.IO.IOException)
@@ -177,6 +190,10 @@ namespace MVCore.Utils
                 {
                     Util.showError("libMBIN failed to decompile file. If this is a vanilla file, contact the MbinCompiler developer",
                     "Error");
+                }
+                else
+                {
+                    Util.showError("Unhandled Exception " + ex.Message, "Error");
                 }
                 return null;
 

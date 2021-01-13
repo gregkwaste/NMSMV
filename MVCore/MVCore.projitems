@@ -12,6 +12,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Engine\Engine.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Engine\RequestHandler.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Engine\Systems\ActionSystem.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Engine\Systems\AnimationSystem.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\AnimData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Components\AnimComponent.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Camera.cs" />

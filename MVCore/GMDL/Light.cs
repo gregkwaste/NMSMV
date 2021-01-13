@@ -154,7 +154,7 @@ namespace MVCore.GMDL
             fov = 360;
             intensity = 1.0f;
             falloff = ATTENUATION_TYPE.CONSTANT;
-
+            light_type = LIGHT_TYPE.POINT;
 
             //Initialize new MeshVao
             meshVao = new GLMeshVao();
@@ -186,6 +186,7 @@ namespace MVCore.GMDL
             intensity = input.intensity;
             falloff = input.falloff;
             fov = input.fov;
+            light_type = input.light_type;
             strct = input.strct;
 
             //Initialize new MeshVao
@@ -208,9 +209,14 @@ namespace MVCore.GMDL
             RenderState.activeResMgr.GLlights.Add(this);
         }
 
-        public override void updateMeshInfo()
+        public override void updateMeshInfo(bool lod_filter = false)
         {
-            if (RenderState.renderViewSettings.RenderLights && renderable)
+            if (lod_filter)
+            {
+                strct.position.W = 0.0f; //Force not renderable
+                base.updateMeshInfo();
+                RenderStats.occludedNum += 1;
+            } else if (RenderState.renderViewSettings.RenderLights && renderable)
             {
                 //End Point
                 Vector4 ep;
@@ -254,10 +260,12 @@ namespace MVCore.GMDL
 
                 //Uplod worldMat to the meshVao
                 instanceId = GLMeshBufferManager.addInstance(meshVao, this, Matrix4.Identity, Matrix4.Identity, Matrix4.Identity); //Add instance
+            } else
+            {
+                base.updateMeshInfo();
+                updated = false; //All done
             }
 
-            base.updateMeshInfo();
-            updated = false; //All done
         }
 
         public override void update()

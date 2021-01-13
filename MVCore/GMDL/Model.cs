@@ -53,6 +53,7 @@ namespace MVCore.GMDL
         public List<Component> _components = new List<Component>();
         public int animComponentID;
         public int animPoseComponentID;
+        public int actionComponentID;
 
         //LOD
         public float[] _LODDistances = new float[5];
@@ -146,6 +147,7 @@ namespace MVCore.GMDL
         public string Name
         {
             get { return name; }
+            set { name = value; }
         }
         public string Type
         {
@@ -274,11 +276,11 @@ namespace MVCore.GMDL
                 s.setupSkinMatrixArrays();
         }
 
-        public virtual void updateMeshInfo()
+        public virtual void updateMeshInfo(bool lod_filter = false)
         {
             foreach (Model child in children)
             {
-                child.updateMeshInfo();
+                child.updateMeshInfo(lod_filter);
             }
         }
 
@@ -424,6 +426,7 @@ namespace MVCore.GMDL
             _components = new List<Component>();
             animComponentID = -1;
             animPoseComponentID = -1;
+            actionComponentID = -1;
         }
 
 

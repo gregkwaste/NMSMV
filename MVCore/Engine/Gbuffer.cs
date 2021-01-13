@@ -76,6 +76,8 @@ namespace MVCore.Engine
 
                 GL.BindFramebuffer(FramebufferTarget.FramebufferExt, attach_to_fbo);
                 GL.FramebufferTexture2D(FramebufferTarget.FramebufferExt, attachment_id, TextureTarget.Texture2DMultisample, handle, 0);
+
+                
             }
             else if (textarget == TextureTarget.Texture2D)
             {
@@ -103,16 +105,15 @@ namespace MVCore.Engine
                 GL.BindFramebuffer(FramebufferTarget.FramebufferExt, attach_to_fbo);
                 GL.FramebufferTexture2D(FramebufferTarget.FramebufferExt, attachment_id, TextureTarget.Texture2D, handle, 0);
 
-                //Check
-                if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
-                    Console.WriteLine("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
-
             }
             else
             {
                 throw new Exception("Unsupported texture target " + textarget);
             }
 
+            //Check
+            if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
+                Console.WriteLine("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
         }
 
@@ -259,8 +260,8 @@ namespace MVCore.Engine
 
                 GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
                 GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+                //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+                //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
 
             }
             else
@@ -317,7 +318,7 @@ namespace MVCore.Engine
 
         //Buffer Specs
         public int[] size;
-        public int msaa_samples = 8;
+        public int msaa_samples = 4;
 
         public GBuffer(int x, int y)
         {
@@ -339,20 +340,20 @@ namespace MVCore.Engine
                 Console.WriteLine("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
             //Setup diffuse texture
-            setup_texture(ref albedo, TextureTarget.Texture2D, PixelInternalFormat.Rgba16f, false);
+            setup_texture(ref albedo, TextureTarget.Texture2D, PixelInternalFormat.Rgba16f, false, TextureMagFilter.Linear, TextureMinFilter.Linear);
             bindTextureToFBO(albedo, TextureTarget.Texture2D, fbo, FramebufferAttachment.ColorAttachment0);
             //Setup normals texture
-            setup_texture(ref normals, TextureTarget.Texture2D, PixelInternalFormat.Rgba16f, false);
+            setup_texture(ref normals, TextureTarget.Texture2D, PixelInternalFormat.Rgba16f, false, TextureMagFilter.Linear, TextureMinFilter.Linear);
             bindTextureToFBO(normals, TextureTarget.Texture2D, fbo, FramebufferAttachment.ColorAttachment1);
-            //Setup info texture
-            setup_texture(ref info, TextureTarget.Texture2D, PixelInternalFormat.Rgba16f, false);
+            //Setup info texture 
+            setup_texture(ref info, TextureTarget.Texture2D, PixelInternalFormat.Rgba16f, false, TextureMagFilter.Linear, TextureMinFilter.Linear);
             bindTextureToFBO(info, TextureTarget.Texture2D, fbo, FramebufferAttachment.ColorAttachment2);
             //Setup Depth texture
-            setup_texture(ref depth, TextureTarget.Texture2D, PixelInternalFormat.DepthComponent, true);
+            setup_texture(ref depth, TextureTarget.Texture2D, PixelInternalFormat.DepthComponent, true, TextureMagFilter.Nearest, TextureMinFilter.Nearest);
             bindTextureToFBO(depth, TextureTarget.Texture2D, fbo, FramebufferAttachment.DepthAttachment);
             
             //Setup depth backup  texture
-            setup_texture(ref depth_dump, TextureTarget.Texture2D, PixelInternalFormat.DepthComponent, true);
+            setup_texture(ref depth_dump, TextureTarget.Texture2D, PixelInternalFormat.DepthComponent, true, TextureMagFilter.Nearest, TextureMinFilter.Nearest);
 
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
@@ -362,7 +363,7 @@ namespace MVCore.Engine
             GL.BindFramebuffer(FramebufferTarget.FramebufferExt, 0);
         }
 
-        public void setup_texture(ref int handle, TextureTarget textarget, PixelInternalFormat format, bool isDepth)
+        public void setup_texture(ref int handle, TextureTarget textarget, PixelInternalFormat format, bool isDepth, TextureMagFilter texMagFilter, TextureMinFilter texMinFilter)
         {
             handle = GL.GenTexture();
             GL.BindTexture(textarget, handle);
@@ -371,10 +372,6 @@ namespace MVCore.Engine
             {
                 //GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent, size[0], size[1], 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
                 GL.TexImage2DMultisample(TextureTargetMultisample.Texture2DMultisample, msaa_samples, format, size[0], size[1], true);
-                //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
-                //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-                //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-                //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
             }
             else if (textarget == TextureTarget.Texture2D)
             {
@@ -383,11 +380,11 @@ namespace MVCore.Engine
                 else
                     GL.TexImage2D(TextureTarget.Texture2D, 0, format, size[0], size[1], 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
 
-                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int) TextureMagFilter.Nearest);
-                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int) TextureMinFilter.Nearest);
-                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-            
+                //Setup Texture Parameters
+                GL.TexParameter(textarget, TextureParameterName.TextureMagFilter, (int)texMagFilter);
+                GL.TexParameter(textarget, TextureParameterName.TextureMinFilter, (int)texMinFilter);
+                //GL.TexParameter(textarget, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+                //GL.TexParameter(textarget, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
             }
             else
             {
@@ -409,8 +406,7 @@ namespace MVCore.Engine
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             
             //Main flags
-            //GL.Enable(EnableCap.Multisample);
-            GL.Enable(EnableCap.Texture2D);
+            GL.Enable(EnableCap.Multisample);
             
             //Geometry Shader Parameters
             GL.PatchParameter(PatchParameterFloat.PatchDefaultInnerLevel, new float[] { 2.0f });

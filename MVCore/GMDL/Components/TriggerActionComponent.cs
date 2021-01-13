@@ -8,6 +8,156 @@ using libMBIN.NMS;
 
 namespace MVCore.GMDL
 {
+    public abstract class Trigger
+    {
+        public NMSTemplate _template;
+        public Trigger() { }
+
+        public Trigger(NMSTemplate t)
+        {
+            _template = t;
+        }
+    }
+
+    public class StateTimeEventTrigger : Trigger
+    {
+        public StateTimeEventTrigger() { }
+
+        public StateTimeEventTrigger(NMSTemplate t) : base(t)
+        {
+
+        }
+
+        //Exposed Properties
+        public float Seconds
+        {
+            get {
+                return ((GcStateTimeEvent)_template).Seconds;
+                }
+        }
+
+        public float RandomSeconds
+        {
+            get
+            {
+                return ((GcStateTimeEvent)_template).RandomSeconds;
+            }
+        }
+    }
+
+    public class AnimFrameEventTrigger : Trigger
+    {
+        public AnimFrameEventTrigger() { }
+
+        public AnimFrameEventTrigger(NMSTemplate t) : base(t)
+        {
+
+        }
+
+        //Exposed Properties
+        public string Anim
+        {
+            get
+            {
+                return ((GcAnimFrameEvent)_template).Anim;
+            }
+        }
+
+        public int FrameStart
+        {
+            get
+            {
+                return ((GcAnimFrameEvent)_template).FrameStart;
+            }
+        }
+
+        public bool StartFromEnd
+        {
+            get
+            {
+                return ((GcAnimFrameEvent)_template).StartFromEnd;
+            }
+        }
+    }
+
+    public class PlayerNearbyEventTrigger : Trigger
+    {
+        public PlayerNearbyEventTrigger()
+        {
+
+        }
+
+        public PlayerNearbyEventTrigger(NMSTemplate t) : base(t)
+        {
+            
+        }
+
+        //Exposed Properties
+
+        public string RequirePLayerAction
+        {
+            get
+            {
+                return ((GcPlayerNearbyEvent)_template).RequirePlayerAction.ToString();
+            }
+        }
+
+        public float Angle
+        {
+            get
+            {
+                return ((GcPlayerNearbyEvent)_template).Angle;
+            }
+        }
+
+        public bool AnglePlayerRelative
+        {
+            get
+            {
+                return ((GcPlayerNearbyEvent)_template).AnglePlayerRelative;
+            }
+        }
+
+        public float AngleOffset
+        {
+            get
+            {
+                return ((GcPlayerNearbyEvent)_template).AngleOffset;
+            }
+        }
+
+        public string DistanceCheckType
+        {
+            get
+            {
+                return ((GcPlayerNearbyEvent)_template).DistanceCheckType.ToString();
+            }
+        }
+
+        public bool Inverse
+        {
+            get
+            {
+                return ((GcPlayerNearbyEvent)_template).Inverse;
+            }
+        }
+
+        public float Distance
+        {
+            get
+            {
+                return ((GcPlayerNearbyEvent)_template).Distance;
+            }
+        }
+        
+
+
+    }
+
+
+
+
+
     public abstract class Action
     {
         public NMSTemplate _template;
@@ -121,7 +271,8 @@ namespace MVCore.GMDL
     {
         NMSTemplate _template;
         public List<Action> Actions;
-
+        public Trigger Trigger;
+        
         public ActionTrigger() {
             Actions = new List<Action>();
         }
@@ -129,8 +280,9 @@ namespace MVCore.GMDL
         public ActionTrigger(GcActionTrigger at)
         {
             _template = at;
+            
+            //Populate Actions
             Actions = new List<Action>();
-
             foreach (NMSTemplate t in at.Action)
             {
                 if (t is GcNodeActivationAction)
@@ -144,8 +296,28 @@ namespace MVCore.GMDL
                 else
                     Console.WriteLine("Non Implemented Action");
             }
-                
             
+            //Set Trigger
+            if (at.Trigger is GcPlayerNearbyEvent)
+            {
+                Trigger = new PlayerNearbyEventTrigger(at.Trigger);
+            } 
+            else if (at.Trigger is GcStateTimeEvent)
+            {
+                Trigger = new StateTimeEventTrigger(at.Trigger);
+            }
+            else if (at.Trigger is GcAnimFrameEvent)
+            {
+                Trigger = new AnimFrameEventTrigger(at.Trigger);
+            }
+            else
+            {
+                Console.WriteLine("Non Implemented Trigger");
+                Trigger = null;
+            }
+            
+
+
         }
 
         //Exposed Properties
@@ -211,7 +383,8 @@ namespace MVCore.GMDL
 
         public override Component Clone()
         {
-            throw new NotImplementedException();
+            //TODO: Make sure to properly populate the new object
+            return new TriggerActionComponent();
         }
 
         //Exposed Properties

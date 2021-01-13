@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Xml;
 using System.Collections.Generic;
 using System;
+using System.Reflection;
 using System.Globalization;
 using OpenTK;
 using Model_Viewer;
@@ -15,6 +16,8 @@ using Console = System.Console;
 using WPFModelViewer;
 using MVCore.Utils;
 using libMBIN.NMS.GameComponents;
+using libMBIN.NMS;
+using System.CodeDom;
 
 namespace MVCore
 {
@@ -487,7 +490,8 @@ namespace MVCore
             {typeof(TkAnimationComponentData), 1},
             {typeof(TkLODComponentData), 2},
             {typeof(TkPhysicsComponentData), 3},
-            {typeof(GcTriggerActionComponentData), 4}
+            {typeof(GcTriggerActionComponentData), 4},
+            {typeof(EmptyNode), 5}
         };
 
 
@@ -680,6 +684,8 @@ namespace MVCore
                         break;
                     case 4:
                         ProcessTriggerActionComponent(node, comp as GcTriggerActionComponentData);
+                        break;
+                    case 5: //Empty Node do nothing
                         break;
                 }   
             
@@ -904,13 +910,13 @@ namespace MVCore
                     switch (indicesLength)
                     {
                         case 1:
-                            meshVao.indicesLength = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedByte;
+                            meshVao.metaData.indicesLength = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedByte;
                             break;
                         case 2:
-                            meshVao.indicesLength = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedShort;
+                            meshVao.metaData.indicesLength = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedShort;
                             break;
                         case 4:
-                            meshVao.indicesLength = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedInt;
+                            meshVao.metaData.indicesLength = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedInt;
                             break;
                     }
 
@@ -1239,9 +1245,9 @@ namespace MVCore
                     so.instanceId = GLMeshBufferManager.addInstance(ref so.meshVao, so); //Add instance
                     so.meshVao.vao = gobject.getCollisionMeshVao(so.metaData);
                     //Use indiceslength from the gobject
-                    so.meshVao.indicesLength = so.gobject.indicesLengthType;
+                    so.meshVao.metaData.indicesLength = so.gobject.indicesLengthType;
                 }
-                catch (System.Collections.Generic.KeyNotFoundException e)
+                catch (KeyNotFoundException e)
                 {
                     Common.CallBacks.Log("Missing Collision Mesh " + so.name);
                     so.meshVao = null;
@@ -1397,7 +1403,7 @@ namespace MVCore
 
         }
 
-            private static Reference parseReference(TkSceneNodeData node,
+        private static Reference parseReference(TkSceneNodeData node,
             GeomObject gobject, Model parent, Scene scene)
         {
             TkTransformData transform = node.Transform;
@@ -1524,7 +1530,7 @@ namespace MVCore
             return so;
         }
 
-            private static Model parseNode(TkSceneNodeData node, 
+        private static Model parseNode(TkSceneNodeData node, 
             GeomObject gobject, Model parent, Scene scene)
         {
             Common.CallBacks.Log(string.Format("Importing Scene {0} Node {1}", scene?.name, node.Name));

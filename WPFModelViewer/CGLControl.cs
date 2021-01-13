@@ -39,7 +39,6 @@ namespace Model_Viewer
         //Scene Stuff
         //public Model rootObject;
         public Model activeModel; //Active Model Reference
-        public List<Model> animScenes = new List<Model>();
         public Queue<Model> modelUpdateQueue = new Queue<Model>();
         public List<Tuple<AnimComponent, AnimData>> activeAnimScenes = new List<Tuple<AnimComponent, AnimData>>();
 
@@ -544,7 +543,8 @@ namespace Model_Viewer
                     {
                         //Get converted text
                         Mesh me = (Mesh) m;
-                        me.writeGeomToStream(s, ref index);
+                        if (m.renderable)
+                            me.writeGeomToStream(s, ref index);
                         break;
                     }
                 case TYPES.COLLISION:
@@ -555,7 +555,7 @@ namespace Model_Viewer
             }
             
             foreach (Model c in m.children)
-                if (c.renderable) findGeoms(c, s, ref index);
+                findGeoms(c, s, ref index);
         }
 
         private Vector3 unProject(Vector2 vec)
@@ -649,12 +649,33 @@ namespace Model_Viewer
             }
         }
 
+        public void addTestScene(int sceneID)
+        {
+            //Cleanup first
+            modelUpdateQueue.Clear(); //Clear Update Queues
+
+            //Generate Request for rendering thread
+            ThreadRequest req1 = new ThreadRequest();
+            req1.type = THREAD_REQUEST_TYPE.NEW_TEST_SCENE_REQUEST;
+            req1.arguments.Add(sceneID);
+
+            issueRenderingRequest(ref req1);
+
+            //Wait for requests to finish before return
+            waitForRenderingRequest(ref req1);
+
+            //find Animation Capable nodes
+            activeModel = null; //TODO: Fix that with the gizmos
+            findAnimScenes(RenderState.rootObject); //Repopulate animScenes
+            findActionScenes(RenderState.rootObject); //Re-populate actionSystem
+
+        }
+
         public void addScene(string filename)
         {
             //Cleanup first
-            animScenes.Clear(); //Clear animScenes
             modelUpdateQueue.Clear(); //Clear Update Queues
-
+            
             //Generate Request for rendering thread
             ThreadRequest req1 = new ThreadRequest();
             req1.type = THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST;
@@ -669,16 +690,24 @@ namespace Model_Viewer
             //find Animation Capable nodes
             activeModel = null; //TODO: Fix that with the gizmos
             findAnimScenes(RenderState.rootObject); //Repopulate animScenes
-
+            findActionScenes(RenderState.rootObject); //Re-populate actionSystem
         }
 
         public void findAnimScenes(Model node)
         {
             if (node.animComponentID >= 0)
-                animScenes.Add(node);
-
+                engine.animationSys.Add(node);
             foreach (Model child in node.children)
                 findAnimScenes(child);
+        }
+
+        public void findActionScenes(Model node)
+        {
+            if (node.actionComponentID >= 0)
+                engine.actionSys.Add(node);
+
+            foreach (Model child in node.children)
+                findActionScenes(child);
         }
 
         private void frameUpdate()
@@ -723,21 +752,30 @@ namespace Model_Viewer
             if (activeModel != null)
             {
                 //TODO: Move gizmos
-                gizTranslate.setReference(activeModel);
-                gizTranslate.updateMeshInfo();
+                //gizTranslate.setReference(activeModel);
+                //gizTranslate.updateMeshInfo();
                 //GLMeshVao gz = resMgr.GLPrimitiveMeshVaos["default_translation_gizmo"];
                 //GLMeshBufferManager.addInstance(ref gz, TranslationGizmo);
             }
 
             //Identify dynamic Objects
-            foreach (Model s in animScenes)
+            foreach (Model s in engine.animationSys.AnimScenes)
             {
                 modelUpdateQueue.Enqueue(s.parentScene);
             }
 
+            //Console.WriteLine("Dt {0}", dt);
+            if (RenderState.renderViewSettings.EmulateActions)
+            {
+                engine.actionSys.update((float)dt);
+            }
+
             //Progress animations
             if (RenderState.renderSettings.ToggleAnimations)
-                progressAnimations();
+            {
+                engine.animationSys.update((float) dt);
+            }
+                
 
             //Camera & Light Positions
             //Update common transforms
@@ -768,37 +806,7 @@ namespace Model_Viewer
         private void progressAnimations()
         {
             //Update active animations
-            foreach (Model anim_model in animScenes)
-            {
-                AnimComponent ac = anim_model._components[anim_model.hasComponent(typeof(AnimComponent))] as AnimComponent;
-                bool found_first_active_anim = false;
-
-                foreach (AnimData ad in ac.Animations)
-                {
-                    if (ad._animationToggle)
-                    {
-                        if (!ad.loaded)
-                            ad.loadData();
-
-                        found_first_active_anim = true;
-                        //Load updated local joint transforms
-                        foreach (libMBIN.NMS.Toolkit.TkAnimNodeData node in ad.animMeta.NodeData)
-                        {
-                            if (!anim_model.parentScene.jointDict.ContainsKey(node.Node))
-                                continue;
-
-                            Joint tj = anim_model.parentScene.jointDict[node.Node];
-                            ad.applyNodeTransform(tj, node.Node);
-                        }
-
-                        //Once the current frame data is fetched, progress to the next frame
-                        ad.animate((float)dt);
-                    }
-                    //TODO: For now I'm just using the first active animation. Blending should be kinda more sophisticated
-                    if (found_first_active_anim)
-                        break;
-                }
-            }
+            
         }
 
         private void fps()

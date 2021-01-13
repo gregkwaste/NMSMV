@@ -41,7 +41,7 @@ namespace MVCore.Text
             meshVao.type = TYPES.TEXT;
             meshVao.metaData = new MeshMetaData();
             meshVao.metaData.batchcount = geom.indicesCount;
-            meshVao.indicesLength = DrawElementsType.UnsignedInt;
+            meshVao.metaData.indicesLength = DrawElementsType.UnsignedInt;
             meshVao.vao = geom.generateVAO();
             meshVao.material = new Material(); //TODO use a material from the font
 

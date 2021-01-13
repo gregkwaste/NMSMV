@@ -15,6 +15,8 @@ using MVCore.Text;
 using MVCore.Utils;
 using Model_Viewer;
 using OpenTK.Platform;
+using MVCore.Engine.Systems;
+using libMBIN.NMS.Toolkit;
 
 namespace MVCore.Engine
 {
@@ -34,19 +36,19 @@ namespace MVCore.Engine
         public ResourceManager resMgr;
 
         //Init Systems
+        public ActionSystem actionSys;
+        public AnimationSystem animationSys;
         private RequestHandler reqHandler;
-
+        
         //Rendering 
         public renderManager renderMgr; //TODO: Try to make it private. Noone should have a reason to access it
         public EngineRenderingState rt_State;
 
-        //Input Poller
+        //Input
         public BaseGamepadHandler gpHandler;
         public KeyboardHandler kbHandler;
-        public System.Timers.Timer inputPollTimer;
+        private System.Timers.Timer inputPollTimer;
 
-        //Timers
-        
         //Camera Stuff
         public System.Timers.Timer cameraMovementTimer;
         public CameraPos targetCameraPos;
@@ -86,6 +88,13 @@ namespace MVCore.Engine
             cameraMovementTimer.Elapsed += new ElapsedEventHandler(camera_timer);
             cameraMovementTimer.Interval = 20;
             //cameraMovementTimer.Start(); Start in the main function
+
+            //Systems Init
+            actionSys = new ActionSystem();
+            animationSys = new AnimationSystem();
+            actionSys.SetEngine(this);
+            animationSys.SetEngine(this);
+
         }
 
         public void init()
@@ -102,7 +111,6 @@ namespace MVCore.Engine
             if (!resMgr.initialized)
                 resMgr.Init();
 
-            
             //Initialize the render manager
             renderMgr.init(resMgr);
             renderMgr.setupGBuffer(Control.ClientSize.Width, Control.ClientSize.Height);
@@ -131,6 +139,14 @@ namespace MVCore.Engine
                             req.status = THREAD_REQUEST_STATUS.FINISHED;
                             inputPollTimer.Start();
                             break;
+#if DEBUG
+                        case THREAD_REQUEST_TYPE.NEW_TEST_SCENE_REQUEST:
+                            inputPollTimer.Stop();
+                            rt_addTestScene((int)req.arguments[0]);
+                            req.status = THREAD_REQUEST_STATUS.FINISHED;
+                            inputPollTimer.Start();
+                            break;
+#endif
                         case THREAD_REQUEST_TYPE.CHANGE_MODEL_PARENT_REQUEST:
                             Model source = (Model) req.arguments[0];
                             Model target = (Model) req.arguments[1];
@@ -209,13 +225,192 @@ namespace MVCore.Engine
             renderMgr.resize(w, h);
         }
 
+#if DEBUG
+
+        private void rt_SpecularTestScene()
+        {
+            //Once the new scene has been loaded, 
+            //Initialize Palettes
+            Palettes.set_palleteColors();
+
+            //Clear Systems
+            actionSys.CleanUp();
+            animationSys.CleanUp();
+
+            //Clear Resources
+            resMgr.Cleanup();
+            resMgr.Init();
+            RenderState.activeResMgr = resMgr;
+            ModelProcGen.procDecisions.Clear();
+
+            RenderState.rootObject = null;
+            RenderState.activeModel = null;
+            //Clear Gizmos
+            RenderState.activeGizmo = null;
+
+            //Clear RenderStats
+            RenderStats.ClearStats();
+
+
+            //Stop animation if on
+            bool animToggleStatus = RenderState.renderSettings.ToggleAnimations;
+            RenderState.renderSettings.ToggleAnimations = false;
+
+            //Setup new object
+            Scene scene = new Scene();
+            scene.name = "DEFAULT SCENE";
+
+
+            //ADd Lights
+            Light l = new Light();
+            l.Name = "Light 1";
+            l.localPosition = new Vector3(0.2f, 0.2f, -2.0f);
+            l.Color = new MVector4(1.0f, 1.0f, 1.0f, 1.0f);
+            l.Intensity = 100.0f;
+            l.falloff = ATTENUATION_TYPE.QUADRATIC;
+            Common.RenderState.activeResMgr.GLlights.Add(l);
+            scene.children.Add(l);
+
+            Light l1 = new Light();
+            l1.Name = "Light 2";
+            l1.localPosition = new Vector3(0.2f, -0.2f, -2.0f);
+            l1.Color = new MVector4(1.0f, 1.0f, 1.0f, 1.0f);
+            l1.Intensity = 100.0f;
+            l1.falloff = ATTENUATION_TYPE.QUADRATIC;
+            Common.RenderState.activeResMgr.GLlights.Add(l1);
+            scene.children.Add(l1);
+
+            Light l2 = new Light();
+            l2.Name = "Light 3";
+            l2.localPosition = new Vector3(-0.2f, 0.2f, -2.0f);
+            l2.Color = new MVector4(1.0f, 1.0f, 1.0f, 1.0f);
+            Common.RenderState.activeResMgr.GLlights.Add(l2);
+            l2.Intensity = 100.0f;
+            l2.falloff = ATTENUATION_TYPE.QUADRATIC;
+            scene.children.Add(l2);
+
+            Light l3 = new Light();
+            l3.Name = "Light 4";
+            l3.localPosition = new Vector3(-0.2f, -0.2f, -2.0f);
+            l3.Color = new MVector4(1.0f, 1.0f, 1.0f, 1.0f);
+            Common.RenderState.activeResMgr.GLlights.Add(l3);
+            l3.Intensity = 100.0f;
+            l3.falloff = ATTENUATION_TYPE.QUADRATIC;
+            scene.children.Add(l3);
+
+            //Generate a Sphere and center it in the scene
+            Model sphere = new Mesh();
+            sphere.Name = "Test Sphere";
+            sphere.parent = scene;
+            sphere.setParentScene(scene);
+            MeshMetaData sphere_metadata = new MeshMetaData();
+
+
+            int bands = 80;
+
+            sphere_metadata.batchcount = bands * bands * 6;
+            sphere_metadata.batchstart_graphics = 0;
+            sphere_metadata.vertrstart_graphics = 0;
+            sphere_metadata.vertrend_graphics = (bands + 1) * (bands + 1) - 1;
+            sphere_metadata.indicesLength = DrawElementsType.UnsignedInt;
+
+            sphere.meshVao = new GLMeshVao(sphere_metadata);
+            sphere.meshVao.type = TYPES.MESH;
+            sphere.meshVao.vao = (new GMDL.Primitives.Sphere(new Vector3(), 2.0f, 40)).getVAO();
+
+
+            //Sphere Material
+            Material mat = new Material();
+            mat.Name = "default_scn";
+            
+            Uniform uf = new Uniform();
+            uf.Name = "gMaterialColourVec4";
+            uf.Values = new libMBIN.NMS.Vector4f();
+            uf.Values.x = 1.0f;
+            uf.Values.y = 0.0f;
+            uf.Values.z = 0.0f;
+            uf.Values.t = 1.0f;
+            mat.Uniforms.Add(uf);
+
+            uf = new Uniform();
+            uf.Name = "gMaterialParamsVec4";
+            uf.Values = new libMBIN.NMS.Vector4f();
+            uf.Values.x = 0.15f; //Roughness
+            uf.Values.y = 0.0f;
+            uf.Values.z = 0.2f; //Metallic
+            uf.Values.t = 0.0f;
+            mat.Uniforms.Add(uf);
+                
+            mat.init();
+            resMgr.GLmaterials["test_mat1"] = mat;
+            sphere.meshVao.material = mat;
+            sphere.instanceId = GLMeshBufferManager.addInstance(ref sphere.meshVao, sphere); //Add instance
+            
+            scene.children.Add(sphere);
+
+            //Explicitly add default light to the rootObject
+            scene.children.Add(resMgr.GLlights[0]);
+
+            scene.updateLODDistances();
+            scene.update(); //Refresh all transforms
+            scene.setupSkinMatrixArrays();
+
+            //Save scene path to resourcemanager
+            RenderState.activeResMgr.GLScenes["TEST_SCENE_1"] = scene; //Use input path
+
+            //Populate RenderManager
+            renderMgr.populate(scene);
+
+            //Clear Instances
+            renderMgr.clearInstances();
+            scene.updateMeshInfo(); //Update all mesh info
+
+            scene.selected = 1;
+            RenderState.rootObject = scene;
+            //RenderState.activeModel = root; //Set the new scene as the new activeModel
+
+
+            //Reinitialize gizmos
+            RenderState.activeGizmo = new TranslationGizmo();
+
+            //Restart anim worker if it was active
+            RenderState.renderSettings.ToggleAnimations = animToggleStatus;
+
+        }
+
+        private void rt_addTestScene(int sceneID)
+        {
+            
+            switch (sceneID)
+            {
+                case 0:
+                    rt_SpecularTestScene();
+                    break;
+                default:
+                    Console.WriteLine("Non Implemented Test Scene");
+                    break;
+            }
+
+        }
+
+#endif
+
+
+
+
+
+
         private void rt_addRootScene(string filename)
         {
             //Once the new scene has been loaded, 
             //Initialize Palettes
             Palettes.set_palleteColors();
 
-            //Clear Form Resources
+            //Clear Systems
+            actionSys.CleanUp();
+            animationSys.CleanUp();
+
+            //Clear Resources
             resMgr.Cleanup();
             resMgr.Init();
             RenderState.activeResMgr = resMgr;
@@ -300,9 +495,7 @@ namespace MVCore.Engine
             reqHandler.issueRequest(ref r);
         }
 
-        
-
-        #region Camera Update Functions
+#region Camera Update Functions
 
         private void camera_timer(object sender, ElapsedEventArgs e)
         {
@@ -327,7 +520,7 @@ namespace MVCore.Engine
             //RenderState.activeCam.roll = rot.Z; //Radians rotation on Z axis
         }
 
-        #endregion
+#endregion
 
         
 
@@ -343,7 +536,7 @@ namespace MVCore.Engine
 
        
 
-        #region INPUT_HANDLERS
+#region INPUT_HANDLERS
 
         //Gamepad handler
         private void gamepadController()
@@ -404,7 +597,7 @@ namespace MVCore.Engine
                 inputPollTimer.Stop();
         }
 
-        #endregion
+#endregion
 
 
 

@@ -142,16 +142,16 @@ namespace MVCore.GMDL
 
         }
 
-        public override void updateMeshInfo()
+        public override void updateMeshInfo(bool lod_filter=false)
         {
             if (renderable)
             {
                 instanceId = GLMeshBufferManager.addInstance(ref meshVao, this);
-                base.updateMeshInfo();
+                base.updateMeshInfo(lod_filter);
                 return;
             }
 
-            base.updateMeshInfo();
+            base.updateMeshInfo(lod_filter);
         }
 
     }
@@ -995,11 +995,19 @@ namespace MVCore.GMDL
             try
             {
                 if (!isCustom)
-                    fs = NMSUtils.LoadNMSFileStream(path, ref Common.RenderState.activeResMgr);
+                {
+                    try
+                    {
+                        fs = NMSUtils.LoadNMSFileStream(path, ref Common.RenderState.activeResMgr);
+                    } catch (FileNotFoundException ex){
+                        //FileNotFoundExceptions during texture loading, are caught so that default textures are loaded
+                        fs = null;
+                    }
+                }
+                    
                 else
                     fs = new FileStream(path, FileMode.Open);
-                
-
+                    
                 if (fs == null)
                 {
                     //throw new System.IO.FileNotFoundException();
@@ -1087,17 +1095,14 @@ namespace MVCore.GMDL
             target = TextureTarget.Texture2DArray;
 
             GL.BindTexture(target, texID);
-            
             //When manually loading mipmaps, levels should be loaded first
             GL.TexParameter(target, TextureParameterName.TextureBaseLevel, 0);
-            GL.TexParameter(target, TextureParameterName.TextureMaxLevel, mm_count - 1);
+            //GL.TexParameter(target, TextureParameterName.TextureMaxLevel, mm_count - 1);
 
             int offset = 0;
             for (int i=0; i < mm_count; i++)
             {
                 GL.CompressedTexImage3D(target, i, pif, w, h, depth_count, 0, temp_size * depth_count, IntPtr.Zero + offset);
-                //GL.TexImage3D(target, i, PixelInternalFormat.Rgba8, w, h, depth_count, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
-                
                 offset += temp_size * depth_count;
 
                 w = Math.Max(w >> 1, 1);
