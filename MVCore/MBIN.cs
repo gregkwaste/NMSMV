@@ -584,11 +584,11 @@ namespace MVCore
 
         private static string parseNMSTemplateAttrib<T>(List<T> temp, string attrib)
         {
-            T elem = temp.FirstOrDefault(item => (string) item.GetType().GetField("Name").GetValue(item) == attrib);
+            T elem = temp.FirstOrDefault(item => ((NMSString0x10) item.GetType().GetField("Name").GetValue(item)).Value == attrib);
             if (elem == null)
                 return "";
             else
-                return (string) elem.GetType().GetField("Value").GetValue(elem);
+                return ((NMSString0x100) elem.GetType().GetField("Value").GetValue(elem)).Value;
         }
 
 
@@ -1200,7 +1200,7 @@ namespace MVCore
             //Get Options
             //In collision objects first child is probably the type
             //string collisionType = ((XmlElement)attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']")).GetAttribute("value").ToUpper();
-            string collisionType = node.Attributes.FirstOrDefault(item => item.Name == "TYPE").Value.ToUpper();
+            string collisionType = node.Attributes.FirstOrDefault(item => item.Name == "TYPE").Value.Value.ToUpper();
 
             Common.CallBacks.Log(string.Format("Collision Detected {0} {1}", node.Name, collisionType));
 

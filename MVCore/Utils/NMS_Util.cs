@@ -335,17 +335,17 @@ namespace MVCore.Utils
             if (node.ScaleIndex < frame.Scales.Count)
             {
                 v = new Vector3(
-                    frame.Scales[node.ScaleIndex].x / frame.Scales[node.ScaleIndex].t,
-                    frame.Scales[node.ScaleIndex].y / frame.Scales[node.ScaleIndex].t, 
-                    frame.Scales[node.ScaleIndex].z / frame.Scales[node.ScaleIndex].t );
+                    frame.Scales[node.ScaleIndex].x,
+                    frame.Scales[node.ScaleIndex].y, 
+                    frame.Scales[node.ScaleIndex].z);
             }
             else //Load stillframedata
             {
                 int scaleindex = node.ScaleIndex - frame.Scales.Count;
                 v = new Vector3(
-                    stillframe.Scales[scaleindex].x / stillframe.Scales[scaleindex].t,
-                    stillframe.Scales[scaleindex].y / stillframe.Scales[scaleindex].t,
-                    stillframe.Scales[scaleindex].z / stillframe.Scales[scaleindex].t );
+                    stillframe.Scales[scaleindex].x,
+                    stillframe.Scales[scaleindex].y,
+                    stillframe.Scales[scaleindex].z);
             }
 
             return v;
@@ -371,9 +371,9 @@ namespace MVCore.Utils
                 activeFrame = stillframe;
             }
 
-            s.X = activeFrame.Scales[scaleIndex].x / activeFrame.Scales[scaleIndex].t;
-            s.Y = activeFrame.Scales[scaleIndex].y / activeFrame.Scales[scaleIndex].t;
-            s.Z = activeFrame.Scales[scaleIndex].z / activeFrame.Scales[scaleIndex].t;
+            s.X = activeFrame.Scales[scaleIndex].x;
+            s.Y = activeFrame.Scales[scaleIndex].y;
+            s.Z = activeFrame.Scales[scaleIndex].z;
             
         }
 

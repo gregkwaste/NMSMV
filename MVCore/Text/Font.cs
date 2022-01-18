@@ -49,6 +49,8 @@ namespace MVCore.Text
                 loadHieroFont(fnt_sr, bmp);
             else
                 loadJsonFont(fnt_sr, bmp);
+
+            
         }
 
         public Font(byte[] fnt_data, Bitmap img_data, int format)
@@ -58,7 +60,6 @@ namespace MVCore.Text
 
             if (format == 1)
                 loadHieroFont(fnt_sr, img_data);
-
 
 
             //Load 
@@ -73,7 +74,6 @@ namespace MVCore.Text
             {
                 string line = fnt_sr.ReadLine();
                 string[] sp;
-
 
 
                 if (line.StartsWith("info"))
@@ -145,6 +145,7 @@ namespace MVCore.Text
             //Generate Font Material
             material = new Material();
             material.PSamplers[sampl.Name] = sampl;
+            material.PSamplers[sampl.Name].Map = "HieroFont";
             Uniform uf = new Uniform("size");
             uf.Vec.X = Size;
             material.CustomPerMaterialUniforms["size"] = uf;

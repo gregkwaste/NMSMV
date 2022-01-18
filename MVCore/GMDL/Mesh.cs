@@ -404,7 +404,7 @@ namespace MVCore.GMDL
             //Upload Custom Per Material Uniforms
             foreach (Uniform un in material.CustomPerMaterialUniforms.Values)
             {
-                if (shader.uniformLocations.Keys.Contains(un.Name))
+                if (shader.uniformLocations.Keys.Contains(un.Name.Value))
                     GL.Uniform4(shader.uniformLocations[un.Name], un.vec.vec4);
             }
 
@@ -412,7 +412,7 @@ namespace MVCore.GMDL
             //Diffuse Texture
             foreach (Sampler s in material.PSamplers.Values)
             {
-                if (shader.uniformLocations.ContainsKey(s.Name) && s.Map != "")
+                if (shader.uniformLocations.ContainsKey(s.Name) && s.Map.Value != "")
                 {
                     GL.Uniform1(shader.uniformLocations[s.Name], MyTextureUnit.MapTexUnitToSampler[s.Name]);
                     GL.ActiveTexture(s.texUnit.texUnit);
