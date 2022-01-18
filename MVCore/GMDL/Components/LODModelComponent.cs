@@ -44,8 +44,8 @@ namespace MVCore.GMDL
         public LODModelResource(TkLODModelResource res)
         {
             _filename = res.LODModel.Filename;
-            _crossFadeTime = res.CrossFadeTime;
-            _crossFadeoverlap = res.CrossFadeOverlap;
+            //_crossFadeTime = res.CroCrossFadeTime;
+            //_crossFadeoverlap = res.CrossFadeOverlap;
         }
     }
 }

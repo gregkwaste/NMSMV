@@ -298,17 +298,17 @@ namespace MVCore.GMDL
             }
             
             //Set Trigger
-            if (at.Trigger is GcPlayerNearbyEvent)
+            if (at.Event is GcPlayerNearbyEvent)
             {
-                Trigger = new PlayerNearbyEventTrigger(at.Trigger);
+                Trigger = new PlayerNearbyEventTrigger(at.Event);
             } 
-            else if (at.Trigger is GcStateTimeEvent)
+            else if (at.Event is GcStateTimeEvent)
             {
-                Trigger = new StateTimeEventTrigger(at.Trigger);
+                Trigger = new StateTimeEventTrigger(at.Event);
             }
-            else if (at.Trigger is GcAnimFrameEvent)
+            else if (at.Event is GcAnimFrameEvent)
             {
-                Trigger = new AnimFrameEventTrigger(at.Trigger);
+                Trigger = new AnimFrameEventTrigger(at.Event);
             }
             else
             {

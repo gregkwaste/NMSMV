@@ -586,7 +586,7 @@ namespace MVCore.GMDL
 
         public Sampler()
         {
-
+            Map = new libMBIN.NMS.NMSString0x80("");
         }
 
         public Sampler(TkMaterialSampler ms)
@@ -639,7 +639,7 @@ namespace MVCore.GMDL
 
         public void prepTextures()
         {
-            string[] split = Map.Split('.');
+            string[] split = Map.Value.Split('.');
 
             string temp = "";
             if (Name == "mpCustomPerMaterial.gDiffuseMap")
