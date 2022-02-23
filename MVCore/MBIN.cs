@@ -55,6 +55,7 @@ namespace MVCore
         public uint vs_abs_offset;
         public uint is_size;
         public uint is_abs_offset;
+        public bool double_buffering;
     }
 
     public class geomMeshData
@@ -68,12 +69,13 @@ namespace MVCore
 
         public static GeomObject Parse(ref Stream fs, ref Stream gfs)
         {
-            //FileStream testfs = new FileStream("test.geom", FileMode.CreateNew);
-            //byte[] fs_data = new byte[fs.Length];
-            //fs.Read(fs_data, 0, (int) fs.Length);
-            //testfs.Write(fs_data, 0, (int) fs.Length);
-            //testfs.Close();
-
+#if DEBUG
+            FileStream testfs = new FileStream("test.geom", FileMode.Create);
+            byte[] fs_data = new byte[fs.Length];
+            fs.Read(fs_data, 0, (int) fs.Length);
+            testfs.Write(fs_data, 0, (int) fs.Length);
+            testfs.Close();
+#endif
             BinaryReader br = new BinaryReader(fs);
             Console.WriteLine("Parsing Geometry MBIN");
 
@@ -275,10 +277,13 @@ namespace MVCore
                 mmd.vs_abs_offset = br.ReadUInt32();
                 mmd.is_size = br.ReadUInt32();
                 mmd.is_abs_offset = br.ReadUInt32();
+                mmd.double_buffering = br.ReadBoolean();
                 geom.meshMetaDataDict[mmd.hash] = mmd;
                 Console.WriteLine(mmd.name);
+                //Align offset to 0x10
+                br.BaseStream.Seek(16 - br.BaseStream.Position % 16, SeekOrigin.Current);
             }
-        
+
             //Get main mesh description
             fs.Seek(mesh_descr_offset, SeekOrigin.Begin);
             var mesh_desc = "";
