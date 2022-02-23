@@ -278,10 +278,9 @@ namespace MVCore
                 mmd.is_size = br.ReadUInt32();
                 mmd.is_abs_offset = br.ReadUInt32();
                 mmd.double_buffering = br.ReadBoolean();
+                br.BaseStream.Seek(7, SeekOrigin.Current);
                 geom.meshMetaDataDict[mmd.hash] = mmd;
                 Console.WriteLine(mmd.name);
-                //Align offset to 0x10
-                br.BaseStream.Seek(16 - br.BaseStream.Position % 16, SeekOrigin.Current);
             }
 
             //Get main mesh description
