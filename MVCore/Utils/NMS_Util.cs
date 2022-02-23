@@ -122,12 +122,13 @@ namespace MVCore.Utils
         {
             int load_mode = 0;
             NMSTemplate template = null;
+            //filepath = Path.GetFullPath(filepath);
             filepath = filepath.Replace('\\', '/');
             string effective_filepath = filepath;
 
             //Checks to prevent malformed paths from further processing
-            if (filepath.Contains(' '))
-                return null;
+            //if (filepath.Contains(' '))
+            //    return null;
 
             string exmlpath = Path.ChangeExtension(filepath, "exml");
             exmlpath = exmlpath.ToUpper(); //Make upper case
