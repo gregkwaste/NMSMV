@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:WPFModelViewer"
         xmlns:mvcore_common="clr-namespace:MVCore.Common"
         mc:Ignorable="d"
-        Title="SettingsForm" ResizeMode="NoResize" SizeToContent="WidthAndHeight" Height="Auto" Width="Auto" d:DesignWidth="202.333" d:DesignHeight="80.333">
+        Title="Settings" ResizeMode="NoResize" SizeToContent="WidthAndHeight" Height="Auto" Width="Auto" d:DesignWidth="202.333" d:DesignHeight="80.333">
     <Window.Resources>
         <ResourceDictionary>
             <DataTemplate DataType="{x:Type mvcore_common:Settings}">
@@ -24,7 +24,7 @@
                         <ColumnDefinition Width="50"/>
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Row="0" Grid.Column="0" FontSize="14">No Man's Sky Installation Folder</TextBlock>
+                    <TextBlock Grid.Row="0" Grid.Column="0" FontSize="14">No Man's Sky GAMEDATA Folder</TextBlock>
                     <TextBox  Grid.Row="0" Grid.Column="1" Text="{Binding GameDir, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Stretch"  FontSize="14" IsEnabled="False"></TextBox>
                     <Button  Grid.Row="0" Grid.Column="2" x:Name="GameDirSetButton" Click="Dirpath_OnGotFocus">Set</Button>
 
