@@ -881,6 +881,7 @@ namespace MVCore
             //Get Material Name
             string matname = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "MATERIAL");
 
+
             //Search for the material
             Material mat;
             if (Common.RenderState.activeResMgr.GLmaterials.ContainsKey(matname))

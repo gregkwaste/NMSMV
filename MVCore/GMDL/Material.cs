@@ -29,6 +29,8 @@ namespace MVCore.GMDL
                 "_F21_VERTEXCOLOUR",
                 "_F22_TRANSPARENT_SCALAR",
                 "_F24_AOMAP",
+                "_F28_VBSKINNED",
+                "_F29_VBCOLOUR",
                 "_F34_GLOW",
                 "_F35_GLOW_MASK",
                 "_F39_METALLIC_MASK",
@@ -341,8 +343,7 @@ namespace MVCore.GMDL
                 defines.Add("_D_DEFERRED_RENDERING");
             }
             else if (MaterialFlags.Contains("_F09_TRANSPARENT") ||
-                     MaterialFlags.Contains("_F22_TRANSPARENT_SCALAR") ||
-                     MaterialFlags.Contains("_F11_ALPHACUTOUT"))
+                     MaterialFlags.Contains("_F22_TRANSPARENT_SCALAR"))
             {
                 shaderDict = Common.RenderState.activeResMgr.GLForwardShaderMapTransparent;
                 meshList = Common.RenderState.activeResMgr.transparentMeshShaderMap;

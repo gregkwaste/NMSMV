@@ -60,8 +60,8 @@ out vec4 outcolors[3];
 #elif defined (__F11_ALPHACUTOUT)
 	//kfAlphaThreshold = 0.45; OLD
 	//kfAlphaThresholdMax = 0.8;
-	const float kfAlphaThreshold = 0.5;
-	const float kfAlphaThresholdMax = 0.9;
+	const float kfAlphaThreshold = 0.45;
+	const float kfAlphaThresholdMax = 0.8;
 #else
 	const float kfAlphaThreshold = 0.0001;
 #endif
@@ -254,8 +254,8 @@ void pbr_lighting(){
 			#endif
 		#endif
 
-		#ifdef __F21_VERTEXCOLOUR
-			lColourVec4 *= vertColor;
+		#if defined(__F21_VERTEXCOLOUR)
+		  	lColourVec4 *= vertColor;
 		#endif
 		
 		//TRANSPARENCY
