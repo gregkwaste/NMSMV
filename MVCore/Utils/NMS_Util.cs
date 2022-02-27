@@ -95,12 +95,15 @@ namespace MVCore.Utils
                 Util.showError("File: " + filepath + " Not found in PAKs or local folders. ", "Error");
                 throw new FileNotFoundException("File not found\n " + filepath);
             }
+            Stream result = null;
             switch (load_mode)
             {
                 case 0: //Load EXML
-                    return new FileStream(Path.Combine(RenderState.settings.UnpackDir, exmlpath), FileMode.Open);
+                    result = new FileStream(Path.Combine(RenderState.settings.UnpackDir, exmlpath), FileMode.Open);
+                    break;
                 case 1: //Load MBIN
-                    return new FileStream(Path.Combine(RenderState.settings.UnpackDir, filepath), FileMode.Open);
+                    result = new FileStream(Path.Combine(RenderState.settings.UnpackDir, filepath), FileMode.Open);
+                    break;
                 case 2: //Load File from Archive
                     {
                         CallBacks.Log("Trying to export File" + effective_filepath);
@@ -110,12 +113,26 @@ namespace MVCore.Utils
                         }
 
                         int fileIndex = resMgr.NMSFileToArchiveMap[effective_filepath].GetFileIndex(effective_filepath);
-                        return resMgr.NMSFileToArchiveMap[effective_filepath].ExtractFile(fileIndex);
+                        result = resMgr.NMSFileToArchiveMap[effective_filepath].ExtractFile(fileIndex);
+                        break;
                     }
                     
             }
 
-            return null;
+#if DEBUG
+            if (result != null)
+            {
+                byte[] stream_data = new byte[result.Length];
+                result.Seek(0, SeekOrigin.Begin);
+                result.Read(stream_data, 0, stream_data.Length);
+                result.Seek(0, SeekOrigin.Begin);
+                string path = Path.Combine("Temp", filepath);
+                if (!Directory.Exists(Path.GetDirectoryName(Path.GetFullPath(path))))
+                    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)));
+                File.WriteAllBytes(Path.GetFullPath(path), stream_data);
+            }
+#endif
+            return result;
         }
 
         public static NMSTemplate LoadNMSTemplate(string filepath, ref ResourceManager resMgr)

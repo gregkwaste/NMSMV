@@ -80,7 +80,7 @@ void main()
     mat4 lWorldMat;
     
     //Check F02_SKINNED
-    #ifdef __F02_SKINNED
+    #if defined(__F02_SKINNED) || defined(__F28_VBSKINNED)
         ivec4 index;
         
         index.x = int(blendIndices.x);

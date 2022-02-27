@@ -9,7 +9,6 @@
 //These defines are used for quick reference on the material flags.
 //For ease of use all the includes will be the same flags with an underscore 
 
-
 #define _F01_DIFFUSEMAP 0
 #define _F02_SKINNED 1
 #define _F03_NORMALMAP 2
@@ -24,6 +23,7 @@
 #define _F22_TRANSPARENT_SCALAR 21
 #define _F24_AOMAP 23
 #define _F25_ROUGHNESS_MASK 24
+#define _F28_VBSKINNED 27
 #define _F29_VBCOLOUR 28
 #define _F31_DISPLACEMENT 30
 #define _F34_GLOW 33
