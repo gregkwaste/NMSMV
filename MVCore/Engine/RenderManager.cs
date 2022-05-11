@@ -135,7 +135,7 @@ namespace MVCore
             setupFrameUBO();
 
             //Setup SSBOs
-            setupSSBOs(2 * 1024 * 1024); //Init SSBOs to 2MB
+            setupSSBOs(4 * 1024 * 1024); //Init SSBOs to 4MB
             multiBufferActiveId = 0;
             SSBOs["_COMMON_PER_MESH"] = multiBufferSSBOs[0];
             
@@ -156,7 +156,7 @@ namespace MVCore
 
             if (report)
             {
-                Console.WriteLine(source == DebugSource.DebugSourceApplication ?
+                Common.CallBacks.Log(source == DebugSource.DebugSourceApplication ?
                 $"openGL - {Marshal.PtrToStringAnsi(message, length)}" :
                 $"openGL - {Marshal.PtrToStringAnsi(message, length)}\n\tid:{id} severity:{severity} type:{type} source:{source}\n");
             }
@@ -212,7 +212,7 @@ namespace MVCore
                 PixelFormat.Rgba, PixelType.Float, pixeldata);
 
             Vector3 pixelColor = new Vector3(pixeldata[0], pixeldata[1], pixeldata[2]);
-            //Console.WriteLine("Picking read color: {0}", pixelColor);
+            //Common.CallBacks.Log("Picking read color: {0}", pixelColor);
 
             //Identify selected part and set status
             foreach (GizmoPart gzPart in activeGizmo.gizmoParts)
@@ -356,7 +356,7 @@ namespace MVCore
                     {
                         //Add mesh to the corresponding shader's meshlist
                         if (!shaderMeshMap.ContainsKey(m.material.shaderHash))
-                            Console.WriteLine("WARNING MISSING SHADER");
+                            Common.CallBacks.Log("WARNING MISSING SHADER");
                         else if (!shaderMeshMap[m.material.shaderHash].Contains(m))
                             shaderMeshMap[m.material.shaderHash].Add(m);
                         break;
@@ -573,7 +573,7 @@ namespace MVCore
             if (newsize + UBO_Offset > atlas_cpmu.Length)
             {
 #if DEBUG
-                Console.WriteLine("Mesh overload skipping...");
+                Common.CallBacks.Log("Mesh overload skipping...");
 #endif
                 return false;
             }
@@ -731,7 +731,7 @@ namespace MVCore
 
             while (result == WaitSyncStatus.TimeoutExpired || result == WaitSyncStatus.WaitFailed)
             {
-                //Console.WriteLine("Gamithike o dias");
+                //Common.CallBacks.Log("Gamithike o dias");
                 result = GL.ClientWaitSync(multiBufferSyncStatuses[multiBufferActiveId], 0, 10);
             }
 
@@ -756,7 +756,7 @@ namespace MVCore
                 atlas_fine &= prepareCommonPermeshSSBO(m, ref ubo_offset);
             }
 
-            //Console.WriteLine("ATLAS SIZE ORIGINAL: " +  atlas_cpmu.Length + " vs  OFFSET " + ubo_offset);
+            //Common.CallBacks.Log("ATLAS SIZE ORIGINAL: " +  atlas_cpmu.Length + " vs  OFFSET " + ubo_offset);
 
             if (ubo_offset > 0.9 * atlas_cpmu.Length)
             {
@@ -778,7 +778,7 @@ namespace MVCore
             {
 #if (DEBUG)
                 if (ubo_offset > max_ubo_offset)
-                    Console.WriteLine("GAMITHIKE O DIAS");
+                    Common.CallBacks.Log("GAMITHIKE O DIAS");
 #endif
                 //at this point the ubo_offset is the actual size of the atlas buffer
 
@@ -1283,7 +1283,7 @@ namespace MVCore
 
             //return;
 
-            //Console.WriteLine(GL.GetError()); 
+            //Common.CallBacks.Log(GL.GetError()); 
 
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, blur_fbo.fbo);
             GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, blur_fbo.fbo);

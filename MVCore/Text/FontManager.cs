@@ -52,7 +52,7 @@ namespace MVCore.Text
         {
             if (!fonts.ContainsKey(fontName))
             {
-                Console.WriteLine("FontManager does not contain font");
+                Common.CallBacks.Log("FontManager does not contain font");
                 return null;
             }
 

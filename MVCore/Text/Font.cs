@@ -203,7 +203,7 @@ namespace MVCore.Text
                 bmp.PixelFormat);
 
             int texID = GL.GenTexture();
-            Console.WriteLine(GL.GetError());
+            Common.CallBacks.Log(GL.GetError().ToString());
             GL.BindTexture(TextureTarget.Texture2DArray, texID);
 
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureBaseLevel, 0);
@@ -211,7 +211,7 @@ namespace MVCore.Text
 
             GL.TexImage3D(TextureTarget.Texture2DArray, 0, PixelInternalFormat.Rgba8, bmp.Width, bmp.Height,
                 1, 0, PixelFormat.Rgba, PixelType.UnsignedByte, rect_data.Scan0);
-            Console.WriteLine(GL.GetError());
+            Common.CallBacks.Log(GL.GetError().ToString());
             //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureLodBias, -0.2f);
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);

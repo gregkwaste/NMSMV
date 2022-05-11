@@ -210,7 +210,6 @@ void pbr_lighting(){
 	if (mpCommonPerFrame.diffuseFlag > 0.0){
 		float mipmaplevel = mip_map_level(uv.xy);
 		
-	 	
 		#ifdef __F01_DIFFUSEMAP
 			#ifdef __F55_MULTITEXTURE
 				lColourVec4 = texture(mpCustomPerMaterial.gDiffuseMap, vec3(lTexCoordsVec4.xy, lfMultiTextureIndex));

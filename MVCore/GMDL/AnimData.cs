@@ -321,7 +321,7 @@ namespace MVCore.GMDL
 
             LERP_coeff = (animationTime - prevFrameTime) / activeAnimInterval;
 
-            //Console.WriteLine("AnimationTime {0} PrevAnimationTime {1} NextAnimationTime {2} LERP Coeff {3}",
+            //Common.CallBacks.Log("AnimationTime {0} PrevAnimationTime {1} NextAnimationTime {2} LERP Coeff {3}",
             //    animationTime, prevFrameTime, nextFrameTime, LERP_coeff);
 
         }

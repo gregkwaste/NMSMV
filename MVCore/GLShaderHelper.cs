@@ -121,7 +121,7 @@ namespace GLSLHelper {
             GL.GetShader(shader_object_id, ShaderParameter.CompileStatus, out status_code);
             if (status_code != 1)
             {
-                Console.WriteLine(GLShaderHelper.NumberLines(actual_shader_source));
+                CallBacks.Log(GLShaderHelper.NumberLines(actual_shader_source));
                 Util.showError("Failed to compile shader for the model. Contact Dev",
                     "Shader Compilation Error");
                 GLShaderHelper.throwCompilationError(compilation_log +
@@ -140,7 +140,7 @@ namespace GLSLHelper {
         {
             FileSystemWatcher fw = (FileSystemWatcher) sender;
             string path = Path.Combine(fw.Path, fw.Filter);
-            Console.WriteLine("Reloading {0}", path);
+            CallBacks.Log("Reloading {0}", path);
             string data = "";
             bool islocked = true;
 
@@ -185,14 +185,13 @@ namespace GLSLHelper {
             string relpath = "";
             string text = "";
             string tmp_file = "tmp_" + rand_gen.Next().ToString();
-            Console.WriteLine("Using temp file {0}", tmp_file);
             bool use_tmp_file = false;
             if (path.EndsWith(".glsl"))
             {
                 string execPath = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
                 //string execPath = "G:\\Projects\\Model Viewer C#\\Model Viewer\\Viewer_Unit_Tests\\bin\\Debug";
                 path = Path.Combine(execPath, path);
-                Console.WriteLine(path);
+                CallBacks.Log(path);
                 //Check if file exists
                 if (!File.Exists(path))
                 {
@@ -350,7 +349,7 @@ namespace GLSLHelper {
 
         public static void issuemodifyShaderRequest(GLSLShaderConfig config, GLSLShaderText shaderText)
         {
-            Console.WriteLine("Sending Shader Modification Request");
+            CallBacks.Log("Sending Shader Modification Request");
             ThreadRequest req = new ThreadRequest();
             req.type = THREAD_REQUEST_TYPE.GL_MODIFY_SHADER_REQUEST;
             req.arguments.Add(config);
@@ -449,13 +448,13 @@ namespace GLSLHelper {
                 int block_size, block_bind_index;
                 GL.GetActiveUniformBlockName(test_program, i, 256, out length, out block_name);
                 GL.GetActiveUniformBlock(test_program, i, ActiveUniformBlockParameter.UniformBlockDataSize, out block_size);
-                Console.WriteLine("Block {0} Data Size {1}", block_name, block_size);
+                CallBacks.Log("Block {0} Data Size {1}", block_name, block_size);
 
                 GL.GetActiveUniformBlock(test_program, i, ActiveUniformBlockParameter.UniformBlockBinding, out block_bind_index);
-                Console.WriteLine("    Block Binding Point {0}", block_bind_index);
+                CallBacks.Log("    Block Binding Point {0}", block_bind_index);
 
                 GL.GetInteger(GetIndexedPName.UniformBufferBinding, block_bind_index, out info);
-                Console.WriteLine("    Block Bound to Binding Point: {0} {{", info);
+                CallBacks.Log("    Block Bound to Binding Point: {0} {{", info);
 
                 int block_active_uniforms;
                 GL.GetActiveUniformBlock(test_program, i, ActiveUniformBlockParameter.UniformBlockActiveUniforms, out block_active_uniforms);
@@ -478,21 +477,21 @@ namespace GLSLHelper {
                     string name;
 
                     GL.GetActiveUniformName(test_program, uniform_indices[k], 256, out actual_name_length, out name);
-                    Console.WriteLine("\t{0}", name);
+                    CallBacks.Log("\t{0}", name);
 
-                    Console.WriteLine("\t\t    type: {0}", uniform_types[k]);
-                    Console.WriteLine("\t\t    offset: {0}", uniform_offsets[k]);
-                    Console.WriteLine("\t\t    size: {0}", uniform_sizes[k]);
+                    CallBacks.Log("\t\t    type: {0}", uniform_types[k]);
+                    CallBacks.Log("\t\t    offset: {0}", uniform_offsets[k]);
+                    CallBacks.Log("\t\t    size: {0}", uniform_sizes[k]);
 
                     /*
                     GL.GetActiveUniforms(test_program, i, ref uniform_indices[k], ActiveUniformParameter.UniformArrayStride, out uniArrayStride);
-                    Console.WriteLine("\t\t    array stride: {0}", uniArrayStride);
+                    Common.CallBacks.Log("\t\t    array stride: {0}", uniArrayStride);
 
                     GL.GetActiveUniforms(test_program, i, ref uniform_indices[k], ActiveUniformParameter.UniformMatrixStride, out uniMatStride);
-                    Console.WriteLine("\t\t    matrix stride: {0}", uniMatStride);
+                    Common.CallBacks.Log("\t\t    matrix stride: {0}", uniMatStride);
                     */
                 }
-                Console.WriteLine("}}");
+                CallBacks.Log("}}");
             }
 
         }
@@ -617,7 +616,7 @@ namespace GLSLHelper {
         
         static public void modifyShader(GLSLShaderConfig shader_conf, GLSLShaderText shaderText)
         {
-            Console.WriteLine("Actually Modifying Shader");
+            CallBacks.Log("Actually Modifying Shader");
 
             int[] attached_shaders = new int[20];
             int count;
@@ -631,7 +630,7 @@ namespace GLSLHelper {
 
                 if (shader_params[0] == (int) shaderText.shader_type)
                 {
-                    Console.WriteLine("Found modified shader");
+                    CallBacks.Log("Found modified shader");
 
                     //Trying to compile shader
                     shaderText.compile();
@@ -644,17 +643,17 @@ namespace GLSLHelper {
                     GL.GetProgram(shader_conf.program_id, GetProgramParameterName.LinkStatus, out status_code);
                     if (status_code != 1)
                     {
-                        Console.WriteLine("Unable to link the new shader. Reverting to the old shader");
+                        CallBacks.Log("Unable to link the new shader. Reverting to the old shader");
                         return;
                     }
 
                     //Delete old shader and reload uniforms
                     loadActiveUniforms(shader_conf); //Re-load active uniforms
-                    Console.WriteLine("Shader was modified successfully");
+                    CallBacks.Log("Shader was modified successfully");
                     break;
                 }
             }
-            Console.WriteLine("Shader was not found...");
+            CallBacks.Log("Shader was not found...");
         }
 
 
@@ -671,7 +670,7 @@ namespace GLSLHelper {
             StreamWriter sr = new StreamWriter(log_file);
             sr.Write(log);
             sr.Close();
-            Console.WriteLine(log);
+            CallBacks.Log(log);
             throw new ApplicationException("Shader Compilation Failed. Check Log");
         }
     }

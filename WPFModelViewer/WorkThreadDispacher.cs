@@ -41,13 +41,12 @@ namespace WPFModelViewer
             switch (tr.type)
             {
                 case THREAD_REQUEST_TYPE.LOAD_NMS_ARCHIVES_REQUEST:
-                    string filepath = (string) tr.arguments[0];
-                    string gameDir = (string) tr.arguments[1];
-                    ResourceManager resMgr = (ResourceManager) tr.arguments[2];
-                    t = new Thread(() => NMSUtils.loadNMSArchives(filepath, gameDir, ref resMgr, ref tk.thread_request.response));
+                    string gameDir = (string) tr.arguments[0];
+                    ResourceManager resMgr = (ResourceManager) tr.arguments[1];
+                    t = new Thread(() => NMSUtils.loadNMSArchives(gameDir, ref resMgr, ref tk.thread_request.response));
                     break;
                 default:
-                    Console.WriteLine("DISPATCHER : Unsupported Thread Request");
+                    MVCore.Common.CallBacks.Log("DISPATCHER : Unsupported Thread Request");
                     break;
             }
 

@@ -95,20 +95,20 @@ namespace MVCore
 
 #if (DEBUG)
             //Query GL Extensions
-            Console.WriteLine("OPENGL AVAILABLE EXTENSIONS:");
+            Common.CallBacks.Log("OPENGL AVAILABLE EXTENSIONS:");
             string[] ext = GL.GetString(StringNameIndexed.Extensions, 0).Split(' ');
             foreach (string s in ext)
             {
                 if (s.Contains("explicit"))
-                    Console.WriteLine(s);
+                    Common.CallBacks.Log(s);
                 if (s.Contains("texture"))
-                    Console.WriteLine(s);
+                    Common.CallBacks.Log(s);
                 if (s.Contains("16"))
-                    Console.WriteLine(s);
+                    Common.CallBacks.Log(s);
             }
 
             //Query maximum buffer sizes
-            Console.WriteLine("MaxUniformBlock Size {0}", GL.GetInteger(GetPName.MaxUniformBlockSize));
+            Common.CallBacks.Log("MaxUniformBlock Size {0}", GL.GetInteger(GetPName.MaxUniformBlockSize));
 #endif
 
             //Populate shader list

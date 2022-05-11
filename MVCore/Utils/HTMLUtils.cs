@@ -85,7 +85,7 @@ namespace MVCore.Utils
 
             //foreach (string key in data["assets"])
             //{
-            //    Console.WriteLine(key);
+            //    Common.CallBacks.Log(key);
             //}
 
 

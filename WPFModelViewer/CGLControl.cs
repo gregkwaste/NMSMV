@@ -140,7 +140,7 @@ namespace Model_Viewer
         {
             
             //Setup new Context
-            Console.WriteLine("Intializing Rendering Thread");
+            CallBacks.Log("Intializing Rendering Thread");
 #if (DEBUG)
             GraphicsContext gfx_context = new GraphicsContext(new GraphicsMode(32, 24, 0, 8), WindowInfo, 4, 3,
                 GraphicsContextFlags.Debug);
@@ -177,7 +177,7 @@ namespace Model_Viewer
                 RenderState.activeCam.isActive = false;
             RenderState.activeCam = RenderState.activeResMgr.GLCameras[index];
             RenderState.activeCam.isActive = true;
-            Console.WriteLine("Switching Camera to {0}", index);
+            CallBacks.Log("Switching Camera to {0}", index);
         }
 
         public void updateActiveCam(int FOV, float zNear, float zFar, float speed, float speedPower)
@@ -273,7 +273,7 @@ namespace Model_Viewer
                         GIZMO_PART_TYPE t = activeGizmo.activeType;
                         float movement_step = (float)Math.Sqrt(mouseState.Delta.X * mouseState.Delta.X / (Size.Width * Size.Width) +
                                                                 mouseState.Delta.Y * mouseState.Delta.Y / (Size.Height * Size.Height));
-                        Console.WriteLine("Moving by {0}", movement_step);
+                        CallBacks.Log("Moving by {0}", movement_step);
 
                         switch (t)
                         {
@@ -308,7 +308,7 @@ namespace Model_Viewer
             if (activeGizmo != null && (e.Button == MouseButtons.Left) && activeGizmo.isActive)
             {
                 //Engage movement
-                Console.WriteLine("Engaging gizmo movement");
+                CallBacks.Log("Engaging gizmo movement");
                 mouseMovementStatus = MouseMovementStatus.GIZMO_MOVEMENT;
             } else if (e.Button == MouseButtons.Left)
             {
@@ -390,7 +390,7 @@ namespace Model_Viewer
                 //    toggleAnimation();
                 //    break;
                 default:
-                    //Console.WriteLine("Not Implemented Yet");
+                    //Common.CallBacks.Log("Not Implemented Yet");
                     break;
             }
         }
@@ -527,7 +527,7 @@ namespace Model_Viewer
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(ex.Message);
+                    CallBacks.Log(ex.Message);
                 }
                 
 
@@ -548,7 +548,7 @@ namespace Model_Viewer
                         break;
                     }
                 case TYPES.COLLISION:
-                    Console.WriteLine("NOT IMPLEMENTED YET");
+                    CallBacks.Log("NOT IMPLEMENTED YET");
                     break;
                 default:
                     break;
@@ -584,7 +584,7 @@ namespace Model_Viewer
             //Vector3 near = unProject(new Vector3(screenPos.X, screenPos.Y, 0.0f));
             Vector3 v = unProject(new Vector2(screenPos.X, screenPos.Y));
             
-            Console.WriteLine("Ray Vector : {0}, {1}, {2} ", v.X, v.Y, v.Z);
+            CallBacks.Log("Ray Vector : {0}, {1}, {2} ", v.X, v.Y, v.Z);
 
             //Intersect Ray with scene
             Model intersectedModel = null;
@@ -594,7 +594,7 @@ namespace Model_Viewer
 
             if (intersectedModel != null)
             {
-                Console.WriteLine("Ray intersects model : " + intersectedModel.name);
+                CallBacks.Log("Ray intersects model : " + intersectedModel.name);
                 gizTranslate.setReference(intersectedModel);
                 gizTranslate.update();
             }
@@ -714,7 +714,7 @@ namespace Model_Viewer
         {
             VSync = RenderState.renderSettings.UseVSYNC; //Update Vsync 
 
-            //Console.WriteLine(RenderState.renderSettings.RENDERMODE);
+            //Common.CallBacks.Log(RenderState.renderSettings.RENDERMODE);
 
             //Gizmo Picking
             //Send picking request
@@ -764,7 +764,7 @@ namespace Model_Viewer
                 modelUpdateQueue.Enqueue(s.parentScene);
             }
 
-            //Console.WriteLine("Dt {0}", dt);
+            //Common.CallBacks.Log("Dt {0}", dt);
             if (RenderState.renderViewSettings.EmulateActions)
             {
                 engine.actionSys.update((float)dt);
@@ -818,7 +818,7 @@ namespace Model_Viewer
 
             if (time.TotalMilliseconds > 1000)
             {
-                //Console.WriteLine("{0} {1} {2}", frames, RenderStats.fpsCount, time.TotalMilliseconds);
+                //Common.CallBacks.Log("{0} {1} {2}", frames, RenderStats.fpsCount, time.TotalMilliseconds);
                 //Reset
                 frames = 0;
                 oldtime = now;

@@ -219,7 +219,7 @@ namespace MVCore.GMDL
             temp.X = Utils.Half.decompress(val1);
             temp.Y = Utils.Half.decompress(val2);
             temp.Z = Utils.Half.decompress(val3);
-            //Console.WriteLine("half {0} {1} {2}", temp[0],temp[1],temp[2]);
+            //Common.CallBacks.Log("half {0} {1} {2}", temp[0],temp[1],temp[2]);
             return temp;
         }
 
@@ -264,7 +264,7 @@ namespace MVCore.GMDL
             {
                 if (GLMeshVaos[hash].ContainsKey(matname))
                 {
-                    Console.WriteLine("MeshVao already in the dictionary, nothing to do...");
+                    Common.CallBacks.Log("MeshVao already in the dictionary, nothing to do...");
                     return false;
                 }
             }
@@ -283,7 +283,7 @@ namespace MVCore.GMDL
             //Double check tha the VAO is not already in the dictinary
             if (GLVaos.ContainsKey(hash))
             {
-                Console.WriteLine("Vao already in the dictinary, nothing to do...");
+                Common.CallBacks.Log("Vao already in the dictinary, nothing to do...");
                 return false;
             }
                 
@@ -427,7 +427,7 @@ namespace MVCore.GMDL
 
             ErrorCode err = GL.GetError();
             if (err != ErrorCode.NoError)
-                Console.WriteLine(GL.GetError());
+                CallBacks.Log(GL.GetError().ToString());
             
             //Bind vertex buffer
             int size;
@@ -1011,7 +1011,7 @@ namespace MVCore.GMDL
                 if (fs == null)
                 {
                     //throw new System.IO.FileNotFoundException();
-                    Console.WriteLine("Texture {0} Missing. Using default.dds", path);
+                    Common.CallBacks.Log("Texture {0} Missing. Using default.dds", path);
 
                     //Load default.dds from resources
                     image_data = File.ReadAllBytes("default.dds");
@@ -1042,12 +1042,17 @@ namespace MVCore.GMDL
             ddsImage = new DDSImage(imageData);
             RenderStats.texturesNum += 1; //Accumulate settings
 
-            Console.WriteLine("Sampler Name Path " + name + " Width {0} Height {1}", ddsImage.header.dwWidth, ddsImage.header.dwHeight);
+            Common.CallBacks.Log("Sampler Name Path " + name + " Width {0} Height {1}", ddsImage.header.dwWidth, ddsImage.header.dwHeight);
             width = ddsImage.header.dwWidth;
             height = ddsImage.header.dwHeight;
+            bool compressed = true;
             int blocksize = 16;
             switch (ddsImage.header.ddspf.dwFourCC)
             {
+                case (0x0):
+                    pif = InternalFormat.Rgba8;
+                    compressed = false;
+                    break;
                 //DXT1
                 case (0x31545844):
                     pif = InternalFormat.CompressedSrgbAlphaS3tcDxt1Ext;
@@ -1067,6 +1072,15 @@ namespace MVCore.GMDL
                             case (DXGI_FORMAT.DXGI_FORMAT_BC7_UNORM):
                                 pif = InternalFormat.CompressedSrgbAlphaBptcUnorm;
                                 break;
+                            case (DXGI_FORMAT.DXGI_FORMAT_BC3_UNORM):
+                                pif = InternalFormat.CompressedSrgbAlphaS3tcDxt5Ext;
+                                break;
+                            case (DXGI_FORMAT.DXGI_FORMAT_BC1_UNORM):
+                                pif = InternalFormat.CompressedSrgbAlphaS3tcDxt1Ext;
+                                break;
+                            case (DXGI_FORMAT.DXGI_FORMAT_BC5_UNORM):
+                                pif = InternalFormat.CompressedRgRgtc2;
+                                break;
                             default:
                                 throw new ApplicationException("Unimplemented DX10 Texture Pixel format");
                         }
@@ -1083,7 +1097,6 @@ namespace MVCore.GMDL
             int depth_count = Math.Max(1, ddsImage.header.dwDepth); //Fix the counter to 1 to fit the texture in a 3D container
             int temp_size = ddsImage.header.dwPitchOrLinearSize;
 
-
             //Generate PBO
             pboID = GL.GenBuffer();
             GL.BindBuffer(BufferTarget.PixelUnpackBuffer, pboID);
@@ -1099,26 +1112,43 @@ namespace MVCore.GMDL
             GL.TexParameter(target, TextureParameterName.TextureBaseLevel, 0);
             //GL.TexParameter(target, TextureParameterName.TextureMaxLevel, mm_count - 1);
 
-            int offset = 0;
-            for (int i=0; i < mm_count; i++)
+
+            if (compressed)
             {
-                GL.CompressedTexImage3D(target, i, pif, w, h, depth_count, 0, temp_size * depth_count, IntPtr.Zero + offset);
-                offset += temp_size * depth_count;
+                int offset = 0;
+                for (int i = 0; i < mm_count; i++)
+                {
+                    GL.CompressedTexImage3D(target, i, pif, w, h, depth_count, 0, temp_size * depth_count, IntPtr.Zero + offset);
+                    offset += temp_size * depth_count;
 
-                w = Math.Max(w >> 1, 1);
-                h = Math.Max(h >> 1, 1);
+                    w = Math.Max(w >> 1, 1);
+                    h = Math.Max(h >> 1, 1);
 
-                temp_size = Math.Max(1, (w + 3) / 4) * Math.Max(1, (h + 3) / 4) * blocksize;
-                //This works only for square textures
-                //temp_size = Math.Max(temp_size/4, blocksize);
+                    temp_size = Math.Max(1, (w + 3) / 4) * Math.Max(1, (h + 3) / 4) * blocksize;
+                    //This works only for square textures
+                    //temp_size = Math.Max(temp_size/4, blocksize);
+                }
+
+                //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureLodBias, -0.2f);
+                GL.TexParameter(target, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+                GL.TexParameter(target, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+                GL.TexParameter(target, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+                GL.TexParameter(target, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
+                //Common.CallBacks.Log(GL.GetError());
+
+            }
+            else
+            {
+                GL.TexImage3D(target, 0, PixelInternalFormat.Rgba8, w, h, depth_count, 0, PixelFormat.Bgra, PixelType.UnsignedByte, IntPtr.Zero);
+                GL.GenerateMipmap(GenerateMipmapTarget.Texture3D);
             }
 
             //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureLodBias, -0.2f);
-            GL.TexParameter(target, TextureParameterName.TextureWrapS, (int) TextureWrapMode.Repeat);
-            GL.TexParameter(target, TextureParameterName.TextureWrapT, (int) TextureWrapMode.Repeat);
-            GL.TexParameter(target, TextureParameterName.TextureMagFilter, (int) TextureMagFilter.Linear);
-            GL.TexParameter(target, TextureParameterName.TextureMinFilter, (int) TextureMinFilter.LinearMipmapLinear);
-            //Console.WriteLine(GL.GetError());
+            GL.TexParameter(target, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+            GL.TexParameter(target, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+            GL.TexParameter(target, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexParameter(target, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
+            //Common.CallBacks.Log(GL.GetError());
 
             //Use anisotropic filtering
             float af_amount = GL.GetFloat((GetPName)All.MaxTextureMaxAnisotropy);
@@ -1457,7 +1487,7 @@ namespace MVCore.GMDL
 
             //Check Results [Except from Joint 0, the determinant of the multiplication is always 1,
             // transforms should be good]
-            //Console.WriteLine((BindMatrix * invBindMatrix).Determinant);
+            //Common.CallBacks.Log((BindMatrix * invBindMatrix).Determinant);
         }
 
         

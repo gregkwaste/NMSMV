@@ -421,17 +421,17 @@ namespace MVCore.GMDL
             }
 
             //BIND TEXTURE Buffer
-            if (skinned)
-            {
-                GL.Uniform1(shader.uniformLocations["mpCustomPerMaterial.skinMatsTex"], 6);
-                GL.ActiveTexture(TextureUnit.Texture6);
-                GL.BindTexture(TextureTarget.TextureBuffer, instanceBoneMatricesTex);
-                GL.TexBuffer(TextureBufferTarget.TextureBuffer,
-                    SizedInternalFormat.Rgba32f, instanceBoneMatricesTexTBO);
-            }
+            //if (skinned)
+            //{
+            //    GL.Uniform1(shader.uniformLocations["mpCustomPerMaterial.skinMatsTex"], 6);
+            //    GL.ActiveTexture(TextureUnit.Texture6);
+            //    GL.BindTexture(TextureTarget.TextureBuffer, instanceBoneMatricesTex);
+            //    GL.TexBuffer(TextureBufferTarget.TextureBuffer,
+            //        SizedInternalFormat.Rgba32f, instanceBoneMatricesTexTBO);
+            //}
 
             //if (instance_count > 100)
-            //    Console.WriteLine("Increase the buffers");
+            //    Common.CallBacks.Log("Increase the buffers");
 
             switch (type)
             {
@@ -568,7 +568,7 @@ namespace MVCore.GMDL
             int jointCount = animScene.jointDict.Values.Count;
 
             //TODO: Use the jointCount to adaptively setup the instanceBoneMatrices
-            //Console.WriteLine("MAX : 128  vs Effective : " + jointCount.ToString());
+            //Common.CallBacks.Log("MAX : 128  vs Effective : " + jointCount.ToString());
 
             //Re-initialize the array based on the number of instances
             instanceBoneMatrices = new float[instance_count * 128 * 16];
@@ -590,7 +590,7 @@ namespace MVCore.GMDL
             GL.BindBuffer(BufferTarget.TextureBuffer, instanceBoneMatricesTexTBO);
             int bufferSize = instance_count * 128 * 16 * 4;
             GL.BufferSubData(BufferTarget.TextureBuffer, IntPtr.Zero, bufferSize, instanceBoneMatrices);
-            //Console.WriteLine(GL.GetError());
+            //Common.CallBacks.Log(GL.GetError());
             GL.BindBuffer(BufferTarget.TextureBuffer, 0);
         }
 
@@ -794,9 +794,9 @@ namespace MVCore.GMDL
 
 #if(DEBUG)
             if (instanceId < 0)
-                Console.WriteLine("test");
+                Common.CallBacks.Log("test");
             if (meshVao.BoneRemapIndicesCount > 128)
-                Console.WriteLine("test");
+                Common.CallBacks.Log("test");
 #endif
 
             if (!active || !renderable || (parentScene.activeLOD != LodLevel) && RenderState.renderSettings.LODFiltering)
@@ -817,7 +817,7 @@ namespace MVCore.GMDL
                 if (hasLOD && Common.RenderOptions.LODFiltering)
                 //if (false)
                 {
-                    //Console.WriteLine("Active LoD {0}", parentScene.activeLOD);
+                    //Common.CallBacks.Log("Active LoD {0}", parentScene.activeLOD);
                     if (parentScene.activeLOD != LodLevel)
                     {
                         meshVao.setInstanceOccludedStatus(instanceId, true);

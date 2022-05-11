@@ -361,7 +361,7 @@ namespace WPFModelViewer
             }
             else
             {
-                Console.WriteLine("Unsupported Order");
+                MVCore.Common.CallBacks.Log("Unsupported Order");
             }
 
             
@@ -370,7 +370,7 @@ namespace WPFModelViewer
             euler.Y = MathUtils.degrees(euler.Y);
             euler.Z = MathUtils.degrees(euler.Z);
 
-            //Console.WriteLine("Converted Angles {0} {1} {2}", euler.X, euler.Y, euler.Z);
+            //Common.CallBacks.Log("Converted Angles {0} {1} {2}", euler.X, euler.Y, euler.Z);
 
             return euler;
         }
@@ -400,7 +400,7 @@ namespace WPFModelViewer
 
         private void FilterTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
         {
-            //Console.WriteLine("Writing Shit");
+            //Common.CallBacks.Log("Writing Shit");
             //Regex regex = new Regex("^(0|[1-9][0-9]*)$");
             Regex regex = new Regex("[^0-9.-]+");
             e.Handled = regex.IsMatch(e.Text);

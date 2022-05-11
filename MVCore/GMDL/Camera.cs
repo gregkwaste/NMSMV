@@ -177,13 +177,13 @@ namespace MVCore.GMDL
             //Calculate Time for movement
             
             /*
-            Console.WriteLine("TargetPos {0} {1} {2}",
+            Common.CallBacks.Log("TargetPos {0} {1} {2}",
                 TargetPosition.X, TargetPosition.Y, TargetPosition.Z);
-            Console.WriteLine("PrevPos {0} {1} {2}",
+            Common.CallBacks.Log("PrevPos {0} {1} {2}",
                 PrevPosition.X, PrevPosition.Y, PrevPosition.Z);
-            Console.WriteLine("TargetRotation {0} {1} {2} {3}",
+            Common.CallBacks.Log("TargetRotation {0} {1} {2} {3}",
                 TargetDirection.X, TargetDirection.Y, TargetDirection.Z, TargetDirection.W);
-            Console.WriteLine("PrevRotation {0} {1} {2} {3}",
+            Common.CallBacks.Log("PrevRotation {0} {1} {2} {3}",
                 PrevDirection.X, PrevDirection.Y, PrevDirection.Z, PrevDirection.W);
             */
 
@@ -192,7 +192,7 @@ namespace MVCore.GMDL
             t_rot_move = (TargetDirection - PrevDirection).Length / eff_speed;
             t_start = 0.0f; //Reset time_counter
 
-            //Console.WriteLine("t_pos {0}, t_rot {1}", t_pos_move, t_rot_move);
+            //Common.CallBacks.Log("t_pos {0}, t_rot {1}", t_pos_move, t_rot_move);
 
         }
 
@@ -403,7 +403,7 @@ namespace MVCore.GMDL
             {
                 if (Vector4.Dot(_frustum[i],point) <= 0.0f)
                 {
-                    //Console.WriteLine("Point vs Frustum, Plane {0} Failed. Failed Vector {1} {2} {3}", (ClippingPlane)p, x, y, z);
+                    //Common.CallBacks.Log("Point vs Frustum, Plane {0} Failed. Failed Vector {1} {2} {3}", (ClippingPlane)p, x, y, z);
                     return false;
                 }
                     
@@ -462,7 +462,7 @@ namespace MVCore.GMDL
                 d = Vector4.Dot(_frustum[p], center);
                 if (d <= -radius)
                 {
-                    //Console.WriteLine("Plane {0} Failed. Failed Vector {1} {2} {3}", (ClippingPlane)p,
+                    //Common.CallBacks.Log("Plane {0} Failed. Failed Vector {1} {2} {3}", (ClippingPlane)p,
                     //    x, y, z);
                     return false;
                 }
