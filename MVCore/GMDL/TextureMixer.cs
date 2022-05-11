@@ -93,7 +93,7 @@ namespace MVCore.GMDL
         {
             //At this point, at least one sampler exists, so for now I assume that the first sampler
             //is always the diffuse sampler and I can initiate the mixing process
-            Console.WriteLine("Procedural Texture Detected: " + path);
+            Common.CallBacks.Log("Procedural Texture Detected: " + path);
             CallBacks.Log(string.Format("Parsing Procedural Texture"));
 
             TkProceduralTextureList template = NMSUtils.LoadNMSTemplate(path, ref Common.RenderState.activeResMgr) as TkProceduralTextureList;
@@ -133,7 +133,11 @@ namespace MVCore.GMDL
                 TkPaletteTexture paletteNode = ptex.Palette;
                 string paletteName = paletteNode.Palette.ToString();
                 string colorName = paletteNode.ColourAlt.ToString();
-                Vector4 palColor = palette[paletteName][colorName];
+                Vector4 palColor;
+                if (palette.ContainsKey(paletteName))
+                    palColor = palette[paletteName][colorName];
+                else
+                    palColor = new Vector4(0.8f, 0.3f, 0.7f, 1.0f);
                 //Randomize palette Color every single time
                 //Vector3 palColor = Model_Viewer.Palettes.get_color(paletteName, colorName);
 
@@ -147,8 +151,8 @@ namespace MVCore.GMDL
                 palOpt.PaletteName = paletteName;
                 palOpt.ColorName = colorName;
                 palOpts[i] = palOpt;
-                Console.WriteLine("Index {0} Palette Selection {1} {2} ", i, palOpt.PaletteName, palOpt.ColorName);
-                Console.WriteLine("Index {0} Color {1} {2} {3} {4}", i, palColor[0], palColor[1], palColor[2], palColor[3]);
+                CallBacks.Log("Index {0} Palette Selection {1} {2} ", i, palOpt.PaletteName, palOpt.ColorName);
+                CallBacks.Log("Index {0} Color {1} {2} {3} {4}", i, palColor[0], palColor[1], palColor[2], palColor[3]);
 
                 //DIFFUSE
                 if (partNameDiff == "")
@@ -175,7 +179,7 @@ namespace MVCore.GMDL
                     catch (System.IO.FileNotFoundException)
                     {
                         //Texture Not Found Continue
-                        Console.WriteLine("Diffuse Texture " + partNameDiff + " Not Found, Appending White Tex");
+                        Common.CallBacks.Log("Diffuse Texture " + partNameDiff + " Not Found, Appending White Tex");
                         CallBacks.Log(string.Format("Diffuse Texture {0} Not Found", partNameDiff));
                         baseLayersUsed[i] = 0.0f;
                     }
@@ -210,7 +214,7 @@ namespace MVCore.GMDL
                     catch (System.IO.FileNotFoundException)
                     {
                         //Mask Texture not found
-                        Console.WriteLine("Mask Texture " + partNameMask + " Not Found");
+                        Common.CallBacks.Log("Mask Texture " + partNameMask + " Not Found");
                         CallBacks.Log(string.Format("Mask Texture {0} Not Found", partNameMask));
                         alphaLayersUsed[i] = 0.0f;
                     }
@@ -403,7 +407,7 @@ namespace MVCore.GMDL
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
             GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, IntPtr.Zero);
 
-            //Console.WriteLine("MixTextures5, Last GL Error: " + GL.GetError());
+            //Common.CallBacks.Log("MixTextures5, Last GL Error: " + GL.GetError());
             int out_tex_2darray_diffuse = Sampler.generateTexture2DArray(PixelInternalFormat.Rgba8, texWidth, texHeight, 1, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
             Sampler.setupTextureParameters(TextureTarget.Texture2DArray, out_tex_2darray_diffuse, (int)TextureWrapMode.Repeat,
                 (int)TextureMagFilter.Linear, (int)TextureMinFilter.LinearMipmapLinear, 4.0f);
@@ -526,7 +530,7 @@ namespace MVCore.GMDL
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
             GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, IntPtr.Zero);
 
-            //Console.WriteLine("MixTextures5, Last GL Error: " + GL.GetError());
+            //Common.CallBacks.Log("MixTextures5, Last GL Error: " + GL.GetError());
             int out_tex_2darray_mask = Sampler.generateTexture2DArray(PixelInternalFormat.Rgba8, texWidth, texHeight, 1, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
             Sampler.setupTextureParameters(TextureTarget.Texture2DArray, out_tex_2darray_mask, (int)TextureWrapMode.Repeat,
                 (int)TextureMagFilter.Linear, (int)TextureMinFilter.LinearMipmapLinear, 4.0f);
@@ -647,7 +651,7 @@ namespace MVCore.GMDL
             GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
             GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, IntPtr.Zero);
 
-            //Console.WriteLine("MixTextures5, Last GL Error: " + GL.GetError());
+            //Common.CallBacks.Log("MixTextures5, Last GL Error: " + GL.GetError());
             int out_tex_2darray_mask = Sampler.generateTexture2DArray(PixelInternalFormat.Rgba8, texWidth, texHeight, 1, PixelFormat.Rgba, PixelType.UnsignedByte, 11);
             Sampler.setupTextureParameters(TextureTarget.Texture2DArray, out_tex_2darray_mask, (int)TextureWrapMode.Repeat,
                 (int)TextureMagFilter.Linear, (int)TextureMinFilter.LinearMipmapLinear, 4.0f);

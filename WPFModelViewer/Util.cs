@@ -13,7 +13,7 @@ namespace WPFModelViewer
     {
         public static int VersionMajor = 0;
         public static int VersionMedium = 90;
-        public static int VersionMinor = 4;
+        public static int VersionMinor = 5;
         
         public static string donateLink = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=4365XYBWGTBSU&currency_code=USD&source=url";
         public static readonly Random randgen = new Random();
@@ -49,6 +49,7 @@ namespace WPFModelViewer
 
         public static void showError(string message, string caption)
         {
+            CallBacks.Log(message);
             Application.Current.Dispatcher.BeginInvoke((Action)(() =>
             {
                 if (activeWindow is null)
@@ -61,6 +62,7 @@ namespace WPFModelViewer
 
         public static void showInfo(string message, string caption)
         {
+            CallBacks.Log(message);
             Application.Current.Dispatcher.BeginInvoke((Action)(() =>
             {
                 if (activeWindow is null)
@@ -91,12 +93,13 @@ namespace WPFModelViewer
             //scn.animMeta = (libMBIN.NMS.Toolkit.TkAnimMetadata) mbinf.GetData();
         }
 
-        public static void Log(string msg)
+        public static void Log(params object[] msg)
         {
+            string message = string.Join(" ", msg);
 #if DEBUG
-            Console.WriteLine(msg); //Write to console if we are in debug mode
+            Console.WriteLine(message); //Write to console if we are in debug mode
 #endif
-            loggingSr.WriteLine(msg);
+            loggingSr.WriteLine(message);
             loggingSr.Flush();
         }
 

@@ -77,7 +77,7 @@ namespace MVCore
             testfs.Close();
 #endif
             BinaryReader br = new BinaryReader(fs);
-            Console.WriteLine("Parsing Geometry MBIN");
+            Common.CallBacks.Log("Parsing Geometry MBIN");
 
             fs.Seek(0x60, SeekOrigin.Begin);
 
@@ -86,10 +86,10 @@ namespace MVCore
             var indices_flag = br.ReadInt32();
             var collision_index_count = br.ReadInt32();
 
-            Console.WriteLine("Model Vertices: {0}", vert_num);
-            Console.WriteLine("Model Indices: {0}", indices_num);
-            Console.WriteLine("Indices Flag: {0}", indices_flag);
-            Console.WriteLine("Collision Index Count: {0}", collision_index_count);
+            Common.CallBacks.Log("Model Vertices: {0}", vert_num);
+            Common.CallBacks.Log("Model Indices: {0}", indices_num);
+            Common.CallBacks.Log("Indices Flag: {0}", indices_flag);
+            Common.CallBacks.Log("Collision Index Count: {0}", collision_index_count);
 
             //Joint Bindings
             var jointbindingOffset = fs.Position + br.ReadInt32();
@@ -143,7 +143,7 @@ namespace MVCore
 
             var lod_count = br.ReadInt32();
             var vx_type = br.ReadInt32();
-            Console.WriteLine("Buffer Count: {0} VxType {1}", lod_count, vx_type);
+            Common.CallBacks.Log("Buffer Count: {0} VxType {1}", lod_count, vx_type);
             fs.Seek(0x8, SeekOrigin.Current);
             var mesh_descr_offset = fs.Position + br.ReadInt64();
             var buf_count = br.ReadInt32();
@@ -152,7 +152,7 @@ namespace MVCore
             //Parse Small Vertex Layout Info
             var small_bufcount = br.ReadInt32();
             var small_vx_type = br.ReadInt32();
-            Console.WriteLine("Small Buffer Count: {0} VxType {1}", small_bufcount, small_vx_type);
+            Common.CallBacks.Log("Small Buffer Count: {0} VxType {1}", small_bufcount, small_vx_type);
             fs.Seek(0x8, SeekOrigin.Current);
             var small_mesh_descr_offset = fs.Position + br.ReadInt32();
             fs.Seek(0x4, SeekOrigin.Current);
@@ -280,7 +280,7 @@ namespace MVCore
                 mmd.double_buffering = br.ReadBoolean();
                 br.BaseStream.Seek(7, SeekOrigin.Current);
                 geom.meshMetaDataDict[mmd.hash] = mmd;
-                Console.WriteLine(mmd.name);
+                Common.CallBacks.Log(mmd.name);
             }
 
             //Get main mesh description
@@ -315,7 +315,7 @@ namespace MVCore
 
             //Get Descr
             mesh_desc = getDescr(ref mesh_offsets, buf_count);
-            Console.WriteLine("Mesh Description: " + mesh_desc);
+            Common.CallBacks.Log("Mesh Description: " + mesh_desc);
 
             //Store description
             geom.mesh_descr = mesh_desc;
@@ -342,7 +342,7 @@ namespace MVCore
 
             //Get Small Descr
             small_mesh_desc = getDescr(ref small_mesh_offsets, small_bufcount);
-            Console.WriteLine("Small Mesh Description: " + small_mesh_desc);
+            Common.CallBacks.Log("Small Mesh Description: " + small_mesh_desc);
 
             //Store description
             geom.small_mesh_descr = small_mesh_desc;
@@ -422,7 +422,7 @@ namespace MVCore
                 case (0x8D9F):
                     return OpenTK.Graphics.OpenGL4.VertexAttribPointerType.Int2101010Rev;
                 default:
-                    Console.WriteLine("Unknown VERTEX SECTION TYPE-----------------------------------");
+                    Common.CallBacks.Log("Unknown VERTEX SECTION TYPE-----------------------------------");
                     throw new ApplicationException("NEW VERTEX SECTION TYPE. FIX IT ASSHOLE...");
                     //return OpenTK.Graphics.OpenGL4.VertexAttribPointerType.UnsignedByte;
             }
@@ -438,7 +438,7 @@ namespace MVCore
                 case (0x1401):
                     return 1;
                 default:
-                    Console.WriteLine("Unknown VERTEX SECTION TYPE-----------------------------------");
+                    Common.CallBacks.Log("Unknown VERTEX SECTION TYPE-----------------------------------");
                     return 1;
             }
         }
@@ -503,7 +503,7 @@ namespace MVCore
         {
             TkSceneNodeData template = (TkSceneNodeData) NMSUtils.LoadNMSTemplate(path, ref Common.RenderState.activeResMgr);
             
-            Console.WriteLine("Loading Objects from MBINFile");
+            Common.CallBacks.Log("Loading Objects from MBINFile");
 
             string sceneName = template.Name;
             Common.CallBacks.Log(string.Format("Trying to load Scene {0}", sceneName));
@@ -644,7 +644,7 @@ namespace MVCore
             for (int i = 0; i < component.LODModel.Count; i++)
             {
                 string filepath = component.LODModel[i].LODModel.Filename;
-                Console.WriteLine("Loading LOD " + filepath);
+                Common.CallBacks.Log("Loading LOD " + filepath);
                 Scene so = LoadObjects(filepath);
                 so.parent = node; //Set parent
                 node.children.Add(so);
@@ -668,7 +668,7 @@ namespace MVCore
                 
                 if (!SupportedComponents.ContainsKey(comp_type))
                 {
-                    Console.WriteLine("Unsupported Component Type " + comp_type);
+                    Common.CallBacks.Log("Unsupported Component Type " + comp_type);
                     continue;
                 }
                     
@@ -961,9 +961,9 @@ namespace MVCore
             so.meshVao = meshVao;
             so.instanceId = GLMeshBufferManager.addInstance(ref meshVao, so); //Add instance
 
-            Console.WriteLine("Object {0}, Number of skinmatrices required: {1}", so.name, so.metaData.lastskinmat - so.metaData.firstskinmat);
+            Common.CallBacks.Log("Object {0}, Number of skinmatrices required: {1}", so.name, so.metaData.lastskinmat - so.metaData.firstskinmat);
 
-            //Console.WriteLine("Children Count {0}", childs.ChildNodes.Count);
+            //Common.CallBacks.Log("Children Count {0}", childs.ChildNodes.Count);
             foreach (TkSceneNodeData child in children)
             {
                 Model part = parseNode(child, gobject, so, scene);
@@ -1125,6 +1125,25 @@ namespace MVCore
                 transform.ScaleZ};
 
             Joint so = new Joint();
+
+            //For now fetch only one attachment
+            string attachment = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "ATTACHMENT");
+            TkAttachmentData attachment_data = null;
+            if (attachment != "")
+            {
+                try
+                {
+                    attachment_data = NMSUtils.LoadNMSTemplate(attachment, ref Common.RenderState.activeResMgr) as TkAttachmentData;
+                }
+                catch (Exception e)
+                {
+                    attachment_data = null;
+                }
+            }
+
+            //Process Joint Attachments
+            ProcessComponents(so, attachment_data);
+
             //Set properties
             so.name = node.Name;
             so.nameHash = node.NameHash;
@@ -1134,6 +1153,7 @@ namespace MVCore
             so.parentScene = scene;
             so.init(transforms);
 
+            
             //Get JointIndex
             so.jointIndex = int.Parse(node.Attributes.FirstOrDefault(item => item.Name == "JOINTINDEX").Value);
             //Get InvBMatrix from gobject
@@ -1261,7 +1281,7 @@ namespace MVCore
             }
             else if (collisionType == "CYLINDER")
             {
-                //Console.WriteLine("CYLINDER NODE PARSING NOT IMPLEMENTED");
+                //Common.CallBacks.Log("CYLINDER NODE PARSING NOT IMPLEMENTED");
                 //Set cvbo
 
                 float radius = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "RADIUS"));
@@ -1281,7 +1301,7 @@ namespace MVCore
             }
             else if (collisionType == "BOX")
             {
-                //Console.WriteLine("BOX NODE PARSING NOT IMPLEMENTED");
+                //Common.CallBacks.Log("BOX NODE PARSING NOT IMPLEMENTED");
                 //Set cvbo
                 float width = MathUtils.FloatParse(node.Attributes.FirstOrDefault(item => item.Name == "WIDTH").Value);
                 float height = MathUtils.FloatParse(node.Attributes.FirstOrDefault(item => item.Name == "HEIGHT").Value);
@@ -1428,14 +1448,14 @@ namespace MVCore
                 transform.ScaleZ};
 
             //Another Scene file referenced
-            Console.WriteLine("Reference Detected");
+            Common.CallBacks.Log("Reference Detected");
 
             string scene_ref = node.Attributes.FirstOrDefault(item => item.Name == "SCENEGRAPH").Value;
             Common.CallBacks.Log(string.Format("Loading Reference {0}", scene_ref));
 
             //Getting Scene MBIN file
             //string exmlPath = Path.GetFullPath(Util.getFullExmlPath(path));
-            //Console.WriteLine("Loading Scene " + path);
+            //Common.CallBacks.Log("Loading Scene " + path);
             //Parse MBIN to xml
 
             //Generate Reference object
@@ -1466,7 +1486,7 @@ namespace MVCore
             so.children.Add(new_so); //Keep it also as a child so the rest of pipeline is not affected
 
             //Handle Children
-            //Console.WriteLine("Children Count {0}", childs.ChildNodes.Count);
+            //Common.CallBacks.Log("Children Count {0}", childs.ChildNodes.Count);
             foreach (TkSceneNodeData child in children)
             {
                 Model part = parseNode(child, gobject, so, scene);

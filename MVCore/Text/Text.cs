@@ -59,7 +59,7 @@ namespace MVCore.Text
             }
             else
             {
-                //Console.WriteLine("New Text {0}", new_text);
+                //Common.CallBacks.Log("New Text {0}", new_text);
                 //Recalculate geometry
                 parseTextToGeom(new_text);
                 updateGeomVertexBuffer();

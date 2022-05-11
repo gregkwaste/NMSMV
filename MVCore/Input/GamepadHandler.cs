@@ -94,7 +94,7 @@ namespace MVCore.Input
         
             if (!caps.IsConnected)
             {
-                //Console.WriteLine("COntroller not connected");
+                //Common.CallBacks.Log("COntroller not connected");
                 return;
             }
             
@@ -157,7 +157,7 @@ namespace MVCore.Input
             string s = "Buttons : ";
             for (int i = 0;i<12; i++)
                 s += " " + getState(i).ToString();
-            Console.WriteLine(s);
+            Common.CallBacks.Log(s);
         }
 
     
@@ -166,7 +166,7 @@ namespace MVCore.Input
             string s = "Axes: ";
             for (int i = 12; i < 18; i++)
                 s += " " + getState(i).ToString();
-            Console.WriteLine(s);
+            Common.CallBacks.Log(s);
         }
 
         public bool isConnected()
@@ -287,7 +287,7 @@ namespace MVCore.Input
             string s = "PS4 Buttons : ";
             for (int i = 0; i < 12; i++)
                 s += " " + getState((PSGamePadLayout) i).ToString();
-            Console.WriteLine(s);
+            Common.CallBacks.Log(s);
         }
 
         public override void reportAxes()
@@ -295,7 +295,7 @@ namespace MVCore.Input
             string s = "PS4 Axes : ";
             for (int i = 12; i < 18; i++)
                 s += " " + getState((PSGamePadLayout)i).ToString();
-            Console.WriteLine(s);
+            Common.CallBacks.Log(s);
         }
 
     }

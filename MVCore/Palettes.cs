@@ -135,7 +135,7 @@ namespace Model_Viewer
                 {
                     Colour colour = template.Palettes[i].Colours[j];
 
-                    //Console.WriteLine("Color {0} {1} {2} {3} {4}",
+                    //Common.CallBacks.Log("Color {0} {1} {2} {3} {4}",
                     //j, colour.R, colour.G, colour.B, colour.A);
 
                     //bmp.SetPixel(j, 0, Color.FromArgb((int)(colour.A * 255),

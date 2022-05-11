@@ -94,8 +94,7 @@
     <Reference Include="Costura, Version=4.1.0.0, Culture=neutral, PublicKeyToken=9919ef960d84173d, processorArchitecture=MSIL">
       <HintPath>..\packages\Costura.Fody.4.1.0\lib\net40\Costura.dll</HintPath>
     </Reference>
-    <Reference Include="libMBIN, Version=3.75.0.1, Culture=neutral, processorArchitecture=AMD64">
-      <SpecificVersion>False</SpecificVersion>
+    <Reference Include="libMBIN">
       <HintPath>..\lib\libMBIN.dll</HintPath>
     </Reference>
     <Reference Include="libPSARC">

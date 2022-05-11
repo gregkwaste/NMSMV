@@ -68,7 +68,7 @@ namespace MVCore.Engine
                 else
                 {
                     //The octree should be expanded
-                    Console.WriteLine("WARNING THE CURRENT OCTREE DOES NOT FIT THE OBJECT");
+                    Common.CallBacks.Log("WARNING THE CURRENT OCTREE DOES NOT FIT THE OBJECT");
                 }
             }
             
@@ -310,7 +310,7 @@ namespace MVCore.Engine
 
         public void report()
         {
-            Console.WriteLine("OCTNODE AABBMIN {0} {1} {2} - AABBMAX {3} {4} {5} - OBJECTS: {6} - CHILDREN NODES: {7}",
+            Common.CallBacks.Log("OCTNODE AABBMIN {0} {1} {2} - AABBMAX {3} {4} {5} - OBJECTS: {6} - CHILDREN NODES: {7}",
                 AABBMIN.x, AABBMIN.y, AABBMIN.z,
                 AABBMAX.x, AABBMAX.y, AABBMAX.z,
                 objects.Count, children.Count);

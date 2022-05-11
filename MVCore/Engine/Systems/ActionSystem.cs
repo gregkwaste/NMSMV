@@ -52,7 +52,7 @@ namespace MVCore.Engine.Systems
                 ActionTriggerState activeState = tac.StateMap[ActionSceneStateMap[m]];
                 
                 //Apply Actions of state
-                Console.WriteLine("Current State {0}", activeState.StateID);
+                Common.CallBacks.Log("Current State {0}", activeState.StateID);
 
                 foreach (ActionTrigger at in activeState.Triggers)
                 {
@@ -152,7 +152,7 @@ namespace MVCore.Engine.Systems
             }
             else
             {
-                //Console.WriteLine("unimplemented Action execution");
+                //Common.CallBacks.Log("unimplemented Action execution");
             }
         }
 
@@ -182,7 +182,7 @@ namespace MVCore.Engine.Systems
 
             if (target == null)
             {
-                Console.WriteLine("Node Not found");
+                Common.CallBacks.Log("Node Not found");
             }
 
 
@@ -198,7 +198,7 @@ namespace MVCore.Engine.Systems
                     target.IsRenderable = !target.IsRenderable;
                     break;
                 default:
-                    Console.WriteLine("Not implemented");
+                    Common.CallBacks.Log("Not implemented");
                     break;
             }
 

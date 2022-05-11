@@ -294,7 +294,7 @@ namespace MVCore.GMDL
                 else if (t is EmptyNode)
                     continue;
                 else
-                    Console.WriteLine("Non Implemented Action");
+                    Common.CallBacks.Log("Non Implemented Action");
             }
             
             //Set Trigger
@@ -312,7 +312,7 @@ namespace MVCore.GMDL
             }
             else
             {
-                Console.WriteLine("Non Implemented Trigger");
+                Common.CallBacks.Log("Non Implemented Trigger");
                 Trigger = null;
             }
             

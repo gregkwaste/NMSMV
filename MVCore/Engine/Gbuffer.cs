@@ -46,7 +46,7 @@ namespace MVCore.Engine
 
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
-                Console.WriteLine("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
+                Common.CallBacks.Log("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
             //Setup Attachments
             for (int i = 0; i < channel_num; i++)
@@ -113,7 +113,7 @@ namespace MVCore.Engine
 
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
-                Console.WriteLine("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
+                Common.CallBacks.Log("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
         }
 
@@ -207,7 +207,7 @@ namespace MVCore.Engine
 
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
-                Console.WriteLine("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
+                Common.CallBacks.Log("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
             //Setup color texture
             setup_texture(ref color, TextureTarget.Texture2D, PixelInternalFormat.Rgba16f, false);
@@ -228,7 +228,7 @@ namespace MVCore.Engine
 
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
-                Console.WriteLine("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
+                Common.CallBacks.Log("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
             //Revert Back the default fbo
             GL.BindFramebuffer(FramebufferTarget.FramebufferExt, 0);
@@ -337,7 +337,7 @@ namespace MVCore.Engine
             
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
-                Console.WriteLine("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
+                Common.CallBacks.Log("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
             //Setup diffuse texture
             setup_texture(ref albedo, TextureTarget.Texture2D, PixelInternalFormat.Rgba16f, false, TextureMagFilter.Linear, TextureMinFilter.Linear);
@@ -357,7 +357,7 @@ namespace MVCore.Engine
 
             //Check
             if (GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt) != FramebufferErrorCode.FramebufferComplete)
-                Console.WriteLine("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
+                Common.CallBacks.Log("MALAKIES STO FRAMEBUFFER tou GBuffer" + GL.CheckFramebufferStatus(FramebufferTarget.FramebufferExt));
 
             //Revert Back the default fbo
             GL.BindFramebuffer(FramebufferTarget.FramebufferExt, 0);
@@ -456,7 +456,7 @@ namespace MVCore.Engine
 
             byte[] pixels = new byte[16 * size[0] * size[1]];
             //pixels = new byte[4 * size[0] * size[1]];
-            //Console.WriteLine("Dumping Framebuffer textures " + size[0] + " " + size[1]);
+            //Common.CallBacks.Log("Dumping Framebuffer textures " + size[0] + " " + size[1]);
 
 #if false
             //Save Depth Texture

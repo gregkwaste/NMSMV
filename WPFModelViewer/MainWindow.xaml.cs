@@ -109,7 +109,7 @@ namespace WPFModelViewer
         //Open File
         private void OpenFile(string filename, bool testScene, int testSceneID)
         {
-            Console.WriteLine("Importing " + filename);
+            CallBacks.Log("Importing " + filename);
             ThreadRequest req;
             
             //Pause renderer
@@ -159,7 +159,7 @@ namespace WPFModelViewer
 
         private void OpenFile(object sender, RoutedEventArgs e)
         {
-            Console.WriteLine("Opening File");
+            CallBacks.Log("Opening File");
             OpenFileDialog openFileDlg = new OpenFileDialog();
             openFileDlg.Filter = "SCENE Files (*.SCENE.MBIN, *.SCENE.EXML)|*.SCENE.MBIN;*.SCENE.EXML";
             var res = openFileDlg.ShowDialog();
@@ -267,7 +267,7 @@ namespace WPFModelViewer
                             {
                                 case THREAD_REQUEST_TYPE.NEW_TEST_SCENE_REQUEST:
                                 case THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST:
-                                    Console.WriteLine("Shouldn't be here");
+                                    CallBacks.Log("Shouldn't be here");
                                     break;
                                 case THREAD_REQUEST_TYPE.LOAD_NMS_ARCHIVES_REQUEST:
                                     
@@ -295,10 +295,10 @@ namespace WPFModelViewer
         //Close Form
         private void FormClose(object sender, RoutedEventArgs e)
         {
-            Console.WriteLine("Bye bye :'(");
+            CallBacks.Log("Bye bye :'(");
 
             //Check if settings window is open and close it
-            this.Close();
+            Close();
         }
 
         private void MainWindow_OnClosing(object sender, CancelEventArgs e)
@@ -329,7 +329,7 @@ namespace WPFModelViewer
 
         private void MainWindow_OnClosed(object sender, EventArgs e)
         {
-            Console.WriteLine("Window Closed");
+            CallBacks.Log("Window Closed");
             //CLose Logger
             Util.loggingSr.Close();
 
@@ -467,7 +467,7 @@ namespace WPFModelViewer
 
             //Issue work request 
             ThreadRequest rq = new ThreadRequest();
-            rq.arguments.Add("NMSmanifest");
+            //rq.arguments.Add("NMSmanifest");
             rq.arguments.Add(Path.Combine(RenderState.settings.GameDir, "PCBANKS"));
             rq.arguments.Add(RenderState.activeResMgr);
             rq.type = THREAD_REQUEST_TYPE.LOAD_NMS_ARCHIVES_REQUEST;
@@ -570,7 +570,7 @@ namespace WPFModelViewer
         
         private void ButtonBase_OnClick(object sender, RoutedEventArgs e)
         {
-            Console.WriteLine("Generating ProcGen Models");
+            CallBacks.Log("Generating ProcGen Models");
             MessageBox.Show(Util.activeWindow, "HOOOOOOOOLA");
         }
 
@@ -659,7 +659,7 @@ namespace WPFModelViewer
             {
                 Model node = (Model) SceneTreeView.SelectedItem;
                 init_drag = node; //Set start model node
-                //Console.WriteLine("Grabbed " + node.Name);
+                //Common.CallBacks.Log("Grabbed " + node.Name);
                 var tv = sender as TreeView;
 
                 //Fetch textblock
@@ -741,7 +741,7 @@ namespace WPFModelViewer
                         var s1 = System.Windows.Media.VisualTreeHelper.GetParent(tb);
                         StackPanel s2 = (StackPanel)System.Windows.Media.VisualTreeHelper.GetParent(s1);
                         target_drag = (Model) s2.DataContext; //Set current target drag
-                        //Console.WriteLine("Cursor Over " + target_drag.Name);
+                        //Common.CallBacks.Log("Cursor Over " + target_drag.Name);
                     }
 
                     old_tb = tb;

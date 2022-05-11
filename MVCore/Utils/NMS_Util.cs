@@ -200,9 +200,9 @@ namespace MVCore.Utils
                 }
             } catch (Exception ex)
             {
-                if (ex is System.IO.DirectoryNotFoundException || ex is System.IO.FileNotFoundException)
+                if (ex is DirectoryNotFoundException || ex is System.IO.FileNotFoundException)
                     Util.showError("File " + effective_filepath + " Not Found...", "Error");
-                else if (ex is System.IO.IOException)
+                else if (ex is IOException)
                     Util.showError("File " + effective_filepath + " problem...", "Error");
                 else if (ex is System.Reflection.TargetInvocationException)
                 {
@@ -231,7 +231,7 @@ namespace MVCore.Utils
         public static Quaternion fetchRotQuaternion(TkAnimNodeData node, TkAnimMetadata animMeta, int frameCounter)
         {
             //Load Frames
-            //Console.WriteLine("Setting Frame Index {0}", frameIndex);
+            //Common.CallBacks.Log("Setting Frame Index {0}", frameIndex);
             TkAnimNodeFrameData frame = animMeta.AnimFrameData[frameCounter];
             TkAnimNodeFrameData stillframe = animMeta.StillFrameData;
 
@@ -260,7 +260,7 @@ namespace MVCore.Utils
         public static void fetchRotQuaternion(TkAnimNodeData node, TkAnimMetadata animMeta, int frameCounter, ref Quaternion q)
         {
             //Load Frames
-            //Console.WriteLine("Setting Frame Index {0}", frameIndex);
+            //Common.CallBacks.Log("Setting Frame Index {0}", frameIndex);
             TkAnimNodeFrameData frame = animMeta.AnimFrameData[frameCounter];
             TkAnimNodeFrameData stillframe = animMeta.StillFrameData;
             TkAnimNodeFrameData activeFrame = null;
@@ -289,7 +289,7 @@ namespace MVCore.Utils
         public static void fetchTransVector(TkAnimNodeData node, TkAnimMetadata animMeta, int frameCounter, ref Vector3 v)
         {
             //Load Frames
-            //Console.WriteLine("Setting Frame Index {0}", frameIndex);
+            //Common.CallBacks.Log("Setting Frame Index {0}", frameIndex);
             TkAnimNodeFrameData frame = animMeta.AnimFrameData[frameCounter];
             TkAnimNodeFrameData stillframe = animMeta.StillFrameData;
             TkAnimNodeFrameData activeFrame;
@@ -317,7 +317,7 @@ namespace MVCore.Utils
         public static Vector3 fetchTransVector(TkAnimNodeData node, TkAnimMetadata animMeta, int frameCounter)
         {
             //Load Frames
-            //Console.WriteLine("Setting Frame Index {0}", frameIndex);
+            //Common.CallBacks.Log("Setting Frame Index {0}", frameIndex);
             TkAnimNodeFrameData frame = animMeta.AnimFrameData[frameCounter];
             TkAnimNodeFrameData stillframe = animMeta.StillFrameData;
 
@@ -344,7 +344,7 @@ namespace MVCore.Utils
         public static Vector3 fetchScaleVector(TkAnimNodeData node, TkAnimMetadata animMeta, int frameCounter)
         {
             //Load Frames
-            //Console.WriteLine("Setting Frame Index {0}", frameIndex);
+            //Common.CallBacks.Log("Setting Frame Index {0}", frameIndex);
             TkAnimNodeFrameData frame = animMeta.AnimFrameData[frameCounter];
             TkAnimNodeFrameData stillframe = animMeta.StillFrameData;
 
@@ -372,7 +372,7 @@ namespace MVCore.Utils
         public static void fetchScaleVector(TkAnimNodeData node, TkAnimMetadata animMeta, int frameCounter, ref Vector3 s)
         {
             //Load Frames
-            //Console.WriteLine("Setting Frame Index {0}", frameIndex);
+            //Common.CallBacks.Log("Setting Frame Index {0}", frameIndex);
             TkAnimNodeFrameData frame = animMeta.AnimFrameData[frameCounter];
             TkAnimNodeFrameData stillframe = animMeta.StillFrameData;
             TkAnimNodeFrameData activeFrame = null;
@@ -398,7 +398,7 @@ namespace MVCore.Utils
 
         //Load Game Archive Handles
         
-        public static void loadNMSArchives(string filepath, string gameDir, ref ResourceManager resMgr, ref int status)
+        public static void loadNMSArchives(string gameDir, ref ResourceManager resMgr, ref int status)
         {
             CallBacks.Log("Trying to load PAK files from " + gameDir);
             if (!Directory.Exists(gameDir))
@@ -443,7 +443,7 @@ namespace MVCore.Utils
                 foreach (string pak_path in pak_files)
                 {
                     if (pak_path.Contains("CUSTOMMODELS"))
-                        Console.WriteLine(pak_path);
+                        Common.CallBacks.Log(pak_path);
 
                     if (!pak_path.EndsWith(".pak"))
                         continue;
@@ -511,7 +511,7 @@ namespace MVCore.Utils
                     string line = sr.ReadLine();
                     string[] sp = line.Split('\t');
                     if (sp.Length != 2)
-                        Console.WriteLine(sp[0] + "   " + sp[1]);
+                        Common.CallBacks.Log(sp[0] + "   " + sp[1]);
                     resMgr.NMSFileToArchiveMap[sp[0]] = resMgr.NMSArchiveMap[sp[1]];
                 }
 

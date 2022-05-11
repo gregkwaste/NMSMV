@@ -387,7 +387,7 @@ namespace MVCore.Engine
                     rt_SpecularTestScene();
                     break;
                 default:
-                    Console.WriteLine("Non Implemented Test Scene");
+                    Common.CallBacks.Log("Non Implemented Test Scene");
                     break;
             }
 
@@ -461,7 +461,7 @@ namespace MVCore.Engine
         
         private void input_poller(object sender, System.Timers.ElapsedEventArgs e)
         {
-            //Console.WriteLine(gpHandler.getAxsState(0, 0).ToString() + " " +  gpHandler.getAxsState(0, 1).ToString());
+            //Common.CallBacks.Log(gpHandler.getAxsState(0, 0).ToString() + " " +  gpHandler.getAxsState(0, 1).ToString());
             //gpHandler.reportButtons();
             //gamepadController(); //Move camera according to input
 
