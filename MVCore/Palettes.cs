@@ -47,7 +47,8 @@ namespace Model_Viewer
                 }
 
             }
-            throw new ApplicationException("Missing Pallete" + name);
+            ErrorUtils.throwException("Missing Pallete" + name);
+            return null;
         }
 
         public static Dictionary<string, Dictionary<string, Vector4>> createPalette()

@@ -201,7 +201,7 @@ namespace GLSLHelper {
                     string dirname = Path.GetDirectoryName(path);
                     path = Path.Combine(dirname, "Shaders", basename);
                     if (!File.Exists(path))
-                        throw new ApplicationException("Preprocessor: File not found. Check the input filepath");
+                        ErrorUtils.throwException("Preprocessor: File not found. Check the input filepath");
                 }
 
                 //Add filewatcher
@@ -236,8 +236,8 @@ namespace GLSLHelper {
                     split = line.Split(' ');
 
                     if (split.Length != 2)
-                        throw new ApplicationException("Wrong Usage of #include directive");
-
+                        ErrorUtils.throwException("Wrong Usage of #include directive");
+                    
                     //get included filepath
                     string npath = split[1].Trim('"');
                     npath = npath.TrimStart('/');

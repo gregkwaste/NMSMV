@@ -18,6 +18,7 @@ using MVCore.Utils;
 using libMBIN.NMS.GameComponents;
 using libMBIN.NMS;
 using System.CodeDom;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace MVCore
 {
@@ -498,6 +499,58 @@ namespace MVCore
             {typeof(EmptyNode), 5}
         };
 
+        private static GeomObject ParseGeometryFile(string path)
+        {
+            if (path == "")
+                return null;
+
+            GeomObject gobject;
+
+            if (Common.RenderState.activeResMgr.GLgeoms.ContainsKey(path))
+            {
+                //Load from dict
+                gobject = Common.RenderState.activeResMgr.GLgeoms[path];
+            
+            }
+            else
+            {
+
+#if DEBUG
+                //Use libMBIN to decompile the file
+                TkGeometryData geomdata = (TkGeometryData)NMSUtils.LoadNMSTemplate(path + ".PC", ref Common.RenderState.activeResMgr);
+                //Save NMSTemplate to exml
+                string xmlstring = EXmlFile.WriteTemplate(geomdata);
+                File.WriteAllText("Temp\\temp_geom.exml", xmlstring);
+#endif
+                //Load Gstream and Create gobject
+
+                Stream fs, gfs;
+
+                fs = NMSUtils.LoadNMSFileStream(path + ".PC", ref Common.RenderState.activeResMgr);
+
+                //Try to fetch the geometry.data.mbin file in order to fetch the geometry streams
+                string gstreamfile = "";
+                string[] split = path.Split('.');
+                for (int i = 0; i < split.Length - 1; i++)
+                    gstreamfile += split[i] + ".";
+                gstreamfile += "DATA.MBIN.PC";
+
+                gfs = NMSUtils.LoadNMSFileStream(gstreamfile, ref Common.RenderState.activeResMgr);
+
+
+                gobject = Parse(ref fs, ref gfs);
+                Common.RenderState.activeResMgr.GLgeoms[path] = gobject;
+                Common.CallBacks.Log(string.Format("Geometry file {0} successfully parsed",
+                    path + ".PC"));
+
+                fs.Close();
+                gfs.Close();
+            }
+
+            return gobject;
+
+        }
+
 
         public static Scene LoadObjects(string path)
         {
@@ -515,63 +568,11 @@ namespace MVCore
             //Get Geometry File
             //Parse geometry once
             string geomfile = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(template.Attributes, "GEOMETRY");
-            int num_lods = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(template.Attributes, "NUMLODS"));
-
-            GeomObject gobject;
-            if (Common.RenderState.activeResMgr.GLgeoms.ContainsKey(geomfile))
-            {
-                //Load from dict
-                gobject = Common.RenderState.activeResMgr.GLgeoms[geomfile];
-
-            } else
-            {
-
-#if DEBUG
-                //Use libMBIN to decompile the file
-                TkGeometryData geomdata = (TkGeometryData)NMSUtils.LoadNMSTemplate(geomfile + ".PC", ref Common.RenderState.activeResMgr);
-                //Save NMSTemplate to exml
-                string xmlstring = EXmlFile.WriteTemplate(geomdata);
-                File.WriteAllText("Temp\\temp_geom.exml", xmlstring);
-#endif
-                //Load Gstream and Create gobject
-
-                Stream fs, gfs;
-                
-                fs = NMSUtils.LoadNMSFileStream(geomfile + ".PC", ref Common.RenderState.activeResMgr);
-
-                //Try to fetch the geometry.data.mbin file in order to fetch the geometry streams
-                string gstreamfile = "";
-                split = geomfile.Split('.');
-                for (int i = 0; i < split.Length - 1; i++)
-                    gstreamfile += split[i] + ".";
-                gstreamfile += "DATA.MBIN.PC";
-
-                gfs = NMSUtils.LoadNMSFileStream(gstreamfile, ref Common.RenderState.activeResMgr);
-
-
-                if (fs is null)
-                {
-                    Util.showError("Could not find geometry file " + geomfile + ".PC", "Error");
-                    Common.CallBacks.Log(string.Format("Could not find geometry file {0} ", geomfile + ".PC"));
-
-                    //Create Dummy Scene
-                    Scene dummy = new Scene();
-                    dummy.name = "DUMMY_SCENE";
-                    dummy.nms_template = null;
-                    dummy.type = TYPES.MODEL;
-                    return dummy;
-                }
-
-                gobject = Parse(ref fs, ref gfs);
-                Common.RenderState.activeResMgr.GLgeoms[geomfile] = gobject;
-                Common.CallBacks.Log(string.Format("Geometry file {0} successfully parsed",
-                    geomfile + ".PC"));
-                
-                fs.Close();
-                gfs.Close();
-            }
-
-
+            int num_lods = 0; 
+            int.TryParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(template.Attributes, "NUMLODS"), out num_lods);
+            
+            GeomObject gobject = ParseGeometryFile(geomfile);
+            
             //Random Generetor for colors
             Random randgen = new Random();
 
@@ -931,8 +932,16 @@ namespace MVCore
                 meshVao.BoneRemapIndicesCount = so.metaData.lastskinmat - so.metaData.firstskinmat;
                 meshVao.BoneRemapIndices = new int[meshVao.BoneRemapIndicesCount];
                 for (int i = 0; i < so.metaData.lastskinmat - so.metaData.firstskinmat; i++)
-                    meshVao.BoneRemapIndices[i] = gobject.boneRemap[so.metaData.firstskinmat + i];
-
+                {
+                    try {
+                        meshVao.BoneRemapIndices[i] = gobject.boneRemap[so.metaData.firstskinmat + i];
+                    } catch (IndexOutOfRangeException ex)
+                    {
+                        meshVao.BoneRemapIndices[i] = 0;
+                    }
+                    
+                }
+                    
                 //Set skinned flag
                 if (meshVao.BoneRemapIndicesCount > 0 && so.animComponentID >= 0)
                     meshVao.skinned = true;
@@ -1006,8 +1015,9 @@ namespace MVCore
 
             //Fetch attributes
             so._LODDistances = new float[5];
-            so._LODNum = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "NUMLODS"));
-
+            so._LODNum = 0;
+            int.TryParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "NUMLODS"), out so._LODNum);
+            
             //Fetch extra LOD attributes
             for (int i = 1; i < so._LODNum; i++)
             {
@@ -1260,7 +1270,7 @@ namespace MVCore
 
                 if (metaData.lastskinmat - metaData.firstskinmat > 0)
                 {
-                    throw new Exception("SKINNED COLLISION. CHECK YOUR SHIT!");
+                    ErrorUtils.throwException("SKINNED COLLISION. CHECK YOUR SHIT!");
                 }
 
                 //Set vao
@@ -1418,8 +1428,8 @@ namespace MVCore
 
             string attenuation = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "FALLOFF");
             if (!Enum.TryParse<ATTENUATION_TYPE>(attenuation.ToUpper(), out so.falloff))
-                throw new Exception("Light attenuation Type " + attenuation + " Not supported");
-
+                ErrorUtils.throwException("Light attenuation Type " + attenuation + " Not supported");
+            
             //Add Light to the resource Manager
             so.update_struct();
             Common.RenderState.activeResMgr.GLlights.Add(so);
@@ -1563,8 +1573,8 @@ namespace MVCore
 
             TYPES typeEnum;
             if (!Enum.TryParse<TYPES>(node.Type, out typeEnum))
-                throw new Exception("Node Type " + node.Type + "Not supported");
-
+                ErrorUtils.throwException("Node Type " + node.Type + "Not supported");
+            
             if (typeEnum == TYPES.MESH)
             {
                 Common.CallBacks.Log(string.Format("Parsing Mesh {0}", node.Name));

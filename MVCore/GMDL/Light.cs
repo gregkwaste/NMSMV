@@ -31,6 +31,7 @@ namespace MVCore.GMDL
         QUADRATIC = 0x0,
         CONSTANT,
         LINEAR,
+        LINEAR_SQRT,
         COUNT
     }
 

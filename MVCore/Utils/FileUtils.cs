@@ -8,6 +8,21 @@ using System.Diagnostics;
 
 namespace MVCore.Utils
 {
+
+    public static class ErrorUtils
+    {
+        public static void throwFileNotFoundException(string msg)
+        {
+            Common.CallBacks.Log("FILENOTFOUNDEXCEPTION " + msg);
+            throw new FileNotFoundException(msg);
+        }
+        public static void throwException(string msg)
+        {
+            Common.CallBacks.Log("EXCEPTION " + msg);
+            throw new Exception(msg);
+        }
+    }
+
     public static class StringUtils
     {
         //Parse a string of n and terminate if it is a null terminated string

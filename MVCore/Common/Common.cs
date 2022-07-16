@@ -224,8 +224,6 @@ namespace MVCore.Common
 
     }
 
-
-
     public class Settings : INotifyPropertyChanged
     {
         private int forceProcGen;

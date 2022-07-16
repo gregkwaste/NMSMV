@@ -108,7 +108,7 @@ namespace MVCore.Engine
             }
             else
             {
-                throw new Exception("Unsupported texture target " + textarget);
+                Utils.ErrorUtils.throwException("Unsupported texture target " + textarget);
             }
 
             //Check
@@ -266,7 +266,7 @@ namespace MVCore.Engine
             }
             else
             {
-                throw new Exception("Unsupported texture target " + textarget);
+                Utils.ErrorUtils.throwException("Unsupported texture target " + textarget);
             }
         }
 
@@ -388,7 +388,7 @@ namespace MVCore.Engine
             }
             else
             {
-                throw new Exception("Unsupported texture target " + textarget);
+                Utils.ErrorUtils.throwException("Unsupported texture target " + textarget);
             }
         }
 
