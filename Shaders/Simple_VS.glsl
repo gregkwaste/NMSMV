@@ -97,7 +97,7 @@ void main()
     #else
         lWorldMat = instanceData[gl_InstanceID].worldMat;
     #endif
-
+    
     vec4 wPos = lWorldMat * vPosition; //Calculate world Position
     fragPos = wPos; //Export world position to the fragment shader
     screenPos = mpCommonPerFrame.mvp * mpCommonPerFrame.rotMat * fragPos;

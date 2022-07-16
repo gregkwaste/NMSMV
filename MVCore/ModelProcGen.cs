@@ -261,8 +261,8 @@ namespace MVCore
         {
             List<string> l = new List<string>();
             Debug.WriteLine(this.subs[key]);
-            if (this.subs.Keys.Contains(key))
-                throw new ApplicationException("Malakia Key");
+            if (subs.Keys.Contains(key))
+                ErrorUtils.throwException("Malakia Key");
             
             foreach (Selector sel in this.subs[key])
             {

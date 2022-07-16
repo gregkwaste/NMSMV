@@ -318,10 +318,10 @@ namespace MVCore.GMDL
             if (size != vx_size * (so.metaData.vertrend_graphics + 1))
             {
                 //throw new ApplicationException(String.Format("Problem with vertex buffer"));
-                Util.showError("Mesh metadata does not match the vertex buffer size from the geometry file", "Error");
+                ErrorUtils.throwException("Mesh metadata does not match the vertex buffer size from the geometry file");
             }
                 
-            Common.RenderStats.vertNum += so.metaData.vertrend_graphics + 1; //Accumulate settings
+            RenderStats.vertNum += so.metaData.vertrend_graphics + 1; //Accumulate settings
 
             //Assign VertexAttribPointers
             for (int i = 0; i < 7; i++)
@@ -438,7 +438,7 @@ namespace MVCore.GMDL
             GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize,
                 out size);
             if (size != vbuffer.Length)
-                throw new ApplicationException(String.Format("Problem with vertex buffer"));
+                ErrorUtils.throwException("Problem with vertex buffer");
 
             //Upload index buffer
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, vao.element_buffer_object);
@@ -1082,7 +1082,8 @@ namespace MVCore.GMDL
                                 pif = InternalFormat.CompressedRgRgtc2;
                                 break;
                             default:
-                                throw new ApplicationException("Unimplemented DX10 Texture Pixel format");
+                                ErrorUtils.throwException("Unimplemented DX10 Texture Pixel format");
+                                break;
                         }
                         break;
                     }

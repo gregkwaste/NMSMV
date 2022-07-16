@@ -468,7 +468,7 @@ namespace WPFModelViewer
             //Issue work request 
             ThreadRequest rq = new ThreadRequest();
             //rq.arguments.Add("NMSmanifest");
-            rq.arguments.Add(Path.Combine(RenderState.settings.GameDir, "PCBANKS"));
+            rq.arguments.Add(Path.Combine(Path.Combine(RenderState.settings.GameDir,"GAMEDATA"), "PCBANKS"));
             rq.arguments.Add(RenderState.activeResMgr);
             rq.type = THREAD_REQUEST_TYPE.LOAD_NMS_ARCHIVES_REQUEST;
             workDispatcher.sendRequest(rq);

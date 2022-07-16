@@ -43,15 +43,15 @@ namespace MVCore.Utils
                 else
                 {
                     if (!File.Exists(filepath))
-                        throw new FileNotFoundException("File not found\n " + filepath);
-                    libMBIN.MBINFile mbinf = new libMBIN.MBINFile(filepath);
+                        ErrorUtils.throwException("File not found\n " + filepath);
+                    MBINFile mbinf = new libMBIN.MBINFile(filepath);
                     mbinf.Load();
                     template = mbinf.GetData();
                     mbinf.Dispose();
                 }
             } catch (Exception ex)
             {
-                if (ex is System.IO.DirectoryNotFoundException || ex is System.IO.FileNotFoundException)
+                if (ex is DirectoryNotFoundException || ex is FileNotFoundException)
                 {
                     Util.showError("File " + filepath + " Not Found...", "Error");
 
@@ -93,7 +93,7 @@ namespace MVCore.Utils
             {
                 CallBacks.Log("File: " + filepath + " Not found in PAKs or local folders. ");
                 Util.showError("File: " + filepath + " Not found in PAKs or local folders. ", "Error");
-                throw new FileNotFoundException("File not found\n " + filepath);
+                ErrorUtils.throwFileNotFoundException("File not found\n " + filepath);
             }
             Stream result = null;
             switch (load_mode)

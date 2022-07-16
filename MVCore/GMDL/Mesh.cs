@@ -931,6 +931,7 @@ namespace MVCore.GMDL
                 for (int i = 0; i < vertcount; i++)
                 {
                     Assimp.Vector3D v, vN;
+                    v = new Assimp.Vector3D();
 
                     for (int j = 0; j < gobject.bufInfo.Count; j++)
                     {
@@ -1146,7 +1147,7 @@ namespace MVCore.GMDL
             vbr.BaseStream.Seek(0, SeekOrigin.Begin);
             for (int i = 0; i < vertcount; i++)
             {
-                Vector4 v;
+                Vector4 v = new Vector4(0.0f);
                 VertexAttribPointerType ntype = gobject.bufInfo[0].type;
                 int v_section_bytes = 0;
 
@@ -1171,7 +1172,8 @@ namespace MVCore.GMDL
                         v_section_bytes = 12;
                         break;
                     default:
-                        throw new Exception("Unimplemented Vertex Type");
+                        ErrorUtils.throwException("Unimplemented Vertex Type");
+                        break;
                 }
 
 
@@ -1186,7 +1188,7 @@ namespace MVCore.GMDL
             vbr.BaseStream.Seek(gobject.offsets[2] + 0, SeekOrigin.Begin);
             for (int i = 0; i < vertcount; i++)
             {
-                Vector4 vN;
+                Vector4 vN = new Vector4();
                 VertexAttribPointerType ntype = gobject.bufInfo[2].type;
                 int n_section_bytes = 0;
 
@@ -1231,7 +1233,8 @@ namespace MVCore.GMDL
                         //Debug.WriteLine(vN);
                         break;
                     default:
-                        throw new Exception("UNIMPLEMENTED NORMAL TYPE. PLEASE REPORT");
+                        ErrorUtils.throwException("UNIMPLEMENTED NORMAL TYPE. PLEASE REPORT");
+                        break;
                 }
 
                 //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
