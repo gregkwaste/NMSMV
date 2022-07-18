@@ -78,6 +78,7 @@ namespace WPFModelViewer
             //Initialize Resource Manager
             RenderState.activeResMgr = new ResourceManager();
             
+
             //Generate CGLControl
             glControl = new CGLControl();
             

@@ -657,24 +657,17 @@ namespace MVCore.Utils
             StreamReader sr = new StreamReader(Path.Combine(steam_path, @"steamapps\libraryfolders.vdf"));
             List<string> libraryPaths = new List<string>();
 
-            int line_count = 0;
             while (!sr.EndOfStream)
             {
                 string line = sr.ReadLine();
-                if (line_count < 4)
-                {
-                    line_count++;
-                    continue;
-                }
 
-                if (!line.StartsWith("\t"))
+                if (!line.Contains("\"path\""))
                     continue;
-                    
-                string[] split = line.Split('\t');
-                string path = split[split.Length - 1];
-                path = path.Trim('\"');
-                path = path.Replace("\\\\", "\\");
-                libraryPaths.Add(Path.Combine(path, "steamapps"));
+
+                line = line.Replace("\t", " ");
+                line = line.Trim().Trim('\"');
+                string path = line.Split('\"')[2];
+                libraryPaths.Add(Path.Combine(path, "steamapps\\"));
             }
             
             //Check all library paths for the acf file
@@ -687,7 +680,7 @@ namespace MVCore.Utils
                         continue;
 
                     if (filepath.Contains(nms_id))
-                        return Path.Combine(path, @"common\No Man's Sky\GAMEDATA");
+                        return Path.Combine(path, @"common\No Man's Sky");
                 }
             }
 
