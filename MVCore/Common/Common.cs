@@ -108,7 +108,7 @@ namespace MVCore.Common
     {
         public int animFPS = 60;
         public bool _useVSYNC = false;
-        public float _HDRExposure = 0.005f;
+        public float _HDRExposure = 0.5f;
         //Set Full rendermode by default
         public PolygonMode RENDERMODE = PolygonMode.Fill;
         public System.Drawing.Color clearColor = System.Drawing.Color.FromArgb(255, 33, 33, 33);

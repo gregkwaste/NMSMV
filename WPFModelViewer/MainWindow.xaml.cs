@@ -155,6 +155,8 @@ namespace WPFModelViewer
             glControl.issueRenderingRequest(ref req2);
             //glControl.waitForRenderingRequest(ref req2);
 
+            //Bind new camera to the controls
+            CameraOptionsView.Content = RenderState.activeCam.settings;
         }
 
 

@@ -298,9 +298,12 @@ namespace MVCore
             cam.isActive = false;
             GLCameras.Add(cam);
 
-            cam = new Camera(90, -1, 0, false);
-            cam.isActive = false;
-            GLCameras.Add(cam);
+            if (RenderState.activeCam != null)
+            {
+                GLCameras[0].settings = RenderState.activeCam.settings;
+                Camera.SetCameraPosition(ref cam, RenderState.activeCam.Position);
+                Camera.SetCameraDirection(ref cam, RenderState.activeCam.Direction);
+            }
 
             //Set as active camera the first one by default
             RenderState.activeCam = GLCameras[0];

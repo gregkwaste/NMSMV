@@ -78,20 +78,27 @@ namespace MVCore.Utils
             string tempAssemblyLoc = Path.Combine(assemblyDir, "_templibMBIN.dll");
             string tempAssemblyVersion = Assembly.LoadFile(tempAssemblyLoc).GetName().Version.ToString();
 
-            DialogResult res = MessageBox.Show("Old Version: " + assemblyVersion + " Online Version: " + tempAssemblyVersion + "\nDo you want to update?", "Info", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-
-            if (res == DialogResult.Yes)
+            if (assemblyVersion == tempAssemblyVersion)
             {
-                if (File.Exists("libMBIN_old.dll"))
-                    File.Delete("libMBIN_old.dll");
-                File.Move("libMBIN.dll", "libMBIN_old.dll");
-                File.Move("_templibMBIN.dll", "libMBIN.dll");
+                MessageBox.Show("libMBIN is already updated.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            } else
+            {
+                DialogResult res = MessageBox.Show("Old Version: " + assemblyVersion + " Online Version: " + tempAssemblyVersion + "\nDo you want to update?", "Info", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
 
-                //MessageBox.Show("Please restart the app to re-load the assembly", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                if (res == DialogResult.Yes)
+                {
+                    if (File.Exists("libMBIN_old.dll"))
+                        File.Delete("libMBIN_old.dll");
+                    File.Move("libMBIN.dll", "libMBIN_old.dll");
+                    File.Move("_templibMBIN.dll", "libMBIN.dll");
 
-                return true;
-            
+                    //MessageBox.Show("Please restart the app to re-load the assembly", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    return true;
+
+                }
             }
+
 
             return false;
         }
