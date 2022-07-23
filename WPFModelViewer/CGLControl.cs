@@ -779,8 +779,7 @@ namespace Model_Viewer
 
             RenderState.activeResMgr.GLCameras[0].Move(dt);
             RenderState.activeResMgr.GLCameras[0].updateViewMatrix();
-            RenderState.activeResMgr.GLCameras[1].updateViewMatrix();
-
+            
             //Update Frame Counter
             fps();
 

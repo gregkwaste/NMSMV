@@ -206,8 +206,9 @@ namespace MVCore.Utils
                     Util.showError("File " + effective_filepath + " problem...", "Error");
                 else if (ex is System.Reflection.TargetInvocationException)
                 {
-                    Util.showError("libMBIN failed to decompile file. If this is a vanilla file, contact the MbinCompiler developer",
+                    Util.showError($"libMBIN failed to decompile file {effective_filepath}. If this is a vanilla file, contact the MbinCompiler developer",
                     "Error");
+                    Util.Log(ex.StackTrace);
                 }
                 else
                 {
