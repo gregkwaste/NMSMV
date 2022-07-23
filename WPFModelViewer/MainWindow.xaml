@@ -16,6 +16,59 @@
         Loaded="MainWindow_OnLoaded">
     <Window.Resources>
         <ResourceDictionary>
+            <DataTemplate DataType="{x:Type gmdl:CameraSettings}">
+                <GroupBox Header="Camera Options">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="20"/>
+                            <RowDefinition Height="20"/>
+                            <RowDefinition Height="20"/>
+                            <RowDefinition Height="20"/>
+                            <RowDefinition Height="20"/>
+                            <RowDefinition Height="20"/>
+                            <RowDefinition Height="20"/>
+                            <RowDefinition Height="20"/>
+                        </Grid.RowDefinitions>
+                        <DockPanel Grid.Row="0" HorizontalAlignment="Stretch">
+                            <TextBlock Width="100">FOV</TextBlock>
+                            <Slider x:Name="sliderFOV" Value="{Binding FOV}" Minimum="1" Maximum="100" SmallChange="1"></Slider>
+                        </DockPanel>
+                        <DockPanel Grid.Row="1" HorizontalAlignment="Stretch">
+                            <TextBlock Width="100">Cam Speed</TextBlock>
+                            <Slider x:Name="sliderMovementSpeed" Value="{Binding Speed}" Minimum="1" Maximum="20" SmallChange="1"></Slider>
+                        </DockPanel>
+                        <DockPanel Grid.Row="2" HorizontalAlignment="Stretch">
+                            <TextBlock Width="100">Cam Speed Boost</TextBlock>
+                            <Slider x:Name="sliderMovementFactor"  Value="{Binding SpeedPower}" Minimum="1" Maximum="10" SmallChange="0.5"></Slider>
+                        </DockPanel>
+                        <DockPanel Grid.Row="3" HorizontalAlignment="Stretch">
+                            <TextBlock Width="100">zNear</TextBlock>
+                            <Slider x:Name="sliderzNear"  Value="{Binding ZNear}" Minimum="0.01" Maximum="1" SmallChange="0.1"></Slider>
+                        </DockPanel>
+                        <DockPanel Grid.Row="4" HorizontalAlignment="Stretch">
+                            <TextBlock Width="100">zFar</TextBlock>
+                            <Slider x:Name="sliderzFar" Value="{Binding ZFar}" Minimum="101" Maximum="30000" SmallChange="5"></Slider>
+                        </DockPanel>
+                        <DockPanel Grid.Row="5" HorizontalAlignment="Stretch">
+                            <TextBlock Width="100">Light Distance</TextBlock>
+                            <Slider x:Name="sliderlightDistance" Value="2.0" Minimum="0" Maximum="20" SmallChange="0.2"></Slider>
+                        </DockPanel>
+                        <DockPanel Grid.Row="6" HorizontalAlignment="Stretch">
+                            <TextBlock Width="100">Light Intensity</TextBlock>
+                            <Slider x:Name="sliderLightIntensity"  Value="3.0" Minimum="0.0" Maximum="20.0" SmallChange="0.1"></Slider>
+                        </DockPanel>
+                        <Grid Grid.Row="7">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="50*"/>
+                                <ColumnDefinition Width="50*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Click="CameraResetPos">Reset Camera</Button>
+                            <Button Grid.Column="1" Click="SceneResetRotation">Reset Scene Rotation</Button>
+                        </Grid>
+                    </Grid>
+                </GroupBox>
+            </DataTemplate>
+            
             <DataTemplate x:Key="basemodel" DataType="{x:Type gmdl:Model}">
                 <Grid VerticalAlignment="Stretch">
                     <Grid.RowDefinitions>
@@ -679,81 +732,32 @@
                                 <RowDefinition Height="*"/>
                                 <RowDefinition Height="100"/>
                             </Grid.RowDefinitions>
-                        <GroupBox Grid.Row="0" Header="Camera Options">
+                        <ContentControl Grid.Row="0" x:Name="CameraOptionsView"/>
+                        <GroupBox Grid.Row="1" Header="Camera Movement">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="20"/>
                                     <RowDefinition Height="20"/>
                                     <RowDefinition Height="20"/>
                                     <RowDefinition Height="20"/>
-                                    <RowDefinition Height="20"/>
-                                    <RowDefinition Height="20"/>
-                                    <RowDefinition Height="20"/>
-                                    <RowDefinition Height="20"/>
-                                    </Grid.RowDefinitions>
-                                <DockPanel Grid.Row="0" HorizontalAlignment="Stretch">
-                                    <TextBlock Width="100">FOV</TextBlock>
-                                    <Slider x:Name="sliderFOV"  Value="90" Minimum="1" Maximum="100" SmallChange="1"></Slider>
+                                </Grid.RowDefinitions>
+                                <DockPanel Grid.Row="0">
+                                    <TextBlock HorizontalAlignment="Left">Horizontal Camera Movement</TextBlock>
+                                    <TextBlock HorizontalAlignment="Right">W, A, S, D</TextBlock>
                                 </DockPanel>
-                                <DockPanel Grid.Row="1" HorizontalAlignment="Stretch">
-                                    <TextBlock Width="100">Cam Speed</TextBlock>
-                                    <Slider x:Name="sliderMovementSpeed"  Value="2" Minimum="1" Maximum="20" SmallChange="1"></Slider>
+                                <DockPanel Grid.Row="1">
+                                    <TextBlock HorizontalAlignment="Left">Vertical Camera Movement</TextBlock>
+                                    <TextBlock HorizontalAlignment="Right">R, F</TextBlock>
                                 </DockPanel>
-                                <DockPanel Grid.Row="2" HorizontalAlignment="Stretch">
-                                    <TextBlock Width="100">Cam Speed Boost</TextBlock>
-                                    <Slider x:Name="sliderMovementFactor"  Value="1" Minimum="1" Maximum="10" SmallChange="0.5"></Slider>
+                                <DockPanel Grid.Row="2">
+                                    <TextBlock HorizontalAlignment="Left">Camera Rotation</TextBlock>
+                                    <TextBlock HorizontalAlignment="Right" ToolTip="Hold the right mouse button and move around with the mouse">Hold RMB + Move</TextBlock>
                                 </DockPanel>
-                                <DockPanel Grid.Row="3" HorizontalAlignment="Stretch">
-                                        <TextBlock Width="100">zNear</TextBlock>
-                                    <Slider x:Name="sliderzNear"  Value="0.01" Minimum="0.01" Maximum="1" SmallChange="0.1"></Slider>
+                                <DockPanel Grid.Row="3">
+                                    <TextBlock HorizontalAlignment="Left">Scene Rotate (Y Axis)</TextBlock>
+                                    <TextBlock HorizontalAlignment="Right">Q, E</TextBlock>
                                 </DockPanel>
-                                <DockPanel Grid.Row="4" HorizontalAlignment="Stretch">
-                                        <TextBlock Width="100">zFar</TextBlock>
-                                    <Slider x:Name="sliderzFar" Value="15000" Minimum="101" Maximum="30000" SmallChange="5"></Slider>
-                                </DockPanel>
-                                <DockPanel Grid.Row="5" HorizontalAlignment="Stretch">
-                                        <TextBlock Width="100">Light Distance</TextBlock>
-                                    <Slider x:Name="sliderlightDistance" Value="2.0" Minimum="0" Maximum="20" SmallChange="0.2"></Slider>
-                                </DockPanel>
-                                <DockPanel Grid.Row="6" HorizontalAlignment="Stretch">
-                                        <TextBlock Width="100">Light Intensity</TextBlock>
-                                    <Slider x:Name="sliderLightIntensity"  Value="3.0" Minimum="0.0" Maximum="20.0" SmallChange="0.1"></Slider>
-                                </DockPanel>
-                                <Grid Grid.Row="7">
-                                    <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="50*"/>
-                                            <ColumnDefinition Width="50*"/>
-                                    </Grid.ColumnDefinitions>
-                                        <Button Grid.Column="0" Click="CameraResetPos">Reset Camera</Button>
-                                        <Button Grid.Column="1" Click="SceneResetRotation">Reset Scene Rotation</Button>
-                                    </Grid>
-                                </Grid>
-                        </GroupBox>
-                        <GroupBox Grid.Row="1" Header="Camera Movement">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="20"/>
-                                        <RowDefinition Height="20"/>
-                                        <RowDefinition Height="20"/>
-                                        <RowDefinition Height="20"/>
-                                    </Grid.RowDefinitions>
-                                    <DockPanel Grid.Row="0">
-                                        <TextBlock HorizontalAlignment="Left">Horizontal Camera Movement</TextBlock>
-                                        <TextBlock HorizontalAlignment="Right">W, A, S, D</TextBlock>
-                                    </DockPanel>
-                                    <DockPanel Grid.Row="1">
-                                        <TextBlock HorizontalAlignment="Left">Vertical Camera Movement</TextBlock>
-                                        <TextBlock HorizontalAlignment="Right">R, F</TextBlock>
-                                    </DockPanel>
-                                    <DockPanel Grid.Row="2">
-                                        <TextBlock HorizontalAlignment="Left">Camera Rotation</TextBlock>
-                                        <TextBlock HorizontalAlignment="Right" ToolTip="Hold the right mouse button and move around with the mouse">Hold RMB + Move</TextBlock>
-                                    </DockPanel>
-                                    <DockPanel Grid.Row="3">
-                                        <TextBlock HorizontalAlignment="Left">Scene Rotate (Y Axis)</TextBlock>
-                                        <TextBlock HorizontalAlignment="Right">Q, E</TextBlock>
-                                    </DockPanel>
-                                </Grid>
+                            </Grid>
                         </GroupBox>
                         </Grid>
                     </TabItem>

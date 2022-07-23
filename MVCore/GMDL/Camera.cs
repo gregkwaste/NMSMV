@@ -24,6 +24,106 @@ namespace MVCore.GMDL
         }
     }
 
+    public class CameraJSONSettings
+    {
+        public CameraSettings settings { get; set; }
+        public float PosX { get; set; }
+        public float PosY { get; set; }
+        public float PosZ { get; set; }
+        public float DirX { get; set; }
+        public float DirY { get; set; }
+        public float DirZ { get; set; }
+        public float DirW { get; set; }
+    }
+
+
+    public class CameraSettings : INotifyPropertyChanged
+    {
+        public float _fovRadians = MathUtils.radians(90);
+        private float _znear = 0.005f;
+        private float _zfar = 15000.0f;
+        private float _speed = 1.0f;
+        private float _speedPower = 1.0f;
+
+        //Properties
+        public int FOV 
+        {
+            get
+            {
+                return (int) MathUtils.degrees(_fovRadians);
+            }
+
+            set
+            {
+                _fovRadians = MathUtils.radians(value);
+                NotifyPropertyChanged("FOV");
+            }
+        }
+
+        public float ZNear 
+        {
+            get
+            {
+                return _znear;
+            }
+
+            set
+            {
+                _znear = value;
+                NotifyPropertyChanged("ZNear");
+            }
+        }
+
+        public float ZFar 
+        {
+            get
+            {
+                return _zfar;
+            }
+
+            set
+            {
+                _zfar = value;
+                NotifyPropertyChanged("ZFar");
+            }
+        }
+
+        public float Speed 
+        {
+            get
+            {
+                return _speed;
+            }
+
+            set
+            {
+                _speed = value;
+                NotifyPropertyChanged("Speed");
+            }
+        }
+
+        public float SpeedPower
+        {
+            get
+            {
+                return _speedPower;
+            }
+
+            set
+            {
+                _speedPower = value;
+                NotifyPropertyChanged("SpeedPower");
+            }
+        }
+        
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        private void NotifyPropertyChanged(String info)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(info));
+        }
+    }
+
     public class Camera
     {
         //Base Coordinate System
@@ -45,21 +145,24 @@ namespace MVCore.GMDL
         public Vector3 Up = new Vector3(0.0f, 1.0f, 0.0f);
         public Quaternion Direction = new Quaternion(new Vector3(0.0f, (float)Math.PI / 2.0f, 0.0f));
         public Vector3 Position = new Vector3(0.0f, 0.0f, 0.0f);
-
+        
         //Movement Time
         private float t_pos_move = 100.0f;
         private float t_rot_move = 100.0f;
         private float t_start = 0.0f;
 
-        public float Speed = 1.0f; //Speed in Units/Sec
-        public float SpeedPower = 1.0f; //Coefficient to which speed is raised
         public float Sensitivity = 0.001f;
         public bool isActive = false;
         //Projection variables Set defaults
-        public float fov;
-        public float zNear = 0.05f;
-        public float zFar = 15000.0f;
         public float aspect = 1.0f;
+        
+
+        public CameraSettings settings = new CameraSettings();
+
+        
+        
+
+
 
         //Matrices
         public Matrix4 projMat;
@@ -75,23 +178,23 @@ namespace MVCore.GMDL
         public Vector4[] frPlanes = new Vector4[6];
 
         //Rendering Stuff
-        public GMDL.GLMeshVao vao;
+        public GLMeshVao vao;
         public int program;
 
-        public Camera(int angle, int program, int mode, bool cull)
+        public Camera(int angle, int prgrm, int mode, bool cull)
         {
             //Set fov on init
-            this.setFOV(angle);
+            settings.FOV = angle;
             vao = new GLMeshVao();
             vao.vao = (new Primitives.Box(1.0f, 1.0f, 1.0f, new Vector3(1.0f), true)).getVAO();
-            this.program = program;
-            this.type = mode;
-            this.culling = cull;
+            program = prgrm;
+            type = mode;
+            culling = cull;
 
             //calcCameraOrientation(ref Front, ref Right, ref Up, 0, 0);
             
             //Initialize the viewmat
-            this.updateViewMatrix();
+            updateViewMatrix();
         
         }
         
@@ -106,21 +209,21 @@ namespace MVCore.GMDL
                 //Call Custom
                 //projMat = this.ComputeFOVProjection();
                 float w, h;
-                float tangent = (float) Math.Tan(fov / 2.0f);   // tangent of half fovY
-                h = zNear * tangent;  // half height of near plane
+                float tangent = (float) Math.Tan(settings._fovRadians / 2.0f);   // tangent of half fovY
+                h = settings.ZNear * tangent;  // half height of near plane
                 w = h * aspect;       // half width of near plane
 
                 //projMat = Matrix4.CreatePerspectiveOffCenter(-w, w, -h, h, zNear, zFar);
-                Matrix4.CreatePerspectiveFieldOfView(fov, aspect, zNear, zFar, out projMat);
+                Matrix4.CreatePerspectiveFieldOfView(settings._fovRadians, aspect, settings.ZNear, settings.ZFar, out projMat);
                 viewMat = lookMat * projMat;
             }
             else
             {
                 //Create orthographic projection
-                Matrix4.CreateOrthographic(aspect * 2.0f, 2.0f, zNear, zFar, out projMat);
+                Matrix4.CreateOrthographic(aspect * 2.0f, 2.0f, settings.ZNear, settings.ZFar, out projMat);
                 //projMat.Transpose();
                 //Create scale matrix based on the fov
-                Matrix4 scaleMat = Matrix4.CreateScale(0.8f * fov);
+                Matrix4 scaleMat = Matrix4.CreateScale(0.8f * settings._fovRadians);
                 viewMat = scaleMat * lookMat * projMat;
             }
             
@@ -131,21 +234,6 @@ namespace MVCore.GMDL
             updateFrustumPlanes();
         }
 
-        private void calcCameraOrientation(ref Vector3 front, ref Vector3 right, ref Vector3 up, 
-            float yaw, float pitch)
-        {
-            //Recalculate front vector
-            front.X = (float) Math.Cos(yaw) * (float)Math.Cos(pitch);
-            front.Y = (float) Math.Sin(pitch);
-            front.Z = (float) Math.Sin(yaw) * (float)Math.Cos(pitch);
-            front.Normalize();
-
-            //Recalculate right vector
-            right = Vector3.Cross(front, new Vector3(0.0f, 1.0f, 0.0f)).Normalized();
-            up = Vector3.Cross(right, front).Normalized();
-        
-        }
-
         public void updateTarget(CameraPos target, float interval)
         {
             //Interval is the update interval of the movement defined in the control camera timer
@@ -154,7 +242,6 @@ namespace MVCore.GMDL
             PrevPosition = Position;
             PrevDirection = Direction;
 
-            
             //Rotate Direction
             Quaternion rx = Quaternion.FromAxisAngle(Up, -target.Rotation.X * Sensitivity);
             Quaternion ry = Quaternion.FromAxisAngle(Right, -target.Rotation.Y * Sensitivity); //Looks OK
@@ -162,9 +249,8 @@ namespace MVCore.GMDL
 
             TargetDirection = Direction * rx * ry;
 
-            float actual_speed = (float) Math.Pow(Speed, SpeedPower);
+            float actual_speed = (float) Math.Pow(settings.Speed, settings.SpeedPower);
             
-
             float step = 0.001f;
             Vector3 offset = new Vector3();
             offset += step * actual_speed * target.PosImpulse.X * Right;
@@ -224,10 +310,41 @@ namespace MVCore.GMDL
             Up = Vector3.Cross(Right, Front).Normalized();
         }
 
-        public void setFOV(int angle)
+        public CameraJSONSettings GetSettings()
         {
-            this.fov = MathUtils.radians(angle);
+            return new CameraJSONSettings()
+            {
+                settings = settings,
+                DirX = Direction.X,
+                DirY = Direction.Y,
+                DirZ = Direction.Z,
+                DirW = Direction.W,
+                PosX = Position.X,
+                PosY = Position.Y,
+                PosZ = Position.Z
+            };
         }
+
+        public static void SetCameraPosition(ref Camera cam, Vector3 pos)
+        {
+            //Position
+            cam.Position = pos;
+            cam.PrevPosition = pos;
+            cam.TargetPosition = pos;
+        }
+
+        public static void SetCameraDirection(ref Camera cam, Quaternion quat)
+        {
+            //Position
+            cam.Direction = quat;
+            cam.PrevDirection = quat;
+            cam.TargetDirection = quat;
+        }
+
+        public static void SetCameraSettings(ref Camera cam, CameraSettings settings)
+        {
+            cam.settings = settings;
+        }    
 
         public void updateFrustumPlanes()
         {

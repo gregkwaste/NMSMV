@@ -31,7 +31,7 @@ namespace MVCore.Utils
             }
         }
 
-        public static void fetchLibMBINDLL()
+        public static bool fetchLibMBINDLL()
         {
             Uri uri = new Uri("https://api.github.com/repos/monkeyman192/MBINCompiler/releases/latest");
             string resp = request(uri);
@@ -53,46 +53,47 @@ namespace MVCore.Utils
                 }
             }
 
-            if (downloadUrl != "")
+            //local attributes
+            string assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            string assemblyLoc = Path.Combine(assemblyDir, "libMBIN.dll");
+            string assemblyVersion = Assembly.LoadFile(assemblyLoc).GetName().Version.ToString();
+
+
+            //fetch online version to temp
+
+            if (downloadUrl == "")
+                return false;
+
+            
+            if (File.Exists("_templibMBIN.dll"))
+                File.Delete("_templibMBIN.dll");
+
+            Common.CallBacks.Log("Downloading latest libMBIN release");
+            using (var client = new WebClient())
             {
-                string assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-                string assemblyLoc = Path.Combine(assemblyDir, "libMBIN.dll");
+                client.DownloadFile(downloadUrl, "_templibMBIN.dll");
+            }
+            
+            //Fetch version of temp assembly
+            string tempAssemblyLoc = Path.Combine(assemblyDir, "_templibMBIN.dll");
+            string tempAssemblyVersion = Assembly.LoadFile(tempAssemblyLoc).GetName().Version.ToString();
 
-                string assemblyVersion = Assembly.LoadFile(assemblyLoc).GetName().Version.ToString();
-                string fileVersion = FileVersionInfo.GetVersionInfo(assemblyLoc).FileVersion;
-                string productVersion = FileVersionInfo.GetVersionInfo(assemblyLoc).ProductVersion;
+            DialogResult res = MessageBox.Show("Old Version: " + assemblyVersion + " Online Version: " + tempAssemblyVersion + "\nDo you want to update?", "Info", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
 
+            if (res == DialogResult.Yes)
+            {
+                if (File.Exists("libMBIN_old.dll"))
+                    File.Delete("libMBIN_old.dll");
+                File.Move("libMBIN.dll", "libMBIN_old.dll");
+                File.Move("_templibMBIN.dll", "libMBIN.dll");
 
-                DialogResult res = MessageBox.Show("Old Version: " + assemblyVersion + " Online Version: " + libMBINVersion + "\nDo you want to update?", "Info", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                //MessageBox.Show("Please restart the app to re-load the assembly", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-                if (res == DialogResult.Yes)
-                {
-                    if (File.Exists("libMBIN_old.dll"))
-                        File.Delete("libMBIN_old.dll");
-                    File.Move("libMBIN.dll", "libMBIN_old.dll");
-
-                    using (var client = new WebClient())
-                    {
-                        client.DownloadFile(downloadUrl, "libMBIN.dll");
-                    }
-                    MessageBox.Show("Please restart the app to re-load the assembly", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-
+                return true;
+            
             }
 
-            //get download url
-
-
-            //foreach (string key in data["assets"])
-            //{
-            //    Common.CallBacks.Log(key);
-            //}
-
-
-
-
+            return false;
         }
-
-
     }
 }

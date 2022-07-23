@@ -9,7 +9,7 @@
         Title="Settings" ResizeMode="NoResize" SizeToContent="WidthAndHeight" Height="Auto" Width="Auto" d:DesignWidth="202.333" d:DesignHeight="80.333">
     <Window.Resources>
         <ResourceDictionary>
-            <DataTemplate DataType="{x:Type mvcore_common:Settings}">
+            <DataTemplate DataType="{x:Type mvcore_common:AppSettings}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition/>
@@ -37,32 +37,6 @@
 
                     <TextBlock Grid.Row="3" Grid.Column="0" FontSize="14">Force ProcGen</TextBlock>
                     <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding ForceProcGen}" HorizontalAlignment="Stretch"></TextBox>
-                </Grid>
-            </DataTemplate>
-
-            <DataTemplate DataType="{x:Type mvcore_common:RenderSettings}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition/>
-                        <RowDefinition/>
-                        <RowDefinition/>
-                    </Grid.RowDefinitions>
-
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="250"/>
-                        <ColumnDefinition Width="500"/>
-                        <ColumnDefinition Width="50"/>
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock Grid.Row="0" Grid.Column="0" FontSize="14">HDR Exposure</TextBlock>
-                    <TextBox Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding HDRExposure}" HorizontalAlignment="Stretch"></TextBox>
-
-                    <TextBlock Grid.Row="1" Grid.Column="0" FontSize="14">Animation FPS</TextBlock>
-                    <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding AnimFPS}" HorizontalAlignment="Stretch"></TextBox>
-
-                    <TextBlock Grid.Row="2" Grid.Column="0"  FontSize="14">VSYNC</TextBlock>
-                    <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding UseVSYNC}" HorizontalAlignment="Stretch"></TextBox>
-
                 </Grid>
             </DataTemplate>
         </ResourceDictionary>

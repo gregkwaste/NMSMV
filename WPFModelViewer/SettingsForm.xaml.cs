@@ -36,8 +36,16 @@ namespace WPFModelViewer
             try
             {
                 string jsonstring = File.ReadAllText("settings.json");
-                JSONSettings lSettings = JsonConvert.DeserializeObject<JSONSettings>(jsonstring);
-                saveSettingsToEnv(lSettings);
+                
+                Newtonsoft.Json.Linq.JObject tkn = Newtonsoft.Json.Linq.JObject.Parse(jsonstring);
+
+
+                AppSettings app_settings = JsonConvert.DeserializeObject<AppSettings>(tkn.GetValue("AppSettings").ToString());
+                RenderSettings render_settings = JsonConvert.DeserializeObject<RenderSettings>(tkn.GetValue("RenderSettings").ToString());
+                RenderViewSettings view_settings = JsonConvert.DeserializeObject<RenderViewSettings>(tkn.GetValue("ViewSettings").ToString());
+                MVCore.GMDL.CameraJSONSettings cam_settings = JsonConvert.DeserializeObject<MVCore.GMDL.CameraJSONSettings>(tkn.GetValue("CameraSettings").ToString());
+                
+                saveSettingsToEnv(app_settings, render_settings, view_settings, cam_settings);
             }
             catch (FileNotFoundException)
             {
@@ -86,57 +94,52 @@ namespace WPFModelViewer
                 //Save path settings to the environment
                 RenderState.settings.GameDir = gamedir;
                 RenderState.settings.UnpackDir = unpackdir;
-
-                saveSettingsStatic(); //Save Settings right away
                 
+                saveSettingsStatic(); //Save Settings right away
             }
 
         }
 
-        public static void saveSettingsToEnv(JSONSettings settings)
+        public static void saveSettingsToEnv(AppSettings app_settings, 
+                                                RenderSettings render_settings,
+                                                RenderViewSettings view_settings,
+                                                MVCore.GMDL.CameraJSONSettings cam_settings)
         {
-            //IF BINDINGS ARE CORRECT I DON"THAVE TO DO SHIT
-
             //Save values to the environment
-            RenderState.settings.GameDir = settings.GameDir;
-            RenderState.settings.UnpackDir = settings.UnpackDir;
-            RenderState.settings.ProcGenWinNum = settings.ProcGenWinNum;
-            RenderState.settings.ForceProcGen = settings.ForceProcGen;
-            RenderState.renderSettings.UseVSYNC = (settings.UseVSYNC > 0);
-            RenderState.renderSettings._HDRExposure = settings.HDRExposure;
-            RenderState.renderSettings.animFPS = settings.AnimFPS;
-        }
-
-        public static void loadSettingsFromEnv(JSONSettings settings)
-        {
-            //IF BINDINGS ARE CORRECT I DON"THAVE TO DO SHIT
-
-            //Load values from the environment
-            settings.GameDir = RenderState.settings.GameDir;
-            settings.UnpackDir = RenderState.settings.UnpackDir;
-            settings.ProcGenWinNum = RenderState.settings.ProcGenWinNum;
-            settings.ForceProcGen = RenderState.settings.ForceProcGen;
-            settings.UseVSYNC = RenderState.renderSettings.UseVSYNC ? 1 : 0;
-            settings.HDRExposure = RenderState.renderSettings._HDRExposure;
-            settings.AnimFPS = RenderState.renderSettings.animFPS;
+            RenderState.settings = app_settings;
+            RenderState.renderSettings = render_settings;
+            RenderState.renderViewSettings = view_settings;
+            MVCore.GMDL.Camera.SetCameraSettings(ref RenderState.activeCam, cam_settings.settings);
+            MVCore.GMDL.Camera.SetCameraPosition(ref RenderState.activeCam, 
+                new OpenTK.Vector3(cam_settings.PosX, cam_settings.PosY, cam_settings.PosZ));
+            MVCore.GMDL.Camera.SetCameraDirection(ref RenderState.activeCam,
+                new OpenTK.Quaternion(cam_settings.DirX, cam_settings.DirY, cam_settings.DirZ, cam_settings.DirW));
         }
 
         public static void saveSettingsStatic()
         {
-            //Create JSONSettings
-            JSONSettings settings = new JSONSettings();
-            loadSettingsFromEnv(settings);
+            StreamWriter stream = new StreamWriter("settings.json");
+            JsonTextWriter writer = new JsonTextWriter(stream);
+            writer.Formatting = Formatting.Indented;
 
-            //Serialize object
-            string jsonstring = JsonConvert.SerializeObject(settings);
-            File.WriteAllText("settings.json", jsonstring);
+            writer.WriteStartObject();
+            writer.WritePropertyName("AppSettings");
+            writer.WriteRawValue(JsonConvert.SerializeObject(RenderState.settings));
+            writer.WritePropertyName("RenderSettings");
+            writer.WriteRawValue(JsonConvert.SerializeObject(RenderState.renderSettings));
+            writer.WritePropertyName("ViewSettings");
+            writer.WriteRawValue(JsonConvert.SerializeObject(RenderState.renderViewSettings));
+            writer.WritePropertyName("CameraSettings");
+            writer.WriteRawValue(JsonConvert.SerializeObject(RenderState.activeCam.GetSettings()));
+            writer.WriteEndObject();
+            writer.Close();
         }
 
         private void saveSettings(object sender, RoutedEventArgs e)
         {
             saveSettingsStatic();
             Util.showInfo(this, "Settings Saved", "Info");
-            this.Focus(); //Bring focus back to the settings form
+            Focus(); //Bring focus back to the settings form
         }
 
         private void Dirpath_OnGotFocus(object sender, RoutedEventArgs e)
@@ -163,17 +166,4 @@ namespace WPFModelViewer
         }
     }
 
-    //Settings JSON Structure
-
-    public class JSONSettings
-    {
-        public string GameDir;
-        public string UnpackDir;
-        public int ProcGenWinNum;
-        public int ForceProcGen;
-        public int UseVSYNC;
-        public int AnimFPS;
-        public float HDRExposure;
-    }
-   
 }

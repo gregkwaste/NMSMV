@@ -508,21 +508,13 @@ namespace MVCore.Engine
 
         
 
-        public void updateActiveCam(Vector3 pos, Vector3 rot)
+        public void updateActiveCam(CameraSettings settings, Vector3 pos, Quaternion direction)
         {
-            RenderState.activeCam.Position = pos;
-
-
-
-
-            //RenderState.activeCam.pitch = rot.X; //Radians rotation on X axis
-            //RenderState.activeCam.yaw = rot.Y; //Radians rotation on Y axis
-            //RenderState.activeCam.roll = rot.Z; //Radians rotation on Z axis
+            Camera cam = RenderState.activeCam;
+            Camera.SetCameraSettings(ref cam, settings);
         }
 
 #endregion
-
-        
 
         public void updateLightPosition(int light_id)
         {
