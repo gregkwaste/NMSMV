@@ -304,9 +304,12 @@ namespace WPFModelViewer
 
         private void MainWindow_OnClosing(object sender, CancelEventArgs e)
         {
+            //Save Settings on exit
+            SettingsForm.saveSettingsStatic();
+
             //Stop request timer
             requestHandler.Stop();
-
+            
             //Send Terminate Rendering request to the rt_thread
             ThreadRequest req = new ThreadRequest();
             req.type = THREAD_REQUEST_TYPE.TERMINATE_REQUEST;
@@ -398,8 +401,7 @@ namespace WPFModelViewer
             //OVERRIDE SETTINGS
             //FileUtils.dirpath = "I:\\SteamLibrary1\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
 
-            //Load Settings
-            SettingsForm.loadSettingsStatic();
+            
             glControl.StartWorkThreads();
             
             //Check if the rt_thread is ready
@@ -410,6 +412,13 @@ namespace WPFModelViewer
 
             while(req.status != THREAD_REQUEST_STATUS.FINISHED)
                 Thread.Sleep(10);
+
+            
+            //Load Settings
+            SettingsForm.loadSettingsStatic();
+
+            //Bind default camera to the controls
+            CameraOptionsView.Content = RenderState.activeCam.settings;
 
             //Populate GLControl
             Scene scene = new Scene();
@@ -442,17 +451,15 @@ namespace WPFModelViewer
             RenderOptionsControl.Content = RenderState.renderSettings;
 
             //Add event handlers to GUI elements
-            sliderzNear.ValueChanged += Sliders_OnValueChanged;
-            sliderzFar.ValueChanged += Sliders_OnValueChanged;
-            sliderFOV.ValueChanged += Sliders_OnValueChanged;
-            sliderLightIntensity.ValueChanged += Sliders_OnValueChanged;
-            sliderlightDistance.ValueChanged += Sliders_OnValueChanged;
-            sliderMovementSpeed.ValueChanged += Sliders_OnValueChanged;
-            sliderMovementFactor.ValueChanged += Sliders_OnValueChanged;
+            //sliderzNear.ValueChanged += Sliders_OnValueChanged;
+            //sliderzFar.ValueChanged += Sliders_OnValueChanged;
+            //sliderFOV.ValueChanged += Sliders_OnValueChanged;
+            //sliderMovementSpeed.ValueChanged += Sliders_OnValueChanged;
+            //sliderMovementFactor.ValueChanged += Sliders_OnValueChanged;
 
             //Invoke the method in order to setup the control at startup
             Sliders_OnValueChanged(null, new RoutedPropertyChangedEventArgs<double>(0.0f,0.0f));
-            this.Dispatcher.UnhandledException += OnDispatcherUnhandledException;
+            Dispatcher.UnhandledException += OnDispatcherUnhandledException;
 
 
             //Disable Open File Functions
@@ -585,22 +592,16 @@ namespace WPFModelViewer
 
         private void Sliders_OnValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            //Update slider values
-            float zNear = (float) sliderzNear.Value;
-            float zFar = (float) sliderzFar.Value;
-            int FOV = (int) sliderFOV.Value;
-            float speed = (float) sliderMovementSpeed.Value;
-            float speedPower = (float) sliderMovementFactor.Value;
-
-            glControl.updateActiveCam(FOV, zNear, zFar, speed, speedPower);
-            glControl.engine.light_distance = (float) Math.Pow(1.25f, sliderlightDistance.Value) - 1.0f;
-            glControl.engine.light_intensity = (float) sliderLightIntensity.Value;
+            //glControl.engine.updateActiveCam(newSettings, RenderState.activeCam.Position, RenderState.activeCam.Direction);
+            //glControl.engine.light_distance = (float) Math.Pow(1.25f, sliderlightDistance.Value) - 1.0f;
+            //glControl.engine.light_intensity = (float) sliderLightIntensity.Value;
         }
 
         private void CameraResetPos(object sender, RoutedEventArgs e)
         {
-            glControl.engine.updateActiveCam(new Vector3(0.0f, 0.0f, 0.0f), 
-                                      new Vector3(0.0f, (float)Math.PI/2.0f, 0.0f));
+            glControl.engine.updateActiveCam(null, new Vector3(0.0f), 
+                new Quaternion(new Vector3(0.0f, (float)Math.PI / 2.0f, 0.0f)));
+            
         }
 
         private void SceneResetRotation(object sender, RoutedEventArgs e)
@@ -779,7 +780,11 @@ namespace WPFModelViewer
 
         private void UpdateLibMBIN_Click(object sender, RoutedEventArgs e)
         {
-            HTMLUtils.fetchLibMBINDLL();
+            if (HTMLUtils.fetchLibMBINDLL())
+            {
+                System.Diagnostics.Process.Start(System.Windows.Forms.Application.ExecutablePath);
+                Close();
+            }
         }
 
 #if (DEBUG)

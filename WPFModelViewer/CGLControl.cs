@@ -180,17 +180,6 @@ namespace Model_Viewer
             CallBacks.Log("Switching Camera to {0}", index);
         }
 
-        public void updateActiveCam(int FOV, float zNear, float zFar, float speed, float speedPower)
-        {
-            //TODO: REMOVE, FOR TESTING I"M WORKING ONLY ON THE FIRST CAM
-            RenderState.activeResMgr.GLCameras[0].setFOV(FOV);
-            RenderState.activeResMgr.GLCameras[0].zFar = zFar;
-            RenderState.activeResMgr.GLCameras[0].zNear = zNear;
-            RenderState.activeResMgr.GLCameras[0].Speed = speed;
-            RenderState.activeResMgr.GLCameras[0].SpeedPower = speedPower;
-        }
-
-
         //Constructor
         public CGLControl(int index, Form parent)
         {
@@ -565,7 +554,7 @@ namespace Model_Viewer
             Vector2 screenPos = vec;
 
             //Normalize screenPos
-            float fov_fact = 0.5f * RenderState.activeCam.fov;
+            float fov_fact = 0.5f * RenderState.activeCam.settings._fovRadians;
             float dx = fov_fact * (screenPos.X - 0.5f * Size.Width) / Size.Width;
             float dy = -fov_fact * (screenPos.Y - 0.5f * Size.Height) / Size.Height;
 

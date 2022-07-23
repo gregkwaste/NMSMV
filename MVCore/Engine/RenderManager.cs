@@ -511,8 +511,8 @@ namespace MVCore
             cpfu.cameraPositionExposure.Xyz = RenderState.activeCam.Position;
             cpfu.cameraPositionExposure.W = RenderState.renderSettings._HDRExposure;
             cpfu.cameraDirection = RenderState.activeCam.Front;
-            cpfu.cameraNearPlane = RenderState.activeCam.zNear;
-            cpfu.cameraFarPlane = RenderState.activeCam.zFar;
+            cpfu.cameraNearPlane = RenderState.activeCam.settings.ZNear;
+            cpfu.cameraFarPlane = RenderState.activeCam.settings.ZFar;
             cpfu.light_number = Math.Min(32, resMgr.GLlights.Count);
             cpfu.gfTime = gfTime;
             cpfu.MSAA_SAMPLES = gbuf.msaa_samples;

@@ -46,8 +46,8 @@ namespace MVCore.Common
         public static RenderViewSettings renderViewSettings = new RenderViewSettings();
 
         //App Settings
-        public static Settings settings = new Settings();
-
+        public static AppSettings settings = new AppSettings();
+        
         //Keep the main camera global
         public static Camera activeCam;
         //Active ResourceManager
@@ -224,13 +224,14 @@ namespace MVCore.Common
 
     }
 
-    public class Settings : INotifyPropertyChanged
+    public class AppSettings : INotifyPropertyChanged
     {
         private int forceProcGen;
         private string gamedir;
         private string unpackdir;
         private int _procGenWinNum;
 
+        
         public string GameDir
         {
             get
@@ -261,7 +262,8 @@ namespace MVCore.Common
 
         }
 
-        public int ProcGenWinNum {
+        public int ProcGenWinNum 
+        {
             get
             {
                 return _procGenWinNum;

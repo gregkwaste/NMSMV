@@ -619,8 +619,7 @@ namespace MVCore.GMDL
         public void init(textureManager input_texMgr)
         {
             texMgr = input_texMgr;
-            texUnit = new MyTextureUnit(Name);
-
+            
             //Save texture to material
             switch (Name)
             {
@@ -628,6 +627,7 @@ namespace MVCore.GMDL
                 case "mpCustomPerMaterial.gDiffuse2Map":
                 case "mpCustomPerMaterial.gMasksMap":
                 case "mpCustomPerMaterial.gNormalMap":
+                    texUnit = new MyTextureUnit(Name);
                     prepTextures();
                     break;
                 default:

@@ -218,7 +218,7 @@ namespace MVCore
             fs.Seek(vsoffset, SeekOrigin.Begin);
             for (int i = 0; i < partcount; i++)
                 geom.vstarts.Add(br.ReadInt32());
-        
+            
             //Get BBoxes
             //Init first
             for (int i = 0; i < partcount; i++)
