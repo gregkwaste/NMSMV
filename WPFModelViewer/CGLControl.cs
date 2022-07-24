@@ -820,8 +820,6 @@ namespace Model_Viewer
             RenderStats.fpsCount = 1000.0f * frames / (float)time.TotalMilliseconds;
         }
 
-
-
         #region DISPOSE_METHODS
 
         protected override void Dispose(bool disposing)

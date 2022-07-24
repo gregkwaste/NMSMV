@@ -509,7 +509,7 @@ namespace MVCore
             cpfu.lookMatInv = RenderState.activeCam.lookMatInv;
             cpfu.projMatInv = RenderState.activeCam.projMatInv;
             cpfu.cameraPositionExposure.Xyz = RenderState.activeCam.Position;
-            cpfu.cameraPositionExposure.W = RenderState.renderSettings._HDRExposure;
+            cpfu.cameraPositionExposure.W = RenderState.renderSettings.HDRExposure;
             cpfu.cameraDirection = RenderState.activeCam.Front;
             cpfu.cameraNearPlane = RenderState.activeCam.settings.ZNear;
             cpfu.cameraFarPlane = RenderState.activeCam.settings.ZFar;

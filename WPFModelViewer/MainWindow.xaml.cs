@@ -228,10 +228,10 @@ namespace WPFModelViewer
 
             viewSource.Filter = (object obj) => {
 
-                if (String.IsNullOrEmpty(searchBox.Text))
+                if (string.IsNullOrEmpty(searchBox.Text))
                     return true;
                 else
-                    return (obj as String).IndexOf(searchBox.Text, StringComparison.OrdinalIgnoreCase) >= 0;
+                    return (obj as string).IndexOf(searchBox.Text, StringComparison.OrdinalIgnoreCase) >= 0;
             };
 
             //SearchBox Label
@@ -601,9 +601,8 @@ namespace WPFModelViewer
 
         private void CameraResetPos(object sender, RoutedEventArgs e)
         {
-            glControl.engine.updateActiveCam(null, new Vector3(0.0f), 
-                new Quaternion(new Vector3(0.0f, (float)Math.PI / 2.0f, 0.0f)));
-            
+            Camera.SetCameraPosition(ref RenderState.activeCam, new Vector3(0.0f));
+            Camera.SetCameraDirection(ref RenderState.activeCam, new Quaternion(new Vector3(0.0f, (float)Math.PI / 2.0f, 0.0f)));
         }
 
         private void SceneResetRotation(object sender, RoutedEventArgs e)

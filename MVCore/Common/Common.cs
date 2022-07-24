@@ -106,9 +106,9 @@ namespace MVCore.Common
 
     public class RenderSettings: INotifyPropertyChanged
     {
-        public int animFPS = 60;
-        public bool _useVSYNC = false;
-        public float _HDRExposure = 0.5f;
+        private int animFPS = 60;
+        private bool _useVSYNC = false;
+        private float _HDRExposure = 0.5f;
         //Set Full rendermode by default
         public PolygonMode RENDERMODE = PolygonMode.Fill;
         public System.Drawing.Color clearColor = System.Drawing.Color.FromArgb(255, 33, 33, 33);
@@ -142,22 +142,22 @@ namespace MVCore.Common
         }
 
         
-        public string AnimFPS
+        public int AnimFPS
         {
-            get => animFPS.ToString();
+            get => animFPS;
             set
             {
-                int.TryParse(value, out animFPS);
+                animFPS = value;
                 NotifyPropertyChanged("AnimFPS");
             }
         }
 
-        public string HDRExposure
+        public float HDRExposure
         {
-            get => _HDRExposure.ToString();
+            get => _HDRExposure;
             set
             {
-                float.TryParse(value, out _HDRExposure);
+                _HDRExposure = value;
                 NotifyPropertyChanged("HDRExposure");
             }
         }

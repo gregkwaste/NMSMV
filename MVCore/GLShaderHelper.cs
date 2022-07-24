@@ -191,7 +191,7 @@ namespace GLSLHelper {
                 string execPath = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
                 //string execPath = "G:\\Projects\\Model Viewer C#\\Model Viewer\\Viewer_Unit_Tests\\bin\\Debug";
                 path = Path.Combine(execPath, path);
-                CallBacks.Log(path);
+                CallBacks.Log("Parsing shader: ", path);
                 //Check if file exists
                 if (!File.Exists(path))
                 {

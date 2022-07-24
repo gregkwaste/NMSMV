@@ -584,17 +584,16 @@
                             <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding UseBLOOM}"></CheckBox>
                         </DockPanel>
                         <DockPanel Grid.Row="9" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                            <TextBlock HorizontalAlignment="Left">Animation FPS</TextBlock>
-                            <TextBox Width="50" TextAlignment="Right" HorizontalAlignment="Right" Text="{Binding AnimFPS, Mode=TwoWay}" KeyUp="TextBox_KeyUp" AcceptsReturn="False" AcceptsTab="False"/>
+                            <TextBlock Width="100" HorizontalAlignment="Left">Animation FPS</TextBlock>
+                            <Slider ToolTip="{Binding AnimFPS}" HorizontalAlignment="Stretch" Value="{Binding AnimFPS, Mode=TwoWay}" Minimum="30" Maximum="400" SmallChange="1"/>
                         </DockPanel>
                         <DockPanel Grid.Row="10" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                            <TextBlock HorizontalAlignment="Left">HDR Exposure</TextBlock>
-                            <TextBox Width="50" TextAlignment="Right" HorizontalAlignment="Right" Text="{Binding HDRExposure, Mode=TwoWay}" KeyUp="TextBox_KeyUp" AcceptsReturn="False" AcceptsTab="False"/>
+                            <TextBlock Width="100" HorizontalAlignment="Left">HDR Exposure</TextBlock>
+                            <Slider ToolTip="{Binding HDRExposure}" Value="{Binding HDRExposure, Mode=TwoWay}" Minimum="0.05" Maximum="2" SmallChange="0.01"/>
                         </DockPanel>
                     </Grid>
                 </GroupBox>
             </DataTemplate>
-            
             
             <DataTemplate DataType="{x:Type mvcore_common:RenderViewSettings}">
                 <GroupBox Header="Options">

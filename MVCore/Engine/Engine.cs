@@ -512,6 +512,7 @@ namespace MVCore.Engine
         {
             Camera cam = RenderState.activeCam;
             Camera.SetCameraSettings(ref cam, settings);
+            
         }
 
 #endregion
