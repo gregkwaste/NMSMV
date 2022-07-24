@@ -281,7 +281,7 @@ namespace MVCore.GMDL
             }
 
             int activeFrameCount = (FrameEnd == 0 ? animMeta.FrameCount : Math.Min(FrameEnd, animMeta.FrameCount)) - (FrameStart != 0 ? FrameStart : 0);
-            float activeAnimDuration = activeFrameCount * 1000.0f / Common.RenderState.renderSettings.animFPS; // In ms TOTAL
+            float activeAnimDuration = activeFrameCount * 1000.0f / Common.RenderState.renderSettings.AnimFPS; // In ms TOTAL
             float activeAnimInterval = activeAnimDuration / (activeFrameCount - 1); // Per frame time
 
             if (animationTime > activeAnimDuration)
