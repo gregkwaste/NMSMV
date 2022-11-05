@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
-using System.Windows.Forms;
+using System.Windows.Input;
 using Assimp.Unmanaged;
 using GLSLHelper;
 //Custom Imports
@@ -14,27 +14,37 @@ using MVCore.Text;
 using MVCore.Utils;
 using MVCore.Input;
 using MVCore.Engine.Systems;
-using OpenTK;
+using OpenTK.Mathematics;
 using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Input;
+using OpenTK.Wpf;
 using System.Timers;
 using MVCore.Engine;
+using OpenTK.Windowing.Desktop;
+using OpenTK.Windowing.Common;
+using System.Windows.Media;
+using System.Windows.Controls;
+using System.Linq.Expressions;
+using System.Windows;
+using System.Threading.Tasks;
 
 namespace Model_Viewer
 {
-    public class CGLControl : GLControl
+    public class CGLControl
     {
         //Mouse Pos
         private MouseMovementState mouseState = new MouseMovementState();
-        private MouseMovementStatus mouseMovementStatus = MouseMovementStatus.IDLE;
+        private MouseMovementStatus mouseMovementStatus = MouseMovementStatus.CAMERA_MOVEMENT;
 
         //Control Identifier
         private int index;
-        
+
+        private GLWpfControl _control;
+        private CameraPos _camPos = new();
+
         //Animation Stuff
         private bool animationStatus = false;
-
 
         //Scene Stuff
         //public Model rootObject;
@@ -42,11 +52,9 @@ namespace Model_Viewer
         public Queue<Model> modelUpdateQueue = new Queue<Model>();
         public List<Tuple<AnimComponent, AnimData>> activeAnimScenes = new List<Tuple<AnimComponent, AnimData>>();
 
-
         //Gizmo
         public Gizmo activeGizmo;
         public TranslationGizmo gizTranslate;
-
 
         //Rendering Engine
         public Engine engine;
@@ -54,22 +62,18 @@ namespace Model_Viewer
         //Rendering Thread
         private bool rt_flag;
         private bool rt_exit;
-        private Thread rendering_thread;
         private bool rendering_thread_initialized = false;
 
         //Main Work Thread
         private Thread work_thread;
 
         //Init-GUI Related
-        private ContextMenuStrip contextMenuStrip1;
+        private System.Windows.Forms.ContextMenuStrip contextMenuStrip1;
         private System.ComponentModel.IContainer components;
-        private ToolStripMenuItem exportToObjToolStripMenuItem;
-        private ToolStripMenuItem exportToAssimpMenuItem;
-        private OpenFileDialog openFileDialog1;
-        private Form pform;
-
-        //Resize Timer
-        public System.Timers.Timer resizeTimer;
+        private System.Windows.Forms.ToolStripMenuItem exportToObjToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem exportToAssimpMenuItem;
+        private System.Windows.Forms.OpenFileDialog openFileDialog1;
+        private System.Windows.Forms.Form pform;
 
         //Private fps Counter
         private int frames = 0;
@@ -77,98 +81,91 @@ namespace Model_Viewer
         private DateTime oldtime;
         private DateTime prevtime;
 
+        //Input Polling Thread
+        private System.Timers.Timer input_poller;
+
         //Gamepad Setup
         private bool disposed;
         public Microsoft.Win32.SafeHandles.SafeFileHandle handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(IntPtr.Zero, true);
 
         private void registerFunctions()
         {
-            this.Load += new System.EventHandler(genericLoad);
-            //this.Paint += new System.Windows.Forms.PaintEventHandler(this.genericPaint);
-            this.Resize += new System.EventHandler(OnResize); 
-            this.MouseDown += new System.Windows.Forms.MouseEventHandler(genericMouseDown);
-            this.MouseMove += new System.Windows.Forms.MouseEventHandler(genericMouseMove);
-            this.MouseUp += new System.Windows.Forms.MouseEventHandler(genericMouseUp);
-            this.MouseClick += new System.Windows.Forms.MouseEventHandler(genericMouseClick);
+            _control.Loaded += new RoutedEventHandler(genericLoad);
+            _control.SizeChanged += new SizeChangedEventHandler(OnResize);
+            //Resize += new System.EventHandler(OnResize); 
+            
+            _control.Render += new((TimeSpan time) =>
+            {
+                RenderLocal();
+            });
+
+            
+            _control.MouseDown += new MouseButtonEventHandler(genericMouseDown);
+            _control.MouseMove += new MouseEventHandler(genericMouseMove);
+            _control.MouseUp += new MouseButtonEventHandler(genericMouseUp);
+            _control.KeyDown += new KeyEventHandler(generic_KeyDown);
+            _control.KeyUp += new KeyEventHandler(generic_KeyUp);
+            _control.MouseEnter += new MouseEventHandler(genericEnter);
+            _control.MouseLeave += new MouseEventHandler(genericLeave);
+            
             //this.glControl1.MouseWheel += new System.Windows.Forms.MouseEventHandler(this.glControl1_Scroll);
-            this.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(generic_KeyDown);
-            this.MouseEnter += new System.EventHandler(genericEnter);
-            this.MouseLeave += new System.EventHandler(genericLeave);
         }
 
         //Default Constructor
-        public CGLControl(): base(new GraphicsMode(32, 24, 0, 8), 4, 6, GraphicsContextFlags.ForwardCompatible)
+        public CGLControl(GLWpfControl baseControl)
         {
+            _control = baseControl;
             registerFunctions();
             
             //Default Setup
             RenderState.rotAngles.Y = 0;
             
-            //Resize Timer
-            resizeTimer = new System.Timers.Timer();
-            resizeTimer.Elapsed += new ElapsedEventHandler(ResizeControl);
-            resizeTimer.Interval = 10;
-
-            //Set properties
-            DoubleBuffered = true;
-            VSync = RenderState.renderSettings.UseVSYNC;
-
             //Generate Engine instance
             engine = new Engine();
             
             //Initialize Rendering Thread
-            rendering_thread = new Thread(Render);
-            rendering_thread.IsBackground = true;
-            rendering_thread.Priority = ThreadPriority.Normal;
+            //rendering_thread = new Thread(Render);
+            //rendering_thread.IsBackground = true;
+            //rendering_thread.Priority = ThreadPriority.Normal;
 
             //Initialize Work Thread
             work_thread = new Thread(Work);
             work_thread.IsBackground = true;
             work_thread.Priority = ThreadPriority.Normal;
 
+            input_poller = new();
+            input_poller.Enabled = true;
+            input_poller.Interval = 1000.0 * (1.0 / 60.0f);
+            input_poller.Elapsed += new ElapsedEventHandler(processInput);
+
         }
 
-        public void StartWorkThreads()
+        private void RenderLocal()
         {
-            Context.MakeCurrent(null); //Release GL Context from the GLControl
-            resizeTimer.Start();
-            rendering_thread.Start(); //A new context is created in the rendering thread
-            //work_thread.Start();
-        }
+            if (!rendering_thread_initialized)
+            {
+                //Setup new Context
+                CallBacks.Log("Intializing Rendering Thread");
+                engine.init();
+                engine.renderMgr.screen_fbo = _control.Framebuffer;
+                rendering_thread_initialized = true;
+            }
 
-        private void Render()
-        {
-            
-            //Setup new Context
-            CallBacks.Log("Intializing Rendering Thread");
-#if (DEBUG)
-            GraphicsContext gfx_context = new GraphicsContext(new GraphicsMode(32, 24, 0, 8), WindowInfo, 4, 3,
-                GraphicsContextFlags.Debug);
-#else
-            GraphicsContext gfx_context = new GraphicsContext(new GraphicsMode(32, 24, 0, 8), WindowInfo, 4 , 6,
-            GraphicsContextFlags.ForwardCompatible);
-#endif
-            gfx_context.MakeCurrent(WindowInfo);
-            MakeCurrent();
-
-            engine.SetControl(this); //Set engine Window to the GLControl
-            engine.init();
-            rendering_thread_initialized = true;
-
-            while (engine.rt_State != EngineRenderingState.EXIT)
+            if (engine.rt_State != EngineRenderingState.EXIT)
             {
                 engine.handleRequests();
-                
+
                 if (engine.rt_State == EngineRenderingState.ACTIVE)
                 {
                     frameUpdate();
                     engine.renderMgr.render(); //Render Everything
-                    SwapBuffers();
                 }
-                
-                Thread.Sleep(1); //TODO: Replace that in the future with some smarter logic to maintain constant framerates
             }
-            
+
+            //GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            //GL.ClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+
+
         }
 
         public void setActiveCam(int index)
@@ -181,18 +178,12 @@ namespace Model_Viewer
         }
 
         //Constructor
-        public CGLControl(int index, Form parent)
+        public CGLControl(int index)
         {
             registerFunctions();
             
             //Set Control Identifiers
             this.index = index;
-            
-            //Set parent form
-            if (parent != null)
-                pform = parent;
-
-            
         }
 
 
@@ -210,7 +201,7 @@ namespace Model_Viewer
 #endregion AddObjectMethods
 
 
-        #region GLControl Methods
+#region GLControl Methods
         private void genericEnter(object sender, EventArgs e)
         {
             engine.CaptureInput(true);
@@ -231,17 +222,17 @@ namespace Model_Viewer
         {
 
             InitializeComponent();
-            MakeCurrent();
+            //MakeCurrent();
         }
 
-        private void genericMouseMove(object sender, System.Windows.Forms.MouseEventArgs e)
+        private void genericMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
         {
             //Debug.WriteLine("Mouse moving on {0}", this.TabIndex);
             //int delta_x = (int) (Math.Pow(activeCam.fov, 4) * (e.X - mouse_x));
             //int delta_y = (int) (Math.Pow(activeCam.fov, 4) * (e.Y - mouse_y));
-            System.Drawing.Point p = PointToClient(Cursor.Position);
-            mouseState.Delta.X = (p.X - mouseState.Position.X);
-            mouseState.Delta.Y = (p.Y - mouseState.Position.Y);
+            System.Windows.Point p = _control.PointFromScreen(e.GetPosition(_control));
+            mouseState.Delta.X = ((float) p.X - mouseState.Position.X);
+            mouseState.Delta.Y = ((float) p.Y - mouseState.Position.Y);
 
             mouseState.Delta.X = Math.Min(Math.Max(mouseState.Delta.X, -10), 10);
             mouseState.Delta.Y = Math.Min(Math.Max(mouseState.Delta.Y, -10), 10);
@@ -252,16 +243,16 @@ namespace Model_Viewer
                 case MouseMovementStatus.CAMERA_MOVEMENT:
                     {
                         // Debug.WriteLine("Deltas {0} {1} {2}", mouseState.Delta.X, mouseState.Delta.Y, e.Button);
-                        engine.targetCameraPos.Rotation.X += mouseState.Delta.X;
-                        engine.targetCameraPos.Rotation.Y += mouseState.Delta.Y;
+                        _camPos.Rotation.X += mouseState.Delta.X;
+                        _camPos.Rotation.Y += mouseState.Delta.Y;
                         break;
                     }
                 case MouseMovementStatus.GIZMO_MOVEMENT:
                     {
                         //Find movement axis
                         GIZMO_PART_TYPE t = activeGizmo.activeType;
-                        float movement_step = (float)Math.Sqrt(mouseState.Delta.X * mouseState.Delta.X / (Size.Width * Size.Width) +
-                                                                mouseState.Delta.Y * mouseState.Delta.Y / (Size.Height * Size.Height));
+                        float movement_step = (float)Math.Sqrt(mouseState.Delta.X * mouseState.Delta.X / (_control.RenderSize.Width * _control.RenderSize.Width) +
+                                                                mouseState.Delta.Y * mouseState.Delta.Y / (_control.RenderSize.Height * _control.RenderSize.Height));
                         CallBacks.Log("Moving by {0}", movement_step);
 
                         switch (t)
@@ -286,64 +277,83 @@ namespace Model_Viewer
 
             }
 
-            
-            mouseState.Position.X = p.X;
-            mouseState.Position.Y = p.Y;
+            mouseState.Position.X = (float) p.X;
+            mouseState.Position.Y = (float) p.Y;
 
         }
 
-        private void genericMouseDown(object sender, System.Windows.Forms.MouseEventArgs e)
+        private void genericMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
-            if (activeGizmo != null && (e.Button == MouseButtons.Left) && activeGizmo.isActive)
+            if (activeGizmo != null && (e.LeftButton == MouseButtonState.Pressed) && activeGizmo.isActive)
             {
                 //Engage movement
                 CallBacks.Log("Engaging gizmo movement");
                 mouseMovementStatus = MouseMovementStatus.GIZMO_MOVEMENT;
-            } else if (e.Button == MouseButtons.Left)
+            } else if (e.LeftButton == MouseButtonState.Pressed)
             {
                 mouseMovementStatus = MouseMovementStatus.CAMERA_MOVEMENT;
             }
         }
 
-        private void genericMouseUp(object sender, System.Windows.Forms.MouseEventArgs e)
+        private void processInput(object sender, ElapsedEventArgs args)
         {
-            if (e.Button == MouseButtons.Left)
+            float step = 0.002f;
+            float x = engine.kbHandler.getKeyStatus(Key.D) - engine.kbHandler.getKeyStatus(Key.A);
+            float y = engine.kbHandler.getKeyStatus(Key.W) - engine.kbHandler.getKeyStatus(Key.S);
+            float z = engine.kbHandler.getKeyStatus(Key.R) - engine.kbHandler.getKeyStatus(Key.F);
+
+            _camPos.PosImpulse = new Vector3(x, y, z);
+            
+            RenderState.activeCam?.updateTarget(_camPos, (float) input_poller.Interval);
+            _camPos.Reset();
+            RenderState.rotAngles.Y += 100 * step * (engine.kbHandler.getKeyStatus(Key.E) - engine.kbHandler.getKeyStatus(Key.Q));
+            RenderState.rotAngles.Y %= 360;
+        }
+
+        private void genericMouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (e.LeftButton == System.Windows.Input.MouseButtonState.Released)
             {
                 mouseMovementStatus = MouseMovementStatus.IDLE;
             }
-
         }
 
-        private void genericMouseClick(object sender, System.Windows.Forms.MouseEventArgs e)
+        private void genericMouseClick(object sender, System.Windows.Input.MouseEventArgs e)
         {
-            
-            if ((e.Button == MouseButtons.Left) && (ModifierKeys == Keys.Control))
-            {
-                selectObject(new Vector2(e.X, e.Y));
-            }
-            else if (e.Button == MouseButtons.Right)
-            {
-                contextMenuStrip1.Show(Control.MousePosition);
-            }
+            //if ((e.LeftButton == System.Windows.Input.MouseButtonState.Released) && (e.ModifierKeys == Keys.Control))
+            //{
+            //    selectObject(new Vector2(e.X, e.Y));
+            //}
+            //else if (e.RightButton == System.Windows.Input.MouseButtonState.Released == MouseButtons.Right)
+            //{
+            //    contextMenuStrip1.Show(Control.MousePosition);
+            //}
             
         }
 
-        private void generic_KeyDown(object sender, PreviewKeyDownEventArgs e)
+        private void generic_KeyUp(object sender, KeyEventArgs e)
         {
-            //Debug.WriteLine("Key pressed {0}",e.KeyCode);
-            switch (e.KeyCode)
+            engine.kbHandler.SetKeyState(e.Key, false);
+        }
+
+        private void generic_KeyDown(object sender, KeyEventArgs e)
+        {
+            engine.kbHandler.SetKeyState(e.Key, true);
+
+            //Debug.WriteLine("Key pressed {0}",e.Key.ToString());
+            switch (e.Key)
             {
                 //Light Rotation
-                case Keys.N:
+                case Key.N:
                     engine.light_angle_y -= 1;
                     break;
-                case Keys.M:
+                case Key.M:
                     engine.light_angle_y += 1;
                     break;
-                case Keys.Oemcomma:
+                case Key.OemComma:
                     engine.light_angle_x -= 1;
                     break;
-                case Keys.OemPeriod:
+                case Key.OemPeriod:
                     engine.light_angle_x += 1;
                     break;
                 /*
@@ -368,7 +378,7 @@ namespace Model_Viewer
                     break;
                 */
                 //Switch cameras
-                case Keys.NumPad0:
+                case Key.NumPad0:
                     if (engine.resMgr.GLCameras[0].isActive)
                         setActiveCam(1);
                     else
@@ -382,28 +392,12 @@ namespace Model_Viewer
                     //Common.CallBacks.Log("Not Implemented Yet");
                     break;
             }
+
         }
 
-        private void ResizeControl(object sender, System.Timers.ElapsedEventArgs e)
+        private void OnResize(object sender, SizeChangedEventArgs e)
         {
-            resizeTimer.Stop();
-            
-            //Make new request
-            ThreadRequest req = new ThreadRequest();
-            req.type = THREAD_REQUEST_TYPE.GL_RESIZE_REQUEST;
-            req.arguments.Clear();
-            req.arguments.Add(ClientSize.Width);
-            req.arguments.Add(ClientSize.Height);
-
-            engine.issueRenderingRequest(ref req);
-        }
-
-        
-        private void OnResize(object sender, EventArgs e)
-        {
-            //Check the resizeTimer
-            resizeTimer.Stop();
-            resizeTimer.Start();
+            engine.renderMgr.resize((int)_control.RenderSize.Width, (int)_control.RenderSize.Height);
         }
 
         private void InitializeComponent()
@@ -414,7 +408,7 @@ namespace Model_Viewer
             this.exportToAssimpMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
             this.contextMenuStrip1.SuspendLayout();
-            this.SuspendLayout();
+            
             // 
             // contextMenuStrip1
             // 
@@ -441,15 +435,8 @@ namespace Model_Viewer
             // openFileDialog1
             // 
             this.openFileDialog1.FileName = "openFileDialog1";
-            // 
-            // CGLControl
-            // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
-            this.Name = "CGLControl";
-            this.Size = new System.Drawing.Size(314, 213);
+            
             this.contextMenuStrip1.ResumeLayout(false);
-            this.ResumeLayout(false);
-
         }
 
                
@@ -466,12 +453,12 @@ namespace Model_Viewer
         private void exportToObjToolStripMenuItem_Click(object sender, EventArgs e)
         {
             Debug.WriteLine("Exporting to obj");
-            SaveFileDialog sv = new SaveFileDialog();
+            System.Windows.Forms.SaveFileDialog sv = new();
             sv.Filter = "OBJ Files | *.obj";
             sv.DefaultExt = "obj";
-            DialogResult res = sv.ShowDialog();
+            System.Windows.Forms.DialogResult res = sv.ShowDialog();
 
-            if (res != DialogResult.OK)
+            if (res != System.Windows.Forms.DialogResult.OK)
                 return;
 
             StreamWriter obj = new StreamWriter(sv.FileName);
@@ -555,8 +542,8 @@ namespace Model_Viewer
 
             //Normalize screenPos
             float fov_fact = 0.5f * RenderState.activeCam.settings._fovRadians;
-            float dx = fov_fact * (screenPos.X - 0.5f * Size.Width) / Size.Width;
-            float dy = -fov_fact * (screenPos.Y - 0.5f * Size.Height) / Size.Height;
+            float dx = fov_fact * (screenPos.X - (float) (0.5 * _control.RenderSize.Width)) / (float)_control.RenderSize.Width;
+            float dy = -fov_fact * (screenPos.Y - (float) (0.5 * _control.RenderSize.Height)) / (float)_control.RenderSize.Height;
 
             v = RenderState.activeCam.Front;
             v += 2.0f * RenderState.activeCam.Up * dy;
@@ -617,7 +604,7 @@ namespace Model_Viewer
 
         }
 
-        #endregion ContextMethods
+#endregion ContextMethods
 
         public void issueRenderingRequest (ref ThreadRequest req)
         {
@@ -672,9 +659,10 @@ namespace Model_Viewer
             req1.arguments.Add(filename);
 
             issueRenderingRequest(ref req1);
+            engine.handleRequests();
             
             //Wait for requests to finish before return
-            waitForRenderingRequest(ref req1);
+            //waitForRenderingRequest(ref req1);
 
             //find Animation Capable nodes
             activeModel = null; //TODO: Fix that with the gizmos
@@ -701,7 +689,9 @@ namespace Model_Viewer
 
         private void frameUpdate()
         {
-            VSync = RenderState.renderSettings.UseVSYNC; //Update Vsync 
+            //Capture Input
+            //engine.input_poller(dt);
+            //VSync = RenderState.renderSettings.UseVSYNC; //Update Vsync 
 
             //Common.CallBacks.Log(RenderState.renderSettings.RENDERMODE);
 
@@ -768,7 +758,7 @@ namespace Model_Viewer
 
             //Camera & Light Positions
             //Update common transforms
-            RenderState.activeResMgr.GLCameras[0].aspect = (float) ClientSize.Width / ClientSize.Height;
+            RenderState.activeResMgr.GLCameras[0].aspect = (float) (_control.RenderSize.Width / _control.RenderSize.Height);
 
             //Apply extra viewport rotation
             Matrix4 Rotx = Matrix4.CreateRotationX(MathUtils.radians(RenderState.rotAngles.X));
@@ -819,28 +809,7 @@ namespace Model_Viewer
 
             RenderStats.fpsCount = 1000.0f * frames / (float)time.TotalMilliseconds;
         }
-
-        #region DISPOSE_METHODS
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposed)
-                return;
-
-            if (disposing)
-            {
-                handle.Dispose();
-
-                //Free other resources here
-                RenderState.rootObject.Dispose();
-            }
-
-            //Free unmanaged resources
-            disposed = true;
-        }
-
-#endregion DISPOSE_METHODS
-
+    
     }
 
 }

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
-using OpenTK;
+using OpenTK.Mathematics;
 using MVCore.Utils;
 using MVCore.Common;
 using OpenTK.Graphics.OpenGL4;

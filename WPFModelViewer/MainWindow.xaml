@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:WPFModelViewer"
+        xmlns:opentk_wpf ="clr-namespace:OpenTK.Wpf;assembly=GLWpfControl"
         xmlns:mvcore="clr-namespace:MVCore;assembly="
         xmlns:gmdl="clr-namespace:MVCore.GMDL"
         xmlns:mvcore_common="clr-namespace:MVCore.Common"
@@ -589,7 +590,7 @@
                         </DockPanel>
                         <DockPanel Grid.Row="10" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                             <TextBlock Width="100" HorizontalAlignment="Left">HDR Exposure</TextBlock>
-                            <Slider ToolTip="{Binding HDRExposure}" Value="{Binding HDRExposure, Mode=TwoWay}" Minimum="0.05" Maximum="2" SmallChange="0.01"/>
+                            <Slider ToolTip="{Binding HDRExposure}" Value="{Binding HDRExposure, Mode=TwoWay}" Minimum="0.01" Maximum="1.0" SmallChange="0.001"/>
                         </DockPanel>
                     </Grid>
                 </GroupBox>
@@ -705,7 +706,7 @@
                 <ColumnDefinition Width="2*"/>
             </Grid.ColumnDefinitions>
 
-            <WindowsFormsHost Grid.Column="0" x:Name="Host" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+            <opentk_wpf:GLWpfControl x:Name="Host" Grid.Column="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
             <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" />
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>

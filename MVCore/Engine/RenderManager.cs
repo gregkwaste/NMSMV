@@ -7,7 +7,7 @@ using libMBIN.NMS.Toolkit;
 using MVCore.Common;
 using MVCore.GMDL;
 using MVCore.Engine;
-using OpenTK;
+using OpenTK.Mathematics;
 using OpenTK.Graphics.OpenGL4;
 
 
@@ -80,6 +80,7 @@ namespace MVCore
         
         private GBuffer gbuf;
         private PBuffer pbuf;
+        public int screen_fbo;
         private FBO gizmo_fbo;
         private FBO blur_fbo;
         private int blur_fbo_scale = 2;
@@ -87,7 +88,7 @@ namespace MVCore
         private Dictionary<string, int> UBOs = new Dictionary<string, int>();
         private Dictionary<string, int> SSBOs = new Dictionary<string, int>();
 
-        private int multiBufferActiveId;
+        private int multiBufferActiveId = 0;
         private List<int> multiBufferSSBOs = new List<int>(4);
         private List<IntPtr> multiBufferSyncStatuses = new List<IntPtr>(4);
         
@@ -150,13 +151,17 @@ namespace MVCore
             switch (severity)
             {
                 case DebugSeverity.DebugSeverityHigh:
+                case DebugSeverity.DebugSeverityMedium:
                     report = true;
                     break;
+                //case DebugSeverity.DebugSeverityNotification:
+                //    report = true;
+                //    break;
             }
 
             if (report)
             {
-                Common.CallBacks.Log(source == DebugSource.DebugSourceApplication ?
+                CallBacks.Log(source == DebugSource.DebugSourceApplication ?
                 $"openGL - {Marshal.PtrToStringAnsi(message, length)}" :
                 $"openGL - {Marshal.PtrToStringAnsi(message, length)}\n\tid:{id} severity:{severity} type:{type} source:{source}\n");
             }
@@ -319,14 +324,14 @@ namespace MVCore
                 shaderMeshMap = RenderState.activeResMgr.defaultMeshShaderMap;
             }
             //Check if the model is a decal
-            else if (m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F51_DECAL_DIFFUSE) ||
-                     m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F52_DECAL_NORMAL))
+            else if (m.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F51_DECAL_DIFFUSE) ||
+                     m.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F52_DECAL_NORMAL))
             {
                 shaderMeshMap = RenderState.activeResMgr.decalMeshShaderMap;
             }
             //Check if the model has a transparent material
-            else if (m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F22_TRANSPARENT_SCALAR) ||
-                     m.material.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F09_TRANSPARENT))
+            else if (m.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F22_TRANSPARENT_SCALAR) ||
+                     m.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F09_TRANSPARENT))
             {
                 shaderMeshMap = RenderState.activeResMgr.transparentMeshShaderMap;
             }
@@ -573,7 +578,7 @@ namespace MVCore
             if (newsize + UBO_Offset > atlas_cpmu.Length)
             {
 #if DEBUG
-                Common.CallBacks.Log("Mesh overload skipping...");
+                CallBacks.Log("Mesh overload skipping...");
 #endif
                 return false;
             }
@@ -723,19 +728,7 @@ namespace MVCore
 
         private void prepareCommonPerMeshSSBOs()
         {
-            multiBufferActiveId = (multiBufferActiveId + 1) % MULTI_BUFFER_COUNT;
-
             SSBOs["_COMMON_PER_MESH"] = multiBufferSSBOs[multiBufferActiveId];
-
-            WaitSyncStatus result =  GL.ClientWaitSync(multiBufferSyncStatuses[multiBufferActiveId], 0, 10);
-
-            while (result == WaitSyncStatus.TimeoutExpired || result == WaitSyncStatus.WaitFailed)
-            {
-                //Common.CallBacks.Log("Gamithike o dias");
-                result = GL.ClientWaitSync(multiBufferSyncStatuses[multiBufferActiveId], 0, 10);
-            }
-
-            GL.DeleteSync(multiBufferSyncStatuses[multiBufferActiveId]);
 
             //Upload atlas UBO data
             GL.BindBuffer(BufferTarget.ShaderStorageBuffer, SSBOs["_COMMON_PER_MESH"]);
@@ -974,7 +967,6 @@ namespace MVCore
             //Copy depth channel to pbuf
             FBO.copyDepthChannel(gbuf.fbo, pbuf.fbo, pbuf.size[0], pbuf.size[1], gbuf.size[0], gbuf.size[1]);
             renderTransparent();
-
                     
         }
         
@@ -1075,7 +1067,7 @@ namespace MVCore
         {
             GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, pbuf.fbo);
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, 0);
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, screen_fbo);
             GL.BlitFramebuffer(0, 0, gbuf.size[0], gbuf.size[1], 0, 0, gbuf.size[0], gbuf.size[1], 
                 ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Linear);
         }
@@ -1155,11 +1147,6 @@ namespace MVCore
             //Render Geometry
             renderGeometry();
 
-            //Setup FENCE AFTER ALL THE MAIN GEOMETRY DRAWCALLS ARE ISSUED
-            multiBufferSyncStatuses[multiBufferActiveId] = GL.FenceSync(SyncCondition.SyncGpuCommandsComplete, 0);
-
-            
-
             //POST-PROCESSING
             post_process();
 
@@ -1169,8 +1156,6 @@ namespace MVCore
             //Render UI();
 
             renderUI();
-
-            
 
         }
 
@@ -1421,7 +1406,7 @@ namespace MVCore
 
         private void renderDeferredLightPass()
         {
-            GLSLHelper.GLSLShaderConfig shader_conf = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_LIT_SHADER];
+            GLSLShaderConfig shader_conf = resMgr.GLShaders[SHADER_TYPE.GBUFFER_LIT_SHADER];
 
             //Bind the color channel of the pbuf for drawing
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
@@ -1441,13 +1426,12 @@ namespace MVCore
 
         private void renderDeferredPass()
         {
-            GLSLShaderConfig shader_conf = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_UNLIT_SHADER];
+            GLSLShaderConfig shader_conf = resMgr.GLShaders[SHADER_TYPE.GBUFFER_UNLIT_SHADER];
 
             //Bind default fbo
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0); //Draw to the light color channel only
 
-            
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
             GL.Disable(EnableCap.DepthTest); //Disable Depth test

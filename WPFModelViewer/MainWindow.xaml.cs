@@ -15,8 +15,12 @@ using System.Windows.Input;
 using System.Windows.Data;
 using System.Threading;
 using System.Reflection;
-using OpenTK;
+using OpenTK.Mathematics;
 using MVCore.Utils;
+using OpenTK.Windowing.Common;
+using OpenTK.Wpf;
+using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace WPFModelViewer
 {
@@ -30,7 +34,6 @@ namespace WPFModelViewer
     {
         private CGLControl glControl;
         private int itemCounter = 0;
-
 
         //Async Request Handler
         private WorkThreadDispacher workDispatcher = new WorkThreadDispacher();
@@ -57,10 +60,6 @@ namespace WPFModelViewer
             //Override Window Title
             Title += " " + Util.getVersion();
 
-            //Add request timer handler
-            requestHandler.Interval = 10;
-            requestHandler.Elapsed += queryRequests;
-            requestHandler.Start();
             workDispatcher.Start();
 
             //Setup Logger
@@ -79,32 +78,28 @@ namespace WPFModelViewer
             RenderState.activeResMgr = new ResourceManager();
             
 
-            //Generate CGLControl
-            glControl = new CGLControl();
+            var settings = new GLWpfControlSettings()
+            {
+                MajorVersion = 4,
+                MinorVersion = 6,
+#if DEBUG
+                GraphicsContextFlags = ContextFlags.Debug,
+#else
+                GraphicsContextFlags = ContextFlags.ForwardCompatible,
+#endif
+                GraphicsProfile = ContextProfile.Compatability
+            };
+
+            Host.Start(settings);
             
-            Host.Child = glControl;
+            //Generate CGLControl
+            glControl = new CGLControl(Host);
 
             //Improve performance on Treeview
             SceneTreeView.SetValue(VirtualizingStackPanel.IsVirtualizingProperty, true);
             SceneTreeView.SetValue(VirtualizingStackPanel.VirtualizationModeProperty, VirtualizationMode.Recycling);
             System.Diagnostics.PresentationTraceSources.DataBindingSource.Switch.Level = System.Diagnostics.SourceLevels.Error;
             System.Diagnostics.PresentationTraceSources.DataBindingSource.Listeners.Add(new BindingErrorTraceListener());
-        }
-
-        private void override_assemblies()
-        {
-            //BULLSHIT
-            string execpath = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
-            
-            Assembly[] l = AppDomain.CurrentDomain.GetAssemblies();
-
-            if (File.Exists(Path.Combine(execpath, "libMBIN.dll")))
-            {
-                //Unload existing libMBIN
-                string ass_path = Path.Combine(execpath, "libMBIN.dll");
-                Assembly.Load(@ass_path);
-                //AppDomain.CurrentDomain.Load();
-            }
         }
 
         //Open File
@@ -120,15 +115,10 @@ namespace WPFModelViewer
             
             //Send request
             glControl.issueRenderingRequest(ref req);
-            glControl.waitForRenderingRequest(ref req);
+            glControl.engine.handleRequests();
 
             //Clear treeview
-            Application.Current.Dispatcher.BeginInvoke((System.Action)(() =>
-            {
-                SceneTreeView.Items.Clear();
-                
-            }));
-
+            SceneTreeView.Items.Clear();
             
             RenderState.rootObject?.Dispose();
 
@@ -136,15 +126,14 @@ namespace WPFModelViewer
                 glControl.addTestScene(testSceneID);
             else
                 glControl.addScene(filename);
+
+            glControl.engine.handleRequests();
             
             //Populate 
             RenderState.rootObject.ID = itemCounter;
             Util.setStatus("Creating Treeview...");
             //Add to UI
-            Application.Current.Dispatcher.BeginInvoke((System.Action)(() =>
-            {
-                SceneTreeView.Items.Add(RenderState.rootObject);
-            }));
+            SceneTreeView.Items.Add(RenderState.rootObject);
             Util.setStatus("Ready");
 
             //Generate Request for resuming rendering
@@ -153,6 +142,7 @@ namespace WPFModelViewer
             req2.arguments.Clear();
 
             glControl.issueRenderingRequest(ref req2);
+            glControl.engine.handleRequests();
             //glControl.waitForRenderingRequest(ref req2);
 
             //Bind new camera to the controls
@@ -254,47 +244,6 @@ namespace WPFModelViewer
         
         }
 
-        //Request Handler
-        private void queryRequests(object sender, System.Timers.ElapsedEventArgs e)
-        {
-            int i = 0;
-            lock (issuedRequests) {
-                while ( i < issuedRequests.Count)
-                {
-                    ThreadRequest req = issuedRequests[i];
-                    lock (req)
-                    {
-                        if (req.status == THREAD_REQUEST_STATUS.FINISHED)
-                        {
-                            switch (req.type)
-                            {
-                                case THREAD_REQUEST_TYPE.NEW_TEST_SCENE_REQUEST:
-                                case THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST:
-                                    CallBacks.Log("Shouldn't be here");
-                                    break;
-                                case THREAD_REQUEST_TYPE.LOAD_NMS_ARCHIVES_REQUEST:
-                                    
-                                    //Enable Open File Functions
-                                    Application.Current.Dispatcher.BeginInvoke((System.Action)(() =>
-                                    {
-                                        OpenFileHandle.IsEnabled = true;
-                                        if (req.response == 0)
-                                            OpenFilePAKHandle.IsEnabled = true;
-                                    }));
-                                    Util.setStatus("Ready");
-                                    break;
-                                default:
-                                    break;
-                            }
-                            issuedRequests.RemoveAt(i); //Remove request
-                        }
-                        else
-                            i++;
-                    }
-                }
-            }
-        }
-
         //Close Form
         private void FormClose(object sender, RoutedEventArgs e)
         {
@@ -317,20 +266,8 @@ namespace WPFModelViewer
             req.type = THREAD_REQUEST_TYPE.TERMINATE_REQUEST;
             glControl.engine.issueRenderingRequest(ref req);
 
-            //Wait for the request to finish
-            while (true)
-            {
-                lock (req)
-                {
-                    if (req.status == THREAD_REQUEST_STATUS.FINISHED)
-                        break;
-                }
-            }
-
             //Cleanup GL Context
             glControl.engine.resMgr.Cleanup();
-            glControl.Dispose();
-
         }
 
         private void MainWindow_OnClosed(object sender, EventArgs e)
@@ -338,7 +275,6 @@ namespace WPFModelViewer
             CallBacks.Log("Window Closed");
             //CLose Logger
             Util.loggingSr.Close();
-
         }
 
         private IntPtr HwndMessageHook(IntPtr wnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -350,8 +286,8 @@ namespace WPFModelViewer
                         //Send resizing request
                         ThreadRequest req = new ThreadRequest();
                         req.type = THREAD_REQUEST_TYPE.GL_RESIZE_REQUEST;
-                        req.arguments.Add(glControl.Width);
-                        req.arguments.Add(glControl.Height);
+                        req.arguments.Add((int) Host.ActualWidth);
+                        req.arguments.Add((int) Host.ActualHeight);
 
                         //Send request
                         glControl.engine.issueRenderingRequest(ref req);
@@ -391,31 +327,9 @@ namespace WPFModelViewer
         //Do stuff once the GUI is ready
         private void MainWindow_OnLoaded(object sender, RoutedEventArgs e)
         {
-            //Add Hook for catching the end of resizing event in WPF
-            var helper = new WindowInteropHelper(this);
-            if (helper.Handle != null)
-            {
-                var source = HwndSource.FromHwnd(helper.Handle);
-                if (source != null)
-                    source.AddHook(HwndMessageHook);
-            }
-            
             //OVERRIDE SETTINGS
             //FileUtils.dirpath = "I:\\SteamLibrary1\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
 
-            
-            glControl.StartWorkThreads();
-            
-            //Check if the rt_thread is ready
-            ThreadRequest req = new ThreadRequest();
-            req.type = THREAD_REQUEST_TYPE.QUERY_GLCONTROL_STATUS_REQUEST;
-            issuedRequests.Add(req);
-            glControl.issueRenderingRequest(ref req);
-
-            while(req.status != THREAD_REQUEST_STATUS.FINISHED)
-                Thread.Sleep(10);
-
-            
             //Load Settings
             SettingsForm.loadSettingsStatic();
 
@@ -478,12 +392,34 @@ namespace WPFModelViewer
             //Issue work request 
             ThreadRequest rq = new ThreadRequest();
             //rq.arguments.Add("NMSmanifest");
-            rq.arguments.Add(Path.Combine(Path.Combine(RenderState.settings.GameDir,"GAMEDATA"), "PCBANKS"));
+            rq.arguments.Add(Path.Combine(Path.Combine(RenderState.settings.GameDir, "GAMEDATA"), "PCBANKS"));
             rq.arguments.Add(RenderState.activeResMgr);
             rq.type = THREAD_REQUEST_TYPE.LOAD_NMS_ARCHIVES_REQUEST;
             workDispatcher.sendRequest(rq);
 
-            issuedRequests.Add(rq);
+            Task t = new(() =>
+            {
+                while (true)
+                {
+                    lock (rq)
+                    {
+                        //Debug.WriteLine("TASK RUNNING");
+                        if (rq.status == THREAD_REQUEST_STATUS.FINISHED)
+                        {
+                            Application.Current.Dispatcher.BeginInvoke(new System.Action(() =>
+                            {
+                                OpenFileHandle.IsEnabled = true;
+                                if (rq.response == 0)
+                                    OpenFilePAKHandle.IsEnabled = true;
+                            }));
+                            return;
+                        }
+                    }
+                }
+            });
+
+            t.Start();
+            
         }
 
 #if (DEBUG)
@@ -589,7 +525,6 @@ namespace WPFModelViewer
             MessageBox.Show(Util.activeWindow, "This button should set random values to the pose slider of the active locator object");
         }
 
-
         //Event Handlers
 
         private void Sliders_OnValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -653,10 +588,9 @@ namespace WPFModelViewer
             settingsForm.Show();
         }
 
-        private void SceneTreeView_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        private void SceneTreeView_PreviewMouseLeftButtonDown(object sender, MouseEventArgs e)
         {
             //Todo Maybe add a timer to prevent the grabbing process from starting on single clicks
-
 
             if ((e.OriginalSource is TextBlock) && (SceneTreeView.SelectedItem != null))
             {

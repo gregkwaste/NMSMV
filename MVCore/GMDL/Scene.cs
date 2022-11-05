@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
-using OpenTK;
+using OpenTK.Mathematics;
 using MVCore.Utils;
 
 namespace MVCore.GMDL
@@ -34,7 +33,7 @@ namespace MVCore.GMDL
             update();
         }
 
-        public override void applyPoses(Dictionary<string, Matrix4> poseMatrices)
+        public void applyPoses(Dictionary<string, Matrix4> poseMatrices)
         {
             foreach (KeyValuePair<string, Matrix4> kp in poseMatrices)
             {
@@ -47,7 +46,7 @@ namespace MVCore.GMDL
 
                     //Vector3 tr = kp.Value.ExtractTranslation();
                     Vector3 sc = kp.Value.ExtractScale();
-                    OpenTK.Quaternion q = kp.Value.ExtractRotation();
+                    Quaternion q = kp.Value.ExtractRotation();
 
                     //j.localRotation = Matrix4.CreateFromQuaternion(q);
                     //j.localPosition = tr;

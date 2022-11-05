@@ -3,9 +3,13 @@
     <IncludeAssemblies>
       libPSARC
       zlib.net
-      OpenTK
-      OpenTK.GLControl
-      MathNet.Numerics
+	  OpenTK.Core
+	  OpenTK.Compute
+	  OpenTK.Input
+	  OpenTK.OpenAL
+	  OpenTK.Mathematics
+	  OpenTK.Windowing.Desktop
+	  MathNet.Numerics
       Newtonsoft.Json
       AssimpNet
       NLog

@@ -1,5 +1,5 @@
 ﻿using System;
-using OpenTK;
+using OpenTK.Mathematics;
 using MVCore.Utils;
 
 namespace MVCore.GMDL
@@ -33,7 +33,7 @@ namespace MVCore.GMDL
         public const int instance_color_Float_Offset = 66;
         //public static int instance_LOD_Offset = 268; //TODO make that a vec4
         public const int instance_LOD_Float_Offset = 67;
-
+        
         public static int instance_struct_size_bytes = 272;
         public const int instance_struct_size_floats = 68;
 
@@ -43,7 +43,6 @@ namespace MVCore.GMDL
         //17-18: isSelected
         //18-20: padding
 
-
         public static int addInstance(ref GLMeshVao mesh, Model m)
         {
             int instance_id = mesh.instance_count;
@@ -51,7 +50,7 @@ namespace MVCore.GMDL
             //Expand mesh data buffer if required
             if (instance_id * instance_struct_size_bytes > mesh.dataBuffer.Length)
             {
-                float[] newBuffer = new float[mesh.dataBuffer.Length + 256];
+                float[] newBuffer = new float[mesh.dataBuffer.Length + instance_struct_size_floats * 2];
                 Array.Copy(mesh.dataBuffer, newBuffer, mesh.dataBuffer.Length);
                 mesh.dataBuffer = newBuffer;
             }

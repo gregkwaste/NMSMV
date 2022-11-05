@@ -7,7 +7,7 @@ using MVCore.Common;
 using MVCore.GMDL;
 using MVCore.Text;
 using MVCore.Utils;
-using OpenTK;
+using OpenTK.Mathematics;
 using OpenTK.Graphics.OpenGL4;
 
 
@@ -347,8 +347,8 @@ namespace MVCore
 
             mat = new Material();
             mat.Name = "crossMat";
-            mat.add_flag(TkMaterialFlags.UberFlagEnum._F07_UNLIT);
-            mat.add_flag(TkMaterialFlags.UberFlagEnum._F21_VERTEXCOLOUR);
+            mat.add_flag(TkMaterialFlags.MaterialFlagEnum._F07_UNLIT);
+            mat.add_flag(TkMaterialFlags.MaterialFlagEnum._F21_VERTEXCOLOUR);
             TkMaterialUniform uf = new TkMaterialUniform();
             uf.Name = "gMaterialColourVec4";
             uf.Values = new libMBIN.NMS.Vector4f();
@@ -363,7 +363,7 @@ namespace MVCore
             //Joint Material
             mat = new Material();
             mat.Name = "jointMat";
-            mat.add_flag(TkMaterialFlags.UberFlagEnum._F07_UNLIT);
+            mat.add_flag(TkMaterialFlags.MaterialFlagEnum._F07_UNLIT);
 
             uf.Name = "gMaterialColourVec4";
             uf.Values = new libMBIN.NMS.Vector4f();
@@ -378,7 +378,7 @@ namespace MVCore
             //Light Material
             mat = new Material();
             mat.Name = "lightMat";
-            mat.add_flag(TkMaterialFlags.UberFlagEnum._F07_UNLIT);
+            mat.add_flag(TkMaterialFlags.MaterialFlagEnum._F07_UNLIT);
 
             uf = new TkMaterialUniform();
             uf.Name = "gMaterialColourVec4";
@@ -394,7 +394,7 @@ namespace MVCore
             //Collision Material
             mat = new Material();
             mat.Name = "collisionMat";
-            mat.add_flag(TkMaterialFlags.UberFlagEnum._F07_UNLIT);
+            mat.add_flag(TkMaterialFlags.MaterialFlagEnum._F07_UNLIT);
 
             uf = new TkMaterialUniform();
             uf.Name = "gMaterialColourVec4";

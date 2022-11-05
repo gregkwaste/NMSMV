@@ -7,7 +7,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using OpenTK.Graphics.OpenGL4;
-using OpenTK;
+using OpenTK.Mathematics;
 using KUtility;
 using Model_Viewer;
 using System.Linq;
@@ -922,7 +922,7 @@ namespace MVCore.GMDL
 
     public class MyTextureUnit
     {
-        public OpenTK.Graphics.OpenGL4.TextureUnit texUnit;
+        public TextureUnit texUnit;
 
         public static Dictionary<string, TextureUnit> MapTextureUnit = new Dictionary<string, TextureUnit> {
             { "mpCustomPerMaterial.gDiffuseMap" , TextureUnit.Texture0 },
@@ -930,14 +930,15 @@ namespace MVCore.GMDL
             { "mpCustomPerMaterial.gNormalMap" ,  TextureUnit.Texture2 },
             { "mpCustomPerMaterial.gDiffuse2Map" , TextureUnit.Texture3 },
             { "mpCustomPerMaterial.gDetailDiffuseMap", TextureUnit.Texture4},
-            { "mpCustomPerMaterial.gDetailNormalMap", TextureUnit.Texture5}
+            { "mpCustomPerMaterial.gDetailNormalMap", TextureUnit.Texture5},
+            { "mpCustomPerMaterial.skinMatsTex", TextureUnit.Texture6}
         };
 
         public static Dictionary<string, int> MapTexUnitToSampler = new Dictionary<string, int> {
             { "mpCustomPerMaterial.gDiffuseMap" , 0 },
-            { "mpCustomPerMaterial.gMasksMap" ,   1 },
-            { "mpCustomPerMaterial.gNormalMap" ,  2 },
-            { "mpCustomPerMaterial.gDiffuse2Map" , 3 },
+            { "mpCustomPerMaterial.gDiffuse2Map" , 1 },
+            { "mpCustomPerMaterial.gMasksMap" ,   2 },
+            { "mpCustomPerMaterial.gNormalMap" ,  3 },
             { "mpCustomPerMaterial.gDetailDiffuseMap", 4},
             { "mpCustomPerMaterial.gDetailNormalMap", 5}
         };
@@ -1278,7 +1279,7 @@ namespace MVCore.GMDL
     
     public class AnimNodeFrameData
     {
-        public List<OpenTK.Quaternion> rotations = new List<OpenTK.Quaternion>();
+        public List<Quaternion> rotations = new List<Quaternion>();
         public List<Vector3> translations = new List<Vector3>();
         public List<Vector3> scales = new List<Vector3>();
 
@@ -1287,7 +1288,7 @@ namespace MVCore.GMDL
             BinaryReader br = new BinaryReader(fs);
             for (int i = 0; i < count; i++)
             {
-                OpenTK.Quaternion q = new OpenTK.Quaternion();
+                Quaternion q = new Quaternion();
                 q.X = br.ReadSingle();
                 q.Y = br.ReadSingle();
                 q.Z = br.ReadSingle();
@@ -1384,7 +1385,7 @@ namespace MVCore.GMDL
     public class AnimMetadata: TkAnimMetadata
     {
         public float duration;
-        public Dictionary<string, OpenTK.Quaternion[]> anim_rotations;
+        public Dictionary<string, Quaternion[]> anim_rotations;
         public Dictionary<string, Vector3[]> anim_positions;
         public Dictionary<string, Vector3[]> anim_scales;
 
@@ -1408,7 +1409,7 @@ namespace MVCore.GMDL
         public void load()
         {
             //Init dictionaries
-            anim_rotations = new Dictionary<string, OpenTK.Quaternion[]>();
+            anim_rotations = new Dictionary<string, Quaternion[]>();
             anim_positions = new Dictionary<string, Vector3[]>();
             anim_scales = new Dictionary<string, Vector3[]>();
 
@@ -1422,7 +1423,7 @@ namespace MVCore.GMDL
                 TkAnimNodeData node = NodeData[j];
                 //Init dictionary entries
 
-                anim_rotations[node.Node] = new OpenTK.Quaternion[FrameCount];
+                anim_rotations[node.Node] = new Quaternion[FrameCount];
                 anim_positions[node.Node] = new Vector3[FrameCount];
                 anim_scales[node.Node] = new Vector3[FrameCount];
 
@@ -1467,7 +1468,7 @@ namespace MVCore.GMDL
 
             //Calculate Binding Matrix
             Vector3 BindTranslate, BindScale;
-            OpenTK.Quaternion BindRotation = new OpenTK.Quaternion();
+            Quaternion BindRotation = new Quaternion();
 
             //Get Translate
             BindTranslate.X = br.ReadSingle();

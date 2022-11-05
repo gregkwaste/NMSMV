@@ -4,7 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using libMBIN.NMS.Toolkit;
 using MVCore.GMDL;
-using OpenTK;
+using OpenTK.Mathematics;
 using MVCore.Utils;
 
 namespace WPFModelViewer

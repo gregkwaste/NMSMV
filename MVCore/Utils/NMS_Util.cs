@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using libMBIN;
-using OpenTK;
+using OpenTK.Mathematics;
 using libMBIN.NMS.Toolkit;
 using System.Security.Permissions;
 using WPFModelViewer;
@@ -236,12 +236,12 @@ namespace MVCore.Utils
             TkAnimNodeFrameData frame = animMeta.AnimFrameData[frameCounter];
             TkAnimNodeFrameData stillframe = animMeta.StillFrameData;
 
-            OpenTK.Quaternion q;
+            Quaternion q;
             //Check if there is a rotation for that node
             if (node.RotIndex < frame.Rotations.Count)
             {
                 int rotindex = node.RotIndex;
-                q = new OpenTK.Quaternion(frame.Rotations[rotindex].x,
+                q = new Quaternion(frame.Rotations[rotindex].x,
                                 frame.Rotations[rotindex].y,
                                 frame.Rotations[rotindex].z,
                                 frame.Rotations[rotindex].w);
@@ -249,7 +249,7 @@ namespace MVCore.Utils
             else //Load stillframedata
             {
                 int rotindex = node.RotIndex - frame.Rotations.Count;
-                q = new OpenTK.Quaternion(stillframe.Rotations[rotindex].x,
+                q = new Quaternion(stillframe.Rotations[rotindex].x,
                                 stillframe.Rotations[rotindex].y,
                                 stillframe.Rotations[rotindex].z,
                                 stillframe.Rotations[rotindex].w);
@@ -561,7 +561,7 @@ namespace MVCore.Utils
             */
 
             status = 0; // All good
-            Common.CallBacks.updateStatus("Ready");
+            CallBacks.updateStatus("Ready");
         }
 
         public static void unloadNMSArchives(ResourceManager resMgr)

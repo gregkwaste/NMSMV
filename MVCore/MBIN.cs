@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System;
 using System.Reflection;
 using System.Globalization;
-using OpenTK;
+using OpenTK.Mathematics;
 using Model_Viewer;
 using libMBIN;
 using libMBIN.NMS.Toolkit;
@@ -642,15 +642,15 @@ namespace MVCore
             //Load all LOD models as children to the node
             LODModelComponent lodmdlcomp = new LODModelComponent();
             
-            for (int i = 0; i < component.LODModel.Count; i++)
+            for (int i = 0; i < component.LODModels.Count; i++)
             {
-                string filepath = component.LODModel[i].LODModel.Filename;
+                string filepath = component.LODModels[i].LODModel.Filename;
                 Common.CallBacks.Log("Loading LOD " + filepath);
                 Scene so = LoadObjects(filepath);
                 so.parent = node; //Set parent
                 node.children.Add(so);
                 //Create LOD Resource
-                LODModelResource lodres = new LODModelResource(component.LODModel[i]);
+                LODModelResource lodres = new LODModelResource(component.LODModels[i]);
                 lodmdlcomp.Resources.Add(lodres);
             }
             
@@ -947,9 +947,9 @@ namespace MVCore
                     meshVao.skinned = true;
 
                 //Set skinned flag if its set as a metarial flag
-                if (mat.has_flag((TkMaterialFlags.MaterialFlagEnum)TkMaterialFlags.UberFlagEnum._F02_SKINNED))
+                if (mat.has_flag(TkMaterialFlags.MaterialFlagEnum._F02_SKINNED))
                     meshVao.skinned = true;
-
+                 
                 //Generate collision mesh vao
                 try
                 {

@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
-using OpenTK;
+using OpenTK.Mathematics;
 using Assimp;
 
 
@@ -66,9 +66,9 @@ namespace MVCore.Utils
             return res;
         }
 
-        public static OpenTK.Quaternion conjugate(OpenTK.Quaternion q)
+        public static OpenTK.Mathematics.Quaternion conjugate(OpenTK.Mathematics.Quaternion q)
         {
-            OpenTK.Quaternion t = q;
+            OpenTK.Mathematics.Quaternion t = q;
             t.Conjugate();
             return t;
         }
@@ -209,7 +209,7 @@ namespace MVCore.Utils
             return vec;
         }
 
-        public static Assimp.Quaternion convertQuaternion(OpenTK.Quaternion localQuat)
+        public static Assimp.Quaternion convertQuaternion(OpenTK.Mathematics.Quaternion localQuat)
         {
             Assimp.Quaternion q = new Assimp.Quaternion();
             q.X = localQuat.X;
