@@ -57,9 +57,6 @@ mat4 get_skin_matrix(int offset)
 }
 
 
-
-
-
 void main()
 {
     //Pass uv to fragment shader
@@ -80,7 +77,7 @@ void main()
     mat4 lWorldMat;
     
     //Check F02_SKINNED
-    #if defined(__F02_SKINNED) || defined(__F28_VBSKINNED)
+    #if defined(__F02_SKINNED)
         ivec4 index;
         
         index.x = int(blendIndices.x);
@@ -98,6 +95,7 @@ void main()
         lWorldMat = instanceData[gl_InstanceID].worldMat;
     #endif
     
+    //lWorldMat = instanceData[gl_InstanceID].worldMat;
     vec4 wPos = lWorldMat * vPosition; //Calculate world Position
     fragPos = wPos; //Export world position to the fragment shader
     screenPos = mpCommonPerFrame.mvp * mpCommonPerFrame.rotMat * fragPos;

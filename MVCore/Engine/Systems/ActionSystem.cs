@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.ServiceModel.Configuration;
 using System.Text;
 using libMBIN.NMS;
 using libMBIN.NMS.GameComponents;

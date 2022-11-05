@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using OpenTK.Graphics.OpenGL4;
-using OpenTK;
+using OpenTK.Mathematics;
 using MVCore;
 using MVCore.Utils;
 using MathNet.Numerics;
@@ -146,11 +146,6 @@ namespace MVCore.GMDL
         public Quaternion Direction = new Quaternion(new Vector3(0.0f, (float)Math.PI / 2.0f, 0.0f));
         public Vector3 Position = new Vector3(0.0f, 0.0f, 0.0f);
         
-        //Movement Time
-        private float t_pos_move = 100.0f;
-        private float t_rot_move = 100.0f;
-        private float t_start = 0.0f;
-
         public float Sensitivity = 0.001f;
         public bool isActive = false;
         //Projection variables Set defaults
@@ -273,11 +268,6 @@ namespace MVCore.GMDL
                 PrevDirection.X, PrevDirection.Y, PrevDirection.Z, PrevDirection.W);
             */
 
-            float eff_speed = interval * actual_speed / 1000.0f;
-            t_pos_move = (TargetPosition - PrevPosition).Length / eff_speed;
-            t_rot_move = (TargetDirection - PrevDirection).Length / eff_speed;
-            t_start = 0.0f; //Reset time_counter
-
             //Common.CallBacks.Log("t_pos {0}, t_rot {1}", t_pos_move, t_rot_move);
 
         }
@@ -285,17 +275,11 @@ namespace MVCore.GMDL
         public void Move(double dt)
         {
              //calculate interpolation coeff
-            t_start += (float) dt;
             float pos_lerp_coeff, rot_lerp_coeff;
 
-            
-            pos_lerp_coeff = t_start / (float) Math.Max(t_pos_move, 1e-4);
-            pos_lerp_coeff = MathUtils.clamp(pos_lerp_coeff, 0.0f, 1.0f);
-            
-            
-            rot_lerp_coeff = t_start / (float)Math.Max(t_rot_move, 1e-4);
-            rot_lerp_coeff = MathUtils.clamp(rot_lerp_coeff, 0.0f, 1.0f);
-            
+
+            pos_lerp_coeff = 1.0f;
+            rot_lerp_coeff = 1.0f;
 
             //Interpolate Quaternions/Vectors
             Direction = PrevDirection * (1.0f - rot_lerp_coeff) +

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
-using OpenTK;
+using OpenTK.Mathematics;
 using OpenTK.Graphics.OpenGL4;
 using GLSLHelper;
 using System.IO;
@@ -156,7 +156,7 @@ namespace MVCore.GMDL
         public GLVao vao;
         public GLVao bHullVao;
         public MeshMetaData metaData;
-        public float[] dataBuffer = new float[256];
+        public float[] dataBuffer = new float[GLMeshBufferManager.instance_struct_size_floats];
 
         //Mesh type
         public COLLISIONTYPES collisionType;
@@ -414,21 +414,21 @@ namespace MVCore.GMDL
             {
                 if (shader.uniformLocations.ContainsKey(s.Name) && s.Map.Value != "")
                 {
-                    GL.Uniform1(shader.uniformLocations[s.Name], MyTextureUnit.MapTexUnitToSampler[s.Name]);
                     GL.ActiveTexture(s.texUnit.texUnit);
                     GL.BindTexture(s.tex.target, s.tex.texID);
+                    GL.Uniform1(shader.uniformLocations[s.Name], MyTextureUnit.MapTexUnitToSampler[s.Name]);
                 }
             }
 
             //BIND TEXTURE Buffer
-            //if (skinned)
-            //{
-            //    GL.Uniform1(shader.uniformLocations["mpCustomPerMaterial.skinMatsTex"], 6);
-            //    GL.ActiveTexture(TextureUnit.Texture6);
-            //    GL.BindTexture(TextureTarget.TextureBuffer, instanceBoneMatricesTex);
-            //    GL.TexBuffer(TextureBufferTarget.TextureBuffer,
-            //        SizedInternalFormat.Rgba32f, instanceBoneMatricesTexTBO);
-            //}
+            if (skinned)
+            {
+                GL.ActiveTexture(TextureUnit.Texture6);
+                GL.BindTexture(TextureTarget.TextureBuffer, instanceBoneMatricesTex);
+                GL.TexBuffer(TextureBufferTarget.TextureBuffer,
+                    SizedInternalFormat.Rgba32f, instanceBoneMatricesTexTBO);
+                GL.Uniform1(shader.uniformLocations["mpCustomPerMaterial.skinMatsTex"], 6);
+            }
 
             //if (instance_count > 100)
             //    Common.CallBacks.Log("Increase the buffers");
@@ -542,7 +542,6 @@ namespace MVCore.GMDL
         public void setSkinMatrices(Scene animScene, int instance_id)
         {
             int instance_offset = 128 * 16 * instance_id;
-
 
             for (int i = 0; i < BoneRemapIndicesCount; i++)
             {
@@ -703,7 +702,7 @@ namespace MVCore.GMDL
             {
                 if (meshVao.material != null)
                 {
-                    return meshVao.material.has_flag(TkMaterialFlags.UberFlagEnum._F02_SKINNED);
+                    return meshVao.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F02_SKINNED);
                 }
                 return false;
             }
@@ -1200,7 +1199,8 @@ namespace MVCore.GMDL
                 }
 
 
-                v = Vector4.Transform(v, this.worldMat);
+                v = v * worldMat;
+                //v = Vector4.Transform(v, this.worldMat);
 
                 //s.WriteLine("v " + Half.decompress(v1).ToString() + " "+ Half.decompress(v2).ToString() + " " + Half.decompress(v3).ToString());
                 s.WriteLine("v " + v.X.ToString() + " " + v.Y.ToString() + " " + v.Z.ToString());
@@ -1264,7 +1264,7 @@ namespace MVCore.GMDL
                 //Transform normal with normalMatrix
 
 
-                vN = Vector4.Transform(vN, nMat);
+                vN = vN * nMat;
 
                 s.WriteLine("vn " + vN.X.ToString() + " " + vN.Y.ToString() + " " + vN.Z.ToString());
                 vbr.BaseStream.Seek(gobject.vx_size - n_section_bytes, SeekOrigin.Current);

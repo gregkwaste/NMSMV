@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using GLSLHelper;
 using libMBIN.NMS.Toolkit;
-using OpenTK;
+using OpenTK.Mathematics;
 using OpenTK.Graphics.OpenGL4;
 
 
@@ -300,8 +300,49 @@ namespace MVCore.Engine
             setup();
         }
 
+        public void dump()
+        {
+            //Bind Buffers
+            //Resolving Buffers
+            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, fbo);
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, 0);
 
-        
+            byte[] pixels = new byte[16 * size[0] * size[1]];
+            //pixels = new byte[4 * size[0] * size[1]];
+            //Common.CallBacks.Log("Dumping Framebuffer textures " + size[0] + " " + size[1]);
+
+#if false
+            //Save Depth Texture
+            GL.BindTexture(TextureTarget.Texture2D, dump_depth);
+            GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.DepthComponent, PixelType.Float, pixels);
+
+            File.WriteAllBytes("dump.depth", pixels);
+#endif
+
+#if true
+            //Read Color0
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+            GL.BlitFramebuffer(0, 0, size[0], size[1],
+                                   0, 0, size[0], size[1],
+                                   ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit,
+                                   BlitFramebufferFilter.Nearest);
+
+            //Save Diffuse Color
+            GL.BindTexture(TextureTarget.Texture2D, color);
+            GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
+            File.WriteAllBytes("pbuf.dump.color0", pixels);
+#endif
+
+            //Rebind Gbuffer fbo
+            GL.BindFramebuffer(FramebufferTarget.FramebufferExt, fbo);
+            //GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+            //GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+
+        }
+
+
+
 
     }
 
@@ -406,7 +447,7 @@ namespace MVCore.Engine
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             
             //Main flags
-            GL.Enable(EnableCap.Multisample);
+            //GL.Enable(EnableCap.Multisample);
             
             //Geometry Shader Parameters
             GL.PatchParameter(PatchParameterFloat.PatchDefaultInnerLevel, new float[] { 2.0f });
@@ -466,7 +507,7 @@ namespace MVCore.Engine
             File.WriteAllBytes("dump.depth", pixels);
 #endif
 
-#if false
+#if true
             //Read Color0
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
@@ -475,14 +516,11 @@ namespace MVCore.Engine
                                    ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit,
                                    BlitFramebufferFilter.Nearest);
 
-
             //Save Diffuse Color
-            GL.BindTexture(TextureTarget.Texture2D, dump_diff);
+            GL.BindTexture(TextureTarget.Texture2D, albedo);
             GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
-
-            //File.WriteAllBytes("dump.color0", pixels);
+            File.WriteAllBytes("dump.color0", pixels);
 #endif
-
 
             //Rebind Gbuffer fbo
             GL.BindFramebuffer(FramebufferTarget.FramebufferExt, fbo);

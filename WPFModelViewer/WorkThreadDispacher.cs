@@ -7,7 +7,7 @@ using MVCore.Utils;
 
 namespace WPFModelViewer
 {
-    class Task
+    class MyTask
     {
         public int task_uid;
         public Thread thread;
@@ -16,7 +16,7 @@ namespace WPFModelViewer
     
     class WorkThreadDispacher : System.Timers.Timer
     {
-        private List<Task> tasks = new List<Task>();
+        private List<MyTask> tasks = new List<MyTask>();
         private int taskGUIDCounter = 0;
 
         public WorkThreadDispacher()
@@ -30,9 +30,9 @@ namespace WPFModelViewer
             tasks.Add(createTask(tr));
         }
 
-        private Task createTask(ThreadRequest tr)
+        private MyTask createTask(ThreadRequest tr)
         {
-            Task tk = new Task();
+            MyTask tk = new MyTask();
             tk.task_uid = taskGUIDCounter;
             tk.thread_request = tr;
 
@@ -64,7 +64,7 @@ namespace WPFModelViewer
             int i = 0;
             while(i < tasks.Count)
             {
-                Task tk = tasks[i];
+                MyTask tk = tasks[i];
 
                 //Check if task has finished 
                 if (!tk.thread.IsAlive)

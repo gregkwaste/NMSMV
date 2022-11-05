@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System;
 using System.Runtime.CompilerServices;
 using System.Collections.Generic;
-
+using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace MVCore.Input
 {
@@ -90,47 +90,49 @@ namespace MVCore.Input
 
         public virtual void updateState()
         {
-            GamePadCapabilities caps = GamePad.GetCapabilities(ID);
+            //TODO: OBSOLETE in OPENTK 4+
+
+            //GamePadCapabilities caps = GamePad.GetCapabilities(ID);
         
-            if (!caps.IsConnected)
-            {
-                //Common.CallBacks.Log("COntroller not connected");
-                return;
-            }
+            //if (!caps.IsConnected)
+            //{
+            //    //Common.CallBacks.Log("COntroller not connected");
+            //    return;
+            //}
             
-            GamePadState pad_status = GamePad.GetState(ID);
+            //GamepadState pad_status = GamePad.GetState(ID);
+            
+            ////0,1,2,3 - DPAD UP, DOWN, LEFT, RIGHT
+            //State[0] = (float)pad_status.DPad.Up;
+            //State[1] = (float)pad_status.DPad.Down;
+            //State[2] = (float)pad_status.DPad.Left;
+            //State[3] = (float)pad_status.DPad.Right;
 
-            //0,1,2,3 - DPAD UP, DOWN, LEFT, RIGHT
-            State[0] = (float)pad_status.DPad.Up;
-            State[1] = (float)pad_status.DPad.Down;
-            State[2] = (float)pad_status.DPad.Left;
-            State[3] = (float)pad_status.DPad.Right;
+            ////4,5,6,7 - BUTTONS (UP), (DOWN), (LEFT), (RIGHT)
+            //State[4] = (float)pad_status.Buttons.Y;
+            //State[5] = (float)pad_status.Buttons.A;
+            //State[6] = (float)pad_status.Buttons.X;
+            //State[7] = (float)pad_status.Buttons.B;
 
-            //4,5,6,7 - BUTTONS (UP), (DOWN), (LEFT), (RIGHT)
-            State[4] = (float)pad_status.Buttons.Y;
-            State[5] = (float)pad_status.Buttons.A;
-            State[6] = (float)pad_status.Buttons.X;
-            State[7] = (float)pad_status.Buttons.B;
+            ////8, 9 - BUTTONS (LB), (RB)
+            //State[8] = (float)pad_status.Buttons.LeftShoulder;
+            //State[9] = (float)pad_status.Buttons.RightShoulder;
 
-            //8, 9 - BUTTONS (LB), (RB)
-            State[8] = (float)pad_status.Buttons.LeftShoulder;
-            State[9] = (float)pad_status.Buttons.RightShoulder;
+            ////10, 11 - BUTTONS (LS), (RS)
+            //State[10] = (float)pad_status.Buttons.LeftStick;
+            //State[11] = (float)pad_status.Buttons.RightStick;
 
-            //10, 11 - BUTTONS (LS), (RS)
-            State[10] = (float)pad_status.Buttons.LeftStick;
-            State[11] = (float)pad_status.Buttons.RightStick;
+            ////12, 13 - TRIGGERS (Left), (Right) 
+            //State[12] = pad_status.Triggers.Left;
+            //State[13] = pad_status.Triggers.Right;
 
-            //12, 13 - TRIGGERS (Left), (Right) 
-            State[12] = pad_status.Triggers.Left;
-            State[13] = pad_status.Triggers.Right;
+            ////14, 15 - STICKS (Left Horizontal), (Left Vertical)
+            //State[14] = pad_status.ThumbSticks.Left.X;
+            //State[15] = pad_status.ThumbSticks.Left.Y;
 
-            //14, 15 - STICKS (Left Horizontal), (Left Vertical)
-            State[14] = pad_status.ThumbSticks.Left.X;
-            State[15] = pad_status.ThumbSticks.Left.Y;
-
-            //14, 15 - STICKS (Right Horizontal), (Right Vertical)
-            State[16] = pad_status.ThumbSticks.Right.X;
-            State[17] = pad_status.ThumbSticks.Right.Y;
+            ////14, 15 - STICKS (Right Horizontal), (Right Vertical)
+            //State[16] = pad_status.ThumbSticks.Right.X;
+            //State[17] = pad_status.ThumbSticks.Right.Y;
 
         }
 
@@ -171,12 +173,14 @@ namespace MVCore.Input
 
         public bool isConnected()
         {
-            return GamePad.GetCapabilities(ID).IsConnected;
+            return false;
+            //return GamePad.GetCapabilities(ID).IsConnected;
         }
 
         public string getName()
         {
-            return GamePad.GetName(ID);
+            //return GamePad.GetName(ID);
+            return "";
         }
 
 

@@ -111,9 +111,9 @@ namespace WPFModelViewer
             RenderState.renderViewSettings = view_settings;
             MVCore.GMDL.Camera.SetCameraSettings(ref RenderState.activeCam, cam_settings.settings);
             MVCore.GMDL.Camera.SetCameraPosition(ref RenderState.activeCam, 
-                new OpenTK.Vector3(cam_settings.PosX, cam_settings.PosY, cam_settings.PosZ));
+                new OpenTK.Mathematics.Vector3(cam_settings.PosX, cam_settings.PosY, cam_settings.PosZ));
             MVCore.GMDL.Camera.SetCameraDirection(ref RenderState.activeCam,
-                new OpenTK.Quaternion(cam_settings.DirX, cam_settings.DirY, cam_settings.DirZ, cam_settings.DirW));
+                new OpenTK.Mathematics.Quaternion(cam_settings.DirX, cam_settings.DirY, cam_settings.DirZ, cam_settings.DirW));
         }
 
         public static void saveSettingsStatic()

@@ -67,7 +67,7 @@ namespace MVCore.GMDL
 
                 foreach (TkMaterialFlags f in Flags)
                 {
-                    l.Add(((TkMaterialFlags.UberFlagEnum)f.MaterialFlag).ToString());
+                    l.Add(f.MaterialFlag.ToString());
                 }
 
                 return l;
@@ -237,12 +237,6 @@ namespace MVCore.GMDL
 
         }
 
-        //Wrapper to support uberflags
-        public bool has_flag(TkMaterialFlags.UberFlagEnum flag)
-        {
-            return has_flag((TkMaterialFlags.MaterialFlagEnum)flag);
-        }
-
         public bool has_flag(TkMaterialFlags.MaterialFlagEnum flag)
         {
             for (int i = 0; i < Flags.Count; i++)
@@ -253,17 +247,17 @@ namespace MVCore.GMDL
             return false;
         }
 
-        public bool add_flag(TkMaterialFlags.UberFlagEnum flag)
+        public bool add_flag(TkMaterialFlags.MaterialFlagEnum flag)
         {
             //Check if material has flag
             foreach (TkMaterialFlags f in Flags)
             {
-                if (f.MaterialFlag == (TkMaterialFlags.MaterialFlagEnum)flag)
+                if (f.MaterialFlag == flag)
                     return false;
             }
 
             TkMaterialFlags ff = new TkMaterialFlags();
-            ff.MaterialFlag = (TkMaterialFlags.MaterialFlagEnum)flag;
+            ff.MaterialFlag = flag;
             Flags.Add(ff);
 
             return true;
@@ -308,7 +302,7 @@ namespace MVCore.GMDL
 
             for (int i = 0; i < flags.Count; i++)
             {
-                string s_flag = ((TkMaterialFlags.UberFlagEnum)flags[i].MaterialFlag).ToString();
+                string s_flag = flags[i].MaterialFlag.ToString();
                 if (supported_flags.Contains(s_flag))
                     hash += "_" + s_flag;
             }

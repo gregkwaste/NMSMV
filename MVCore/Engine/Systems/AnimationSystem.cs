@@ -4,7 +4,7 @@ using System.Security.Policy;
 using System.Security.RightsManagement;
 using System.Text;
 using MVCore.GMDL;
-using OpenTK;
+using OpenTK.Mathematics;
 
 namespace MVCore.Engine.Systems
 {

@@ -2,8 +2,8 @@
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
-using OpenTK;
-using OpenTK.Input;
+using OpenTK.Mathematics;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL4;
 using MVCore.Common;
@@ -17,6 +17,7 @@ using Model_Viewer;
 using OpenTK.Platform;
 using MVCore.Engine.Systems;
 using libMBIN.NMS.Toolkit;
+using OpenTK.Wpf;
 
 namespace MVCore.Engine
 {
@@ -31,7 +32,7 @@ namespace MVCore.Engine
     public class Engine
     {
         //Window References
-        private GLControl Control;
+        private GLWpfControl Control;
         
         public ResourceManager resMgr;
 
@@ -46,9 +47,8 @@ namespace MVCore.Engine
 
         //Input
         public BaseGamepadHandler gpHandler;
-        public KeyboardHandler kbHandler;
-        private System.Timers.Timer inputPollTimer;
-
+        public MVKeyboardState kbHandler;
+        
         //Camera Stuff
         public System.Timers.Timer cameraMovementTimer;
         public CameraPos targetCameraPos;
@@ -67,7 +67,7 @@ namespace MVCore.Engine
 
         public Engine()
         {
-            kbHandler = new KeyboardHandler();
+            kbHandler = new MVKeyboardState();
             //gpHandler = new PS4GamePadHandler(0); //TODO: Add support for PS4 controller
             reqHandler = new RequestHandler();
 
@@ -77,17 +77,6 @@ namespace MVCore.Engine
             palette = Palettes.createPalettefromBasePalettes();
 
             renderMgr = new renderManager(); //Init renderManager of the engine
-
-            //Input Polling Timer
-            inputPollTimer = new System.Timers.Timer();
-            inputPollTimer.Elapsed += new ElapsedEventHandler(input_poller);
-            inputPollTimer.Interval = 1;
-
-            //Camera Movement Timer
-            cameraMovementTimer = new System.Timers.Timer();
-            cameraMovementTimer.Elapsed += new ElapsedEventHandler(camera_timer);
-            cameraMovementTimer.Interval = 20;
-            //cameraMovementTimer.Start(); Start in the main function
 
             //Systems Init
             actionSys = new ActionSystem();
@@ -99,10 +88,6 @@ namespace MVCore.Engine
 
         public void init()
         {
-            //Start Timers
-            inputPollTimer.Start();
-            cameraMovementTimer.Start();
-
             //Init Gizmos
             //gizTranslate = new TranslationGizmo();
             //activeGizmo = gizTranslate;
@@ -113,7 +98,7 @@ namespace MVCore.Engine
 
             //Initialize the render manager
             renderMgr.init(resMgr);
-            renderMgr.setupGBuffer(Control.ClientSize.Width, Control.ClientSize.Height);
+            renderMgr.setupGBuffer(800, 600);
         }
 
         public void handleRequests()
@@ -134,17 +119,13 @@ namespace MVCore.Engine
                             req.status = THREAD_REQUEST_STATUS.FINISHED;
                             break;
                         case THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST:
-                            inputPollTimer.Stop();
                             rt_addRootScene((string)req.arguments[0]);
                             req.status = THREAD_REQUEST_STATUS.FINISHED;
-                            inputPollTimer.Start();
                             break;
 #if DEBUG
                         case THREAD_REQUEST_TYPE.NEW_TEST_SCENE_REQUEST:
-                            inputPollTimer.Stop();
                             rt_addTestScene((int)req.arguments[0]);
                             req.status = THREAD_REQUEST_STATUS.FINISHED;
-                            inputPollTimer.Start();
                             break;
 #endif
                         case THREAD_REQUEST_TYPE.CHANGE_MODEL_PARENT_REQUEST:
@@ -178,10 +159,6 @@ namespace MVCore.Engine
                                 ref t);
                             req.status = THREAD_REQUEST_STATUS.FINISHED;
                             break;
-                        case THREAD_REQUEST_TYPE.GL_RESIZE_REQUEST:
-                            rt_ResizeViewport((int)req.arguments[0], (int)req.arguments[1]);
-                            req.status = THREAD_REQUEST_STATUS.FINISHED;
-                            break;
                         case THREAD_REQUEST_TYPE.GL_MODIFY_SHADER_REQUEST:
                             GLShaderHelper.modifyShader((GLSLShaderConfig)req.arguments[0],
                                          (GLSLShaderText)req.arguments[1]);
@@ -195,7 +172,6 @@ namespace MVCore.Engine
                             break;
                         case THREAD_REQUEST_TYPE.TERMINATE_REQUEST:
                             rt_State = EngineRenderingState.EXIT;
-                            inputPollTimer.Stop();
                             req.status = THREAD_REQUEST_STATUS.FINISHED;
                             break;
                         case THREAD_REQUEST_TYPE.GL_PAUSE_RENDER_REQUEST:
@@ -211,11 +187,6 @@ namespace MVCore.Engine
                     }
                 }
             }
-        }
-
-        public void SetControl(CGLControl control)
-        {
-            Control = control;
         }
 
         //Main Rendering Routines
@@ -458,19 +429,14 @@ namespace MVCore.Engine
         
         }
 
-        
-        private void input_poller(object sender, System.Timers.ElapsedEventArgs e)
+        //Todo: this should not be public but Idk about this project anymore
+        public void input_poller(double dt)
         {
-            //Common.CallBacks.Log(gpHandler.getAxsState(0, 0).ToString() + " " +  gpHandler.getAxsState(0, 1).ToString());
-            //gpHandler.reportButtons();
-            //gamepadController(); //Move camera according to input
-
             //Move Camera
             keyboardController();
             //gamepadController();
 
             bool focused = false;
-
 
             //TODO: Toggle the focus in the GLControl side
             /*
@@ -480,14 +446,17 @@ namespace MVCore.Engine
             });
             */
 
-            kbHandler?.updateState();
+            //TODO Do something with the keyboardState
+            //var t = Control.EnableNativeInput();
             if (focused)
             {
-                
                 //gpHandler?.updateState();
             }
 
 
+            //Update Target for camera
+            RenderState.activeCam?.updateTarget(targetCameraPos, (float) dt);
+            targetCameraPos.Reset();
         }
 
         public void issueRenderingRequest(ref ThreadRequest r)
@@ -497,22 +466,10 @@ namespace MVCore.Engine
 
 #region Camera Update Functions
 
-        private void camera_timer(object sender, ElapsedEventArgs e)
-        {
-            //Update Target for camera
-            RenderState.activeCam?.updateTarget(targetCameraPos,
-                (float)cameraMovementTimer.Interval);
-            targetCameraPos.Reset();
-        }
-
-
-        
-
         public void updateActiveCam(CameraSettings settings, Vector3 pos, Quaternion direction)
         {
             Camera cam = RenderState.activeCam;
             Camera.SetCameraSettings(ref cam, settings);
-            
         }
 
 #endregion
@@ -563,16 +520,16 @@ namespace MVCore.Engine
             float step = 0.002f;
             float x, y, z;
 
-            x = kbHandler.getKeyStatus(Key.D) - kbHandler.getKeyStatus(Key.A);
-            y = kbHandler.getKeyStatus(Key.W) - kbHandler.getKeyStatus(Key.S);
-            z = kbHandler.getKeyStatus(Key.R) - kbHandler.getKeyStatus(Key.F);
+            x = kbHandler.getKeyStatus(System.Windows.Input.Key.D) - kbHandler.getKeyStatus(System.Windows.Input.Key.A);
+            y = kbHandler.getKeyStatus(System.Windows.Input.Key.W) - kbHandler.getKeyStatus(System.Windows.Input.Key.S);
+            z = kbHandler.getKeyStatus(System.Windows.Input.Key.R) - kbHandler.getKeyStatus(System.Windows.Input.Key.F);
 
             //Camera rotation is done exclusively using the mouse
 
             //rotx = 50 * step * (kbHandler.getKeyStatus(OpenTK.Input.Key.E) - kbHandler.getKeyStatus(OpenTK.Input.Key.Q));
             //float roty = (kbHandler.getKeyStatus(Key.C) - kbHandler.getKeyStatus(Key.Z));
 
-            RenderState.rotAngles.Y += 100 * step * (kbHandler.getKeyStatus(Key.E) - kbHandler.getKeyStatus(Key.Q));
+            RenderState.rotAngles.Y += 100 * step * (kbHandler.getKeyStatus(System.Windows.Input.Key.E) - kbHandler.getKeyStatus(System.Windows.Input.Key.Q));
             RenderState.rotAngles.Y %= 360;
 
             //Move Camera
@@ -584,10 +541,10 @@ namespace MVCore.Engine
 
         public void CaptureInput(bool status)
         {
-            if (status && !inputPollTimer.Enabled)
-                inputPollTimer.Start();
-            else if (!status)
-                inputPollTimer.Stop();
+            //if (status && !inputPollTimer.Enabled)
+            //    inputPollTimer.Start();
+            //else if (!status)
+            //    inputPollTimer.Stop();
         }
 
 #endregion

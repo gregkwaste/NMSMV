@@ -1,56 +1,44 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using OpenTK.Input;
-
+using OpenTK.Windowing.GraphicsLibraryFramework;
+using System.Windows;
+using System.Windows.Input;
 
 namespace MVCore.Input
 {
-    public class KeyboardHandler
+    public class MVKeyboardState
     {
         //Designed for maintaining KeyStroke Status
-        public Dictionary<Key, bool> KeyDown = new Dictionary<Key, bool>();
-
+        public Dictionary<Key, bool> KeyState = new Dictionary<Key, bool>();
+        
         //Constructor
-        public KeyboardHandler()
+        public MVKeyboardState()
         {
-            KeyDown[Key.W] = false;
-            KeyDown[Key.A] = false;
-            KeyDown[Key.S] = false;
-            KeyDown[Key.D] = false;
-            KeyDown[Key.R] = false;
-            KeyDown[Key.F] = false;
-            KeyDown[Key.Q] = false;
-            KeyDown[Key.E] = false;
-            KeyDown[Key.Z] = false;
-            KeyDown[Key.C] = false;
+            foreach (Key k in Enum.GetValues(typeof(Key)))
+            {
+                KeyState[k] = false;
+            }
         }
 
-        //Update Position
-        public void updateState()
+        public void SetKeyState(Key key, bool value)
         {
-            //Update Keyboard State
-            KeyboardState state = Keyboard.GetState();
+            KeyState[key] = value;
+        }
 
-            //Just registers the Movement Keys
-            KeyDown[Key.W] = state.IsKeyDown(Key.W);
-            KeyDown[Key.A] = state.IsKeyDown(Key.A);
-            KeyDown[Key.S] = state.IsKeyDown(Key.S);
-            KeyDown[Key.D] = state.IsKeyDown(Key.D);
-            KeyDown[Key.R] = state.IsKeyDown(Key.R);
-            KeyDown[Key.F] = state.IsKeyDown(Key.F);
-            KeyDown[Key.Q] = state.IsKeyDown(Key.Q);
-            KeyDown[Key.E] = state.IsKeyDown(Key.E);
-            KeyDown[Key.Z] = state.IsKeyDown(Key.Z);
-            KeyDown[Key.C] = state.IsKeyDown(Key.C);
-
+        public void updateState(MVKeyboardState ref_state)
+        {
+            foreach (Key k in ref_state.KeyState.Keys)
+            {
+                KeyState[k] = ref_state.KeyState[k];
+            }
         }
 
         public int getKeyStatus(Key k)
         {
-
-            return KeyDown[k] ? 1 : 0;
-
+            return KeyState[k] ? 1 : 0;
         }
+
+
     }
 }

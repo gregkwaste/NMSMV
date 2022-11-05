@@ -19,6 +19,8 @@ struct MeshInstance
     mat4 worldMatInv;
     float isOccluded;
     float isSelected;
+    float color;
+    float lod;
 };
 
 //Common Per Mesh Struct
@@ -66,6 +68,8 @@ struct CustomPerMaterialUniforms  //locations:73
     sampler2DArray gDiffuse2Map;
     sampler2DArray gMasksMap;
     sampler2DArray gNormalMap;
+    sampler2DArray gDetailDiffuseMap;
+    sampler2DArray gDetailNormalMap;
     samplerBuffer skinMatsTex;
 
     vec4 gMaterialColourVec4;
