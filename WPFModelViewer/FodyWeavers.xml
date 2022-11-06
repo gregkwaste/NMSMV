@@ -3,16 +3,15 @@
     <IncludeAssemblies>
       libPSARC
       zlib.net
-	  OpenTK.Core
-	  OpenTK.Compute
-	  OpenTK.Input
-	  OpenTK.OpenAL
-	  OpenTK.Mathematics
-	  OpenTK.Windowing.Desktop
+	  OpenTK.*
+	  GLWpfControl
+	  System.Servicemodel.*
 	  MathNet.Numerics
       Newtonsoft.Json
       AssimpNet
       NLog
+	  Gameloop.Vdf
+	  Microsoft.*
     </IncludeAssemblies>
   </Costura>
 </Weavers>

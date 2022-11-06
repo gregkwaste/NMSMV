@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Forms;
+using Microsoft.WindowsAPICodePack.Dialogs;
 using MVCore.Common;
 using MVCore.Utils;
 using Newtonsoft.Json;
@@ -56,14 +57,17 @@ namespace WPFModelViewer
 
                 if (gamedir == "" || gamedir is null)
                 {
-                    Util.showInfo("NMS Installation not found. Please choose your unpacked files folder...", "Info");
-                    FolderBrowserDialog openFileDlg = new FolderBrowserDialog();
-                    var res = openFileDlg.ShowDialog();
+                    Util.showInfo("NMS Installation not found. Please choose your NMS Installation folder (root).", "Info");
+                    var openFileDlg = new CommonOpenFileDialog()
+                    {
+                        Title = "Select NMS Installation Folder",
+                        IsFolderPicker = true
+                    };
 
-                    if (res == System.Windows.Forms.DialogResult.Cancel)
+                    if (openFileDlg.ShowDialog() == CommonFileDialogResult.Cancel)
                         unpackdir = "";
                     else
-                        unpackdir = openFileDlg.SelectedPath;
+                        unpackdir = openFileDlg.FileName;
                     openFileDlg.Dispose();
                     //Store paths
                     RenderState.settings.GameDir = unpackdir;
@@ -79,16 +83,17 @@ namespace WPFModelViewer
                     unpackdir = gamedir;
                 } else
                 {
-                    FolderBrowserDialog dialog = new FolderBrowserDialog();
-                    dialog.Description = "Select the unpacked GAMEDATA folder";
-                    DialogResult res = dialog.ShowDialog();
-
-                    if (res == System.Windows.Forms.DialogResult.OK)
+                    var dialog = new CommonOpenFileDialog()
                     {
-                        unpackdir = dialog.SelectedPath;
-                    }
-                    else
+                        Title = "Select the unpacked GAMEDATA folder",
+                        IsFolderPicker = true
+                    };
+
+                    if (dialog.ShowDialog() == CommonFileDialogResult.Cancel)
                         unpackdir = "";
+                    else
+                        unpackdir = dialog.FileName;
+
                 }
 
                 //Save path settings to the environment
@@ -145,14 +150,19 @@ namespace WPFModelViewer
         private void Dirpath_OnGotFocus(object sender, RoutedEventArgs e)
         {
             System.Windows.Controls.Button but = (System.Windows.Controls.Button) sender;
+
+            CommonOpenFileDialog openFileDlg = new()
+            {
+                IsFolderPicker = true,
+                Multiselect = false
+            };
             
-            FolderBrowserDialog openFileDlg = new FolderBrowserDialog();
             var res = openFileDlg.ShowDialog();
 
             string path = "";
 
-            if (res == System.Windows.Forms.DialogResult.OK)
-                path = openFileDlg.SelectedPath;
+            if (res == CommonFileDialogResult.Ok)
+                path = openFileDlg.FileName;
             openFileDlg.Dispose();
 
             if (but.Name == "GameDirSetButton")

@@ -9,7 +9,6 @@ using MVCore;
 using GLSLHelper;
 using WPFModelViewer;
 using System.ComponentModel;
-using System.Windows.Forms;
 using System.Diagnostics.Contracts;
 
 namespace MVCore.Common

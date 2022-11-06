@@ -39,6 +39,13 @@ namespace MVCore.Input
             return KeyState[k] ? 1 : 0;
         }
 
+        public void Clear()
+        {
+            foreach (Key k in KeyState.Keys)
+            {
+                KeyState[k] = false;
+            }
+        }
 
     }
 }

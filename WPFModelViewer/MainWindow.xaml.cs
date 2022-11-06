@@ -717,7 +717,9 @@ namespace WPFModelViewer
         {
             if (HTMLUtils.fetchLibMBINDLL())
             {
-                System.Diagnostics.Process.Start(System.Windows.Forms.Application.ExecutablePath);
+                string app_path = Assembly.GetEntryAssembly().Location;
+                app_path = Path.ChangeExtension(app_path, "exe");
+                Process.Start(app_path);
                 Close();
             }
         }
