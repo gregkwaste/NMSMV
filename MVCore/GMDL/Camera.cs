@@ -146,7 +146,7 @@ namespace MVCore.GMDL
         public Quaternion Direction = new Quaternion(new Vector3(0.0f, (float)Math.PI / 2.0f, 0.0f));
         public Vector3 Position = new Vector3(0.0f, 0.0f, 0.0f);
         
-        public float Sensitivity = 0.001f;
+        public float Sensitivity = 0.005f;
         public bool isActive = false;
         //Projection variables Set defaults
         public float aspect = 1.0f;
@@ -243,10 +243,12 @@ namespace MVCore.GMDL
             //Quaternion rz = Quaternion.FromAxisAngle(Front, 0.0f); //Looks OK
 
             TargetDirection = Direction * rx * ry;
+            //Debug.WriteLine($"{TargetDirection.X} {TargetDirection.Y} {TargetDirection.Z} {TargetDirection.W}");
+            //Debug.WriteLine($"{target.Rotation.X} {target.Rotation.Y}");
 
             float actual_speed = (float) Math.Pow(settings.Speed, settings.SpeedPower);
-            
             float step = 0.001f;
+            
             Vector3 offset = new Vector3();
             offset += step * actual_speed * target.PosImpulse.X * Right;
             offset += step * actual_speed * target.PosImpulse.Y * Front;

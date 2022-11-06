@@ -5,7 +5,7 @@ using System.IO;
 using System.Net;
 using System.Reflection;
 using System.Text;
-using System.Windows.Forms;
+using System.Windows;
 using Newtonsoft.Json;
 
 namespace MVCore.Utils
@@ -43,28 +43,34 @@ namespace MVCore.Utils
             //Iterate in assets
             //Dictionary<string, dynamic> assets = JsonConvert.DeserializeObject<Dictionary<string, dynamic>>(data["assets"]);
 
-            string downloadUrl = "";
+            string downloadUrl_net5 = "";
+            string downloadUrl_net6 = "";
+
+            //Look for a NET6 assembly first
             foreach (var k in assets)
             {
-                if (k["name"] == "libMBIN.dll")
+                if (k["name"] == "libMBIN-dotnet6.dll")
                 {
-                    downloadUrl = k["browser_download_url"];
-                    break;
+                    downloadUrl_net6 = k["browser_download_url"];
+                }
+                else if (k["name"] == "libMBIN.dll")
+                {
+                    downloadUrl_net5 = k["browser_download_url"];
                 }
             }
 
-            //local attributes
+            string downloadUrl = (downloadUrl_net6 != "") ? downloadUrl_net6 : downloadUrl_net5;
+            
+            //local attributes  
             string assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             string assemblyLoc = Path.Combine(assemblyDir, "libMBIN.dll");
             string assemblyVersion = Assembly.LoadFile(assemblyLoc).GetName().Version.ToString();
-
 
             //fetch online version to temp
 
             if (downloadUrl == "")
                 return false;
 
-            
             if (File.Exists("_templibMBIN.dll"))
                 File.Delete("_templibMBIN.dll");
 
@@ -80,12 +86,14 @@ namespace MVCore.Utils
 
             if (assemblyVersion == tempAssemblyVersion)
             {
-                MessageBox.Show("libMBIN is already updated.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                
+                MessageBox.Show("libMBIN is already updated.", "Info", MessageBoxButton.OK);
             } else
             {
-                DialogResult res = MessageBox.Show("Old Version: " + assemblyVersion + " Online Version: " + tempAssemblyVersion + "\nDo you want to update?", "Info", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
 
-                if (res == DialogResult.Yes)
+                var res = MessageBox.Show("Old Version: " + assemblyVersion + " Online Version: " + tempAssemblyVersion + "\nDo you want to update?", "Info", MessageBoxButton.YesNo, MessageBoxImage.Information);
+
+                if (res == MessageBoxResult.Yes)
                 {
                     if (File.Exists("libMBIN_old.dll"))
                         File.Delete("libMBIN_old.dll");

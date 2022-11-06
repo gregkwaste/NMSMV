@@ -28,6 +28,7 @@ using System.Windows.Controls;
 using System.Linq.Expressions;
 using System.Windows;
 using System.Threading.Tasks;
+using libMBIN.NMS.GameComponents;
 
 namespace Model_Viewer
 {
@@ -35,7 +36,7 @@ namespace Model_Viewer
     {
         //Mouse Pos
         private MouseMovementState mouseState = new MouseMovementState();
-        private MouseMovementStatus mouseMovementStatus = MouseMovementStatus.CAMERA_MOVEMENT;
+        private MouseMovementStatus mouseMovementStatus = MouseMovementStatus.IDLE;
 
         //Control Identifier
         private int index;
@@ -60,20 +61,15 @@ namespace Model_Viewer
         public Engine engine;
 
         //Rendering Thread
-        private bool rt_flag;
-        private bool rt_exit;
         private bool rendering_thread_initialized = false;
 
         //Main Work Thread
         private Thread work_thread;
 
         //Init-GUI Related
-        private System.Windows.Forms.ContextMenuStrip contextMenuStrip1;
+        private ContextMenu contextMenuStrip1;
         private System.ComponentModel.IContainer components;
-        private System.Windows.Forms.ToolStripMenuItem exportToObjToolStripMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem exportToAssimpMenuItem;
-        private System.Windows.Forms.OpenFileDialog openFileDialog1;
-        private System.Windows.Forms.Form pform;
+
 
         //Private fps Counter
         private int frames = 0;
@@ -82,6 +78,7 @@ namespace Model_Viewer
         private DateTime prevtime;
 
         //Input Polling Thread
+        private bool _capture_input = false;
         private System.Timers.Timer input_poller;
 
         //Gamepad Setup
@@ -99,16 +96,24 @@ namespace Model_Viewer
                 RenderLocal();
             });
 
-            
+            _control.MouseLeave += new((object sender, MouseEventArgs args) => 
+            {
+                _capture_input = false;
+                input_poller.Stop();
+            });
+
+            _control.MouseEnter += new((object sender, MouseEventArgs args) =>
+            {
+                _capture_input = true;
+                engine.kbHandler.Clear();
+                input_poller.Start();
+            });
+
             _control.MouseDown += new MouseButtonEventHandler(genericMouseDown);
             _control.MouseMove += new MouseEventHandler(genericMouseMove);
             _control.MouseUp += new MouseButtonEventHandler(genericMouseUp);
             _control.KeyDown += new KeyEventHandler(generic_KeyDown);
             _control.KeyUp += new KeyEventHandler(generic_KeyUp);
-            _control.MouseEnter += new MouseEventHandler(genericEnter);
-            _control.MouseLeave += new MouseEventHandler(genericLeave);
-            
-            //this.glControl1.MouseWheel += new System.Windows.Forms.MouseEventHandler(this.glControl1_Scroll);
         }
 
         //Default Constructor
@@ -123,16 +128,6 @@ namespace Model_Viewer
             //Generate Engine instance
             engine = new Engine();
             
-            //Initialize Rendering Thread
-            //rendering_thread = new Thread(Render);
-            //rendering_thread.IsBackground = true;
-            //rendering_thread.Priority = ThreadPriority.Normal;
-
-            //Initialize Work Thread
-            work_thread = new Thread(Work);
-            work_thread.IsBackground = true;
-            work_thread.Priority = ThreadPriority.Normal;
-
             input_poller = new();
             input_poller.Enabled = true;
             input_poller.Interval = 1000.0 * (1.0 / 60.0f);
@@ -202,22 +197,6 @@ namespace Model_Viewer
 
 
 #region GLControl Methods
-        private void genericEnter(object sender, EventArgs e)
-        {
-            engine.CaptureInput(true);
-        }
-
-        private void genericLeave(object sender, EventArgs e)
-        {
-            engine.CaptureInput(false);
-        }
-
-        private void Work()
-        {
-            
-        }
-
-        
         private void genericLoad(object sender, EventArgs e)
         {
 
@@ -225,12 +204,18 @@ namespace Model_Viewer
             //MakeCurrent();
         }
 
-        private void genericMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        private void genericMouseMove(object sender, MouseEventArgs e)
         {
-            //Debug.WriteLine("Mouse moving on {0}", this.TabIndex);
+            if (!_capture_input || e.LeftButton == MouseButtonState.Released)
+            {
+                e.Handled = true;
+                return;
+            }
+            
+            //Debug.WriteLine($"Mouse moving {e.Timestamp}");
             //int delta_x = (int) (Math.Pow(activeCam.fov, 4) * (e.X - mouse_x));
             //int delta_y = (int) (Math.Pow(activeCam.fov, 4) * (e.Y - mouse_y));
-            System.Windows.Point p = _control.PointFromScreen(e.GetPosition(_control));
+            Point p = _control.PointFromScreen(e.GetPosition(_control));
             mouseState.Delta.X = ((float) p.X - mouseState.Position.X);
             mouseState.Delta.Y = ((float) p.Y - mouseState.Position.Y);
 
@@ -242,7 +227,7 @@ namespace Model_Viewer
             {
                 case MouseMovementStatus.CAMERA_MOVEMENT:
                     {
-                        // Debug.WriteLine("Deltas {0} {1} {2}", mouseState.Delta.X, mouseState.Delta.Y, e.Button);
+                        //Debug.WriteLine("Deltas {0} {1} {2}", mouseState.Delta.X, mouseState.Delta.Y, e.LeftButton);
                         _camPos.Rotation.X += mouseState.Delta.X;
                         _camPos.Rotation.Y += mouseState.Delta.Y;
                         break;
@@ -279,11 +264,17 @@ namespace Model_Viewer
 
             mouseState.Position.X = (float) p.X;
             mouseState.Position.Y = (float) p.Y;
-
+            e.Handled = true;
         }
 
         private void genericMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
+            if (!_capture_input)
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (activeGizmo != null && (e.LeftButton == MouseButtonState.Pressed) && activeGizmo.isActive)
             {
                 //Engage movement
@@ -293,6 +284,8 @@ namespace Model_Viewer
             {
                 mouseMovementStatus = MouseMovementStatus.CAMERA_MOVEMENT;
             }
+
+            e.Handled = true;
         }
 
         private void processInput(object sender, ElapsedEventArgs args)
@@ -303,7 +296,7 @@ namespace Model_Viewer
             float z = engine.kbHandler.getKeyStatus(Key.R) - engine.kbHandler.getKeyStatus(Key.F);
 
             _camPos.PosImpulse = new Vector3(x, y, z);
-            
+            //Debug.WriteLine("Deltas {0} {1}", _camPos.Rotation.X, _camPos.Rotation.Y);
             RenderState.activeCam?.updateTarget(_camPos, (float) input_poller.Interval);
             _camPos.Reset();
             RenderState.rotAngles.Y += 100 * step * (engine.kbHandler.getKeyStatus(Key.E) - engine.kbHandler.getKeyStatus(Key.Q));
@@ -312,32 +305,42 @@ namespace Model_Viewer
 
         private void genericMouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
-            if (e.LeftButton == System.Windows.Input.MouseButtonState.Released)
+            if (!_capture_input)
+            {
+                e.Handled = true;
+                return;
+            }
+
+            if (e.LeftButton == MouseButtonState.Released && e.ChangedButton == MouseButton.Left)
             {
                 mouseMovementStatus = MouseMovementStatus.IDLE;
+            } else if (e.RightButton == MouseButtonState.Released && e.ChangedButton == MouseButton.Right)
+            {
+                contextMenuStrip1.IsOpen = true;
             }
-        }
-
-        private void genericMouseClick(object sender, System.Windows.Input.MouseEventArgs e)
-        {
-            //if ((e.LeftButton == System.Windows.Input.MouseButtonState.Released) && (e.ModifierKeys == Keys.Control))
-            //{
-            //    selectObject(new Vector2(e.X, e.Y));
-            //}
-            //else if (e.RightButton == System.Windows.Input.MouseButtonState.Released == MouseButtons.Right)
-            //{
-            //    contextMenuStrip1.Show(Control.MousePosition);
-            //}
-            
+            e.Handled = true;
         }
 
         private void generic_KeyUp(object sender, KeyEventArgs e)
         {
+            if (!_capture_input)
+            {
+                e.Handled = true;
+                return;
+            }
+
             engine.kbHandler.SetKeyState(e.Key, false);
+            e.Handled = true;
         }
 
         private void generic_KeyDown(object sender, KeyEventArgs e)
         {
+            if (!_capture_input)
+            {
+                e.Handled = true;
+                return;
+            }
+
             engine.kbHandler.SetKeyState(e.Key, true);
 
             //Debug.WriteLine("Key pressed {0}",e.Key.ToString());
@@ -393,6 +396,7 @@ namespace Model_Viewer
                     break;
             }
 
+            e.Handled = true;
         }
 
         private void OnResize(object sender, SizeChangedEventArgs e)
@@ -403,40 +407,18 @@ namespace Model_Viewer
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
-            this.contextMenuStrip1 = new System.Windows.Forms.ContextMenuStrip(this.components);
-            this.exportToObjToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.exportToAssimpMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
-            this.contextMenuStrip1.SuspendLayout();
             
-            // 
-            // contextMenuStrip1
-            // 
-            this.contextMenuStrip1.Items.Add(this.exportToObjToolStripMenuItem);
-            this.contextMenuStrip1.Items.Add(this.exportToAssimpMenuItem);
-            this.contextMenuStrip1.Name = "contextMenuStrip1";
-            this.contextMenuStrip1.Size = new System.Drawing.Size(181, 70);
-            // 
-            // exportToObjToolStripMenuItem
-            // 
-            this.exportToObjToolStripMenuItem.Name = "exportToObjToolStripMenuItem";
-            this.exportToObjToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
-            this.exportToObjToolStripMenuItem.Text = "Export to obj";
-            this.exportToObjToolStripMenuItem.Click += new System.EventHandler(this.exportToObjToolStripMenuItem_Click);
-            // 
-            // exportToAssimp
-            // 
-            this.exportToAssimpMenuItem.Name = "exportToAssimp";
-            this.exportToAssimpMenuItem.Size = new System.Drawing.Size(180, 22);
-            this.exportToAssimpMenuItem.Text = "Export to assimp";
-            this.exportToAssimpMenuItem.Click += new System.EventHandler(this.exportToAssimp);
-            this.exportToAssimpMenuItem.Enabled = false;
-            // 
-            // openFileDialog1
-            // 
-            this.openFileDialog1.FileName = "openFileDialog1";
-            
-            this.contextMenuStrip1.ResumeLayout(false);
+            MenuItem obj_export = new MenuItem();
+            obj_export.Header = "Export to Obj";
+            obj_export.Click += new RoutedEventHandler(exportToObjToolStripMenuItem_Click);
+
+            MenuItem assimp_export = new MenuItem();
+            assimp_export.Header = "Export to Assimp";
+            assimp_export.Click += new RoutedEventHandler(exportToAssimp);
+
+            contextMenuStrip1 = new ContextMenu();
+            contextMenuStrip1.Items.Add(obj_export);
+            contextMenuStrip1.Items.Add(assimp_export);
         }
 
                
@@ -453,12 +435,11 @@ namespace Model_Viewer
         private void exportToObjToolStripMenuItem_Click(object sender, EventArgs e)
         {
             Debug.WriteLine("Exporting to obj");
-            System.Windows.Forms.SaveFileDialog sv = new();
+            Microsoft.Win32.SaveFileDialog sv = new();
             sv.Filter = "OBJ Files | *.obj";
             sv.DefaultExt = "obj";
-            System.Windows.Forms.DialogResult res = sv.ShowDialog();
-
-            if (res != System.Windows.Forms.DialogResult.OK)
+            
+            if (sv.ShowDialog() != true)
                 return;
 
             StreamWriter obj = new StreamWriter(sv.FileName);
