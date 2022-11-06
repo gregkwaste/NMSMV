@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -32,8 +33,12 @@ namespace WPFModelViewer
         {
             //Assuming that the sender is a hyperlink object
             Hyperlink h = (Hyperlink)sender;
-
-            System.Diagnostics.Process.Start(h.NavigateUri.ToString());
+            var processinfo = new ProcessStartInfo()
+            {
+                UseShellExecute = true,
+                FileName = h.NavigateUri.AbsoluteUri
+            };
+            System.Diagnostics.Process.Start(processinfo);
         }
     }
 }
