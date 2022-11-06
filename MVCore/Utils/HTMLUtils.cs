@@ -46,7 +46,7 @@ namespace MVCore.Utils
             string downloadUrl = "";
             foreach (var k in assets)
             {
-                if (k["name"] == "libMBIN-dotnet4.dll")
+                if (k["name"] == "libMBIN.dll")
                 {
                     downloadUrl = k["browser_download_url"];
                     break;
