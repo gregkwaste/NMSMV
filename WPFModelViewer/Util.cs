@@ -15,7 +15,7 @@ namespace WPFModelViewer
         public static int VersionMedium = 91;
         public static int VersionMinor = 0;
         
-        public static string donateLink = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=4365XYBWGTBSU&currency_code=USD&source=url";
+        public static string donateLink = "https://www.paypal.com/donate/?hosted_button_id=UMHWZK6BU5MWG";
         public static readonly Random randgen = new Random();
         
         //Current GLControl Handle
