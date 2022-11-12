@@ -4,9 +4,42 @@ using System.Diagnostics;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using System.Windows;
 using System.Windows.Input;
+using System.Diagnostics.Contracts;
+using OpenTK.Mathematics;
 
 namespace MVCore.Input
 {
+    public class MVMouseState
+    {
+        public Dictionary<System.Windows.Input.MouseButton, bool> ButtonState = new();
+        public Vector2 Position;
+        public Vector2 Delta;
+        public Vector2 PrevPosition;
+        
+        public MVMouseState()
+        {
+            foreach (System.Windows.Input.MouseButton k in Enum.GetValues(typeof(System.Windows.Input.MouseButton)))
+            {
+                ButtonState[k] = false;
+            }
+        }
+
+        public void SetButtonState(System.Windows.Input.MouseButton btn, bool value)
+        {
+            ButtonState[btn] = value;
+        }
+
+        public void Clear()
+        {
+            foreach (System.Windows.Input.MouseButton btn in ButtonState.Keys)
+            {
+                ButtonState[btn] = false;
+            }
+        }
+
+
+    }
+
     public class MVKeyboardState
     {
         //Designed for maintaining KeyStroke Status

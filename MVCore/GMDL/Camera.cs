@@ -30,10 +30,8 @@ namespace MVCore.GMDL
         public float PosX { get; set; }
         public float PosY { get; set; }
         public float PosZ { get; set; }
-        public float DirX { get; set; }
-        public float DirY { get; set; }
-        public float DirZ { get; set; }
-        public float DirW { get; set; }
+        public float Pitch { get; set; }
+        public float Yaw { get; set; }
     }
 
 
@@ -44,7 +42,9 @@ namespace MVCore.GMDL
         private float _zfar = 15000.0f;
         private float _speed = 1.0f;
         private float _speedPower = 1.0f;
+        private float _sensitivity = 0.8f;
 
+        
         //Properties
         public int FOV 
         {
@@ -115,6 +115,20 @@ namespace MVCore.GMDL
                 NotifyPropertyChanged("SpeedPower");
             }
         }
+
+        public float Sensitivity
+        {
+            get
+            {
+                return _sensitivity;
+            }
+
+            set
+            {
+                _sensitivity = value;
+                NotifyPropertyChanged("Sensitivity");
+            }
+        }
         
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -127,38 +141,24 @@ namespace MVCore.GMDL
     public class Camera
     {
         //Base Coordinate System
-        public Vector3 BaseRight = new Vector3(1.0f, 0.0f, 0.0f);
-        public Vector3 BaseFront = new Vector3(0.0f, 0.0f, -1.0f);
-        public Vector3 BaseUp = new Vector3(0.0f, 1.0f, 0.0f);
-
-        //Prev Vectors
-        public Quaternion PrevDirection = new Quaternion(new Vector3(0.0f, (float)Math.PI / 2.0f, 0.0f));
-        public Vector3 PrevPosition = new Vector3(0.0f, 0.0f, 0.0f);
-        
-        //Target Vectors
-        public Quaternion TargetDirection = new Quaternion(new Vector3(0.0f, (float)Math.PI / 2.0f, 0.0f));
-        public Vector3 TargetPosition = new Vector3(0.0f, 0.0f, 0.0f);
+        public static Vector3 BaseRight = new Vector3(1.0f, 0.0f, 0.0f);
+        public static Vector3 BaseFront = new Vector3(0.0f, 0.0f, -1.0f);
+        public static Vector3 BaseUp = new Vector3(0.0f, 1.0f, 0.0f);
+        public Vector3 Front = BaseFront;
+        public Vector3 Right = BaseRight;
 
         //Current Vectors
-        public Vector3 Right = new Vector3(1.0f, 0.0f, 0.0f);
-        public Vector3 Front = new Vector3(0.0f, 0.0f, -1.0f);
-        public Vector3 Up = new Vector3(0.0f, 1.0f, 0.0f);
-        public Quaternion Direction = new Quaternion(new Vector3(0.0f, (float)Math.PI / 2.0f, 0.0f));
         public Vector3 Position = new Vector3(0.0f, 0.0f, 0.0f);
+        public float yaw = 0.0f;
+        public float pitch = -90.0f;
         
-        public float Sensitivity = 0.005f;
         public bool isActive = false;
         //Projection variables Set defaults
         public float aspect = 1.0f;
         
-
         public CameraSettings settings = new CameraSettings();
 
         
-        
-
-
-
         //Matrices
         public Matrix4 projMat;
         public Matrix4 projMatInv;
@@ -195,21 +195,18 @@ namespace MVCore.GMDL
         
         public void updateViewMatrix()
         {
-            lookMat = Matrix4.LookAt(Position, Position + Front, Up);
+            Front.X = (float)Math.Cos(MathHelper.DegreesToRadians(Math.Clamp(yaw, -89, 89))) * (float)Math.Cos(MathHelper.DegreesToRadians(pitch));
+            Front.Y = (float)Math.Sin(MathHelper.DegreesToRadians(Math.Clamp(yaw, -89, 89)));
+            Front.Z = (float)Math.Cos(MathHelper.DegreesToRadians(Math.Clamp(yaw, -89, 89))) * (float)Math.Sin(MathHelper.DegreesToRadians(pitch));
+            Front = Vector3.Normalize(Front);
             
-            //lookMat = Matrix4.LookAt(new Vector3(0.0f,0.0f,0.0f), lookat, Vector3.UnitY);
+            Right = Vector3.Cross(Front, BaseUp).Normalized();
 
+            lookMat = Matrix4.LookAt(Position, Position + Front, Vector3.Cross(Right, Front));
+            
             if (type == 0) {
-                //projMat = Matrix4.CreatePerspectiveFieldOfView(fov, aspect, zNear, zFar);
-                //Call Custom
-                //projMat = this.ComputeFOVProjection();
-                float w, h;
-                float tangent = (float) Math.Tan(settings._fovRadians / 2.0f);   // tangent of half fovY
-                h = settings.ZNear * tangent;  // half height of near plane
-                w = h * aspect;       // half width of near plane
-
-                //projMat = Matrix4.CreatePerspectiveOffCenter(-w, w, -h, h, zNear, zFar);
                 Matrix4.CreatePerspectiveFieldOfView(settings._fovRadians, aspect, settings.ZNear, settings.ZFar, out projMat);
+                //projMat.Transpose();
                 viewMat = lookMat * projMat;
             }
             else
@@ -221,7 +218,7 @@ namespace MVCore.GMDL
                 Matrix4 scaleMat = Matrix4.CreateScale(0.8f * settings._fovRadians);
                 viewMat = scaleMat * lookMat * projMat;
             }
-            
+
             //Calculate invert Matrices
             lookMatInv = Matrix4.Invert(lookMat);
             projMatInv = Matrix4.Invert(projMat);
@@ -229,82 +226,12 @@ namespace MVCore.GMDL
             updateFrustumPlanes();
         }
 
-        public void updateTarget(CameraPos target, float interval)
-        {
-            //Interval is the update interval of the movement defined in the control camera timer
-            
-            //Cache current Position + Orientation
-            PrevPosition = Position;
-            PrevDirection = Direction;
-
-            //Rotate Direction
-            Quaternion rx = Quaternion.FromAxisAngle(Up, -target.Rotation.X * Sensitivity);
-            Quaternion ry = Quaternion.FromAxisAngle(Right, -target.Rotation.Y * Sensitivity); //Looks OK
-            //Quaternion rz = Quaternion.FromAxisAngle(Front, 0.0f); //Looks OK
-
-            TargetDirection = Direction * rx * ry;
-            //Debug.WriteLine($"{TargetDirection.X} {TargetDirection.Y} {TargetDirection.Z} {TargetDirection.W}");
-            //Debug.WriteLine($"{target.Rotation.X} {target.Rotation.Y}");
-
-            float actual_speed = (float) Math.Pow(settings.Speed, settings.SpeedPower);
-            float step = 0.001f;
-            
-            Vector3 offset = new Vector3();
-            offset += step * actual_speed * target.PosImpulse.X * Right;
-            offset += step * actual_speed * target.PosImpulse.Y * Front;
-            offset += step * actual_speed * target.PosImpulse.Z * Up;
-
-            //Update final vector
-            TargetPosition += offset;
-
-            //Calculate Time for movement
-            
-            /*
-            Common.CallBacks.Log("TargetPos {0} {1} {2}",
-                TargetPosition.X, TargetPosition.Y, TargetPosition.Z);
-            Common.CallBacks.Log("PrevPos {0} {1} {2}",
-                PrevPosition.X, PrevPosition.Y, PrevPosition.Z);
-            Common.CallBacks.Log("TargetRotation {0} {1} {2} {3}",
-                TargetDirection.X, TargetDirection.Y, TargetDirection.Z, TargetDirection.W);
-            Common.CallBacks.Log("PrevRotation {0} {1} {2} {3}",
-                PrevDirection.X, PrevDirection.Y, PrevDirection.Z, PrevDirection.W);
-            */
-
-            //Common.CallBacks.Log("t_pos {0}, t_rot {1}", t_pos_move, t_rot_move);
-
-        }
-
-        public void Move(double dt)
-        {
-             //calculate interpolation coeff
-            float pos_lerp_coeff, rot_lerp_coeff;
-
-
-            pos_lerp_coeff = 1.0f;
-            rot_lerp_coeff = 1.0f;
-
-            //Interpolate Quaternions/Vectors
-            Direction = PrevDirection * (1.0f - rot_lerp_coeff) +
-                        TargetDirection * rot_lerp_coeff;
-            Position = PrevPosition * (1.0f - pos_lerp_coeff) +
-                    TargetPosition * pos_lerp_coeff;
-
-            //Update Base Axis
-            Quaternion newFront = MathUtils.conjugate(Direction) * new Quaternion(BaseFront, 0.0f) * Direction;
-            Front = newFront.Xyz.Normalized();
-            Right = Vector3.Cross(Front, BaseUp).Normalized();
-            Up = Vector3.Cross(Right, Front).Normalized();
-        }
-
         public CameraJSONSettings GetSettings()
         {
             return new CameraJSONSettings()
             {
                 settings = settings,
-                DirX = Direction.X,
-                DirY = Direction.Y,
-                DirZ = Direction.Z,
-                DirW = Direction.W,
+                
                 PosX = Position.X,
                 PosY = Position.Y,
                 PosZ = Position.Z
@@ -315,16 +242,11 @@ namespace MVCore.GMDL
         {
             //Position
             cam.Position = pos;
-            cam.PrevPosition = pos;
-            cam.TargetPosition = pos;
         }
 
         public static void SetCameraDirection(ref Camera cam, Quaternion quat)
         {
-            //Position
-            cam.Direction = quat;
-            cam.PrevDirection = quat;
-            cam.TargetDirection = quat;
+            //TODO Convert Quaternion to yaw pitch
         }
 
         public static void SetCameraSettings(ref Camera cam, CameraSettings settings)
