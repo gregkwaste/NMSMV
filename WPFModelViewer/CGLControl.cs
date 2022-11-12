@@ -29,13 +29,14 @@ using System.Linq.Expressions;
 using System.Windows;
 using System.Threading.Tasks;
 using libMBIN.NMS.GameComponents;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace Model_Viewer
 {
     public class CGLControl
     {
         //Mouse Pos
-        private MouseMovementState mouseState = new MouseMovementState();
+        //private MouseMovementState mouseState = new MouseMovementState();
         private MouseMovementStatus mouseMovementStatus = MouseMovementStatus.IDLE;
 
         //Control Identifier
@@ -79,8 +80,7 @@ namespace Model_Viewer
 
         //Input Polling Thread
         private bool _capture_input = false;
-        private System.Timers.Timer input_poller;
-
+        
         //Gamepad Setup
         private bool disposed;
         public Microsoft.Win32.SafeHandles.SafeFileHandle handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(IntPtr.Zero, true);
@@ -93,20 +93,7 @@ namespace Model_Viewer
             
             _control.Render += new((TimeSpan time) =>
             {
-                RenderLocal();
-            });
-
-            _control.MouseLeave += new((object sender, MouseEventArgs args) => 
-            {
-                _capture_input = false;
-                input_poller.Stop();
-            });
-
-            _control.MouseEnter += new((object sender, MouseEventArgs args) =>
-            {
-                _capture_input = true;
-                engine.kbHandler.Clear();
-                input_poller.Start();
+                RenderLocal(time.TotalSeconds);
             });
 
             _control.MouseDown += new MouseButtonEventHandler(genericMouseDown);
@@ -127,15 +114,9 @@ namespace Model_Viewer
             
             //Generate Engine instance
             engine = new Engine();
-            
-            input_poller = new();
-            input_poller.Enabled = true;
-            input_poller.Interval = 1000.0 * (1.0 / 60.0f);
-            input_poller.Elapsed += new ElapsedEventHandler(processInput);
-
         }
 
-        private void RenderLocal()
+        private void RenderLocal(double dt)
         {
             if (!rendering_thread_initialized)
             {
@@ -144,6 +125,19 @@ namespace Model_Viewer
                 engine.init();
                 engine.renderMgr.screen_fbo = _control.Framebuffer;
                 rendering_thread_initialized = true;
+
+                //Register handlers after the rendering thread has been initialized
+                _control.MouseLeave += new((object sender, MouseEventArgs args) =>
+                {
+                    _capture_input = false;
+                });
+
+                _control.MouseEnter += new((object sender, MouseEventArgs args) =>
+                {
+                    _capture_input = true;
+                    engine.kbHandler.Clear();
+                    engine.msHandler.Clear();
+                });
             }
 
             if (engine.rt_State != EngineRenderingState.EXIT)
@@ -152,6 +146,8 @@ namespace Model_Viewer
 
                 if (engine.rt_State == EngineRenderingState.ACTIVE)
                 {
+                    if (_capture_input)
+                        processInput(dt);
                     frameUpdate();
                     engine.renderMgr.render(); //Render Everything
                 }
@@ -206,55 +202,44 @@ namespace Model_Viewer
 
         private void genericMouseMove(object sender, MouseEventArgs e)
         {
-            if (!_capture_input || e.LeftButton == MouseButtonState.Released)
-            {
-                e.Handled = true;
-                return;
-            }
-            
             //Debug.WriteLine($"Mouse moving {e.Timestamp}");
             //int delta_x = (int) (Math.Pow(activeCam.fov, 4) * (e.X - mouse_x));
             //int delta_y = (int) (Math.Pow(activeCam.fov, 4) * (e.Y - mouse_y));
-            Point p = _control.PointFromScreen(e.GetPosition(_control));
-            mouseState.Delta.X = ((float) p.X - mouseState.Position.X);
-            mouseState.Delta.Y = ((float) p.Y - mouseState.Position.Y);
+            Point p = e.GetPosition(_control);
+            var temp = engine.msHandler.Position;
+            engine.msHandler.PrevPosition = temp;
+            engine.msHandler.Position = new((float)p.X,
+                                            (float)p.Y);
 
-            mouseState.Delta.X = Math.Min(Math.Max(mouseState.Delta.X, -10), 10);
-            mouseState.Delta.Y = Math.Min(Math.Max(mouseState.Delta.Y, -10), 10);
+            //Debug.WriteLine("Mouse Old Pos {0} {1}", engine.msHandler.PrevPosition.X, engine.msHandler.PrevPosition.Y);
+            //Debug.WriteLine("Mouse New Pos {0} {1}", engine.msHandler.Position.X, engine.msHandler.Position.Y);
+
+            engine.msHandler.Delta = engine.msHandler.Position - temp;
+
+
+
+            //Update Camera Rotation
+            if (e.LeftButton == MouseButtonState.Pressed)
+            {
+                //Debug.WriteLine("Mouse Delta {0} {1}", engine.msHandler.Delta.X, engine.msHandler.Delta.Y);
+
+                if (RenderState.activeCam.pitch > 360) RenderState.activeCam.pitch = 0;
+                if (RenderState.activeCam.pitch < -360) RenderState.activeCam.pitch = 0;
+
+                RenderState.activeCam.pitch += engine.msHandler.Delta.X * RenderState.activeCam.settings.Sensitivity;
+                RenderState.activeCam.yaw -= engine.msHandler.Delta.Y * RenderState.activeCam.settings.Sensitivity;
+            }
 
             //Take action
             switch (mouseMovementStatus)
             {
                 case MouseMovementStatus.CAMERA_MOVEMENT:
                     {
-                        //Debug.WriteLine("Deltas {0} {1} {2}", mouseState.Delta.X, mouseState.Delta.Y, e.LeftButton);
-                        _camPos.Rotation.X += mouseState.Delta.X;
-                        _camPos.Rotation.Y += mouseState.Delta.Y;
                         break;
                     }
                 case MouseMovementStatus.GIZMO_MOVEMENT:
                     {
-                        //Find movement axis
-                        GIZMO_PART_TYPE t = activeGizmo.activeType;
-                        float movement_step = (float)Math.Sqrt(mouseState.Delta.X * mouseState.Delta.X / (_control.RenderSize.Width * _control.RenderSize.Width) +
-                                                                mouseState.Delta.Y * mouseState.Delta.Y / (_control.RenderSize.Height * _control.RenderSize.Height));
-                        CallBacks.Log("Moving by {0}", movement_step);
-
-                        switch (t)
-                        {
-                            case GIZMO_PART_TYPE.T_X:
-                                activeModel._localPosition.X += movement_step;
-                                break;
-                            case GIZMO_PART_TYPE.T_Y:
-                                activeModel._localPosition.Y += movement_step;
-                                break;
-                            case GIZMO_PART_TYPE.T_Z:
-                                activeModel._localPosition.Z += movement_step;
-                                break;
-                        }
-
-                        activeModel.update(); //Trigger model update
-
+                        //TODO
                         break;
                     }
                 default:
@@ -262,8 +247,6 @@ namespace Model_Viewer
 
             }
 
-            mouseState.Position.X = (float) p.X;
-            mouseState.Position.Y = (float) p.Y;
             e.Handled = true;
         }
 
@@ -275,6 +258,9 @@ namespace Model_Viewer
                 return;
             }
 
+            engine.msHandler.SetButtonState(System.Windows.Input.MouseButton.Left, e.LeftButton == MouseButtonState.Pressed);
+            engine.msHandler.SetButtonState(System.Windows.Input.MouseButton.Right, e.RightButton == MouseButtonState.Pressed);
+            
             if (activeGizmo != null && (e.LeftButton == MouseButtonState.Pressed) && activeGizmo.isActive)
             {
                 //Engage movement
@@ -288,17 +274,19 @@ namespace Model_Viewer
             e.Handled = true;
         }
 
-        private void processInput(object sender, ElapsedEventArgs args)
+        private void processInput(double dt)
         {
             float step = 0.002f;
             float x = engine.kbHandler.getKeyStatus(Key.D) - engine.kbHandler.getKeyStatus(Key.A);
-            float y = engine.kbHandler.getKeyStatus(Key.W) - engine.kbHandler.getKeyStatus(Key.S);
-            float z = engine.kbHandler.getKeyStatus(Key.R) - engine.kbHandler.getKeyStatus(Key.F);
+            float z = engine.kbHandler.getKeyStatus(Key.W) - engine.kbHandler.getKeyStatus(Key.S);
+            float y = engine.kbHandler.getKeyStatus(Key.R) - engine.kbHandler.getKeyStatus(Key.F);
+            Vector3 newPos = RenderState.activeCam.Right * x + RenderState.activeCam.Front * z + Camera.BaseUp * y;
+            newPos *= (float) dt * RenderState.activeCam.settings.Speed;
+            newPos += RenderState.activeCam.Position;
 
-            _camPos.PosImpulse = new Vector3(x, y, z);
+            Camera.SetCameraPosition(ref RenderState.activeCam, newPos);
             //Debug.WriteLine("Deltas {0} {1}", _camPos.Rotation.X, _camPos.Rotation.Y);
-            RenderState.activeCam?.updateTarget(_camPos, (float) input_poller.Interval);
-            _camPos.Reset();
+            //RenderState.activeCam?.updateTarget(_camPos, (float) input_poller.Interval);
             RenderState.rotAngles.Y += 100 * step * (engine.kbHandler.getKeyStatus(Key.E) - engine.kbHandler.getKeyStatus(Key.Q));
             RenderState.rotAngles.Y %= 360;
         }
@@ -311,10 +299,14 @@ namespace Model_Viewer
                 return;
             }
 
-            if (e.LeftButton == MouseButtonState.Released && e.ChangedButton == MouseButton.Left)
+            engine.msHandler.SetButtonState(System.Windows.Input.MouseButton.Left, e.LeftButton == MouseButtonState.Released);
+            engine.msHandler.SetButtonState(System.Windows.Input.MouseButton.Right, e.RightButton == MouseButtonState.Released);
+            
+
+            if (e.LeftButton == MouseButtonState.Released && e.ChangedButton == System.Windows.Input.MouseButton.Left)
             {
                 mouseMovementStatus = MouseMovementStatus.IDLE;
-            } else if (e.RightButton == MouseButtonState.Released && e.ChangedButton == MouseButton.Right)
+            } else if (e.RightButton == MouseButtonState.Released && e.ChangedButton == System.Windows.Input.MouseButton.Right)
             {
                 contextMenuStrip1.IsOpen = true;
             }
@@ -526,9 +518,10 @@ namespace Model_Viewer
             float dx = fov_fact * (screenPos.X - (float) (0.5 * _control.RenderSize.Width)) / (float)_control.RenderSize.Width;
             float dy = -fov_fact * (screenPos.Y - (float) (0.5 * _control.RenderSize.Height)) / (float)_control.RenderSize.Height;
 
-            v = RenderState.activeCam.Front;
-            v += 2.0f * RenderState.activeCam.Up * dy;
-            v += 2.0f * RenderState.activeCam.Right * dx;
+            throw new Exception("WRONG IMPLEMENTATION, FIX");
+            //v = RenderState.activeCam.Front;
+            //v += 2.0f * RenderState.activeCam.Up * dy;
+            //v += 2.0f * RenderState.activeCam.Right * dx;
 
             return v.Normalized();
         }
@@ -686,7 +679,7 @@ namespace Model_Viewer
                 req.type = THREAD_REQUEST_TYPE.GIZMO_PICKING_REQUEST;
                 req.arguments.Clear();
                 req.arguments.Add(activeGizmo);
-                req.arguments.Add(mouseState.Position);
+                req.arguments.Add(null);
                 engine.issueRenderingRequest(ref req);
             }
 
@@ -748,7 +741,7 @@ namespace Model_Viewer
             RenderState.rotMat = Rotz * Rotx * Roty;
             //RenderState.rotMat = Matrix4.Identity;
 
-            RenderState.activeResMgr.GLCameras[0].Move(dt);
+            //RenderState.activeResMgr.GLCameras[0].Move(dt);
             RenderState.activeResMgr.GLCameras[0].updateViewMatrix();
             
             //Update Frame Counter

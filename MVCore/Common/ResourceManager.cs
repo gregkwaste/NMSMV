@@ -302,7 +302,7 @@ namespace MVCore
             {
                 GLCameras[0].settings = RenderState.activeCam.settings;
                 Camera.SetCameraPosition(ref cam, RenderState.activeCam.Position);
-                Camera.SetCameraDirection(ref cam, RenderState.activeCam.Direction);
+                //Camera.SetCameraDirection(ref cam, RenderState.activeCam.Direction);
             }
 
             //Set as active camera the first one by default

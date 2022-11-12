@@ -29,6 +29,7 @@
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
+                            <RowDefinition Height="20"/>
                         </Grid.RowDefinitions>
                         <DockPanel Grid.Row="0" HorizontalAlignment="Stretch">
                             <TextBlock Width="100">FOV</TextBlock>
@@ -43,22 +44,26 @@
                             <Slider x:Name="sliderMovementFactor"  Value="{Binding SpeedPower}" Minimum="1" Maximum="10" SmallChange="0.5"></Slider>
                         </DockPanel>
                         <DockPanel Grid.Row="3" HorizontalAlignment="Stretch">
+                            <TextBlock Width="100">Cam Sensitivity</TextBlock>
+                            <Slider Value="{Binding Sensitivity}" Minimum="0" Maximum="2" SmallChange="0.01"></Slider>
+                        </DockPanel>
+                        <DockPanel Grid.Row="4" HorizontalAlignment="Stretch">
                             <TextBlock Width="100">zNear</TextBlock>
                             <Slider x:Name="sliderzNear"  Value="{Binding ZNear}" Minimum="0.01" Maximum="1" SmallChange="0.1"></Slider>
                         </DockPanel>
-                        <DockPanel Grid.Row="4" HorizontalAlignment="Stretch">
+                        <DockPanel Grid.Row="5" HorizontalAlignment="Stretch">
                             <TextBlock Width="100">zFar</TextBlock>
                             <Slider x:Name="sliderzFar" Value="{Binding ZFar}" Minimum="101" Maximum="30000" SmallChange="5"></Slider>
                         </DockPanel>
-                        <DockPanel Grid.Row="5" HorizontalAlignment="Stretch">
+                        <DockPanel Grid.Row="6" HorizontalAlignment="Stretch">
                             <TextBlock Width="100">Light Distance</TextBlock>
                             <Slider x:Name="sliderlightDistance" Value="2.0" Minimum="0" Maximum="20" SmallChange="0.2"></Slider>
                         </DockPanel>
-                        <DockPanel Grid.Row="6" HorizontalAlignment="Stretch">
+                        <DockPanel Grid.Row="7" HorizontalAlignment="Stretch">
                             <TextBlock Width="100">Light Intensity</TextBlock>
                             <Slider x:Name="sliderLightIntensity"  Value="3.0" Minimum="0.0" Maximum="20.0" SmallChange="0.1"></Slider>
                         </DockPanel>
-                        <Grid Grid.Row="7">
+                        <Grid Grid.Row="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="50*"/>
                                 <ColumnDefinition Width="50*"/>

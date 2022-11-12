@@ -48,6 +48,7 @@ namespace MVCore.Engine
         //Input
         public BaseGamepadHandler gpHandler;
         public MVKeyboardState kbHandler;
+        public MVMouseState msHandler;
         
         //Camera Stuff
         public System.Timers.Timer cameraMovementTimer;
@@ -68,6 +69,7 @@ namespace MVCore.Engine
         public Engine()
         {
             kbHandler = new MVKeyboardState();
+            msHandler = new MVMouseState();
             //gpHandler = new PS4GamePadHandler(0); //TODO: Add support for PS4 controller
             reqHandler = new RequestHandler();
 
@@ -429,36 +431,6 @@ namespace MVCore.Engine
         
         }
 
-        //Todo: this should not be public but Idk about this project anymore
-        public void input_poller(double dt)
-        {
-            //Move Camera
-            keyboardController();
-            //gamepadController();
-
-            bool focused = false;
-
-            //TODO: Toggle the focus in the GLControl side
-            /*
-            Invoke((MethodInvoker)delegate
-            {
-                focused = Focused;
-            });
-            */
-
-            //TODO Do something with the keyboardState
-            //var t = Control.EnableNativeInput();
-            if (focused)
-            {
-                //gpHandler?.updateState();
-            }
-
-
-            //Update Target for camera
-            RenderState.activeCam?.updateTarget(targetCameraPos, (float) dt);
-            targetCameraPos.Reset();
-        }
-
         public void issueRenderingRequest(ref ThreadRequest r)
         {
             reqHandler.issueRequest(ref r);
@@ -525,7 +497,6 @@ namespace MVCore.Engine
             z = kbHandler.getKeyStatus(System.Windows.Input.Key.R) - kbHandler.getKeyStatus(System.Windows.Input.Key.F);
 
             //Camera rotation is done exclusively using the mouse
-
             //rotx = 50 * step * (kbHandler.getKeyStatus(OpenTK.Input.Key.E) - kbHandler.getKeyStatus(OpenTK.Input.Key.Q));
             //float roty = (kbHandler.getKeyStatus(Key.C) - kbHandler.getKeyStatus(Key.Z));
 

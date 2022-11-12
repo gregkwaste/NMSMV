@@ -13,7 +13,7 @@ namespace WPFModelViewer
     {
         public static int VersionMajor = 0;
         public static int VersionMedium = 91;
-        public static int VersionMinor = 0;
+        public static int VersionMinor = 1;
         
         public static string donateLink = "https://www.paypal.com/donate/?hosted_button_id=UMHWZK6BU5MWG";
         public static readonly Random randgen = new Random();
