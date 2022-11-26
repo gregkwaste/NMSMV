@@ -309,7 +309,6 @@ namespace MVCore.Utils
                 activeFrame = stillframe;
             }
 
-
             v.X = activeFrame.Translations[transIndex].x;
             v.Y = activeFrame.Translations[transIndex].y;
             v.Z = activeFrame.Translations[transIndex].z;

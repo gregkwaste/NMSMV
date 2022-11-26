@@ -63,6 +63,11 @@ namespace MVCore.GMDL
         public Vector3 AABBMIN = new Vector3();
         public Vector3 AABBMAX = new Vector3();
 
+        //Blending Queues
+        public List<Vector3> PositionQueue = new();
+        public List<Vector3> ScaleQueue = new();
+        public List<Quaternion> RotationQueue = new();
+
         //Disposable Stuff
         public bool disposed = false;
         public Microsoft.Win32.SafeHandles.SafeFileHandle handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(IntPtr.Zero, true);

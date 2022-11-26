@@ -488,6 +488,7 @@ namespace MVCore
 
         private static textureManager localTexMgr;
         private static List<Model> localAnimScenes = new List<Model>();
+        private static string activeFilePath = "";
 
         private static Dictionary<Type, int> SupportedComponents = new Dictionary<Type, int>
         {
@@ -553,9 +554,9 @@ namespace MVCore
 
 
         public static Scene LoadObjects(string path)
-        {
+        {   
             TkSceneNodeData template = (TkSceneNodeData) NMSUtils.LoadNMSTemplate(path, ref Common.RenderState.activeResMgr);
-            
+            activeFilePath = path;
             Common.CallBacks.Log("Loading Objects from MBINFile");
 
             string sceneName = template.Name;
@@ -618,9 +619,9 @@ namespace MVCore
             node.Components.Add(apc);
         }
 
-        private static void ProcessAnimationComponent(Model node, TkAnimationComponentData component)
+        private static void ProcessAnimationComponent(Model node, TkAnimationComponentData component, string default_anim_file)
         {
-            AnimComponent ac = new AnimComponent(component);
+            AnimComponent ac = new AnimComponent(component, default_anim_file);
             node.animComponentID = node.Components.Count;
             node.Components.Add(ac); //Create Animation Component and add attach it to the component
         }
@@ -657,7 +658,7 @@ namespace MVCore
             node.Components.Add(lodmdlcomp);
         }
 
-        private static void ProcessComponents(Model node, TkAttachmentData attachment)
+        private static void ProcessComponents(Model node, TkAttachmentData attachment, string scene_name)
         {
             if (attachment == null)
                 return;
@@ -679,7 +680,7 @@ namespace MVCore
                         ProcessAnimPoseComponent(node, comp as TkAnimPoseComponentData);
                         break;
                     case 1:
-                        ProcessAnimationComponent(node, comp as TkAnimationComponentData);
+                        ProcessAnimationComponent(node, comp as TkAnimationComponentData, scene_name);
                         break;
                     case 2:
                         ProcessLODComponent(node, comp as TkLODComponentData);
@@ -865,7 +866,7 @@ namespace MVCore
             }
 
             //Process Attachments
-            ProcessComponents(so, attachment_data);
+            ProcessComponents(so, attachment_data, activeFilePath.Replace(".SCENE.MBIN", ".ANIM.MBIN"));
             so.animComponentID = so.hasComponent(typeof(AnimComponent));
             so.animPoseComponentID = so.hasComponent(typeof(AnimPoseComponent));
 
@@ -981,6 +982,7 @@ namespace MVCore
 
             //Finally Order children by name
             so.children.OrderBy(i => i.Name);
+            scene.nodeDict[so.Name] = so;
             return so;
         }
 
@@ -1093,7 +1095,7 @@ namespace MVCore
             so.init(transforms);
 
             //Process Locator Attachments
-            ProcessComponents(so, attachment_data);
+            ProcessComponents(so, attachment_data, activeFilePath.Replace(".SCENE.MBIN", ".ANIM.MBIN"));
             so.animComponentID = so.hasComponent(typeof(AnimComponent));
             so.animPoseComponentID = so.hasComponent(typeof(AnimPoseComponent));
             so.actionComponentID = so.hasComponent(typeof(TriggerActionComponent));
@@ -1107,6 +1109,8 @@ namespace MVCore
 
             //Finally Order children by name
             so.children.OrderBy(i => i.Name);
+
+            scene.nodeDict[so.Name] = so;
 
             //Do not restore the old AnimScene let them flow
             //localAnimScene = old_localAnimScene; //Restore old_localAnimScene
@@ -1152,7 +1156,7 @@ namespace MVCore
             }
 
             //Process Joint Attachments
-            ProcessComponents(so, attachment_data);
+            ProcessComponents(so, attachment_data, activeFilePath.Replace(".SCENE.MBIN", ".ANIM.MBIN"));
 
             //Set properties
             so.name = node.Name;
@@ -1190,6 +1194,7 @@ namespace MVCore
 
             //Add joint to scene
             scene.jointDict[so.Name] = so;
+            scene.nodeDict[so.Name] = so;
 
             //Handle Children
             foreach (TkSceneNodeData child in children)
@@ -1434,6 +1439,8 @@ namespace MVCore
             so.update_struct();
             Common.RenderState.activeResMgr.GLlights.Add(so);
 
+            scene.nodeDict[so.Name] = so;
+
             return so;
 
         }
@@ -1503,6 +1510,8 @@ namespace MVCore
                 so.children.Add(part);
             }
 
+            scene.nodeDict[so.Name] = so;
+
             return so;
 
         }
@@ -1551,7 +1560,7 @@ namespace MVCore
             so.init(transforms);
 
             //Process Locator Attachments
-            ProcessComponents(so, attachment_data);
+            ProcessComponents(so, attachment_data, activeFilePath.Replace(".SCENE.MBIN", ".ANIM.MBIN"));
 
             //Handle Children
             foreach (TkSceneNodeData child in children)

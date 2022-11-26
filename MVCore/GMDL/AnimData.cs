@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Text;
 using System.Windows.Media.Animation;
 using libMBIN.NMS.Toolkit;
@@ -361,6 +362,9 @@ namespace MVCore.GMDL
             Quaternion next_q = animMeta.anim_rotations[node][nextFrameIndex];
             Vector3 next_p = animMeta.anim_positions[node][nextFrameIndex];
             Vector3 next_s = animMeta.anim_scales[node][nextFrameIndex];
+
+
+            //Debug.WriteLine($"{node} : Trans: {next_p} Rot: {next_q} Scale: {next_s}");
 
             //Interpolate
             q = Quaternion.Slerp(next_q, prev_q, LERP_coeff);
