@@ -284,10 +284,6 @@
                                 </ListBox.ItemTemplate>
                             </ListBox>
                         </StackPanel>
-                        <!--<StackPanel Grid.Row="4">
-                            <TextBlock Text="Loaded Textures"></TextBlock>
-                            <ListBox ItemsSource="{Binding Textures}" HorizontalContentAlignment="Right"></ListBox>
-                        </StackPanel>-->
                     </Grid>
                 </GroupBox>
             </DataTemplate>

@@ -37,11 +37,11 @@ namespace MVCore.Engine.Systems
             //Clear queues for all the joints
             foreach (Model anim_model in AnimScenes)
             {
-                foreach (Joint jt in anim_model.parentScene.jointDict.Values)
+                foreach (Model m in anim_model.parentScene.nodeDict.Values)
                 {
-                    jt.PositionQueue.Clear();
-                    jt.ScaleQueue.Clear();
-                    jt.RotationQueue.Clear();
+                    m.PositionQueue.Clear();
+                    m.ScaleQueue.Clear();
+                    m.RotationQueue.Clear();
                 }
             }
                 
@@ -61,10 +61,10 @@ namespace MVCore.Engine.Systems
                         //Load updated local joint transforms
                         foreach (libMBIN.NMS.Toolkit.TkAnimNodeData node in ad.animMeta.NodeData)
                         {
-                            if (!anim_model.parentScene.jointDict.ContainsKey(node.Node))
+                            if (!anim_model.parentScene.nodeDict.ContainsKey(node.Node))
                                 continue;
 
-                            Joint jt = anim_model.parentScene.jointDict[node.Node];
+                            Model m = anim_model.parentScene.nodeDict[node.Node];
 
                             //Transforms
                             Vector3 p = new Vector3();
@@ -73,9 +73,9 @@ namespace MVCore.Engine.Systems
 
                             ad.getCurrentTransform(ref p, ref s, ref q, node.Node);
 
-                            jt.RotationQueue.Add(q);
-                            jt.PositionQueue.Add(p);
-                            jt.ScaleQueue.Add(s);
+                            m.RotationQueue.Add(q);
+                            m.PositionQueue.Add(p);
+                            m.ScaleQueue.Add(s);
 
                             //ad.applyNodeTransform(tj, node.Node);
                         }
@@ -106,35 +106,34 @@ namespace MVCore.Engine.Systems
                 }
 
                 //Blend Transforms and apply
-                foreach (Joint jt in anim_model.parentScene.jointDict.Values)
+                foreach (Model m in anim_model.parentScene.jointDict.Values)
                 {
-                    if (jt.PositionQueue.Count == 0)
+                    if (m.PositionQueue.Count == 0)
                     {
                         //Keep last transforms
-                        jt.localPosition = jt._localPosition;
-                        jt.localScale = jt._localScale;
-                        jt.localRotation = jt._localRotation;
+                        m.localPosition = m._localPosition;
+                        m.localScale = m._localScale;
+                        m.localRotation = m._localRotation;
                         continue;
                     }
                         
-                    
-                    float blendFactor = 1.0f / jt.PositionQueue.Count;
+                    float blendFactor = 1.0f / m.PositionQueue.Count;
 
                     Vector3 p = new Vector3();
                     Vector3 s = new Vector3();
                     Quaternion q = new Quaternion();
 
-                    
-                    for (int i = 0; i < jt.PositionQueue.Count; i++)
+                    for (int i = 0; i < m.PositionQueue.Count; i++)
                     {
-                        q += blendFactor * jt.RotationQueue[i];
-                        p += blendFactor * jt.PositionQueue[i];
-                        s += blendFactor * jt.ScaleQueue[i];
+                        q += blendFactor * m.RotationQueue[i];
+                        p += blendFactor * m.PositionQueue[i];
+                        s += blendFactor * m.ScaleQueue[i];
                     }
+
+                    m.localRotation = Matrix4.CreateFromQuaternion(q);
+                    m.localPosition = p;
+                    m.localScale = s;
                     
-                    jt.localRotation = Matrix4.CreateFromQuaternion(q);
-                    jt.localPosition = p;
-                    jt.localScale = s;
                 }
             }
         }

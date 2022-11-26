@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 using libMBIN.NMS.Toolkit;
+using MVCore.Utils;
 
 namespace MVCore.GMDL
 {
@@ -55,13 +56,18 @@ namespace MVCore.GMDL
             }
         }
 
-        public AnimComponent(TkAnimationComponentData data)
+        public AnimComponent(TkAnimationComponentData data, string default_anim_name)
         {
             //Load Animations
             if (data.Idle.Anim != "")
             {
                 _animations.Add(new AnimData(data.Idle)); //Add Idle Animation
                 _animDict[data.Idle.Anim] = _animations[0];
+            } else
+            {
+                _animations.Add(new AnimData(data.Idle));
+                _animations[0].Filename = default_anim_name; //Override FileName
+                _animDict["Idle"] = _animations[0];
             }
                 
 

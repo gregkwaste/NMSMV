@@ -13,6 +13,7 @@ namespace MVCore.GMDL
         //Keep reference of all the animation Joints of the scene and the skinmatrices
         public float[] skinMats; //Final Matrices
         public Dictionary<string, Joint> jointDict;
+        public Dictionary<string, Model> nodeDict;
         public int activeLOD = 0;
         public int actionComponentID = -1;
 
@@ -22,7 +23,8 @@ namespace MVCore.GMDL
             texMgr = new textureManager();
             //Init Animation Stuff
             skinMats = new float[256 * 16];
-            jointDict = new Dictionary<string, Joint>();
+            jointDict = new();
+            nodeDict = new();
         }
 
 
@@ -91,7 +93,7 @@ namespace MVCore.GMDL
             texMgr = input.texMgr;
             
         }
-
+        
         public override Model Clone()
         {
             Scene new_s = new Scene();
@@ -122,7 +124,9 @@ namespace MVCore.GMDL
         {
             if (m.type == TYPES.JOINT)
                 jointDict[m.Name] = (Joint)m;
-
+            else
+                nodeDict[m.Name] = m;
+            
             foreach (Model c in m.children)
                 setupJointDict(c);
         }
@@ -147,7 +151,6 @@ namespace MVCore.GMDL
 
             base.updateLODDistances();
         }
-
 
         public override void updateMeshInfo(bool lod_filter = false)
         {
