@@ -585,7 +585,7 @@ namespace MVCore.Utils
 
             try
             {
-                val = fetchSteamGameInstallationDir() as string;
+                val = fetchSteamGameInstallationDir();
             } catch (Exception e) {
                 val = null;
             }
@@ -648,7 +648,7 @@ namespace MVCore.Utils
                     continue;
 
                 if (path.Contains(nms_id))
-                    return Path.Combine(steam_path, @"steamapps\common\No Man's Sky\GAMEDATA");
+                    return Path.Combine(steam_path, @"steamapps\common\No Man's Sky");
             }
 
             CallBacks.Log("NMS not found in default folders. Searching Steam Libraries...");
