@@ -6,12 +6,16 @@
         xmlns:local="clr-namespace:WPFModelViewer"
         xmlns:mvcore_common="clr-namespace:MVCore.Common"
         mc:Ignorable="d"
-        Title="Settings" ResizeMode="NoResize" SizeToContent="WidthAndHeight" Height="Auto" Width="Auto" d:DesignWidth="202.333" d:DesignHeight="80.333">
+        Title="Settings" ResizeMode="NoResize" SizeToContent="WidthAndHeight" Height="Auto" Width="Auto" d:DesignWidth="561.833" d:DesignHeight="205.833">
     <Window.Resources>
         <ResourceDictionary>
             <DataTemplate DataType="{x:Type mvcore_common:AppSettings}">
                 <Grid>
                     <Grid.RowDefinitions>
+                        <RowDefinition/>
+                        <RowDefinition/>
+                        <RowDefinition/>
+                        <RowDefinition/>
                         <RowDefinition/>
                         <RowDefinition/>
                         <RowDefinition/>
@@ -37,6 +41,18 @@
 
                     <TextBlock Grid.Row="3" Grid.Column="0" FontSize="14">Force ProcGen</TextBlock>
                     <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding ForceProcGen}" HorizontalAlignment="Stretch"></TextBox>
+
+                    <TextBlock Grid.Row="4" Grid.Column="0" FontSize="14">Key Up</TextBlock>
+                    <TextBox Tag="KeyUpTag" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" IsReadOnly="True" Text="{Binding KeyUpProp, Mode=OneWay}" HorizontalAlignment="Stretch" PreviewKeyUp="TextBox_PreviewKeyUp"/>
+                    
+                    <TextBlock Grid.Row="5" Grid.Column="0" FontSize="14">Key Down</TextBlock>
+                    <TextBox Tag="KeyDownTag" Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" IsReadOnly="True" Text="{Binding KeyDownProp, Mode=OneWay}" HorizontalAlignment="Stretch" PreviewKeyUp="TextBox_PreviewKeyUp"/>
+                    
+                    <TextBlock Grid.Row="6" Grid.Column="0" FontSize="14">Key Right</TextBlock>
+                    <TextBox Tag="KeyRightTag" Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" IsReadOnly="True" Text="{Binding KeyRightProp, Mode=OneWay}" HorizontalAlignment="Stretch" PreviewKeyUp="TextBox_PreviewKeyUp"/>
+
+                    <TextBlock Grid.Row="7" Grid.Column="0" FontSize="14">Key Left</TextBlock>
+                    <TextBox Tag="KeyLeftTag" Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="2" IsReadOnly="True" Text="{Binding KeyLeftProp, Mode=OneWay}" HorizontalAlignment="Stretch" PreviewKeyUp="TextBox_PreviewKeyUp"/>
                 </Grid>
             </DataTemplate>
         </ResourceDictionary>
@@ -52,8 +68,8 @@
         <ContentControl Grid.Row="1" x:Name="RenderSettingsContainer"/>
         <Button Grid.Row="2" Click="saveSettings">Save Settings</Button>
     </Grid>
-    
-    
-    
-    
+
+
+
+
 </Window>

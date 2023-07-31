@@ -10,6 +10,8 @@ using GLSLHelper;
 using WPFModelViewer;
 using System.ComponentModel;
 using System.Diagnostics.Contracts;
+using System.Windows.Input;
+using Newtonsoft.Json;
 
 namespace MVCore.Common
 {
@@ -229,6 +231,69 @@ namespace MVCore.Common
         private string gamedir;
         private string unpackdir;
         private int _procGenWinNum;
+        [JsonIgnore]
+        public Key KeyUp = Key.W;
+        [JsonIgnore]
+        public Key KeyDown = Key.S;
+        [JsonIgnore]
+        public Key KeyLeft = Key.A;
+        [JsonIgnore]
+        public Key KeyRight = Key.D;
+
+        public string KeyUpProp { 
+            get
+            {
+                return KeyUp.ToString();
+            }
+
+            set
+            {
+                KeyUp = (Key) Enum.Parse(typeof(Key), value);
+                NotifyPropertyChanged("KeyUpProp");
+            }
+        }
+
+        public string KeyDownProp
+        {
+            get
+            {
+                return KeyDown.ToString();
+            }
+
+            set
+            {
+                KeyDown = (Key)Enum.Parse(typeof(Key), value);
+                NotifyPropertyChanged("KeyDownProp");
+            }
+        }
+
+        public string KeyLeftProp
+        {
+            get
+            {
+                return KeyLeft.ToString();
+            }
+
+            set
+            {
+                KeyLeft = (Key)Enum.Parse(typeof(Key), value);
+                NotifyPropertyChanged("KeyLeftProp");
+            }
+        }
+
+        public string KeyRightProp
+        {
+            get
+            {
+                return KeyRight.ToString();
+            }
+
+            set
+            {
+                KeyRight = (Key)Enum.Parse(typeof(Key), value);
+                NotifyPropertyChanged("KeyRightProp");
+            }
+        }
 
         
         public string GameDir

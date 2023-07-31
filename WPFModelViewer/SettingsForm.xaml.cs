@@ -174,6 +174,21 @@ namespace WPFModelViewer
                 RenderState.settings.UnpackDir = path;
 
         }
+
+        private void TextBox_PreviewKeyUp(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            System.Windows.Controls.TextBox tb = (System.Windows.Controls.TextBox)sender;
+            
+            if ((string)tb.Tag == "KeyDownTag")
+                RenderState.settings.KeyDownProp = e.Key.ToString();
+            else if ((string)tb.Tag == "KeyUpTag")
+                RenderState.settings.KeyUpProp = e.Key.ToString();
+            else if ((string)tb.Tag == "KeyRightTag")
+                RenderState.settings.KeyRightProp = e.Key.ToString();
+            else if ((string)tb.Tag == "KeyLeftTag")
+                RenderState.settings.KeyLeftProp = e.Key.ToString();
+        }
+
     }
 
 }

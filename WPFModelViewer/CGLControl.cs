@@ -89,6 +89,7 @@ namespace Model_Viewer
         {
             _control.Loaded += new RoutedEventHandler(genericLoad);
             _control.SizeChanged += new SizeChangedEventHandler(OnResize);
+            
             //Resize += new System.EventHandler(OnResize); 
             
             _control.Render += new((TimeSpan time) =>
@@ -277,8 +278,8 @@ namespace Model_Viewer
         private void processInput(double dt)
         {
             float step = 0.002f;
-            float x = engine.kbHandler.getKeyStatus(Key.D) - engine.kbHandler.getKeyStatus(Key.A);
-            float z = engine.kbHandler.getKeyStatus(Key.W) - engine.kbHandler.getKeyStatus(Key.S);
+            float x = engine.kbHandler.getKeyStatus(RenderState.settings.KeyRight) - engine.kbHandler.getKeyStatus(RenderState.settings.KeyLeft);
+            float z = engine.kbHandler.getKeyStatus(RenderState.settings.KeyUp) - engine.kbHandler.getKeyStatus(RenderState.settings.KeyDown);
             float y = engine.kbHandler.getKeyStatus(Key.R) - engine.kbHandler.getKeyStatus(Key.F);
             Vector3 newPos = RenderState.activeCam.Right * x + RenderState.activeCam.Front * z + Camera.BaseUp * y;
             newPos *= (float) dt * RenderState.activeCam.settings.Speed;
@@ -393,12 +394,15 @@ namespace Model_Viewer
 
         private void OnResize(object sender, SizeChangedEventArgs e)
         {
-            engine.renderMgr.resize((int)_control.RenderSize.Width, (int)_control.RenderSize.Height);
+#if DEBUG
+            CallBacks.Log($"RESIZING VIEWPORT {e.NewSize.Width} {e.NewSize.Height} RENDERSIZE {_control.RenderSize.Width} {_control.RenderSize.Height} FRAMEBUFFERSIZE {_control.FrameBufferWidth}  {_control.FrameBufferHeight}");            
+#endif
+            engine.renderMgr.resize(_control.FrameBufferWidth, _control.FrameBufferHeight);
         }
 
         private void InitializeComponent()
         {
-            this.components = new System.ComponentModel.Container();
+            components = new System.ComponentModel.Container();
             
             MenuItem obj_export = new MenuItem();
             obj_export.Header = "Export to Obj";
@@ -410,7 +414,7 @@ namespace Model_Viewer
 
             contextMenuStrip1 = new ContextMenu();
             contextMenuStrip1.Items.Add(obj_export);
-            contextMenuStrip1.Items.Add(assimp_export);
+            //contextMenuStrip1.Items.Add(assimp_export);
         }
 
                

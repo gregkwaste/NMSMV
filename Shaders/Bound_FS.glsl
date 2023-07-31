@@ -7,7 +7,6 @@
 #include "/common.glsl"
 
 /* Copies incoming fragment color without change. */
-uniform vec3 color;
 uniform float intensity;
 
 
