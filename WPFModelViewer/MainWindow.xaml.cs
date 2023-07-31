@@ -82,6 +82,7 @@ namespace WPFModelViewer
             {
                 MajorVersion = 4,
                 MinorVersion = 6,
+                UseDeviceDpi= false,
 #if DEBUG
                 GraphicsContextFlags = ContextFlags.Debug,
 #else
