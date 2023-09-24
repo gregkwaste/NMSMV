@@ -38,31 +38,7 @@ namespace MVCore.GMDL
 
         public override TkSceneNodeData ExportTemplate(bool keepRenderable)
         {
-            //Copy main info
-            TkSceneNodeData cpy = new TkSceneNodeData();
-
-            cpy.Transform = nms_template.Transform;
-            cpy.Attributes = nms_template.Attributes;
-            cpy.Type = nms_template.Type;
-            cpy.Name = nms_template.Name;
-            cpy.NameHash = nms_template.NameHash;
-
-            //The only difference with references is that the first children of the reference object is a copy of the
-            //actual scene
-
-            if (children.Count > 1)
-                cpy.Children = new List<TkSceneNodeData>();
-
-            for (int i = 1; i < children.Count; i++)
-            {
-                Model child = children[i];
-                if (!child.renderable && keepRenderable)
-                    continue;
-                else if (child.nms_template != null)
-                    cpy.Children.Add(child.ExportTemplate(keepRenderable));
-            }
-
-            return cpy;
+            throw new NotImplementedException("Functionality not yet supported");
         }
 
 

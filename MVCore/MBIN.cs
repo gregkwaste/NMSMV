@@ -581,7 +581,6 @@ namespace MVCore
 
             //Parse root scene
             Scene root = (Scene) parseNode(template, gobject, null, null);
-            root.nms_template = template;
 
             //Save scene path to resourcemanager
             Common.RenderState.activeResMgr.GLScenes[path] = root; //Use input path
@@ -842,7 +841,6 @@ namespace MVCore
             //so.Bbox = gobject.bboxes[iid]; //Use scene parameters
             //so.setupBSphere();
             so.parent = parent;
-            so.nms_template = node;
             so.gobject = gobject; //Store the gobject for easier access of uniforms
             so.init(transforms); //Init object transforms
 
@@ -1013,7 +1011,6 @@ namespace MVCore
 
             //Get Transformation
             so.parent = parent;
-            so.nms_template = node;
             so.init(transforms);
             so.gobject = gobject;
 
@@ -1089,7 +1086,6 @@ namespace MVCore
             //Testingso.Name = name + "_LOC";
             so.name = node.Name;
             so.nameHash = node.NameHash;
-            so.nms_template = node;
 
             //Get Transformation
             so.parent = parent;
@@ -1163,7 +1159,6 @@ namespace MVCore
             //Set properties
             so.name = node.Name;
             so.nameHash = node.NameHash;
-            so.nms_template = node;
             //Get Transformation
             so.parent = parent;
             so.parentScene = scene;
@@ -1237,7 +1232,6 @@ namespace MVCore
             so.name = node.Name + "_COLLISION";
             so.nameHash = node.NameHash;
             so.type = TYPES.COLLISION;
-            so.nms_template = node;
 
             //Get Options
             //In collision objects first child is probably the type
@@ -1421,7 +1415,6 @@ namespace MVCore
             so.name = node.Name;
             so.nameHash = node.NameHash;
             so.type = TYPES.LIGHT;
-            so.nms_template = node;
 
             so.parent = parent;
             so.init(transforms);
@@ -1484,7 +1477,6 @@ namespace MVCore
 
             //Get Transformation
             so.parent = parent;
-            so.nms_template = node;
             so.init(transforms);
 
             Scene new_so;
@@ -1555,7 +1547,6 @@ namespace MVCore
             //Testingso.Name = name + "_LOC";
             so.name = node.Name;
             so.nameHash = node.NameHash;
-            so.nms_template = node;
 
             //Get Transformation
             so.parent = parent;
@@ -1629,18 +1620,13 @@ namespace MVCore
                 so.name = node.Name + "_UNKNOWN";
                 so.nameHash = node.NameHash;
                 so.type = TYPES.UNKNOWN;
-                so.nms_template = node;
                 //Locator Objects don't have options
 
                 //take care of children
                 return so;
                 //throw new ApplicationException("Unknown mesh type");
             }
-
-        
         }
- 
-
     }
 
 }

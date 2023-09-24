@@ -123,31 +123,7 @@ namespace WPFModelViewer
             float.TryParse(scaleZ.Text, out lZ);
             _mdl.localScale = new Vector3(lX, lY, lZ);
             _mdl.update(); //Trigger model update
-            
-            //Save values to underlying SceneNode
-            if (_mdl.nms_template != null)
-            {
-                float.TryParse(rotationX.Text, out _mdl.nms_template.Transform.RotX);
-                float.TryParse(rotationY.Text, out _mdl.nms_template.Transform.RotY);
-                float.TryParse(rotationZ.Text, out _mdl.nms_template.Transform.RotZ);
-                //mdl.mbin_scene.Transform.RotX = (float)rotationX.Value;
-                //mdl.mbin_scene.Transform.RotY = (float)rotationY.Value;
-                //mdl.mbin_scene.Transform.RotZ = (float)rotationZ.Value;
-                float.TryParse(translationX.Text, out _mdl.nms_template.Transform.TransX);
-                float.TryParse(translationY.Text, out _mdl.nms_template.Transform.TransY);
-                float.TryParse(translationZ.Text, out _mdl.nms_template.Transform.TransZ);
-                //mdl.mbin_scene.Transform.TransX = (float)translationX.Value;
-                //mdl.mbin_scene.Transform.TransY = (float)translationY.Value;
-                //mdl.mbin_scene.Transform.TransZ = (float)translationZ.Value;
-                float.TryParse(scaleX.Text, out _mdl.nms_template.Transform.ScaleX);
-                float.TryParse(scaleY.Text, out _mdl.nms_template.Transform.ScaleY);
-                float.TryParse(scaleZ.Text, out _mdl.nms_template.Transform.ScaleZ);
-                //mdl.mbin_scene.Transform.ScaleX = (float) scaleX.Value;
-                //mdl.mbin_scene.Transform.ScaleY = (float)scaleY.Value;
-                //mdl.mbin_scene.Transform.ScaleZ = (float)scaleZ.Value;
-            }
-            
-
+        
         }
 
         //Reset transform
@@ -160,58 +136,18 @@ namespace WPFModelViewer
             //Reload Values to the control
             loadModel(_mdl);
             
-            //Save values to underlying SceneNode
-            if (_mdl.nms_template != null)
-            {
-                _mdl.nms_template.Transform.ScaleX = oldscale.X;
-                _mdl.nms_template.Transform.ScaleY = oldscale.Y;
-                _mdl.nms_template.Transform.ScaleZ = oldscale.Z;
-                _mdl.nms_template.Transform.TransX = oldtranslation.X;
-                _mdl.nms_template.Transform.TransY = oldtranslation.Y;
-                _mdl.nms_template.Transform.TransZ = oldtranslation.Z;
-                //Convert rotation from matrix to angles
-                //Vector3 q_euler = quaternionToEuler(oldrotation);
-                Matrix4 tempMat = oldrotation;
-                tempMat.Transpose();
-                Vector3 q_euler = matrixToEuler(tempMat, "ZXY");
-
-                _mdl.nms_template.Transform.RotX = q_euler.X;
-                _mdl.nms_template.Transform.RotY = q_euler.Y;
-                _mdl.nms_template.Transform.RotZ = q_euler.Z;
-                
-            }
         }
 
         //Export to EXML
         private void exportToEXML(object sender, RoutedEventArgs e)
         {
-            if (_mdl?.nms_template != null)
-            {
-                //Fetch scene name
-                string[] split = _mdl.nms_template.Name.Value.Split('\\');
-                string scnName = split[split.Length - 1];
-
-                TkSceneNodeData temp = _mdl.ExportTemplate(true);
-                
-                temp.WriteToExml(scnName + ".SCENE.EXML");
-                Util.showInfo("Scene successfully exported to " + scnName + ".exml", "Info");
-                
-            }
+            throw new NotImplementedException("Functionality not yet supported");
         }
 
         //Export to MBIN
         private void exportToMBIN(object sender, RoutedEventArgs e)
         {
-            if (_mdl?.nms_template != null)
-            {
-                //Fetch scene name
-                string[] split = _mdl.nms_template.Name.Value.Split('\\');
-                string scnName = split[split.Length - 1];
-                
-                TkSceneNodeData temp = _mdl.ExportTemplate(true);
-                temp.WriteToMbin(scnName.ToUpper() + ".SCENE.MBIN");
-                Util.showInfo("Scene successfully exported to " + scnName.ToUpper() + ".MBIN", "Info");
-            }
+            throw new NotImplementedException("Functionality not yet supported");
         }
 
         private Vector3 quaternionToEuler(Quaternion q)
