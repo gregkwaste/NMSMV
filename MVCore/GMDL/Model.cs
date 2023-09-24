@@ -25,7 +25,7 @@ namespace MVCore.GMDL
         public List<Model> children = new List<Model>();
         public Dictionary<string, Dictionary<string, Vector3>> palette;
         public bool procFlag; //This is used to define procgen usage
-        public TkSceneNodeData nms_template;
+        //public TkSceneNodeData nms_template;
         public GLMeshVao meshVao;
         public int instanceId = -1;
 
@@ -490,30 +490,9 @@ namespace MVCore.GMDL
 
         public virtual TkSceneNodeData ExportTemplate(bool keepRenderable)
         {
-            //Copy main info
-            TkSceneNodeData cpy = new TkSceneNodeData();
-
-            cpy.Transform = nms_template.Transform;
-            cpy.Attributes = nms_template.Attributes;
-            cpy.Type = nms_template.Type;
-            cpy.Name = nms_template.Name;
-            cpy.NameHash = nms_template.NameHash;
-
-            if (children.Count > 0)
-                cpy.Children = new List<TkSceneNodeData>();
-
-            foreach (Model child in children)
-            {
-                if (!child.renderable && keepRenderable)
-                    continue;
-                else if (child.nms_template != null)
-                    cpy.Children.Add(child.ExportTemplate(keepRenderable));
-            }
-
-            return cpy;
+            //TODO: Rebuild SceneNodeData from scratch
+            return null;
         }
-
-
 
         #region ComponentQueries
         public int hasComponent(Type ComponentType)
