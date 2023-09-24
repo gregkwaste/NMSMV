@@ -199,7 +199,7 @@ namespace MVCore.GMDL
         //Joint info
         public int jointCount;
         public List<JointBindingData> jointData = new List<JointBindingData>();
-        public float[] invBMats = new float[256 * 16];
+        public float[] invBMats;
 
         //Dictionary with the compiled VAOs belonging on this gobject
         private Dictionary<ulong, GMDL.GLVao> GLVaos = new Dictionary<ulong, GLVao>();
