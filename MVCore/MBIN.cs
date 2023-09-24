@@ -203,6 +203,7 @@ namespace MVCore
             //Store Joint Data
             fs.Seek(jointbindingOffset, SeekOrigin.Begin);
             geom.jointCount = jointCount;
+            geom.invBMats = new float[jointCount * 16];
             for (int i = 0; i < jointCount; i++)
             {
                 JointBindingData jdata = new JointBindingData();
@@ -280,7 +281,8 @@ namespace MVCore
                 mmd.is_abs_offset = br.ReadUInt32();
                 mmd.double_buffering = br.ReadBoolean();
                 br.BaseStream.Seek(7, SeekOrigin.Current);
-                geom.meshMetaDataDict[mmd.hash] = mmd;
+                if (!geom.meshMetaDataDict.ContainsKey(mmd.hash))
+                    geom.meshMetaDataDict[mmd.hash] = mmd;
                 Common.CallBacks.Log(mmd.name);
             }
 

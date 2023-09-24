@@ -22,12 +22,12 @@ namespace MVCore.GMDL
             type = TYPES.MODEL;
             texMgr = new textureManager();
             //Init Animation Stuff
-            skinMats = new float[256 * 16];
+            skinMats = new float[512 * 16];
             jointDict = new();
             nodeDict = new();
         }
 
-
+        
         public void resetPoses()
         {
             foreach (Joint j in jointDict.Values)
@@ -164,7 +164,7 @@ namespace MVCore.GMDL
             base.updateMeshInfo(lod_filter);
         }
 
-
+        
         //Deconstructor
         protected override void Dispose(bool disposing)
         {
