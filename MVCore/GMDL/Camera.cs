@@ -32,6 +32,26 @@ namespace MVCore.GMDL
         public float PosZ { get; set; }
         public float Pitch { get; set; }
         public float Yaw { get; set; }
+
+        public CameraJSONSettings(Camera cam)
+        {
+            settings = cam.settings;
+            PosX = cam.Position.X;
+            PosY = cam.Position.Y;
+            PosZ = cam.Position.Z;
+            Pitch = cam.pitch;
+            Yaw = cam.yaw;
+        }
+
+        public CameraJSONSettings()
+        {
+            settings = new CameraSettings();
+            PosX = 0.0f;
+            PosY = 0.0f;
+            PosZ = 0.0f;
+            Pitch = -90.0f;
+            Yaw = 0.0f;
+        }
     }
 
 

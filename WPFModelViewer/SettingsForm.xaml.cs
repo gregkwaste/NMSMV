@@ -8,8 +8,10 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Forms;
+using System.Windows.Media.Media3D;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using MVCore.Common;
+using MVCore.GMDL;
 using MVCore.Utils;
 using Newtonsoft.Json;
 using MessageBox = System.Windows.MessageBox;
@@ -114,11 +116,7 @@ namespace WPFModelViewer
             RenderState.settings = app_settings;
             RenderState.renderSettings = render_settings;
             RenderState.renderViewSettings = view_settings;
-            MVCore.GMDL.Camera.SetCameraSettings(ref RenderState.activeCam, cam_settings.settings);
-            MVCore.GMDL.Camera.SetCameraPosition(ref RenderState.activeCam, 
-                new OpenTK.Mathematics.Vector3(cam_settings.PosX, cam_settings.PosY, cam_settings.PosZ));
-            RenderState.activeCam.yaw = cam_settings.Yaw;
-            RenderState.activeCam.pitch = cam_settings.Pitch;
+            RenderState.camSettings = cam_settings;
         }
 
         public static void saveSettingsStatic()
@@ -135,7 +133,10 @@ namespace WPFModelViewer
             writer.WritePropertyName("ViewSettings");
             writer.WriteRawValue(JsonConvert.SerializeObject(RenderState.renderViewSettings));
             writer.WritePropertyName("CameraSettings");
-            writer.WriteRawValue(JsonConvert.SerializeObject(RenderState.activeCam.GetSettings()));
+            if (RenderState.activeCam != null)
+                writer.WriteRawValue(JsonConvert.SerializeObject(new CameraJSONSettings(RenderState.activeCam)));
+            else 
+                writer.WriteRawValue(JsonConvert.SerializeObject(new CameraJSONSettings()));
             writer.WriteEndObject();
             writer.Close();
         }

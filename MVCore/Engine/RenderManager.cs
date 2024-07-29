@@ -9,6 +9,7 @@ using MVCore.GMDL;
 using MVCore.Engine;
 using OpenTK.Mathematics;
 using OpenTK.Graphics.OpenGL4;
+using static Microsoft.ApplicationInsights.MetricDimensionNames.TelemetryContext;
 
 
 namespace MVCore
@@ -1068,8 +1069,10 @@ namespace MVCore
             GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, pbuf.fbo);
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, screen_fbo);
+
             GL.BlitFramebuffer(0, 0, gbuf.size[0], gbuf.size[1], 0, 0, gbuf.size[0], gbuf.size[1], 
                 ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Linear);
+
         }
 
         private void renderUI()

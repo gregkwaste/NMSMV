@@ -6,8 +6,8 @@
         xmlns:local="clr-namespace:WPFModelViewer"
         xmlns:opentk_wpf ="clr-namespace:OpenTK.Wpf;assembly=GLWpfControl"
         xmlns:mvcore="clr-namespace:MVCore;assembly="
-        xmlns:gmdl="clr-namespace:MVCore.GMDL"
-        xmlns:mvcore_common="clr-namespace:MVCore.Common"
+        xmlns:gmdl="clr-namespace:MVCore.GMDL;assembly="
+        xmlns:mvcore_common="clr-namespace:MVCore.Common;assembly="
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
         mc:Ignorable="d"
         Title="No Man's Sky Model Viewer" Height="720" Width="1280"
@@ -15,6 +15,8 @@
         Closing="MainWindow_OnClosing"
         Closed="MainWindow_OnClosed"
         Loaded="MainWindow_OnLoaded">
+    
+    
     <Window.Resources>
         <ResourceDictionary>
             <DataTemplate DataType="{x:Type gmdl:CameraSettings}">

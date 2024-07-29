@@ -18,6 +18,11 @@ namespace MVCore.Utils
 {
     public static class NMSUtils
     {
+        public static int GetFieldOffset(string className, string fieldName)
+        {
+            return 0x20 + NMSTemplate.OffsetOf(className, fieldName);
+        }
+
         public static NMSTemplate LoadNMSFileOLD(string filepath)
         {
             int load_mode = 0;
@@ -241,18 +246,18 @@ namespace MVCore.Utils
             if (node.RotIndex < frame.Rotations.Count)
             {
                 int rotindex = node.RotIndex;
-                q = new Quaternion(frame.Rotations[rotindex].x,
-                                frame.Rotations[rotindex].y,
-                                frame.Rotations[rotindex].z,
-                                frame.Rotations[rotindex].w);
+                q = new Quaternion((float) frame.Rotations[rotindex].x,
+                                (float) frame.Rotations[rotindex].y,
+                                (float) frame.Rotations[rotindex].z,
+                                (float) frame.Rotations[rotindex].w);
             }
             else //Load stillframedata
             {
                 int rotindex = node.RotIndex - frame.Rotations.Count;
-                q = new Quaternion(stillframe.Rotations[rotindex].x,
-                                stillframe.Rotations[rotindex].y,
-                                stillframe.Rotations[rotindex].z,
-                                stillframe.Rotations[rotindex].w);
+                q = new Quaternion((float)stillframe.Rotations[rotindex].x,
+                                (float)stillframe.Rotations[rotindex].y,
+                                (float)stillframe.Rotations[rotindex].z,
+                                (float)stillframe.Rotations[rotindex].w);
             }
 
             return q;
@@ -279,10 +284,10 @@ namespace MVCore.Utils
                 rotIndex = node.RotIndex - frame.Rotations.Count;
             }
 
-            q.X = activeFrame.Rotations[rotIndex].x;
-            q.Y = activeFrame.Rotations[rotIndex].y;
-            q.Z = activeFrame.Rotations[rotIndex].z;
-            q.W = activeFrame.Rotations[rotIndex].w;
+            q.X = (float) activeFrame.Rotations[rotIndex].x;
+            q.Y = (float) activeFrame.Rotations[rotIndex].y;
+            q.Z = (float) activeFrame.Rotations[rotIndex].z;
+            q.W = (float) activeFrame.Rotations[rotIndex].w;
 
         }
 

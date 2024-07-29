@@ -91,7 +91,6 @@ namespace MVCore.GMDL
                 Climbable = pc._template.Climbable,
                 TriggerVolume = pc._template.TriggerVolume,
                 SurfaceProperties = pc._template.SurfaceProperties,
-                RagdollData = pc._template.RagdollData
             };
             data = new PhysicsData(pc.data);
         }

@@ -92,9 +92,16 @@ namespace WPFModelViewer
             };
 
             Host.Start(settings);
-            
+
             //Generate CGLControl
             glControl = new CGLControl(Host);
+            
+
+            //Load Settings
+            //OVERRIDE SETTINGS
+            //FileUtils.dirpath = "I:\\SteamLibrary1\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
+
+            SettingsForm.loadSettingsStatic();
 
             //Improve performance on Treeview
             SceneTreeView.SetValue(VirtualizingStackPanel.IsVirtualizingProperty, true);
@@ -328,12 +335,8 @@ namespace WPFModelViewer
         //Do stuff once the GUI is ready
         private void MainWindow_OnLoaded(object sender, RoutedEventArgs e)
         {
-            //OVERRIDE SETTINGS
-            //FileUtils.dirpath = "I:\\SteamLibrary1\\steamapps\\common\\No Man's Sky\\GAMEDATA\\PCBANKS";
-
-            //Load Settings
-            SettingsForm.loadSettingsStatic();
-
+            
+            
             //Bind default camera to the controls
             CameraOptionsView.Content = RenderState.activeCam.settings;
 

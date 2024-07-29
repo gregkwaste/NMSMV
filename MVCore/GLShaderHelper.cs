@@ -559,6 +559,10 @@ namespace GLSLHelper {
             GL.AttachShader(config.program_id, config.vs_text.shader_object_id);
             GL.AttachShader(config.program_id, config.fs_text.shader_object_id);
 
+#if DEBUG
+            CallBacks.Log("Compiling: ", config.program_id.ToString(), "VX", config.vs_text.shader_object_id, "FX", config.fs_text.shader_object_id);
+#endif
+
             if (gsflag)
                 GL.AttachShader(config.program_id, config.gs_text.shader_object_id);
             

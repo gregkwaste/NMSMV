@@ -184,6 +184,8 @@ namespace MVCore.GMDL
         public List<int[]> bIndices = new List<int[]>();
         public List<float[]> bWeights = new List<float[]>();
         public List<bufInfo> bufInfo = new List<GMDL.bufInfo>();
+        public List<string> procGenNames = new List<string>();
+        public List<int> procGenIDs = new List<int>();
         public int[] offsets; //List to save strides according to meshdescr
         public int[] small_offsets; //Same thing for the small description
         public short[] boneRemap;
@@ -586,7 +588,7 @@ namespace MVCore.GMDL
 
         public Sampler()
         {
-            Map = new libMBIN.NMS.NMSString0x80("");
+            Map = new libMBIN.NMS.VariableSizeString("");
         }
 
         public Sampler(TkMaterialSampler ms)

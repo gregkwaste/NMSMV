@@ -337,7 +337,7 @@ namespace MVCore.GMDL
             GL.BindVertexArray(vao.vao_id);
             GL.DrawElementsInstanced(PrimitiveType.Triangles, 
                 metaData.batchcount, metaData.indicesLength, IntPtr.Zero, instance_count);
-            GL.BindVertexArray(0);
+            //GL.BindVertexArray(0);
         }
 
         private void renderLight()
@@ -346,7 +346,7 @@ namespace MVCore.GMDL
             GL.PointSize(5.0f);
             GL.DrawArraysInstanced(PrimitiveType.Lines, 0, 2, instance_count);
             GL.DrawArraysInstanced(PrimitiveType.Points, 0, 2, instance_count); //Draw both points
-            GL.BindVertexArray(0);
+            //GL.BindVertexArray(0);
         }
 
         private void renderCollision()
@@ -377,7 +377,7 @@ namespace MVCore.GMDL
                     break;
             }
 
-            GL.BindVertexArray(0);
+            //GL.BindVertexArray(0);
         }
 
         private void renderLocator()
@@ -385,7 +385,7 @@ namespace MVCore.GMDL
             GL.BindVertexArray(vao.vao_id);
             GL.DrawElementsInstanced(PrimitiveType.Lines, 6, 
                 metaData.indicesLength, IntPtr.Zero, instance_count); //Use Instancing
-            GL.BindVertexArray(0);
+            //GL.BindVertexArray(0);
         }
 
         private void renderJoint()
@@ -394,7 +394,7 @@ namespace MVCore.GMDL
             GL.PointSize(5.0f);
             GL.DrawArrays(PrimitiveType.Lines, 0, metaData.batchcount);
             GL.DrawArrays(PrimitiveType.Points, 0, 1); //Draw only yourself
-            GL.BindVertexArray(0);
+            //GL.BindVertexArray(0);
         }
 
         public virtual void renderMain(GLSLShaderConfig shader)

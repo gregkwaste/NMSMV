@@ -28,7 +28,9 @@ namespace MVCore.GMDL
         //public TkSceneNodeData nms_template;
         public GLMeshVao meshVao;
         public int instanceId = -1;
-
+        public string procGenName = "";
+        public int procGenId = -1;
+            
         //Transformation Parameters
         public Vector3 worldPosition;
         public Matrix4 worldMat;
@@ -411,6 +413,8 @@ namespace MVCore.GMDL
             selected = 0;
             ID = -1;
             name = "";
+            procGenName = "";
+            procGenId = -1;
             procFlag = false;    //This is used to define procgen usage
 
             //Transformation Parameters

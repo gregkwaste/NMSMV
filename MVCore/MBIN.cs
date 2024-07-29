@@ -68,7 +68,9 @@ namespace MVCore
 
     public static class GEOMMBIN {
 
-        public static GeomObject Parse(ref Stream fs, ref Stream gfs)
+
+
+        public static GeomObject Parse_v4(ref Stream fs, ref Stream gfs)
         {
 #if DEBUG
             FileStream testfs = new FileStream("test.geom", FileMode.Create);
@@ -76,6 +78,7 @@ namespace MVCore
             fs.Read(fs_data, 0, (int) fs.Length);
             testfs.Write(fs_data, 0, (int) fs.Length);
             testfs.Close();
+            //Test libmbin
 #endif
             BinaryReader br = new BinaryReader(fs);
             Common.CallBacks.Log("Parsing Geometry MBIN");
@@ -311,7 +314,7 @@ namespace MVCore
                 //var buf_test3 = br.ReadInt32();
                 //var buf_test4 = br.ReadInt32();
                 
-                geom.bufInfo[buf_id]= get_bufInfo_item(buf_id, buf_localoffset, buf_elem_count, buf_type);
+                geom.bufInfo[buf_id]= get_bufInfo_item(buf_id, buf_localoffset, 0, buf_elem_count, buf_type);
                 mesh_offsets[buf_id] = buf_localoffset;
                 fs.Seek(0x10, SeekOrigin.Current);
             }
@@ -377,17 +380,356 @@ namespace MVCore
 
         }
 
+        public static GeomObject Parse(ref Stream fs, ref Stream gfs)
+        {
+#if DEBUG
+            FileStream testfs = new FileStream("test.geom", FileMode.Create);
+            byte[] fs_data = new byte[fs.Length];
+            fs.Read(fs_data, 0, (int)fs.Length);
+            testfs.Write(fs_data, 0, (int)fs.Length);
+            testfs.Close();
+            //Test libmbin
+#endif
+            BinaryReader br = new BinaryReader(fs);
+            Common.CallBacks.Log("Parsing Geometry MBIN");
 
-        private static bufInfo get_bufInfo_item(int buf_id, int offset, int count, int buf_type)
+            fs.Seek(NMSUtils.GetFieldOffset("TkGeometryData", "SmallVertexLayout"), SeekOrigin.Begin);
+            
+            //Parse Small Vertex Layout Info
+            var small_mesh_descr_offset = fs.Position + br.ReadInt64();
+            var small_bufcount = br.ReadInt32();
+            fs.Seek(0x4, SeekOrigin.Current); //Skipping a 1
+            fs.Seek(0x8, SeekOrigin.Current); //Skip platform data
+            br.ReadInt32(); //Skip second buf count
+            var small_vx_type = br.ReadInt32();
+            Common.CallBacks.Log("Small Buffer Count: {0} VxType {1}", small_bufcount, small_vx_type);
+
+            //Parse main vertex layout Info
+            fs.Seek(NMSUtils.GetFieldOffset("TkGeometryData", "VertexLayout"), SeekOrigin.Begin);
+            var mesh_descr_offset = fs.Position + br.ReadInt64();
+            var buf_count = br.ReadInt32();
+            fs.Seek(0x4, SeekOrigin.Current); //Skipping a 1
+            fs.Seek(0x8, SeekOrigin.Current); //Skip platform data
+            var lod_count = br.ReadInt32(); //TODO: Not sure about that
+            var vx_type = br.ReadInt32();
+            Common.CallBacks.Log("Buffer Count: {0} VxType {1}", lod_count, vx_type);
+
+            //Bound Hull Vert end
+            var boundhull_vertend_offset = fs.Position + br.ReadInt32();
+            fs.Seek(0xC, SeekOrigin.Current);
+
+            //Bound Hull Verts
+            var bhulloffset = fs.Position + br.ReadInt64();
+            var bhull_count = br.ReadInt32();
+            fs.Seek(0x4, SeekOrigin.Current);
+
+            //Bound Hull Vert start
+            var boundhull_vertstart_offset = fs.Position + br.ReadInt32();
+            fs.Seek(0xC, SeekOrigin.Current);
+
+            //Indices
+            var indices_offset = fs.Position + br.ReadInt64();
+            fs.Seek(0x8, SeekOrigin.Current); //Skip Section Sizes and a 1
+
+            //Joint Bindings
+            var jointbindingOffset = fs.Position + br.ReadInt64();
+            var jointCount = br.ReadInt32();
+            fs.Seek(0x4, SeekOrigin.Current);
+            //Joint Extensions
+            //Joint Mirror Pairs
+            fs.Seek(3 * 0x10, SeekOrigin.Current);
+
+            //BoundBoxes
+            var bboxmaxoffset = fs.Position + br.ReadInt64();
+            fs.Seek(0x8, SeekOrigin.Current);
+            var bboxminoffset = fs.Position + br.ReadInt64();
+            fs.Seek(0x8, SeekOrigin.Current);
+
+            //Usefull Bone Remapping information
+            var skinmatoffset = fs.Position + br.ReadInt64();
+            var bc = br.ReadInt32();
+            fs.Seek(0x4, SeekOrigin.Current);
+
+            //VertEnds
+            fs.Seek(0x10, SeekOrigin.Current);
+
+            //Vertstarts
+            var vsoffset = fs.Position + br.ReadInt64();
+            var partcount = br.ReadInt32();
+            fs.Seek(0x4, SeekOrigin.Current);
+
+            //ProcGenNodeNames
+            var pg_node_name_offset = fs.Position + br.ReadInt64();
+            var pg_node_name_count = br.ReadInt32();
+            fs.Seek(0x4, SeekOrigin.Current);
+
+            //ProcGenParentIds
+            var pg_node_parentId_offset = fs.Position + br.ReadInt64();
+            var pg_node_id_count = br.ReadInt32();
+            fs.Seek(0x4, SeekOrigin.Current);
+
+            //MatrixLayouts
+            fs.Seek(0x10, SeekOrigin.Current);
+
+            var meshMetaData_offset = fs.Position + br.ReadInt64();
+            var meshMetaData_counter = br.ReadInt32();
+            fs.Seek(0x4, SeekOrigin.Current); //Skip Section Sizes and a 1
+
+            var collision_index_count = br.ReadInt32();
+            var indices_num = br.ReadInt32();
+            var indices_flag = br.ReadInt32();
+            var vert_num = br.ReadInt32();
+            
+            //-------OLD------//
+
+            Common.CallBacks.Log("Model Vertices: {0}", vert_num);
+            Common.CallBacks.Log("Model Indices: {0}", indices_num);
+            Common.CallBacks.Log("Indices Flag: {0}", indices_flag);
+            Common.CallBacks.Log("Collision Index Count: {0}", collision_index_count);
+
+            
+            //fs.Seek(0x10, SeekOrigin.Current);
+
+            //Initialize geometry object
+            var geom = new GeomObject();
+
+            //Store Counts
+            geom.indicesCount = indices_num;
+            if (indices_flag == 0x1)
+            {
+                geom.indicesLength = 0x2;
+                geom.indicesLengthType = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedShort;
+            }
+            else
+            {
+                geom.indicesLength = 0x4;
+                geom.indicesLengthType = OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedInt;
+            }
+
+            geom.vertCount = vert_num;
+            geom.vx_size = vx_type;
+            geom.small_vx_size = small_vx_type;
+
+            //Get Bone Remapping Information
+            //I'm 99% sure that boneRemap is not a case in NEXT models
+            //it is still there though...
+            fs.Seek(skinmatoffset, SeekOrigin.Begin);
+            geom.boneRemap = new short[bc];
+            for (int i = 0; i < bc; i++)
+                geom.boneRemap[i] = (short)br.ReadInt32();
+
+            //Store Joint Data
+            fs.Seek(jointbindingOffset, SeekOrigin.Begin);
+            geom.jointCount = jointCount;
+            geom.invBMats = new float[jointCount * 16];
+            for (int i = 0; i < jointCount; i++)
+            {
+                JointBindingData jdata = new JointBindingData();
+                jdata.Load(fs);
+                //Copy Matrix
+                Array.Copy(jdata.convertMat(), 0, geom.invBMats, 16 * i, 16);
+                //Store the struct
+                geom.jointData.Add(jdata);
+            }
+
+            //Get Vertex Starts
+            //I'm fetching that just for getting the object id within the geometry file
+            fs.Seek(vsoffset, SeekOrigin.Begin);
+            for (int i = 0; i < partcount; i++)
+                geom.vstarts.Add(br.ReadInt32());
+
+            //Get BBoxes
+            //Init first
+            for (int i = 0; i < partcount; i++)
+            {
+                Vector3[] bb = new Vector3[2];
+                geom.bboxes.Add(bb);
+            }
+
+            fs.Seek(bboxminoffset, SeekOrigin.Begin);
+            for (int i = 0; i < partcount; i++)
+            {
+                geom.bboxes[i][0] = new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
+                br.ReadBytes(4);
+            }
+
+            fs.Seek(bboxmaxoffset, SeekOrigin.Begin);
+            for (int i = 0; i < partcount; i++)
+            {
+                geom.bboxes[i][1] = new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
+                br.ReadBytes(4);
+            }
+
+            //Get BoundHullStarts
+            fs.Seek(boundhull_vertstart_offset, SeekOrigin.Begin);
+            for (int i = 0; i < partcount; i++)
+            {
+                geom.bhullstarts.Add(br.ReadInt32());
+            }
+
+            //Get BoundHullEnds
+            fs.Seek(boundhull_vertend_offset, SeekOrigin.Begin);
+            for (int i = 0; i < partcount; i++)
+            {
+                geom.bhullends.Add(br.ReadInt32());
+            }
+
+            //Get ProcGen Names
+            for (int i = 0; i < pg_node_name_count; i++)
+            {
+                fs.Seek(pg_node_name_offset + 0x10 * i, SeekOrigin.Begin);
+                var name_offset = fs.Position + br.ReadInt64();
+                var name_length = br.ReadInt32();
+                fs.Seek(0x4, SeekOrigin.Current);
+
+                //Fetch name
+                fs.Seek(name_offset, SeekOrigin.Begin);
+                geom.procGenNames.Add(StringUtils.read_string(br,0x80));
+            }
+
+            //Get ProcGen IDs
+            fs.Seek(pg_node_parentId_offset, SeekOrigin.Begin);
+
+            for (int i = 0; i < pg_node_id_count; i++)
+            {
+                geom.procGenIDs.Add(br.ReadInt32());
+            }
+
+            //TODO : Recheck and fix that shit
+            fs.Seek(bhulloffset, SeekOrigin.Begin);
+            for (int i = 0; i < bhull_count; i++)
+            {
+                geom.bhullverts.Add(new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle()));
+                br.ReadBytes(4);
+            }
+
+            //Get indices buffer
+            fs.Seek(indices_offset, SeekOrigin.Begin);
+            geom.ibuffer = new byte[indices_num * geom.indicesLength];
+            fs.Read(geom.ibuffer, 0, indices_num * geom.indicesLength);
+
+            //Get MeshMetaData
+            for (int i = 0; i < meshMetaData_counter; i++)
+            {
+                fs.Seek(meshMetaData_offset + 0x30 * i, SeekOrigin.Begin);
+
+                geomMeshMetaData mmd = new geomMeshMetaData();
+                var name_offset = fs.Position + br.ReadInt64();
+                fs.Seek(0x8, SeekOrigin.Current);
+                mmd.hash = br.ReadUInt64();
+                mmd.is_abs_offset = br.ReadUInt32();
+                mmd.is_size = br.ReadUInt32();
+                mmd.vs_abs_offset = br.ReadUInt32();
+                mmd.vs_size = br.ReadUInt32();
+                mmd.double_buffering = br.ReadBoolean();
+
+                //Get Name
+                fs.Seek(name_offset, SeekOrigin.Begin);
+                mmd.name = StringUtils.read_string(br, 0x80);
+
+
+                if (!geom.meshMetaDataDict.ContainsKey(mmd.hash))
+                    geom.meshMetaDataDict[mmd.hash] = mmd;
+                Common.CallBacks.Log(mmd.name);
+            }
+
+            //Get main mesh description
+            fs.Seek(mesh_descr_offset, SeekOrigin.Begin);
+            var mesh_desc = "";
+            //int[] mesh_offsets = new int[buf_count];
+            //Set size excplicitly to 7
+            int[] mesh_offsets = new int[7];
+            geom.bufInfo = new List<bufInfo>();
+            //Set all offsets to -1
+            for (int i = 0; i < 7; i++)
+            {
+                mesh_offsets[i] = -1;
+                geom.bufInfo.Add(null);
+            }
+
+            for (int i = 0; i < buf_count; i++)
+            {
+                var buf_platform_data = br.ReadInt64();
+                var buf_instancing_type = br.ReadInt32(); //Per Model or per vertex not sure how to use that
+                var buf_normalize = br.ReadInt32();
+                var buf_localoffset = br.ReadInt32();
+                var buf_id = br.ReadInt32();
+                var buf_elem_count = br.ReadInt32();
+                var buf_type = br.ReadInt32();
+                
+                geom.bufInfo[buf_id] = get_bufInfo_item(buf_id, buf_localoffset, buf_normalize, buf_elem_count, buf_type);
+                mesh_offsets[buf_id] = buf_localoffset;
+            }
+
+            //Get Descr
+            mesh_desc = getDescr(ref mesh_offsets, buf_count);
+            Common.CallBacks.Log("Mesh Description: " + mesh_desc);
+
+            //Store description
+            geom.mesh_descr = mesh_desc;
+            geom.offsets = mesh_offsets;
+            //Get small description
+            fs.Seek(small_mesh_descr_offset, SeekOrigin.Begin);
+            var small_mesh_desc = "";
+            //int[] mesh_offsets = new int[buf_count];
+            //Set size excplicitly to 7
+            int[] small_mesh_offsets = new int[7];
+            //Set all offsets to -1
+            for (int i = 0; i < 7; i++)
+                small_mesh_offsets[i] = -1;
+
+            for (int i = 0; i < small_bufcount; i++)
+            {
+                var buf_id = br.ReadInt32();
+                var buf_elem_count = br.ReadInt32();
+                var buf_type = br.ReadInt32();
+                var buf_localoffset = br.ReadInt32();
+                small_mesh_offsets[buf_id] = buf_localoffset;
+                fs.Seek(0x10, SeekOrigin.Current);
+            }
+
+            //Get Small Descr
+            small_mesh_desc = getDescr(ref small_mesh_offsets, small_bufcount);
+            Common.CallBacks.Log("Small Mesh Description: " + small_mesh_desc);
+
+            //Store description
+            geom.small_mesh_descr = small_mesh_desc;
+            geom.small_offsets = small_mesh_offsets;
+            //Set geom interleaved
+            geom.interleaved = true;
+
+
+            //Load streams from the geometry stream file
+
+            foreach (KeyValuePair<ulong, geomMeshMetaData> pair in geom.meshMetaDataDict)
+            {
+                geomMeshMetaData mmd = pair.Value;
+                geomMeshData md = new geomMeshData();
+                md.vs_buffer = new byte[mmd.vs_size];
+                md.is_buffer = new byte[mmd.is_size];
+
+                //Fetch Buffers
+                gfs.Seek((int)mmd.vs_abs_offset, SeekOrigin.Begin);
+                gfs.Read(md.vs_buffer, 0, (int)mmd.vs_size);
+
+                gfs.Seek((int)mmd.is_abs_offset, SeekOrigin.Begin);
+                gfs.Read(md.is_buffer, 0, (int)mmd.is_size);
+
+                geom.meshDataDict[mmd.hash] = md;
+            }
+
+            return geom;
+
+        }
+
+
+        private static bufInfo get_bufInfo_item(int buf_id, int offset, int normalize, int count, int buf_type)
         {
             int sem = buf_id;
             int off = offset;
             OpenTK.Graphics.OpenGL4.VertexAttribPointerType typ = get_type(buf_type);
             string text = get_shader_sem(buf_id);
-            bool normalize = false;
-            if (text == "bPosition")
-                normalize = true;
-            return new bufInfo(sem, typ, count, 0, off, text, normalize);
+            return new bufInfo(sem, typ, count, 0, off, text, normalize > 0);
         }
 
 
@@ -595,7 +937,7 @@ namespace MVCore
             if (elem == null)
                 return "";
             else
-                return ((NMSString0x100) elem.GetType().GetField("Value").GetValue(elem)).Value;
+                return ((VariableSizeString) elem.GetType().GetField("Value").GetValue(elem)).Value;
         }
 
 

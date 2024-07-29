@@ -63,7 +63,6 @@ namespace Model_Viewer
 
         //Rendering Thread
         private bool rendering_thread_initialized = false;
-
         //Main Work Thread
         private Thread work_thread;
 
@@ -90,10 +89,28 @@ namespace Model_Viewer
             _control.Loaded += new RoutedEventHandler(genericLoad);
             _control.SizeChanged += new SizeChangedEventHandler(OnResize);
             
-            //Resize += new System.EventHandler(OnResize); 
-            
             _control.Render += new((TimeSpan time) =>
             {
+                if (!rendering_thread_initialized)
+                {
+                    engine.init();
+                    engine.renderMgr.screen_fbo = _control.Framebuffer;
+                    rendering_thread_initialized = true;
+
+                    //Set Camera Settings
+                    MVCore.GMDL.Camera.SetCameraSettings(ref RenderState.activeCam, RenderState.camSettings.settings);
+                    MVCore.GMDL.Camera.SetCameraPosition(ref RenderState.activeCam,
+                        new OpenTK.Mathematics.Vector3(RenderState.camSettings.PosX, 
+                        RenderState.camSettings.PosY, 
+                        RenderState.camSettings.PosZ));
+                    RenderState.activeCam.yaw = RenderState.camSettings.Yaw;
+                    RenderState.activeCam.pitch = RenderState.camSettings.Pitch;
+
+                    rendering_thread_initialized = true;
+                }
+
+                //GL.ClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+                //GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
                 RenderLocal(time.TotalSeconds);
             });
 
@@ -102,45 +119,39 @@ namespace Model_Viewer
             _control.MouseUp += new MouseButtonEventHandler(genericMouseUp);
             _control.KeyDown += new KeyEventHandler(generic_KeyDown);
             _control.KeyUp += new KeyEventHandler(generic_KeyUp);
+
+            //Register handlers after the engine has been initialized
+            _control.MouseLeave += new((object sender, MouseEventArgs args) =>
+            {
+                _capture_input = false;
+            });
+
+            _control.MouseEnter += new((object sender, MouseEventArgs args) =>
+            {
+                _capture_input = true;
+                engine.kbHandler.Clear();
+                engine.msHandler.Clear();
+            });
         }
 
         //Default Constructor
         public CGLControl(GLWpfControl baseControl)
         {
             _control = baseControl;
-            registerFunctions();
             
             //Default Setup
             RenderState.rotAngles.Y = 0;
             
             //Generate Engine instance
             engine = new Engine();
+            
+            registerFunctions();
+
+            
         }
 
         private void RenderLocal(double dt)
         {
-            if (!rendering_thread_initialized)
-            {
-                //Setup new Context
-                CallBacks.Log("Intializing Rendering Thread");
-                engine.init();
-                engine.renderMgr.screen_fbo = _control.Framebuffer;
-                rendering_thread_initialized = true;
-
-                //Register handlers after the rendering thread has been initialized
-                _control.MouseLeave += new((object sender, MouseEventArgs args) =>
-                {
-                    _capture_input = false;
-                });
-
-                _control.MouseEnter += new((object sender, MouseEventArgs args) =>
-                {
-                    _capture_input = true;
-                    engine.kbHandler.Clear();
-                    engine.msHandler.Clear();
-                });
-            }
-
             if (engine.rt_State != EngineRenderingState.EXIT)
             {
                 engine.handleRequests();
@@ -151,12 +162,14 @@ namespace Model_Viewer
                         processInput(dt);
                     frameUpdate();
                     engine.renderMgr.render(); //Render Everything
+
+                    GL.ClearColor(1.0f, 1.0f, 1.0f, 1.0f);
                 }
             }
 
-            //GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             //GL.ClearColor(1.0f, 0.0f, 0.0f, 1.0f);
-
+            //GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            
 
         }
 
@@ -198,7 +211,6 @@ namespace Model_Viewer
         {
 
             InitializeComponent();
-            //MakeCurrent();
         }
 
         private void genericMouseMove(object sender, MouseEventArgs e)
@@ -394,10 +406,11 @@ namespace Model_Viewer
 
         private void OnResize(object sender, SizeChangedEventArgs e)
         {
+            engine.renderMgr.resize((int)e.NewSize.Width, (int)e.NewSize.Height);
 #if DEBUG
-            CallBacks.Log($"RESIZING VIEWPORT {e.NewSize.Width} {e.NewSize.Height} RENDERSIZE {_control.RenderSize.Width} {_control.RenderSize.Height} FRAMEBUFFERSIZE {_control.FrameBufferWidth}  {_control.FrameBufferHeight}");            
+            CallBacks.Log($"RESIZING VIEWPORT {e.NewSize.Width} {e.NewSize.Height} RENDERSIZE {_control.RenderSize.Width} {_control.RenderSize.Height} FRAMEBUFFERSIZE {_control.FrameBufferWidth}  {_control.FrameBufferHeight}");
+            CallBacks.Log($"Control Size {_control.Width}  {_control.Height}");
 #endif
-            engine.renderMgr.resize(_control.FrameBufferWidth, _control.FrameBufferHeight);
         }
 
         private void InitializeComponent()

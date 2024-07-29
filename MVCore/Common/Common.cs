@@ -48,6 +48,9 @@ namespace MVCore.Common
 
         //App Settings
         public static AppSettings settings = new AppSettings();
+
+        //CameraSettings
+        public static CameraJSONSettings camSettings = new CameraJSONSettings();
         
         //Keep the main camera global
         public static Camera activeCam;
