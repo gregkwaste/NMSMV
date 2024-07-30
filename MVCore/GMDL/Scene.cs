@@ -22,7 +22,7 @@ namespace MVCore.GMDL
             type = TYPES.MODEL;
             texMgr = new textureManager();
             //Init Animation Stuff
-            skinMats = new float[512 * 16];
+            skinMats = new float[1024 * 16];
             jointDict = new();
             nodeDict = new();
         }

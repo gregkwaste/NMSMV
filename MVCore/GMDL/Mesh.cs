@@ -612,7 +612,6 @@ namespace MVCore.GMDL
             GL.BindBuffer(BufferTarget.TextureBuffer, instanceBoneMatricesTexTBO);
             int bufferSize = instance_count * 128 * 16 * 4;
             GL.BufferSubData(BufferTarget.TextureBuffer, IntPtr.Zero, bufferSize, instanceBoneMatrices);
-            //Common.CallBacks.Log(GL.GetError());
             GL.BindBuffer(BufferTarget.TextureBuffer, 0);
         }
 

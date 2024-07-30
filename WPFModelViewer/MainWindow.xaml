@@ -91,24 +91,34 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Height="20">
                                 <TextBlock Text="Name"></TextBlock >
                                 <TextBlock HorizontalAlignment="Right" Text="{Binding Name}"></TextBlock>
                             </DockPanel>
                             <DockPanel Grid.Row="1" HorizontalAlignment="Stretch" Height="20">
+                                <TextBlock Text="ProcGenName"></TextBlock >
+                                <TextBlock HorizontalAlignment="Right" Text="{Binding procGenName}"></TextBlock>
+                            </DockPanel>
+                            <DockPanel Grid.Row="2" HorizontalAlignment="Stretch" Height="20">
+                                <TextBlock Text="ProcGenParentId"></TextBlock >
+                                <TextBlock HorizontalAlignment="Right" Text="{Binding ProcGenId}"></TextBlock>
+                            </DockPanel>
+                            <DockPanel Grid.Row="3" HorizontalAlignment="Stretch" Height="20">
                                 <TextBlock Text="Type"></TextBlock>
                                 <TextBlock HorizontalAlignment="Right"  Text="{Binding Type}"></TextBlock>
                             </DockPanel>
-                            <DockPanel Grid.Row="2" HorizontalAlignment="Stretch" Height="20">
+                            <DockPanel Grid.Row="4" HorizontalAlignment="Stretch" Height="20">
                                 <TextBlock Text="LOD Number"></TextBlock>
                                 <TextBlock HorizontalAlignment="Right"  Text="{Binding LODNumber}"></TextBlock>
                             </DockPanel>
-                            <DockPanel Grid.Row="3" HorizontalAlignment="Stretch" Height="60">
+                            <DockPanel Grid.Row="5" HorizontalAlignment="Stretch" Height="60">
                                 <TextBlock Text="LOD Distances"></TextBlock>
                                 <ListBox ItemsSource="{Binding LODDistances}" HorizontalContentAlignment="Left"></ListBox>
                             </DockPanel>
-                            <local:ModelTransform Grid.Row="4" Model="{Binding}"/>
+                            <local:ModelTransform Grid.Row="6" Model="{Binding}"/>
                         </Grid>
                     </GroupBox>
                     <GroupBox Grid.Row="1" Header="Components">
@@ -486,7 +496,12 @@
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:Joint}">
-                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}" Grid.Row="0"/>
+                <Expander>
+                    <Expander.Header>
+                        <TextBlock Text="JointData"/>
+                    </Expander.Header>
+                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}" Grid.Row="0"/>
+                </Expander>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:Collision}">

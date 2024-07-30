@@ -189,6 +189,7 @@ namespace MVCore.GMDL
         public int[] offsets; //List to save strides according to meshdescr
         public int[] small_offsets; //Same thing for the small description
         public short[] boneRemap;
+        public short[] meshBaseSkinMat;
         public List<Vector3[]> bboxes = new List<Vector3[]>();
         public List<Vector3> bhullverts = new List<Vector3>();
         public List<int> bhullstarts = new List<int>();

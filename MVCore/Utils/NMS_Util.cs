@@ -13,11 +13,24 @@ using Newtonsoft.Json;
 using Path = System.IO.Path;
 using MVCore.Common;
 using System.Windows;
+using libPSARC.PSARC;
+using MVCore.GMDL;
 
 namespace MVCore.Utils
 {
     public static class NMSUtils
     {
+        private static SortedDictionary<string, Archive> NMSArchiveMap = new SortedDictionary<string, Archive>();
+
+        public static void DisposeArchives()
+        {
+            foreach (Archive archive in NMSArchiveMap.Values)
+            {
+                archive.Dispose();
+            }
+            NMSArchiveMap.Clear();
+        }
+
         public static int GetFieldOffset(string className, string fieldName)
         {
             return 0x20 + NMSTemplate.OffsetOf(className, fieldName);
@@ -111,17 +124,16 @@ namespace MVCore.Utils
                     break;
                 case 2: //Load File from Archive
                     {
-                        CallBacks.Log("Trying to export File" + effective_filepath);
+                        CallBacks.Log("Trying to export File from PAK" + effective_filepath);
                         if (resMgr.NMSFileToArchiveMap.ContainsKey(effective_filepath))
                         {
-                            CallBacks.Log("File was found in archives. File Index: " + resMgr.NMSFileToArchiveMap[effective_filepath].GetFileIndex(effective_filepath));
+                            CallBacks.Log("File was found in archives. File Index: " + resMgr.NMSFileToArchiveMap[effective_filepath]);
                         }
 
-                        int fileIndex = resMgr.NMSFileToArchiveMap[effective_filepath].GetFileIndex(effective_filepath);
-                        result = resMgr.NMSFileToArchiveMap[effective_filepath].ExtractFile(fileIndex);
+                        Archive arc = loadNMSArchive(resMgr.NMSFileToArchiveMap[effective_filepath]);
+                        result = arc.ExtractFile(effective_filepath);
                         break;
                     }
-                    
             }
 
 #if DEBUG
@@ -195,7 +207,8 @@ namespace MVCore.Utils
                         }
                     case 2: //Load File from Archive
                         {
-                            Stream file = resMgr.NMSFileToArchiveMap[effective_filepath].ExtractFile(effective_filepath);
+                            Archive arc = loadNMSArchive(resMgr.NMSFileToArchiveMap[effective_filepath]);
+                            Stream file = arc.ExtractFile(effective_filepath);
                             MBINFile mbinf = new MBINFile(file);
                             mbinf.Load();
                             template = mbinf.GetData();
@@ -401,7 +414,82 @@ namespace MVCore.Utils
         }
 
 
+        public static void SelectProcGenParts(Model node, ref List<string> partList)
+        {
+            //Identify procgen children
+            HashSet<string> avail_selections = new();
+
+            foreach (Model c in node.Children)
+            {
+                if (c.Name.StartsWith('_'))
+                    avail_selections.Add(c.Name.Split('_')[1]);
+            }
+
+            //Process Parts
+            foreach (string sel in avail_selections)
+            {
+                List<Model> avail_parts = new();
+                foreach (Model c in node.Children)
+                {
+                    if (c.Name.StartsWith('_' + sel + '_'))
+                        avail_parts.Add(c);
+                }
+
+                if (avail_parts.Count == 0)
+                    continue;
+
+                //Shuffle list of parts
+                avail_parts = avail_parts.OrderBy(x => RenderState.randgen.Next()).ToList();
+
+                //Select the first one
+                avail_parts[0].IsRenderable = true;
+                partList.Add(avail_parts[0].Name);
+
+                for (int i = 1; i < avail_parts.Count; i++)
+                    avail_parts[i].IsRenderable = false;
+
+                SelectProcGenParts(avail_parts[0], ref partList);
+            }
+
+            //Iterate in non procgen children
+            foreach (Model child in node.Children)
+                if (!child.Name.StartsWith('_'))
+                    SelectProcGenParts(child, ref partList);
+        }
+
+        public static void ProcGen()
+        {
+            CallBacks.Log("ProcGen Func");
+            
+            List<string> selected_procParts = new();
+
+            //Make Selection
+            SelectProcGenParts(RenderState.rootObject, ref selected_procParts);
+
+            string partIds = "";
+            for (int i = 0; i < selected_procParts.Count; i++)
+                partIds += selected_procParts[i] + ' ';
+            selected_procParts.Clear();
+
+            CallBacks.Log("Proc Parts: {partIds}");
+        }
+
+
+
         //Load Game Archive Handles
+        public static Archive loadNMSArchive(string pakPath)
+        {
+            if (!NMSArchiveMap.ContainsKey(pakPath))
+            {
+                FileStream arc_stream = new FileStream(pakPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                Archive psarc = new Archive(arc_stream, true);
+                NMSArchiveMap[pakPath] = psarc;
+                CallBacks.Log("Loaded :" + pakPath);
+            }
+
+            return NMSArchiveMap[pakPath];
+        }
+
         
         public static void loadNMSArchives(string gameDir, ref ResourceManager resMgr, ref int status)
         {
@@ -417,7 +505,7 @@ namespace MVCore.Utils
             
             //Fetch .pak files
             string[] pak_files = Directory.GetFiles(gameDir);
-            resMgr.NMSArchiveMap.Clear();
+            DisposeArchives();
 
             CallBacks.updateStatus("Loading Vanilla NMS Archives...");
 
@@ -428,10 +516,7 @@ namespace MVCore.Utils
 
                 try
                 {
-                    FileStream arc_stream = new FileStream(pak_path, FileMode.Open);
-                    libPSARC.PSARC.Archive psarc = new libPSARC.PSARC.Archive(arc_stream, true);
-                    CallBacks.Log("Loaded :" + pak_path);
-                    resMgr.NMSArchiveMap[pak_path] = psarc;
+                    loadNMSArchive(pak_path);
                 }
                 catch (Exception ex)
                 {
@@ -448,16 +533,14 @@ namespace MVCore.Utils
                 foreach (string pak_path in pak_files)
                 {
                     if (pak_path.Contains("CUSTOMMODELS"))
-                        Common.CallBacks.Log(pak_path);
+                        CallBacks.Log(pak_path);
 
                     if (!pak_path.EndsWith(".pak"))
                         continue;
                     
                     try
                     {
-                        FileStream arc_stream = new FileStream(pak_path, FileMode.Open);
-                        libPSARC.PSARC.Archive psarc = new libPSARC.PSARC.Archive(arc_stream, true);
-                        resMgr.NMSArchiveMap[pak_path] = psarc;
+                        loadNMSArchive(pak_path);
                     }
                     catch (Exception ex)
                     {
@@ -468,22 +551,15 @@ namespace MVCore.Utils
                 }
             }
 
-            if (resMgr.NMSArchiveMap.Keys.Count == 0)
-            {
-                CallBacks.Log("No pak files found");
-                CallBacks.Log("Not creating/reading manifest file");
-                return;
-            }
-
             //Populate resource manager with the files
             CallBacks.updateStatus("Populating Resource Manager...");
-            foreach (string arc_path in resMgr.NMSArchiveMap.Keys.Reverse())
+            foreach (string arc_path in NMSArchiveMap.Keys.Reverse())
             {
-                libPSARC.PSARC.Archive arc = resMgr.NMSArchiveMap[arc_path];
+                Archive arc = NMSArchiveMap[arc_path];
 
                 foreach (string f in arc.filePaths)
                 {
-                    resMgr.NMSFileToArchiveMap[f] = resMgr.NMSArchiveMap[arc_path];
+                    resMgr.NMSFileToArchiveMap[f] = arc_path;
                 }
             }
 
@@ -565,15 +641,8 @@ namespace MVCore.Utils
             */
 
             status = 0; // All good
+            DisposeArchives();
             CallBacks.updateStatus("Ready");
-        }
-
-        public static void unloadNMSArchives(ResourceManager resMgr)
-        {
-            foreach (libPSARC.PSARC.Archive arc in resMgr.NMSArchiveMap.Values)
-            {
-                arc.Dispose();
-            }
         }
 
         public static string getGameInstallationDir()

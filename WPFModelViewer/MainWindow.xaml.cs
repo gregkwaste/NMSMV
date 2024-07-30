@@ -520,8 +520,7 @@ namespace WPFModelViewer
         
         private void ButtonBase_OnClick(object sender, RoutedEventArgs e)
         {
-            CallBacks.Log("Generating ProcGen Models");
-            MessageBox.Show(Util.activeWindow, "HOOOOOOOOLA");
+            NMSUtils.ProcGen();
         }
 
         private void RegenPose_Click(object sender, RoutedEventArgs e)

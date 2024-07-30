@@ -326,31 +326,6 @@ namespace MVCore.GMDL
 
         }
 
-        //TODO: Use this new definition for animation blending
-        //public void applyNodeTransform(model m, string node, out Quaternion q, out Vector3 p)
-        public void applyNodeTransform(Model m, string node)
-        {
-            //Fetch prevFrame stuff
-            Quaternion prev_q = animMeta.anim_rotations[node][prevFrameIndex];
-            Vector3 prev_p = animMeta.anim_positions[node][prevFrameIndex];
-            Vector3 prev_s = animMeta.anim_scales[node][prevFrameIndex];
-
-            //Fetch nextFrame stuff
-            Quaternion next_q = animMeta.anim_rotations[node][nextFrameIndex];
-            Vector3 next_p = animMeta.anim_positions[node][nextFrameIndex];
-            Vector3 next_s = animMeta.anim_scales[node][nextFrameIndex];
-
-            //Interpolate
-            Quaternion q = Quaternion.Slerp(next_q, prev_q, LERP_coeff);
-            Vector3 p = next_p * LERP_coeff + prev_p * (1.0f - LERP_coeff);
-            Vector3 s = next_s * LERP_coeff + prev_s * (1.0f - LERP_coeff);
-
-            //Convert transforms
-            m.localRotation = Matrix4.CreateFromQuaternion(q);
-            m.localPosition = p;
-            m.localScale = s;
-        }
-
         public void getCurrentTransform(ref Vector3 p, ref Vector3 s, ref Quaternion q, string node)
         {
             //Fetch prevFrame stuff
@@ -367,7 +342,7 @@ namespace MVCore.GMDL
             //Debug.WriteLine($"{node} : Trans: {next_p} Rot: {next_q} Scale: {next_s}");
 
             //Interpolate
-            q = Quaternion.Slerp(next_q, prev_q, LERP_coeff);
+            q = Quaternion.Slerp(prev_q, next_q, LERP_coeff);
             p = next_p * LERP_coeff + prev_p * (1.0f - LERP_coeff);
             s = next_s * LERP_coeff + prev_s * (1.0f - LERP_coeff);
 

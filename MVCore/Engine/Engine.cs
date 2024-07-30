@@ -404,6 +404,9 @@ namespace MVCore.Engine
             //Setup new object
             Model root = GEOMMBIN.LoadObjects(filename);
 
+            //Cleanup NMS related file resources
+            NMSUtils.DisposeArchives();
+
             //Explicitly add default light to the rootObject
             root.children.Add(resMgr.GLlights[0]);
 

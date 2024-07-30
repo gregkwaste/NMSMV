@@ -56,9 +56,8 @@ namespace MVCore
         public Dictionary<int, List<GLMeshVao>> decalMeshShaderMap = new Dictionary<int, List<GLMeshVao>>();
 
         //Global NMS File Archive handles
-        public Dictionary<string, libPSARC.PSARC.Archive> NMSFileToArchiveMap = new Dictionary<string, libPSARC.PSARC.Archive>();
-        public SortedDictionary<string, libPSARC.PSARC.Archive> NMSArchiveMap = new SortedDictionary<string, libPSARC.PSARC.Archive>();
-
+        public Dictionary<string, string> NMSFileToArchiveMap = new Dictionary<string, string>();
+        
         //public int[] shader_programs;
         //Extra manager
         public textureManager texMgr = new textureManager();
@@ -651,7 +650,7 @@ namespace MVCore
             GLDefaultShaderMap.Clear();
 
             //Cleanup archives
-            NMSUtils.unloadNMSArchives(this);
+            NMSUtils.DisposeArchives();
 
             //Cleanup Lights
             foreach (Light p in GLlights)

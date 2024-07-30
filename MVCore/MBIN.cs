@@ -18,6 +18,8 @@ using MVCore.Utils;
 using libMBIN.NMS.GameComponents;
 using libMBIN.NMS;
 using System.CodeDom;
+using MVCore.Common;
+using System.Xml.Linq;
 
 
 namespace MVCore
@@ -446,8 +448,8 @@ namespace MVCore
             fs.Seek(0x8, SeekOrigin.Current);
 
             //Usefull Bone Remapping information
-            var skinmatoffset = fs.Position + br.ReadInt64();
-            var bc = br.ReadInt32();
+            var meshbaseskinmat_offset = fs.Position + br.ReadInt64();
+            var mc = br.ReadInt32();
             fs.Seek(0x4, SeekOrigin.Current);
 
             //VertEnds
@@ -468,8 +470,11 @@ namespace MVCore
             var pg_node_id_count = br.ReadInt32();
             fs.Seek(0x4, SeekOrigin.Current);
 
-            //MatrixLayouts
-            fs.Seek(0x10, SeekOrigin.Current);
+
+            //SkinMatrixLayout
+            var skinmat_offset = fs.Position + br.ReadInt64();
+            var skinmat_count = br.ReadInt32();
+            fs.Seek(0x4, SeekOrigin.Current);
 
             var meshMetaData_offset = fs.Position + br.ReadInt64();
             var meshMetaData_counter = br.ReadInt32();
@@ -513,10 +518,16 @@ namespace MVCore
             //Get Bone Remapping Information
             //I'm 99% sure that boneRemap is not a case in NEXT models
             //it is still there though...
-            fs.Seek(skinmatoffset, SeekOrigin.Begin);
-            geom.boneRemap = new short[bc];
-            for (int i = 0; i < bc; i++)
+            fs.Seek(skinmat_offset, SeekOrigin.Begin);
+            geom.boneRemap = new short[skinmat_count];
+            for (int i = 0; i < skinmat_count; i++)
                 geom.boneRemap[i] = (short)br.ReadInt32();
+
+            //Mesh Base Skin Mats
+            fs.Seek(meshbaseskinmat_offset, SeekOrigin.Begin);
+            geom.meshBaseSkinMat = new short[mc];
+            for (int i = 0; i < mc; i++)
+                geom.meshBaseSkinMat[i] = (short)br.ReadInt32();
 
             //Store Joint Data
             fs.Seek(jointbindingOffset, SeekOrigin.Begin);
@@ -584,7 +595,9 @@ namespace MVCore
 
                 //Fetch name
                 fs.Seek(name_offset, SeekOrigin.Begin);
-                geom.procGenNames.Add(StringUtils.read_string(br,0x80));
+                string name = StringUtils.read_string(br, 0x80);
+                geom.procGenNames.Add(name);
+                CallBacks.Log("ProcGenName", i, name);
             }
 
             //Get ProcGen IDs
@@ -592,7 +605,9 @@ namespace MVCore
 
             for (int i = 0; i < pg_node_id_count; i++)
             {
-                geom.procGenIDs.Add(br.ReadInt32());
+                int id = br.ReadInt32();
+                geom.procGenIDs.Add(id);
+                CallBacks.Log("ProcGenParentID", geom.procGenNames[i], id >= 0 ? geom.procGenNames[id] : -1);
             }
 
             //TODO : Recheck and fix that shit
@@ -1008,8 +1023,8 @@ namespace MVCore
 
             for (int i = 0; i < attachment.Components.Count; i++)
             {
-                NMSTemplate comp = attachment.Components[i];
-                Type comp_type = comp.GetType();
+                LinkableNMSTemplate comp = attachment.Components[i];
+                Type comp_type = comp.Template.GetType();
                 
                 if (!SupportedComponents.ContainsKey(comp_type))
                 {
@@ -1020,19 +1035,19 @@ namespace MVCore
                 switch (SupportedComponents[comp_type])
                 {
                     case 0:
-                        ProcessAnimPoseComponent(node, comp as TkAnimPoseComponentData);
+                        ProcessAnimPoseComponent(node, comp.Template as TkAnimPoseComponentData);
                         break;
                     case 1:
-                        ProcessAnimationComponent(node, comp as TkAnimationComponentData, scene_name);
+                        ProcessAnimationComponent(node, comp.Template as TkAnimationComponentData, scene_name);
                         break;
                     case 2:
-                        ProcessLODComponent(node, comp as TkLODComponentData);
+                        ProcessLODComponent(node, comp.Template as TkLODComponentData);
                         break;
                     case 3:
-                        ProcessPhysicsComponent(node, comp as TkPhysicsComponentData);
+                        ProcessPhysicsComponent(node, comp.Template as TkPhysicsComponentData);
                         break;
                     case 4:
-                        ProcessTriggerActionComponent(node, comp as GcTriggerActionComponentData);
+                        ProcessTriggerActionComponent(node, comp.Template as GcTriggerActionComponentData);
                         break;
                     case 5: //Empty Node do nothing
                         break;
