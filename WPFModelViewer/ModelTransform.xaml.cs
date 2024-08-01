@@ -115,6 +115,7 @@ namespace WPFModelViewer
             //                                            MathUtils.radians((float)rotationY.Value),
             //                                            MathUtils.radians((float)rotationZ.Value));
 
+            _mdl._localRotationAngles = new Vector3(lX, lY, lZ);
             _mdl.localRotation = rotz * rotx * roty;
 
             //Apply scale

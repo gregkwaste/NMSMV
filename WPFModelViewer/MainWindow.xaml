@@ -91,34 +91,24 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Height="20">
                                 <TextBlock Text="Name"></TextBlock >
                                 <TextBlock HorizontalAlignment="Right" Text="{Binding Name}"></TextBlock>
                             </DockPanel>
                             <DockPanel Grid.Row="1" HorizontalAlignment="Stretch" Height="20">
-                                <TextBlock Text="ProcGenName"></TextBlock >
-                                <TextBlock HorizontalAlignment="Right" Text="{Binding procGenName}"></TextBlock>
-                            </DockPanel>
-                            <DockPanel Grid.Row="2" HorizontalAlignment="Stretch" Height="20">
-                                <TextBlock Text="ProcGenParentId"></TextBlock >
-                                <TextBlock HorizontalAlignment="Right" Text="{Binding ProcGenId}"></TextBlock>
-                            </DockPanel>
-                            <DockPanel Grid.Row="3" HorizontalAlignment="Stretch" Height="20">
                                 <TextBlock Text="Type"></TextBlock>
                                 <TextBlock HorizontalAlignment="Right"  Text="{Binding Type}"></TextBlock>
                             </DockPanel>
-                            <DockPanel Grid.Row="4" HorizontalAlignment="Stretch" Height="20">
+                            <DockPanel Grid.Row="2" HorizontalAlignment="Stretch" Height="20">
                                 <TextBlock Text="LOD Number"></TextBlock>
                                 <TextBlock HorizontalAlignment="Right"  Text="{Binding LODNumber}"></TextBlock>
                             </DockPanel>
-                            <DockPanel Grid.Row="5" HorizontalAlignment="Stretch" Height="60">
+                            <DockPanel Grid.Row="3" HorizontalAlignment="Stretch" Height="60">
                                 <TextBlock Text="LOD Distances"></TextBlock>
                                 <ListBox ItemsSource="{Binding LODDistances}" HorizontalContentAlignment="Left"></ListBox>
                             </DockPanel>
-                            <local:ModelTransform Grid.Row="6" Model="{Binding}"/>
+                            <local:ModelTransform Grid.Row="4" Model="{Binding}"/>
                         </Grid>
                     </GroupBox>
                     <GroupBox Grid.Row="1" Header="Components">
@@ -685,8 +675,13 @@
                         />
                     <ContentPresenter 
                             Content="{Binding Name, Mode=OneTime}" 
-                            Margin="2,0"
-                        />
+                            Margin="2,0">
+                    </ContentPresenter>
+                    <StackPanel.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Export Template (Experimental)" Click="SceneTreeView_Ctx_ExportTemplate"></MenuItem>
+                        </ContextMenu>
+                    </StackPanel.ContextMenu>
                 </StackPanel>
             </HierarchicalDataTemplate>
             <ObjectDataProvider x:Key="dataFromEnum" MethodName="GetValues"
@@ -739,8 +734,12 @@
                                 ItemTemplate="{StaticResource CheckBoxItemTemplate}"
                                 SelectedItemChanged="SceneTreeView_OnSelectedItemChanged"
                                 PreviewMouseLeftButtonDown="SceneTreeView_PreviewMouseLeftButtonDown"
+                                PreviewMouseRightButtonDown="SceneTreeView_PreviewMouseRightButtonDown"
                                 Drop="SceneTreeView_Drop"
-                                ScrollViewer.CanContentScroll="True" AllowDrop="True" GiveFeedback="SceneTreeView_GiveFeedback"/>
+                                ScrollViewer.CanContentScroll="True" 
+                                AllowDrop="True" 
+                                GiveFeedback="SceneTreeView_GiveFeedback">
+                    </TreeView>
                 </GroupBox>
                 <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch"/>
                 <TabControl Grid.Row="2">

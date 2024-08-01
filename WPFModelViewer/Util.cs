@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using Model_Viewer;
@@ -13,7 +14,8 @@ namespace WPFModelViewer
     {
         public static int VersionMajor = 0;
         public static int VersionMedium = 91;
-        public static int VersionMinor = 2;
+        public static int VersionMinor = 3;
+        public static bool Prerelease = true;
         
         public static string donateLink = "https://www.paypal.com/donate/?hosted_button_id=UMHWZK6BU5MWG";
         public static readonly Random randgen = new Random();
@@ -31,7 +33,7 @@ namespace WPFModelViewer
         {
             string ver = string.Join(".", new string[] { VersionMajor.ToString(),
                                            VersionMedium.ToString(),
-                                           VersionMinor.ToString()});
+                                           VersionMinor.ToString()}) + (Prerelease ? "-pre" : "");
 #if DEBUG
             return ver + " [DEBUG]";
 #endif

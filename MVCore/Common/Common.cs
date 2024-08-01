@@ -117,7 +117,7 @@ namespace MVCore.Common
         public PolygonMode RENDERMODE = PolygonMode.Fill;
         public System.Drawing.Color clearColor = System.Drawing.Color.FromArgb(255, 33, 33, 33);
         public float _useTextures = 1.0f;
-        public float _useLighting = 1.0f;
+        public float _useLighting = 0.0f;
 
         //Test Settings
 #if (DEBUG)

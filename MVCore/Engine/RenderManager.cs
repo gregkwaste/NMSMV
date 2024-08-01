@@ -9,7 +9,6 @@ using MVCore.GMDL;
 using MVCore.Engine;
 using OpenTK.Mathematics;
 using OpenTK.Graphics.OpenGL4;
-using static Microsoft.ApplicationInsights.MetricDimensionNames.TelemetryContext;
 
 
 namespace MVCore
@@ -321,7 +320,7 @@ namespace MVCore
                 return;
 
             Dictionary<int, List<GLMeshVao>> shaderMeshMap = RenderState.activeResMgr.opaqueMeshShaderMap;
-            if (m.type == TYPES.COLLISION || m.type == TYPES.LOCATOR || m.type == TYPES.JOINT || m.type == TYPES.MODEL || m.type == TYPES.GIZMO || m.type == TYPES.LIGHT) { 
+            if (m.type == TYPES.COLLISION || m.type == TYPES.GROUP || m.type == TYPES.LOCATOR || m.type == TYPES.JOINT || m.type == TYPES.MODEL || m.type == TYPES.GIZMO || m.type == TYPES.LIGHT) { 
                 shaderMeshMap = RenderState.activeResMgr.defaultMeshShaderMap;
             }
             //Check if the model is a decal
@@ -343,6 +342,7 @@ namespace MVCore
             {
                 case (TYPES.MODEL):
                 case (TYPES.LOCATOR):
+                case (TYPES.GROUP):
                 case (TYPES.GIZMO):
                     {
                         if (!locatorMeshList.Contains(m))

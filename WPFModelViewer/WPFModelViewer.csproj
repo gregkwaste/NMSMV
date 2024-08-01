@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <Import Project="..\packages\Costura.Fody.5.7.0\build\Costura.Fody.props" Condition="Exists('..\packages\Costura.Fody.5.7.0\build\Costura.Fody.props')" />
   <PropertyGroup>
-    <TargetFramework>net7.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows7.0</TargetFramework>
 	<SelfContained>false</SelfContained>
 	<RuntimeIdentifier>win-x64</RuntimeIdentifier>
 	<OutputType>WinExe</OutputType>
@@ -69,9 +69,6 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Update="CGLControl.cs" />
-  </ItemGroup>
-  <ItemGroup>
     <EmbeddedResource Include="Resources\droid.fnt" />
   </ItemGroup>
   <ItemGroup>
@@ -110,15 +107,16 @@
     </PackageReference>
     <PackageReference Include="Gameloop.Vdf" Version="0.6.2" />
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
-    <PackageReference Include="Microsoft-WindowsAPICodePack-Shell" Version="1.1.5" />
     <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-    <PackageReference Include="MSTest.TestAdapter" Version="3.5.0" />
-    <PackageReference Include="MSTest.TestFramework" Version="3.5.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="NLog" Version="5.3.2" />
     <PackageReference Include="OpenTK.GLWpfControl" Version="4.2.3" />
     <PackageReference Include="OpenTK" Version="4.8.2" />
-    <PackageReference Include="System.Drawing.Common" Version="8.0.7" />
+	<PackageReference Include="System.Drawing.Common" Version="8.0.7">
+		<PrivateAssets>all</PrivateAssets>
+		<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+	</PackageReference>
+    <PackageReference Include="WindowsAPICodePack" Version="8.0.4" />
   </ItemGroup>
   <Import Project="..\MVCore\MVCore.projitems" Label="Shared" />
   <PropertyGroup>

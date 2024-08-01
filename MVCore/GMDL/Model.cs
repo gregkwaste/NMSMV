@@ -491,10 +491,35 @@ namespace MVCore.GMDL
 
         //NMSTEmplate Export
 
-        public virtual TkSceneNodeData ExportTemplate(bool keepRenderable)
+        public virtual TkSceneNodeData ExportTemplate()
         {
-            //TODO: Rebuild SceneNodeData from scratch
-            return null;
+
+            TkSceneNodeData node = new TkSceneNodeData();
+            node.Name = Name;
+            node.Type = new libMBIN.NMS.NMSString0x10(Type);
+            node.Transform.TransX = localPosition.X;
+            node.Transform.TransY = localPosition.Y;
+            node.Transform.TransZ = localPosition.Z;
+            node.Transform.ScaleX = localScale.X;
+            node.Transform.ScaleY = localScale.Y;
+            node.Transform.ScaleZ = localScale.Z;
+            node.Transform.RotX = _localRotationAngles.X;
+            node.Transform.RotY = _localRotationAngles.Y;
+            node.Transform.RotZ = _localRotationAngles.Z;
+            
+            if (Children.Count > 0)
+                node.Children = new();
+            
+            foreach (Model child in Children)
+            {
+                if (child.IsRenderable)
+                {
+                    TkSceneNodeData child_node = child.ExportTemplate();
+                    node.Children.Add(child_node);
+                }
+            }
+            
+            return node;
         }
 
         #region ComponentQueries

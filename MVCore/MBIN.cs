@@ -28,6 +28,7 @@ namespace MVCore
     {
         MODEL=0x0,
         LOCATOR,
+        GROUP,
         JOINT,
         MESH,
         LIGHT,
@@ -1024,6 +1025,12 @@ namespace MVCore
             for (int i = 0; i < attachment.Components.Count; i++)
             {
                 LinkableNMSTemplate comp = attachment.Components[i];
+                if (comp.Template == null)
+                {
+                    CallBacks.Log("Null Template detected");
+                    continue;
+                }
+                    
                 Type comp_type = comp.Template.GetType();
                 
                 if (!SupportedComponents.ContainsKey(comp_type))
@@ -1932,7 +1939,7 @@ namespace MVCore
 
             TYPES typeEnum;
             if (!Enum.TryParse<TYPES>(node.Type, out typeEnum))
-                ErrorUtils.throwException("Node Type " + node.Type + "Not supported");
+                ErrorUtils.throwException("Node Type " + node.Type + " Not supported");
             
             if (typeEnum == TYPES.MESH)
             {
@@ -1943,9 +1950,11 @@ namespace MVCore
             {
                 return parseScene(node, gobject, parent, scene);
             }
-            else if (typeEnum == TYPES.LOCATOR)
+            else if (typeEnum == TYPES.LOCATOR || typeEnum == TYPES.GROUP)
             {
-                return parseLocator(node, gobject, parent, scene);
+                Model locator = parseLocator(node, gobject, parent, scene);
+                locator.type = typeEnum; //Make sure that the correct type is cached
+                return locator;
             }
             else if (typeEnum == TYPES.JOINT)
             {

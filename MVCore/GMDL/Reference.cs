@@ -36,9 +36,9 @@ namespace MVCore.GMDL
             return new Reference(this);
         }
 
-        public override TkSceneNodeData ExportTemplate(bool keepRenderable)
+        public override TkSceneNodeData ExportTemplate()
         {
-            throw new NotImplementedException("Functionality not yet supported");
+            return new TkSceneNodeData();
         }
 
 

@@ -471,7 +471,7 @@ namespace MVCore.Utils
                 partIds += selected_procParts[i] + ' ';
             selected_procParts.Clear();
 
-            CallBacks.Log("Proc Parts: {partIds}");
+            CallBacks.Log($"Proc Parts: {partIds}");
         }
 
 

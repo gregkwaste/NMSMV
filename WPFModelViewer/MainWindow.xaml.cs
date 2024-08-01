@@ -10,7 +10,6 @@ using MVCore.Common;
 using MVCore.GMDL;
 using MVCore;
 using System.Runtime.InteropServices;
-using System.Windows.Interop;
 using System.Windows.Input;
 using System.Windows.Data;
 using System.Threading;
@@ -21,6 +20,8 @@ using OpenTK.Windowing.Common;
 using OpenTK.Wpf;
 using System.Threading.Tasks;
 using System.Diagnostics;
+using System.Windows.Media;
+using libMBIN.NMS.Toolkit;
 
 namespace WPFModelViewer
 {
@@ -103,11 +104,14 @@ namespace WPFModelViewer
 
             SettingsForm.loadSettingsStatic();
 
+            //Create SceneTreeView context menu
+            
             //Improve performance on Treeview
             SceneTreeView.SetValue(VirtualizingStackPanel.IsVirtualizingProperty, true);
             SceneTreeView.SetValue(VirtualizingStackPanel.VirtualizationModeProperty, VirtualizationMode.Recycling);
             System.Diagnostics.PresentationTraceSources.DataBindingSource.Switch.Level = System.Diagnostics.SourceLevels.Error;
             System.Diagnostics.PresentationTraceSources.DataBindingSource.Listeners.Add(new BindingErrorTraceListener());
+
         }
 
         //Open File
@@ -611,6 +615,24 @@ namespace WPFModelViewer
 
         }
 
+        private void SceneTreeView_PreviewMouseRightButtonDown(object sender, MouseEventArgs e)
+        {
+            var item = e.Source as Model;
+
+            var source = e.OriginalSource as DependencyObject;
+            // Traverse up the visual tree to find the TreeViewItem
+            while (source != null && !(source is TreeViewItem))
+            {
+                source = VisualTreeHelper.GetParent(source);
+            }
+
+            if (source != null)
+            {
+                ((TreeViewItem)source).IsSelected = true;
+                e.Handled = true;
+            }
+        }
+
         private void SceneTreeView_Drop(object sender, DragEventArgs e)
         {
             var tv = sender as TreeView;
@@ -727,6 +749,25 @@ namespace WPFModelViewer
             }
         }
 
+
+        private void SceneTreeView_Ctx_ExportTemplate(object sender, RoutedEventArgs e)
+        {
+            Model root_node = (e.Source as Control).DataContext as Model;
+            try
+            {
+                TkSceneNodeData exported_node = root_node.ExportTemplate();
+                exported_node.WriteToExml("export.exml");
+                CallBacks.Log("Node Exported Successfully!", root_node.Name);
+            }
+            catch (Exception ex)
+            {
+                CallBacks.Log("Error during template export");
+                CallBacks.Log(ex.Message);
+            }
+
+        }
+
+
 #if (DEBUG)
         private void TestOpts_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
@@ -746,6 +787,11 @@ namespace WPFModelViewer
                     break;
             }
         }
+
+        
+
+
+
 #endif
     }
 
