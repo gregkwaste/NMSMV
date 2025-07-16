@@ -128,7 +128,7 @@ namespace MVCore
         public static void get_procgen_parts_phase1(ref List<string> descriptors, GMDL.Model root)
         {
             //During phase one all procgen parts are flagged
-            foreach (GMDL.Model child in root.children)
+            foreach (GMDL.Model child in root.Children)
             {
                 //Identify Descriptors
                 if (child.name.StartsWith("_"))
@@ -164,7 +164,7 @@ namespace MVCore
 
         public static void get_procgen_parts_phase2(ref List<string> dellist, GMDL.Model root)
         {
-            foreach (GMDL.Model child in root.children)
+            foreach (GMDL.Model child in root.Children)
             {
                 if (!child.procFlag)
                     dellist.Add(child.name);
@@ -179,12 +179,12 @@ namespace MVCore
             {
                 string part_name = dellist[i];
                 GMDL.Model child;
-                child = collectPart(root.children, part_name);
+                child = collectPart(root.Children, part_name);
 
                 if (child != null)
                 {
                     GMDL.Model parent = child.parent;
-                    parent.children.Remove(child);
+                    parent.Children.Remove(child);
                 }
                 
             }
@@ -209,14 +209,14 @@ namespace MVCore
                     sel = Common.RenderState.randgen.Next(0, textures.Count);
 
                     TkProceduralTexture texture = textures[sel];
-                    string partName = texture.Diffuse;
+                    string partName = texture.TextureName;
                     parts[layerid] = texture;
                     //addToStr(ref parts, partName);
                 }
             }
         }
 
-        public static GMDL.Model collectPart(List<GMDL.Model> coll, string name)
+        public static GMDL.Model collectPart(ObservableCollection<GMDL.Model> coll, string name)
         {
             foreach (GMDL.Model child in coll)
             {
@@ -227,7 +227,7 @@ namespace MVCore
                 else
                 {
 
-                    GMDL.Model ret = collectPart(child.children, name);
+                    GMDL.Model ret = collectPart(child.Children, name);
                     if (ret != null)
                         return ret;
                     else

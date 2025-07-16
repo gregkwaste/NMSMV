@@ -9,6 +9,7 @@ using MVCore.Common;
 using MVCore.Utils;
 using libMBIN.NMS.Toolkit;
 using System.Linq;
+using System.Globalization;
 
 namespace MVCore.GMDL
 {
@@ -18,6 +19,7 @@ namespace MVCore.GMDL
         //VAO ID
         public int vao_id;
         //VBO IDs
+        public int vertex_pos_object;
         public int vertex_buffer_object;
         public int element_buffer_object;
 
@@ -28,6 +30,7 @@ namespace MVCore.GMDL
         {
             vao_id = -1;
             vertex_buffer_object = -1;
+            vertex_pos_object = -1;
             element_buffer_object = -1;
         }
 
@@ -50,6 +53,7 @@ namespace MVCore.GMDL
                     {
                         GL.DeleteVertexArray(vao_id);
                         GL.DeleteBuffer(vertex_buffer_object);
+                        GL.DeleteBuffer(vertex_pos_object);
                         GL.DeleteBuffer(element_buffer_object);
                     }
 
@@ -404,7 +408,7 @@ namespace MVCore.GMDL
             //Upload Custom Per Material Uniforms
             foreach (Uniform un in material.CustomPerMaterialUniforms.Values)
             {
-                if (shader.uniformLocations.Keys.Contains(un.Name.Value))
+                if (shader.uniformLocations.Keys.Contains(un.Name))
                     GL.Uniform4(shader.uniformLocations[un.Name], un.vec.vec4);
             }
 
@@ -440,7 +444,7 @@ namespace MVCore.GMDL
                 case TYPES.MESH:
                 case TYPES.TEXT:
                     renderMesh();
-                    break;
+                    break; 
                 case TYPES.LOCATOR:
                 case TYPES.MODEL:
                     renderLocator();
@@ -781,16 +785,13 @@ namespace MVCore.GMDL
         {
             Mesh new_m = new Mesh();
             new_m.copyFrom(this);
-
-            new_m.meshVao = this.meshVao;
             new_m.instanceId = GLMeshBufferManager.addInstance(ref new_m.meshVao, new_m);
 
             //Clone children
-            foreach (Model child in children)
+            foreach (Model child in Children)
             {
                 Model new_child = child.Clone();
-                new_child.parent = new_m;
-                new_m.children.Add(new_child);
+                new_m.AddChild(new_child);
             }
 
             return new_m;
@@ -823,31 +824,20 @@ namespace MVCore.GMDL
             if (!active || !renderable || (parentScene.activeLOD != LodLevel) && RenderState.renderSettings.LODFiltering)
             {
                 base.updateMeshInfo(true);
-                RenderStats.occludedNum += 1;
+                if ((parentScene.activeLOD != LodLevel) && RenderState.renderSettings.LODFiltering)
+                    RenderStats.occludedNum += 1;
                 return;
             }
 
-            bool fr_status = Common.RenderState.activeCam.frustum_occlude(meshVao, worldMat * RenderState.rotMat);
-            bool occluded_status = !fr_status && Common.RenderState.renderSettings.UseFrustumCulling;
+            bool occluded_status = false;
 
+            if (RenderState.renderSettings.UseFrustumCulling)
+                occluded_status = !RenderState.activeCam.frustum_occlude(meshVao, worldMat * RenderState.rotMat);
+
+        
             //Recalculations && Data uploads
             if (!occluded_status)
             {
-                /*
-                //Apply LOD filtering
-                if (hasLOD && Common.RenderOptions.LODFiltering)
-                //if (false)
-                {
-                    //Common.CallBacks.Log("Active LoD {0}", parentScene.activeLOD);
-                    if (parentScene.activeLOD != LodLevel)
-                    {
-                        meshVao.setInstanceOccludedStatus(instanceId, true);
-                        base.updateMeshInfo();
-                        return;
-                    }
-                }
-                */
-
                 instanceId = GLMeshBufferManager.addInstance(ref meshVao, this);
 
                 //Upload commonperMeshUniforms
@@ -861,11 +851,11 @@ namespace MVCore.GMDL
                     //Fallback
                     //main_Vao.setDefaultSkinMatrices();
                 }
-
             }
             else
             {
-                Common.RenderStats.occludedNum += 1;
+                RenderStats.occludedNum += 1;
+                //TODO: Check if we need to return at this point, because the children meshes might be occluded as well
             }
 
             //meshVao.setInstanceOccludedStatus(instanceId, occluded_status);
@@ -1152,9 +1142,11 @@ namespace MVCore.GMDL
         public void writeGeomToStream(StreamWriter s, ref uint index)
         {
             int vertcount = metaData.vertrend_graphics - metaData.vertrstart_graphics + 1;
-            MemoryStream vms = new MemoryStream(gobject.meshDataDict[metaData.Hash].vs_buffer);
+            MemoryStream vxms = new MemoryStream(gobject.meshDataDict[metaData.Hash].vs_buffer);
+            MemoryStream vpms = new MemoryStream(gobject.meshDataDict[metaData.Hash].vp_buffer);
             MemoryStream ims = new MemoryStream(gobject.meshDataDict[metaData.Hash].is_buffer);
-            BinaryReader vbr = new BinaryReader(vms);
+            BinaryReader vxbr = new BinaryReader(vxms);
+            BinaryReader vpbr = new BinaryReader(vpms);
             BinaryReader ibr = new BinaryReader(ims);
             //Start Writing
             //Object name
@@ -1165,7 +1157,7 @@ namespace MVCore.GMDL
             Matrix4 wMat = this.worldMat;
             Matrix4 nMat = Matrix4.Invert(Matrix4.Transpose(wMat));
 
-            vbr.BaseStream.Seek(0, SeekOrigin.Begin);
+            vpbr.BaseStream.Seek(0, SeekOrigin.Begin);
             for (int i = 0; i < vertcount; i++)
             {
                 Vector4 v = new Vector4(0.0f);
@@ -1175,9 +1167,9 @@ namespace MVCore.GMDL
                 switch (ntype)
                 {
                     case VertexAttribPointerType.HalfFloat:
-                        uint v1 = vbr.ReadUInt16();
-                        uint v2 = vbr.ReadUInt16();
-                        uint v3 = vbr.ReadUInt16();
+                        uint v1 = vpbr.ReadUInt16();
+                        uint v2 = vpbr.ReadUInt16();
+                        uint v3 = vpbr.ReadUInt16();
                         //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
 
                         //Transform vector with worldMatrix
@@ -1185,9 +1177,9 @@ namespace MVCore.GMDL
                         v_section_bytes = 6;
                         break;
                     case VertexAttribPointerType.Float: //This is used in my custom vbos
-                        float f1 = vbr.ReadSingle();
-                        float f2 = vbr.ReadSingle();
-                        float f3 = vbr.ReadSingle();
+                        float f1 = vpbr.ReadSingle();
+                        float f2 = vpbr.ReadSingle();
+                        float f3 = vpbr.ReadSingle();
                         //Transform vector with worldMatrix
                         v = new Vector4(f1, f2, f3, 1.0f);
                         v_section_bytes = 12;
@@ -1202,12 +1194,12 @@ namespace MVCore.GMDL
                 //v = Vector4.Transform(v, this.worldMat);
 
                 //s.WriteLine("v " + Half.decompress(v1).ToString() + " "+ Half.decompress(v2).ToString() + " " + Half.decompress(v3).ToString());
-                s.WriteLine("v " + v.X.ToString() + " " + v.Y.ToString() + " " + v.Z.ToString());
-                vbr.BaseStream.Seek(gobject.vx_size - v_section_bytes, SeekOrigin.Current);
+                s.WriteLine(string.Format($"v {v.X} {v.Y} {v.Z}", CultureInfo.InvariantCulture));
+                vpbr.BaseStream.Seek(gobject.vp_size - v_section_bytes, SeekOrigin.Current);
             }
             //Get Normals
 
-            vbr.BaseStream.Seek(gobject.offsets[2] + 0, SeekOrigin.Begin);
+            vxbr.BaseStream.Seek(gobject.offsets[2] + 0, SeekOrigin.Begin);
             for (int i = 0; i < vertcount; i++)
             {
                 Vector4 vN = new Vector4();
@@ -1218,17 +1210,17 @@ namespace MVCore.GMDL
                 {
                     case (VertexAttribPointerType.Float):
                         float f1, f2, f3;
-                        f1 = vbr.ReadSingle();
-                        f2 = vbr.ReadSingle();
-                        f3 = vbr.ReadSingle();
+                        f1 = vxbr.ReadSingle();
+                        f2 = vxbr.ReadSingle();
+                        f3 = vxbr.ReadSingle();
                         vN = new Vector4(f1, f2, f3, 1.0f);
                         n_section_bytes = 12;
                         break;
                     case (VertexAttribPointerType.HalfFloat):
                         uint v1, v2, v3;
-                        v1 = vbr.ReadUInt16();
-                        v2 = vbr.ReadUInt16();
-                        v3 = vbr.ReadUInt16();
+                        v1 = vxbr.ReadUInt16();
+                        v2 = vxbr.ReadUInt16();
+                        v3 = vxbr.ReadUInt16();
                         vN = new Vector4(Utils.Half.decompress(v1), Utils.Half.decompress(v2), Utils.Half.decompress(v3), 1.0f);
                         n_section_bytes = 6;
                         break;
@@ -1236,7 +1228,7 @@ namespace MVCore.GMDL
                         int i1, i2, i3;
                         uint value;
                         byte[] a32 = new byte[4];
-                        a32 = vbr.ReadBytes(4);
+                        a32 = vxbr.ReadBytes(4);
 
                         value = BitConverter.ToUInt32(a32, 0);
                         //Convert Values
@@ -1265,21 +1257,21 @@ namespace MVCore.GMDL
 
                 vN = vN * nMat;
 
-                s.WriteLine("vn " + vN.X.ToString() + " " + vN.Y.ToString() + " " + vN.Z.ToString());
-                vbr.BaseStream.Seek(gobject.vx_size - n_section_bytes, SeekOrigin.Current);
+                s.WriteLine(string.Format($"vn {vN.X} {vN.Y} {vN.Z}", CultureInfo.InvariantCulture));
+                vxbr.BaseStream.Seek(gobject.vx_size - n_section_bytes, SeekOrigin.Current);
             }
             //Get UVs, only for mesh objects
-
-            vbr.BaseStream.Seek(Math.Max(gobject.offsets[1], 0) + gobject.vx_size * metaData.vertrstart_graphics, SeekOrigin.Begin);
+            
+            vxbr.BaseStream.Seek(Math.Max(gobject.offsets[1], 0) + gobject.vx_size * metaData.vertrstart_graphics, SeekOrigin.Begin);
             for (int i = 0; i < vertcount; i++)
             {
                 Vector2 uv;
                 int uv_section_bytes = 0;
                 if (gobject.offsets[1] != -1) //Check if uvs exist
                 {
-                    uint v1 = vbr.ReadUInt16();
-                    uint v2 = vbr.ReadUInt16();
-                    uint v3 = vbr.ReadUInt16();
+                    uint v1 = vxbr.ReadUInt16();
+                    uint v2 = vxbr.ReadUInt16();
+                    uint v3 = vxbr.ReadUInt16();
                     //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
                     uv = new Vector2(Utils.Half.decompress(v1), Utils.Half.decompress(v2));
                     uv_section_bytes = 0x6;
@@ -1290,10 +1282,9 @@ namespace MVCore.GMDL
                     uv_section_bytes = gobject.vx_size;
                 }
 
-                s.WriteLine("vt " + uv.X.ToString() + " " + (1.0 - uv.Y).ToString());
-                vbr.BaseStream.Seek(gobject.vx_size - uv_section_bytes, SeekOrigin.Current);
+                s.WriteLine(string.Format($"vt {uv.X} {1.0 - uv.Y}", CultureInfo.InvariantCulture));
+                vxbr.BaseStream.Seek(gobject.vx_size - uv_section_bytes, SeekOrigin.Current);
             }
-
 
             //Some Options
             s.WriteLine("usemtl(null)");
@@ -1327,8 +1318,6 @@ namespace MVCore.GMDL
                 s.WriteLine("f " + f11.ToString() + "/" + f11.ToString() + "/" + f11.ToString() + " "
                                 + f22.ToString() + "/" + f22.ToString() + "/" + f22.ToString() + " "
                                 + f33.ToString() + "/" + f33.ToString() + "/" + f33.ToString() + " ");
-
-
             }
             index += (uint)vertcount;
         }

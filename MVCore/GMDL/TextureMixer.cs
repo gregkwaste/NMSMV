@@ -107,7 +107,7 @@ namespace MVCore.GMDL
             {
                 if (texList[i] != null)
                 {
-                    string partNameDiff = texList[i].Diffuse;
+                    string partNameDiff = texList[i].TextureName;
                     Common.CallBacks.Log(partNameDiff);
                 }
             }
@@ -125,10 +125,11 @@ namespace MVCore.GMDL
                     alphaLayersUsed[i] = 0.0f;
                     continue;
                 }
-
-                string partNameDiff = ptex.Diffuse;
-                string partNameMask = ptex.Mask;
-                string partNameNormal = ptex.Normal;
+                
+                //TODO: Find out where on earth the Diffuse/Mask/Normal textures have gone
+                string partNameDiff = ptex.TextureName;
+                string partNameMask = ptex.TextureName;
+                string partNameNormal = ptex.TextureName;
 
                 TkPaletteTexture paletteNode = ptex.Palette;
                 string paletteName = paletteNode.Palette.ToString();
@@ -145,7 +146,7 @@ namespace MVCore.GMDL
                 reColourings[i] = new float[] { palColor[0], palColor[1], palColor[2], palColor[3] };
                 if (ptex.OverrideAverageColour)
                     avgColourings[i] = new float[] { ptex.AverageColour.R, ptex.AverageColour.G, ptex.AverageColour.B, ptex.AverageColour.A };
-
+                
                 //Create Palette Option
                 PaletteOpt palOpt = new PaletteOpt();
                 palOpt.PaletteName = paletteName;
@@ -397,7 +398,7 @@ namespace MVCore.GMDL
             {
                 for (int i = 0; i < 8; i++)
                 {
-                    GL.Uniform4(loc + i, 0.5f, 0.5f, 0.5f, 0.5f);
+                    GL.Uniform4(loc + i, avgColourings[i][0], avgColourings[i][1], avgColourings[i][2], avgColourings[i][3]);
                 }
             }
 

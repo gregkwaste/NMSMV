@@ -347,15 +347,11 @@ namespace MVCore
             mat = new Material();
             mat.Name = "crossMat";
             mat.add_flag(TkMaterialFlags.MaterialFlagEnum._F07_UNLIT);
-            mat.add_flag(TkMaterialFlags.MaterialFlagEnum._F21_VERTEXCOLOUR);
-            TkMaterialUniform uf = new TkMaterialUniform();
+            mat.add_flag(TkMaterialFlags.MaterialFlagEnum._F21_VERTEXCUSTOM);
+            var uf = new TkMaterialUniform_Float();
             uf.Name = "gMaterialColourVec4";
-            uf.Values = new libMBIN.NMS.Vector4f();
-            uf.Values.x = 1.0f;
-            uf.Values.y = 1.0f;
-            uf.Values.z = 1.0f;
-            uf.Values.t = 1.0f;
-            mat.Uniforms.Add(uf);
+            uf.Values = new libMBIN.NMS.Vector4f(1.0f, 1.0f, 1.0f, 1.0f);
+            mat.Uniforms_Float.Add(uf);
             mat.init();
             GLmaterials["crossMat"] = mat;
 
@@ -364,13 +360,10 @@ namespace MVCore
             mat.Name = "jointMat";
             mat.add_flag(TkMaterialFlags.MaterialFlagEnum._F07_UNLIT);
 
+            uf = new TkMaterialUniform_Float();
             uf.Name = "gMaterialColourVec4";
-            uf.Values = new libMBIN.NMS.Vector4f();
-            uf.Values.x = 1.0f;
-            uf.Values.y = 0.0f;
-            uf.Values.z = 0.0f;
-            uf.Values.t = 1.0f;
-            mat.Uniforms.Add(uf);
+            uf.Values = new libMBIN.NMS.Vector4f(1.0f, 0.0f, 0.0f, 1.0f);
+            mat.Uniforms_Float.Add(uf);
             mat.init();
             GLmaterials["jointMat"] = mat;
 
@@ -379,14 +372,10 @@ namespace MVCore
             mat.Name = "lightMat";
             mat.add_flag(TkMaterialFlags.MaterialFlagEnum._F07_UNLIT);
 
-            uf = new TkMaterialUniform();
+            uf = new TkMaterialUniform_Float();
             uf.Name = "gMaterialColourVec4";
-            uf.Values = new libMBIN.NMS.Vector4f();
-            uf.Values.x = 1.0f;
-            uf.Values.y = 1.0f;
-            uf.Values.z = 0.0f;
-            uf.Values.t = 1.0f;
-            mat.Uniforms.Add(uf);
+            uf.Values = new libMBIN.NMS.Vector4f(1.0f, 1.0f, 0.0f, 1.0f);
+            mat.Uniforms_Float.Add(uf);
             mat.init();
             GLmaterials["lightMat"] = mat;
 
@@ -395,14 +384,10 @@ namespace MVCore
             mat.Name = "collisionMat";
             mat.add_flag(TkMaterialFlags.MaterialFlagEnum._F07_UNLIT);
 
-            uf = new TkMaterialUniform();
+            uf = new TkMaterialUniform_Float();
             uf.Name = "gMaterialColourVec4";
-            uf.Values = new libMBIN.NMS.Vector4f();
-            uf.Values.x = 0.8f;
-            uf.Values.y = 0.8f;
-            uf.Values.z = 0.2f;
-            uf.Values.t = 1.0f;
-            mat.Uniforms.Add(uf);
+            uf.Values = new libMBIN.NMS.Vector4f(0.8f, 0.8f, 0.2f, 1.0f);
+            mat.Uniforms_Float.Add(uf);
             mat.init();
             GLmaterials["collisionMat"] = mat;
 
@@ -585,7 +570,6 @@ namespace MVCore
                 shaderDict = GLDeferredShaderMapDecal;
             }
             else if (mat.MaterialFlags.Contains("_F09_TRANSPARENT") ||
-                     mat.MaterialFlags.Contains("_F22_TRANSPARENT_SCALAR") ||
                      mat.MaterialFlags.Contains("_F11_ALPHACUTOUT"))
             {
                 shaderDict = GLForwardShaderMapTransparent;

@@ -110,16 +110,15 @@ namespace Model_Viewer
             Dictionary<string, Dictionary<string, Vector4>> newPal;
             newPal = new Dictionary<string, Dictionary<string, Vector4>>();
 
-            GcPaletteList template;
-            
-            try {
-                 template = NMSUtils.LoadNMSTemplate("METADATA\\SIMULATION\\SOLARSYSTEM\\COLOURS\\BASECOLOURPALETTES.MBIN",
+            GcPaletteList template = NMSUtils.LoadNMSTemplate("METADATA\\SIMULATION\\SOLARSYSTEM\\COLOURS\\BASECOLOURPALETTES.MBIN",
                     ref MVCore.Common.RenderState.activeResMgr) as GcPaletteList;
-            } catch (Exception ex) {
-                CallBacks.Log("Using Default Palettes");
+        
+            if (template == null)
+            {
+                CallBacks.Log("Using Default Palette");
                 return createPalette();
             }
-            
+        
             TkPaletteTexture tkpt = new TkPaletteTexture();
             GcPaletteData gcpd = new GcPaletteData();
             

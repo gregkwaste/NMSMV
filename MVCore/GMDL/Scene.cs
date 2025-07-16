@@ -93,21 +93,21 @@ namespace MVCore.GMDL
             texMgr = input.texMgr;
             
         }
-        
+
+
         public override Model Clone()
         {
             Scene new_s = new Scene();
             new_s.copyFrom(this);
 
-            new_s.meshVao = this.meshVao;
+            new_s.meshVao = meshVao;
             new_s.instanceId = GLMeshBufferManager.addInstance(ref new_s.meshVao, this);
 
             //Clone children
-            foreach (Model child in children)
+            foreach (Model child in Children)
             {
                 Model new_child = child.Clone();
-                new_child.parent = new_s;
-                new_s.children.Add(new_child);
+                new_s.AddChild(new_child);
             }
 
             //Recursively update parentScene to all the new objects
@@ -127,7 +127,7 @@ namespace MVCore.GMDL
             else
                 nodeDict[m.Name] = m;
             
-            foreach (Model c in m.children)
+            foreach (Model c in m.Children)
                 setupJointDict(c);
         }
 

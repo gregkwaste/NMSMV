@@ -61,7 +61,6 @@ namespace MVCore.GMDL
         private float _znear = 0.005f;
         private float _zfar = 15000.0f;
         private float _speed = 1.0f;
-        private float _speedPower = 1.0f;
         private float _sensitivity = 0.8f;
 
         
@@ -119,20 +118,6 @@ namespace MVCore.GMDL
             {
                 _speed = value;
                 NotifyPropertyChanged("Speed");
-            }
-        }
-
-        public float SpeedPower
-        {
-            get
-            {
-                return _speedPower;
-            }
-
-            set
-            {
-                _speedPower = value;
-                NotifyPropertyChanged("SpeedPower");
             }
         }
 

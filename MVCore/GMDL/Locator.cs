@@ -40,11 +40,10 @@ namespace MVCore.GMDL
             new_s.copyFrom(this);
 
             //Clone children
-            foreach (Model child in children)
+            foreach (Model child in Children)
             {
                 Model new_child = child.Clone();
-                new_child.parent = new_s;
-                new_s.children.Add(new_child);
+                new_s.AddChild(new_child);
             }
 
             return new_s;
@@ -64,8 +63,8 @@ namespace MVCore.GMDL
                 return;
             }
 
-            bool fr_status = Common.RenderState.activeCam.frustum_occlude(meshVao, worldMat * RenderState.rotMat);
-            bool occluded_status = !fr_status && Common.RenderState.renderSettings.UseFrustumCulling;
+            bool fr_status = RenderState.activeCam.frustum_occlude(meshVao, worldMat * RenderState.rotMat);
+            bool occluded_status = !fr_status && RenderState.renderSettings.UseFrustumCulling;
 
             //Recalculations && Data uploads
             if (!occluded_status)

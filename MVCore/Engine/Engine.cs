@@ -1,23 +1,24 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Threading;
-using OpenTK.Mathematics;
-using OpenTK.Windowing.GraphicsLibraryFramework;
-using OpenTK.Graphics;
-using OpenTK.Graphics.OpenGL4;
+﻿using GLSLHelper;
+using libMBIN.NMS.Toolkit;
+using Model_Viewer;
 using MVCore.Common;
+using MVCore.Engine.Systems;
 using MVCore.GMDL;
-using System.Timers;
 using MVCore.Input;
-using GLSLHelper;
 using MVCore.Text;
 using MVCore.Utils;
-using Model_Viewer;
+using OpenTK.Graphics;
+using OpenTK.Graphics.OpenGL4;
+using OpenTK.Mathematics;
 using OpenTK.Platform;
-using MVCore.Engine.Systems;
-using libMBIN.NMS.Toolkit;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 using OpenTK.Wpf;
+using System;
+using System.Collections.Generic;
+using System.Reflection.Metadata;
+using System.Text;
+using System.Threading;
+using System.Timers;
 
 namespace MVCore.Engine
 {
@@ -76,7 +77,7 @@ namespace MVCore.Engine
             RenderState.activeGamepad = gpHandler;
 
             //Assign new palette to GLControl
-            palette = Palettes.createPalettefromBasePalettes();
+            //palette = Palettes.createPalettefromBasePalettes(); //There is no usage for that for now
 
             renderMgr = new renderManager(); //Init renderManager of the engine
 
@@ -122,6 +123,10 @@ namespace MVCore.Engine
                             break;
                         case THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST:
                             rt_addRootScene((string)req.arguments[0]);
+                            req.status = THREAD_REQUEST_STATUS.FINISHED;
+                            break;
+                        case THREAD_REQUEST_TYPE.LOAD_REFERENCE_REQUEST:
+                            rt_addRefScene((string) req.arguments[0]);
                             req.status = THREAD_REQUEST_STATUS.FINISHED;
                             break;
 #if DEBUG
@@ -234,7 +239,7 @@ namespace MVCore.Engine
             scene.name = "DEFAULT SCENE";
 
 
-            //ADd Lights
+            //Add Lights
             Light l = new Light();
             l.Name = "Light 1";
             l.localPosition = new Vector3(0.2f, 0.2f, -2.0f);
@@ -242,7 +247,8 @@ namespace MVCore.Engine
             l.Intensity = 100.0f;
             l.falloff = ATTENUATION_TYPE.QUADRATIC;
             Common.RenderState.activeResMgr.GLlights.Add(l);
-            scene.children.Add(l);
+            scene.AddChild(l);
+            
 
             Light l1 = new Light();
             l1.Name = "Light 2";
@@ -251,7 +257,7 @@ namespace MVCore.Engine
             l1.Intensity = 100.0f;
             l1.falloff = ATTENUATION_TYPE.QUADRATIC;
             Common.RenderState.activeResMgr.GLlights.Add(l1);
-            scene.children.Add(l1);
+            scene.AddChild(l1);
 
             Light l2 = new Light();
             l2.Name = "Light 3";
@@ -260,7 +266,7 @@ namespace MVCore.Engine
             Common.RenderState.activeResMgr.GLlights.Add(l2);
             l2.Intensity = 100.0f;
             l2.falloff = ATTENUATION_TYPE.QUADRATIC;
-            scene.children.Add(l2);
+            scene.AddChild(l2);
 
             Light l3 = new Light();
             l3.Name = "Light 4";
@@ -269,7 +275,7 @@ namespace MVCore.Engine
             Common.RenderState.activeResMgr.GLlights.Add(l3);
             l3.Intensity = 100.0f;
             l3.falloff = ATTENUATION_TYPE.QUADRATIC;
-            scene.children.Add(l3);
+            scene.AddChild(l3);
 
             //Generate a Sphere and center it in the scene
             Model sphere = new Mesh();
@@ -277,7 +283,6 @@ namespace MVCore.Engine
             sphere.parent = scene;
             sphere.setParentScene(scene);
             MeshMetaData sphere_metadata = new MeshMetaData();
-
 
             int bands = 80;
 
@@ -296,34 +301,32 @@ namespace MVCore.Engine
             Material mat = new Material();
             mat.Name = "default_scn";
             
-            Uniform uf = new Uniform();
+            var uf = new TkMaterialUniform_Float();
             uf.Name = "gMaterialColourVec4";
-            uf.Values = new libMBIN.NMS.Vector4f();
-            uf.Values.x = 1.0f;
-            uf.Values.y = 0.0f;
-            uf.Values.z = 0.0f;
-            uf.Values.t = 1.0f;
-            mat.Uniforms.Add(uf);
-
-            uf = new Uniform();
+            uf.Values.X = 1.0f;
+            uf.Values.Y = 0.0f;
+            uf.Values.Z = 0.0f;
+            uf.Values.W = 1.0f;
+            mat.Uniforms_Float.Add(uf);
+            
+            uf = new TkMaterialUniform_Float();
             uf.Name = "gMaterialParamsVec4";
-            uf.Values = new libMBIN.NMS.Vector4f();
-            uf.Values.x = 0.15f; //Roughness
-            uf.Values.y = 0.0f;
-            uf.Values.z = 0.2f; //Metallic
-            uf.Values.t = 0.0f;
-            mat.Uniforms.Add(uf);
-                
+            uf.Values.X = 0.15f;
+            uf.Values.Y = 0.0f;
+            uf.Values.Z = 0.2f;
+            uf.Values.W = 0.0f;
+            mat.Uniforms_Float.Add(uf);
+
             mat.init();
             resMgr.GLmaterials["test_mat1"] = mat;
             sphere.meshVao.material = mat;
             sphere.instanceId = GLMeshBufferManager.addInstance(ref sphere.meshVao, sphere); //Add instance
+
+            scene.AddChild(sphere);
             
-            scene.children.Add(sphere);
-
             //Explicitly add default light to the rootObject
-            scene.children.Add(resMgr.GLlights[0]);
-
+            scene.AddChild(resMgr.GLlights[0]);
+            
             scene.updateLODDistances();
             scene.update(); //Refresh all transforms
             scene.setupSkinMatrixArrays();
@@ -367,12 +370,7 @@ namespace MVCore.Engine
         }
 
 #endif
-
-
-
-
-
-
+            
         private void rt_addRootScene(string filename)
         {
             //Once the new scene has been loaded, 
@@ -408,8 +406,8 @@ namespace MVCore.Engine
             NMSUtils.DisposeArchives();
 
             //Explicitly add default light to the rootObject
-            root.children.Add(resMgr.GLlights[0]);
-
+            root.AddChild(resMgr.GLlights[0]);
+            
             root.updateLODDistances();
             root.update(); //Refresh all transforms
             root.setupSkinMatrixArrays();
@@ -432,6 +430,68 @@ namespace MVCore.Engine
             //Restart anim worker if it was active
             RenderState.renderSettings.ToggleAnimations = animToggleStatus;
         
+        }
+
+        private void rt_addRefScene(string scene_name)
+        {
+            //Stop animation if on
+            bool animToggleStatus = RenderState.renderSettings.ToggleAnimations;
+            RenderState.renderSettings.ToggleAnimations = false;
+
+            //Load new object
+            Model new_scene = GEOMMBIN.LoadObjects(scene_name);
+            
+            //Cleanup NMS related file resources
+            NMSUtils.DisposeArchives();
+
+            //Explicitly add default light to the rootObject
+
+            //Find all scenes who reference the new scene
+            List<Reference> referers = new List<Reference>();
+            GetReferersToScene(RenderState.rootObject, referers, scene_name);
+            
+            foreach (Reference _m in referers)
+            {
+                //Create copy
+                Model _clone = new_scene.Clone();
+                renderMgr.process_models(_clone);
+                _m.isRefLoaded = true;
+                _m.AddChild(_clone);
+            }
+
+            //Dispose original ref
+            new_scene.Dispose();
+                
+            Model root = RenderState.rootObject;
+            root.updateLODDistances();
+            root.update(); //Refresh all transforms
+            root.setupSkinMatrixArrays();
+
+            //Add Scene to RenderManager
+            renderMgr.identifyActiveShaders(); //Re-update active shaders
+
+            //Clear Instances
+            renderMgr.clearInstances();
+            root.updateMeshInfo(); //Update all mesh info
+
+            root.selected = 1;
+            
+            //Restart anim worker if it was active
+            RenderState.renderSettings.ToggleAnimations = animToggleStatus;
+
+        }
+
+        private void GetReferersToScene(Model _m, List<Reference> referers, string scene_path)
+        {
+            if (_m is Reference)
+            {
+                Reference _m_ref = (Reference) _m;
+                if (_m_ref.ref_scene_filepath == scene_path)
+                    referers.Add(_m_ref);
+            }
+
+            foreach (Model c in _m.Children)
+                GetReferersToScene(c, referers, scene_path);
         }
 
         public void issueRenderingRequest(ref ThreadRequest r)

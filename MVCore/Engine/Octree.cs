@@ -73,7 +73,7 @@ namespace MVCore.Engine
             }
             
             //Look for other scenes
-            foreach (Model child in m.children)
+            foreach (Model child in m.Children)
                 insert(child);
         }
 

@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using Model_Viewer;
 using MVCore;
 using MVCore.Common;
@@ -13,7 +15,7 @@ namespace WPFModelViewer
     public static class Util
     {
         public static int VersionMajor = 0;
-        public static int VersionMedium = 91;
+        public static int VersionMedium = 93;
         public static int VersionMinor = 3;
         public static bool Prerelease = true;
         
@@ -97,7 +99,14 @@ namespace WPFModelViewer
 
         public static void Log(params object[] msg)
         {
-            string message = string.Join(" ", msg);
+            if (msg.Length == 0)
+                return;
+
+            string message = "";
+            if (msg[0].GetType() == typeof(string))
+                message = string.Format((string) msg[0], msg.Skip(1).ToArray());
+            else
+                message = string.Join(" ", msg);
 #if DEBUG
             Console.WriteLine(message); //Write to console if we are in debug mode
 #endif

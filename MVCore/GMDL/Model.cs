@@ -22,7 +22,7 @@ namespace MVCore.GMDL
         public TYPES type;
         public string name;
         public ulong nameHash;
-        public List<Model> children = new List<Model>();
+        //public List<Model> children = new List<Model>();
         public Dictionary<string, Dictionary<string, Vector3>> palette;
         public bool procFlag; //This is used to define procgen usage
         //public TkSceneNodeData nms_template;
@@ -139,7 +139,7 @@ namespace MVCore.GMDL
 
             }
 
-            foreach (Model child in children)
+            foreach (Model child in Children)
             {
                 Assimp.Node c = child.assimpExport(ref scn, ref meshImportStatus);
                 node.Children.Add(c);
@@ -274,19 +274,19 @@ namespace MVCore.GMDL
 
         public virtual void updateLODDistances()
         {
-            foreach (Model s in children)
+            foreach (Model s in Children)
                 s.updateLODDistances();
         }
 
         public virtual void setupSkinMatrixArrays()
         {
-            foreach (Model s in children)
+            foreach (Model s in Children)
                 s.setupSkinMatrixArrays();
         }
 
         public virtual void updateMeshInfo(bool lod_filter = false)
         {
-            foreach (Model child in children)
+            foreach (Model child in Children)
             {
                 child.updateMeshInfo(lod_filter);
             }
@@ -325,7 +325,7 @@ namespace MVCore.GMDL
                 worldPosition = localPosition;
 
             //Trigger the position update of all children nodes
-            foreach (GMDL.Model child in children)
+            foreach (Model child in Children)
             {
                 child.update();
             }
@@ -342,7 +342,7 @@ namespace MVCore.GMDL
                 return;
             }
                 
-            foreach (Model child in children)
+            foreach (Model child in Children)
             {
                 child.findNode(name, ref m);
             }
@@ -350,15 +350,9 @@ namespace MVCore.GMDL
 
 
         //Properties for Data Binding
-        public ObservableCollection<Model> Children
-        {
-            get
-            {
-                return new ObservableCollection<Model>(children.OrderBy(i => i.Name));
-            }
-        }
-
-
+        public ObservableCollection<Model> Children { get; set; } = new ObservableCollection<Model>();
+        
+            
         //TODO: Consider converting all such attributes using properties
         public void updatePosition(Vector3 newPosition)
         {
@@ -400,7 +394,7 @@ namespace MVCore.GMDL
 
             //Set paths
             if (parent != null)
-                this.cIndex = this.parent.children.Count;
+                this.cIndex = this.parent.Children.Count;
         }
 
         //Default Constructor
@@ -481,11 +475,11 @@ namespace MVCore.GMDL
         public Model(Model input)
         {
             this.copyFrom(input);
-            foreach (GMDL.Model child in input.children)
+            foreach (GMDL.Model child in input.Children)
             {
                 GMDL.Model nChild = child.Clone();
                 nChild.parent = this;
-                this.children.Add(nChild);
+                this.Children.Add(nChild);
             }
         }
 
@@ -538,12 +532,20 @@ namespace MVCore.GMDL
         #endregion
 
 
+        public void AddChild(Model child)
+        {
+            Children.Add(child);
+            child.parent = this;
+            NotifyPropertyChanged("Children");
+        }
+
+
         #region AnimationComponent
 
         public virtual void setParentScene(Scene scene)
         {
             parentScene = scene;
-            foreach (Model child in children)
+            foreach (Model child in Children)
             {
                 child.setParentScene(scene);
             }
@@ -654,9 +656,9 @@ namespace MVCore.GMDL
                 handle.Dispose();
 
                 //Free other resources here
-                if (children != null)
-                    foreach (Model c in children) c.Dispose();
-                children.Clear();
+                if (Children != null)
+                    foreach (Model c in Children) c.Dispose();
+                Children.Clear();
 
                 //Free textureManager
             }

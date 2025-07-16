@@ -12,8 +12,7 @@ using Microsoft.Win32;
 using Newtonsoft.Json;
 using Path = System.IO.Path;
 using MVCore.Common;
-using System.Windows;
-using libPSARC.PSARC;
+using libHGPAK.HGPAK;
 using MVCore.GMDL;
 
 namespace MVCore.Utils
@@ -56,7 +55,7 @@ namespace MVCore.Utils
                 if (load_mode == 0)
                 {
                     string xml = File.ReadAllText(exmlpath);
-                    template = EXmlFile.ReadTemplateFromString(xml);
+                    template = MXmlFile.ReadTemplateFromString(xml);
                 }
                 else
                 {
@@ -193,7 +192,7 @@ namespace MVCore.Utils
                     case 0: //Load EXML
                         {
                             string xml = File.ReadAllText(Path.Combine(RenderState.settings.UnpackDir, exmlpath));
-                            template = EXmlFile.ReadTemplateFromString(xml);
+                            template = MXmlFile.ReadTemplateFromString(xml);
                             break;
                         }
                     case 1: //Load MBIN
@@ -238,7 +237,7 @@ namespace MVCore.Utils
 
 #if DEBUG
             //Save NMSTemplate to exml
-            string data = EXmlFile.WriteTemplate(template);
+            string data = MXmlFile.WriteTemplate(template);
             string path =  Path.Combine("Temp", filepath + ".exml");
             Directory.CreateDirectory(Path.GetDirectoryName(path));
             File.WriteAllText(path, data);
@@ -259,18 +258,18 @@ namespace MVCore.Utils
             if (node.RotIndex < frame.Rotations.Count)
             {
                 int rotindex = node.RotIndex;
-                q = new Quaternion((float) frame.Rotations[rotindex].x,
-                                (float) frame.Rotations[rotindex].y,
-                                (float) frame.Rotations[rotindex].z,
-                                (float) frame.Rotations[rotindex].w);
+                q = new Quaternion((float) frame.Rotations[rotindex].X,
+                                (float) frame.Rotations[rotindex].Y,
+                                (float) frame.Rotations[rotindex].Z,
+                                (float) frame.Rotations[rotindex].W);
             }
             else //Load stillframedata
             {
                 int rotindex = node.RotIndex - frame.Rotations.Count;
-                q = new Quaternion((float)stillframe.Rotations[rotindex].x,
-                                (float)stillframe.Rotations[rotindex].y,
-                                (float)stillframe.Rotations[rotindex].z,
-                                (float)stillframe.Rotations[rotindex].w);
+                q = new Quaternion((float)stillframe.Rotations[rotindex].X,
+                                (float)stillframe.Rotations[rotindex].Y,
+                                (float)stillframe.Rotations[rotindex].Z,
+                                (float)stillframe.Rotations[rotindex].W);
             }
 
             return q;
@@ -297,10 +296,10 @@ namespace MVCore.Utils
                 rotIndex = node.RotIndex - frame.Rotations.Count;
             }
 
-            q.X = (float) activeFrame.Rotations[rotIndex].x;
-            q.Y = (float) activeFrame.Rotations[rotIndex].y;
-            q.Z = (float) activeFrame.Rotations[rotIndex].z;
-            q.W = (float) activeFrame.Rotations[rotIndex].w;
+            q.X = (float) activeFrame.Rotations[rotIndex].X;
+            q.Y = (float) activeFrame.Rotations[rotIndex].Y;
+            q.Z = (float) activeFrame.Rotations[rotIndex].Z;
+            q.W = (float) activeFrame.Rotations[rotIndex].W;
 
         }
 
@@ -327,9 +326,9 @@ namespace MVCore.Utils
                 activeFrame = stillframe;
             }
 
-            v.X = activeFrame.Translations[transIndex].x;
-            v.Y = activeFrame.Translations[transIndex].y;
-            v.Z = activeFrame.Translations[transIndex].z;
+            v.X = activeFrame.Translations[transIndex].X;
+            v.Y = activeFrame.Translations[transIndex].Y;
+            v.Z = activeFrame.Translations[transIndex].Z;
         }
 
         public static Vector3 fetchTransVector(TkAnimNodeData node, TkAnimMetadata animMeta, int frameCounter)
@@ -343,16 +342,16 @@ namespace MVCore.Utils
             //Load Translations
             if (node.TransIndex < frame.Translations.Count)
             {
-                v = new Vector3(frame.Translations[node.TransIndex].x,
-                                                    frame.Translations[node.TransIndex].y,
-                                                    frame.Translations[node.TransIndex].z);
+                v = new Vector3(frame.Translations[node.TransIndex].X,
+                                                    frame.Translations[node.TransIndex].Y,
+                                                    frame.Translations[node.TransIndex].Z);
             }
             else //Load stillframedata
             {
                 int transindex = node.TransIndex - frame.Translations.Count;
-                v = new Vector3(stillframe.Translations[transindex].x,
-                                                    stillframe.Translations[transindex].y,
-                                                    stillframe.Translations[transindex].z);
+                v = new Vector3(stillframe.Translations[transindex].X,
+                                                    stillframe.Translations[transindex].Y,
+                                                    stillframe.Translations[transindex].Z);
             }
 
             return v;
@@ -371,17 +370,17 @@ namespace MVCore.Utils
             if (node.ScaleIndex < frame.Scales.Count)
             {
                 v = new Vector3(
-                    frame.Scales[node.ScaleIndex].x,
-                    frame.Scales[node.ScaleIndex].y, 
-                    frame.Scales[node.ScaleIndex].z);
+                    frame.Scales[node.ScaleIndex].X,
+                    frame.Scales[node.ScaleIndex].Y, 
+                    frame.Scales[node.ScaleIndex].Z);
             }
             else //Load stillframedata
             {
                 int scaleindex = node.ScaleIndex - frame.Scales.Count;
                 v = new Vector3(
-                    stillframe.Scales[scaleindex].x,
-                    stillframe.Scales[scaleindex].y,
-                    stillframe.Scales[scaleindex].z);
+                    stillframe.Scales[scaleindex].X,
+                    stillframe.Scales[scaleindex].Y,
+                    stillframe.Scales[scaleindex].Z);
             }
 
             return v;
@@ -407,9 +406,9 @@ namespace MVCore.Utils
                 activeFrame = stillframe;
             }
 
-            s.X = activeFrame.Scales[scaleIndex].x;
-            s.Y = activeFrame.Scales[scaleIndex].y;
-            s.Z = activeFrame.Scales[scaleIndex].z;
+            s.X = activeFrame.Scales[scaleIndex].X;
+            s.Y = activeFrame.Scales[scaleIndex].Y;
+            s.Z = activeFrame.Scales[scaleIndex].Z;
             
         }
 
@@ -474,7 +473,22 @@ namespace MVCore.Utils
             CallBacks.Log($"Proc Parts: {partIds}");
         }
 
-
+        public static void SelectLOD(Model _m, int LOD)
+        {
+            //Enables only meshes with the desired LOD level on the scenegraph
+        
+            if (_m.type == TYPES.MESH)
+            {
+                Mesh _mesh = (Mesh) _m;
+                _m.IsRenderable = _mesh.LodLevel == LOD;
+            }
+              
+            //Recurse to children
+            foreach (Model child in _m.Children)
+            {
+                SelectLOD(child, LOD);
+            }
+        }
 
         //Load Game Archive Handles
         public static Archive loadNMSArchive(string pakPath)

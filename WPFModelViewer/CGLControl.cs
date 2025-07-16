@@ -322,6 +322,8 @@ namespace Model_Viewer
             } else if (e.RightButton == MouseButtonState.Released && e.ChangedButton == System.Windows.Input.MouseButton.Right)
             {
                 contextMenuStrip1.IsOpen = true;
+
+
             }
             e.Handled = true;
         }
@@ -424,6 +426,10 @@ namespace Model_Viewer
             MenuItem assimp_export = new MenuItem();
             assimp_export.Header = "Export to Assimp";
             assimp_export.Click += new RoutedEventHandler(exportToAssimp);
+                
+            MenuItem load_reference = new MenuItem();
+            assimp_export.Header = "Load Reference";
+            assimp_export.Click += new RoutedEventHandler(loadReference);
 
             contextMenuStrip1 = new ContextMenu();
             contextMenuStrip1.Items.Add(obj_export);
@@ -460,8 +466,12 @@ namespace Model_Viewer
             uint index = 1;
             findGeoms(RenderState.rootObject, obj, ref index);
             
-
             obj.Close();
+
+        }
+
+        private void loadReference(object sender, EventArgs e)
+        {
 
         }
 
@@ -520,7 +530,7 @@ namespace Model_Viewer
                     break;
             }
             
-            foreach (Model c in m.children)
+            foreach (Model c in m.Children)
                 findGeoms(c, s, ref index);
         }
 
@@ -587,7 +597,7 @@ namespace Model_Viewer
             }
                 
             //Iterate in children
-            foreach (Model c in m.children)
+            foreach (Model c in m.Children)
             { 
                 findIntersectedModel(c, ray, ref foundIntersection, ref interSectedModel, ref intersectionDistance);
             }
@@ -665,7 +675,7 @@ namespace Model_Viewer
         {
             if (node.animComponentID >= 0)
                 engine.animationSys.Add(node);
-            foreach (Model child in node.children)
+            foreach (Model child in node.Children)
                 findAnimScenes(child);
         }
 
@@ -674,7 +684,7 @@ namespace Model_Viewer
             if (node.actionComponentID >= 0)
                 engine.actionSys.Add(node);
 
-            foreach (Model child in node.children)
+            foreach (Model child in node.Children)
                 findActionScenes(child);
         }
 
@@ -713,8 +723,11 @@ namespace Model_Viewer
                 m.update();
             }
 
-            //rootObject?.update(); //Update Distances from camera
-            RenderState.rootObject?.updateLODDistances(); //Update Distances from camera
+            if (RenderState.renderSettings.LODFiltering)
+            {
+                RenderState.rootObject?.updateLODDistances(); //Update Distances from camera
+            }
+            
             engine.renderMgr.clearInstances(); //Clear All mesh instances
             RenderState.rootObject?.updateMeshInfo(); //Reapply frustum culling and re-setup visible instances
 

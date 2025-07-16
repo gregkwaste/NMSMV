@@ -63,7 +63,7 @@ void main()
     uv = uvPosition0;
     vertColor = bPosition;
 
-    #ifdef __F14_UVSCROLL
+    #ifdef __F14_UVEFFECT
         vec4 lFlippedScrollingUVVec4 = mpCustomPerMaterial.gUVScrollStepVec4;
         //TODO: Convert uvs to vec4 for diffuse2maps
         uv.xy += lFlippedScrollingUVVec4.xy * mpCommonPerFrame.gfTime;

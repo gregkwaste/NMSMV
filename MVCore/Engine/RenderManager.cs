@@ -324,14 +324,13 @@ namespace MVCore
                 shaderMeshMap = RenderState.activeResMgr.defaultMeshShaderMap;
             }
             //Check if the model is a decal
-            else if (m.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F51_DECAL_DIFFUSE) ||
-                     m.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F52_DECAL_NORMAL))
+            else if (m.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F51) ||
+                     m.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F52))
             {
                 shaderMeshMap = RenderState.activeResMgr.decalMeshShaderMap;
             }
             //Check if the model has a transparent material
-            else if (m.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F22_TRANSPARENT_SCALAR) ||
-                     m.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F09_TRANSPARENT))
+            else if (m.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F09_TRANSPARENT))
             {
                 shaderMeshMap = RenderState.activeResMgr.transparentMeshShaderMap;
             }
@@ -375,12 +374,12 @@ namespace MVCore
 
         }
 
-        private void process_models(Model root)
+        public void process_models(Model root)
         {
             process_model(root.meshVao);
             
             //Repeat process with children
-            foreach (Model child in root.children)
+            foreach (Model child in root.Children)
             {
                 process_models(child);
             }
@@ -1062,7 +1061,6 @@ namespace MVCore
             
         }
 
-        
         
         private void renderFinalPass()
         {

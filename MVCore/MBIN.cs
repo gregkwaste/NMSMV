@@ -59,6 +59,8 @@ namespace MVCore
         public uint vs_abs_offset;
         public uint is_size;
         public uint is_abs_offset;
+        public uint vp_size;
+        public uint vp_abs_offset;
         public bool double_buffering;
     }
 
@@ -66,6 +68,7 @@ namespace MVCore
     {
         public ulong hash;
         public byte[] vs_buffer;
+        public byte[] vp_buffer;
         public byte[] is_buffer;
     }
 
@@ -196,7 +199,7 @@ namespace MVCore
                 
             geom.vertCount = vert_num;
             geom.vx_size = vx_type;
-            geom.small_vx_size = small_vx_type;
+            geom.vp_size = small_vx_type;
 
             //Get Bone Remapping Information
             //I'm 99% sure that boneRemap is not a case in NEXT models
@@ -394,18 +397,17 @@ namespace MVCore
             //Test libmbin
 #endif
             BinaryReader br = new BinaryReader(fs);
-            Common.CallBacks.Log("Parsing Geometry MBIN");
+            CallBacks.Log("Parsing Geometry MBIN");
 
-            fs.Seek(NMSUtils.GetFieldOffset("TkGeometryData", "SmallVertexLayout"), SeekOrigin.Begin);
-            
-            //Parse Small Vertex Layout Info
-            var small_mesh_descr_offset = fs.Position + br.ReadInt64();
-            var small_bufcount = br.ReadInt32();
+            //Parse main vertex layout Info
+            fs.Seek(NMSUtils.GetFieldOffset("TkGeometryData", "PositionVertexLayout"), SeekOrigin.Begin);
+            var mesh_pvx_descr_offset = fs.Position + br.ReadInt64();
+            var pvx_buf_count = br.ReadInt32();
             fs.Seek(0x4, SeekOrigin.Current); //Skipping a 1
             fs.Seek(0x8, SeekOrigin.Current); //Skip platform data
-            br.ReadInt32(); //Skip second buf count
-            var small_vx_type = br.ReadInt32();
-            Common.CallBacks.Log("Small Buffer Count: {0} VxType {1}", small_bufcount, small_vx_type);
+            var pvx_lod_count = br.ReadInt32(); //TODO: Not sure about that
+            var pvx_type = br.ReadInt32();
+            Common.CallBacks.Log(string.Format("Position Vertex Buffer Count: {0} VxType {1}", pvx_lod_count, pvx_type));
 
             //Parse main vertex layout Info
             fs.Seek(NMSUtils.GetFieldOffset("TkGeometryData", "VertexLayout"), SeekOrigin.Begin);
@@ -415,8 +417,9 @@ namespace MVCore
             fs.Seek(0x8, SeekOrigin.Current); //Skip platform data
             var lod_count = br.ReadInt32(); //TODO: Not sure about that
             var vx_type = br.ReadInt32();
-            Common.CallBacks.Log("Buffer Count: {0} VxType {1}", lod_count, vx_type);
+            Common.CallBacks.Log(string.Format("Buffer Count: {0} VxType {1}", lod_count, vx_type));
 
+            
             //Bound Hull Vert end
             var boundhull_vertend_offset = fs.Position + br.ReadInt32();
             fs.Seek(0xC, SeekOrigin.Current);
@@ -493,7 +496,6 @@ namespace MVCore
             Common.CallBacks.Log("Indices Flag: {0}", indices_flag);
             Common.CallBacks.Log("Collision Index Count: {0}", collision_index_count);
 
-            
             //fs.Seek(0x10, SeekOrigin.Current);
 
             //Initialize geometry object
@@ -514,8 +516,8 @@ namespace MVCore
 
             geom.vertCount = vert_num;
             geom.vx_size = vx_type;
-            geom.small_vx_size = small_vx_type;
-
+            geom.vp_size = pvx_type;
+            
             //Get Bone Remapping Information
             //I'm 99% sure that boneRemap is not a case in NEXT models
             //it is still there though...
@@ -627,7 +629,7 @@ namespace MVCore
             //Get MeshMetaData
             for (int i = 0; i < meshMetaData_counter; i++)
             {
-                fs.Seek(meshMetaData_offset + 0x30 * i, SeekOrigin.Begin);
+                fs.Seek(meshMetaData_offset + 0x38 * i, SeekOrigin.Begin);
 
                 geomMeshMetaData mmd = new geomMeshMetaData();
                 var name_offset = fs.Position + br.ReadInt64();
@@ -637,12 +639,13 @@ namespace MVCore
                 mmd.is_size = br.ReadUInt32();
                 mmd.vs_abs_offset = br.ReadUInt32();
                 mmd.vs_size = br.ReadUInt32();
+                mmd.vp_abs_offset = br.ReadUInt32();
+                mmd.vp_size = br.ReadUInt32();
                 mmd.double_buffering = br.ReadBoolean();
 
                 //Get Name
                 fs.Seek(name_offset, SeekOrigin.Begin);
                 mmd.name = StringUtils.read_string(br, 0x80);
-
 
                 if (!geom.meshMetaDataDict.ContainsKey(mmd.hash))
                     geom.meshMetaDataDict[mmd.hash] = mmd;
@@ -665,14 +668,31 @@ namespace MVCore
 
             for (int i = 0; i < buf_count; i++)
             {
-                var buf_platform_data = br.ReadInt64();
+                //var buf_platform_data = br.ReadInt64();
                 var buf_instancing_type = br.ReadInt32(); //Per Model or per vertex not sure how to use that
-                var buf_normalize = br.ReadInt32();
-                var buf_localoffset = br.ReadInt32();
-                var buf_id = br.ReadInt32();
-                var buf_elem_count = br.ReadInt32();
                 var buf_type = br.ReadInt32();
+                var buf_normalize = br.ReadByte();
+                var buf_localoffset = br.ReadByte();
+                var buf_id = br.ReadByte();
+                var buf_elem_count = br.ReadByte();
                 
+                geom.bufInfo[buf_id] = get_bufInfo_item(buf_id, buf_localoffset, buf_normalize, buf_elem_count, buf_type);
+                mesh_offsets[buf_id] = buf_localoffset;
+            }
+
+            //Get position vertex buffer information
+            fs.Seek(mesh_pvx_descr_offset, SeekOrigin.Begin);
+            //int[] mesh_offsets = new int[buf_count];
+            for (int i = 0; i < pvx_buf_count; i++)
+            {
+                //var buf_platform_data = br.ReadInt64();
+                var buf_instancing_type = br.ReadInt32(); //Per Model or per vertex not sure how to use that
+                var buf_type = br.ReadInt32();
+                var buf_normalize = br.ReadByte();
+                var buf_localoffset = br.ReadByte();
+                var buf_id = br.ReadByte();
+                var buf_elem_count = br.ReadByte();
+
                 geom.bufInfo[buf_id] = get_bufInfo_item(buf_id, buf_localoffset, buf_normalize, buf_elem_count, buf_type);
                 mesh_offsets[buf_id] = buf_localoffset;
             }
@@ -684,6 +704,8 @@ namespace MVCore
             //Store description
             geom.mesh_descr = mesh_desc;
             geom.offsets = mesh_offsets;
+
+            /* No point reading the small vertex layout. No use for that in the viewer
             //Get small description
             fs.Seek(small_mesh_descr_offset, SeekOrigin.Begin);
             var small_mesh_desc = "";
@@ -711,6 +733,8 @@ namespace MVCore
             //Store description
             geom.small_mesh_descr = small_mesh_desc;
             geom.small_offsets = small_mesh_offsets;
+
+            */
             //Set geom interleaved
             geom.interleaved = true;
 
@@ -722,14 +746,18 @@ namespace MVCore
                 geomMeshMetaData mmd = pair.Value;
                 geomMeshData md = new geomMeshData();
                 md.vs_buffer = new byte[mmd.vs_size];
+                md.vp_buffer = new byte[mmd.vp_size];
                 md.is_buffer = new byte[mmd.is_size];
 
                 //Fetch Buffers
                 gfs.Seek((int)mmd.vs_abs_offset, SeekOrigin.Begin);
-                gfs.Read(md.vs_buffer, 0, (int)mmd.vs_size);
+                gfs.Read(md.vs_buffer, 0, (int) mmd.vs_size);
+ 
+                gfs.Seek((int)mmd.vp_abs_offset, SeekOrigin.Begin);
+                gfs.Read(md.vp_buffer, 0, (int) mmd.vp_size);
 
                 gfs.Seek((int)mmd.is_abs_offset, SeekOrigin.Begin);
-                gfs.Read(md.is_buffer, 0, (int)mmd.is_size);
+                gfs.Read(md.is_buffer, 0, (int) mmd.is_size);
 
                 geom.meshDataDict[mmd.hash] = md;
             }
@@ -880,7 +908,7 @@ namespace MVCore
                 //Use libMBIN to decompile the file
                 TkGeometryData geomdata = (TkGeometryData)NMSUtils.LoadNMSTemplate(path + ".PC", ref Common.RenderState.activeResMgr);
                 //Save NMSTemplate to exml
-                string xmlstring = EXmlFile.WriteTemplate(geomdata);
+                string xmlstring = MXmlFile.WriteTemplate(geomdata);
                 File.WriteAllText("Temp\\temp_geom.exml", xmlstring);
 #endif
                 //Load Gstream and Create gobject
@@ -1007,8 +1035,7 @@ namespace MVCore
                 string filepath = component.LODModels[i].LODModel.Filename;
                 Common.CallBacks.Log("Loading LOD " + filepath);
                 Scene so = LoadObjects(filepath);
-                so.parent = node; //Set parent
-                node.children.Add(so);
+                node.AddChild(so);
                 //Create LOD Resource
                 LODModelResource lodres = new LODModelResource(component.LODModels[i]);
                 lodmdlcomp.Resources.Add(lodres);
@@ -1085,7 +1112,7 @@ namespace MVCore
             }
                 
 
-            foreach (Model child in node.children)
+            foreach (Model child in node.Children)
                 findAnimScenes(child);
         }
 
@@ -1151,7 +1178,7 @@ namespace MVCore
 
             //Create model
             Mesh so = new Mesh();
-
+            
             so.name = node.Name;
             so.nameHash = nameHash;
             so.debuggable = true;
@@ -1167,7 +1194,7 @@ namespace MVCore
             so.metaData.AABBMIN = new Vector3();
             so.metaData.AABBMAX = new Vector3();
 
-            Common.CallBacks.Log(string.Format("Randomized Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]));
+            CallBacks.Log(string.Format("Randomized Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]));
             //Get Options
             so.metaData.batchstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHSTARTPHYSI"));
             so.metaData.vertrstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRSTARTPHYSI"));
@@ -1341,11 +1368,11 @@ namespace MVCore
             foreach (TkSceneNodeData child in children)
             {
                 Model part = parseNode(child, gobject, so, scene);
-                so.children.Add(part);
+                so.AddChild(part);
             }
 
             //Finally Order children by name
-            so.children.OrderBy(i => i.Name);
+            so.Children.OrderBy(i => i.Name);
             scene.nodeDict[so.Name] = so;
             return so;
         }
@@ -1399,7 +1426,7 @@ namespace MVCore
             foreach (TkSceneNodeData child in children)
             {
                 Model part = parseNode(child, gobject, so, so);
-                so.children.Add(part);
+                so.AddChild(part);
             }
 
             return so;
@@ -1466,11 +1493,11 @@ namespace MVCore
             foreach (TkSceneNodeData child in children)
             {
                 Model part = parseNode(child, gobject, so, scene);
-                so.children.Add(part);
+                so.AddChild(part);
             }
 
             //Finally Order children by name
-            so.children.OrderBy(i => i.Name);
+            so.Children.OrderBy(i => i.Name);
 
             scene.nodeDict[so.Name] = so;
 
@@ -1561,11 +1588,11 @@ namespace MVCore
             foreach (TkSceneNodeData child in children)
             {
                 Model part = parseNode(child, gobject, so, scene);
-                so.children.Add(part);
+                so.AddChild(part);
             }
 
             //Finally Order children by name
-            so.children.OrderBy(i => i.Name);
+            so.Children.OrderBy(i => i.Name);
             return so;
 
         }
@@ -1733,8 +1760,7 @@ namespace MVCore
                 Common.CallBacks.Log("NEW COLLISION TYPE: " + collisionType);
             }
 
-            //Set metaData and material to the collision Mesh
-            so.meshVao.metaData = new MeshMetaData(so.metaData);
+            //Set material to the collision Mesh
             so.meshVao.material = Common.RenderState.activeResMgr.GLmaterials["collisionMat"];
             so.meshVao.type = TYPES.COLLISION;
             so.meshVao.collisionType = so.collisionType;
@@ -1747,8 +1773,8 @@ namespace MVCore
 
             //Collision probably has no children biut I'm leaving that code here
             foreach (TkSceneNodeData child in children)
-                so.children.Add(parseNode(child, gobject, so, scene));
-
+                so.AddChild(parseNode(child, gobject, so, scene));
+            
             return so;
 
         }
@@ -1835,7 +1861,7 @@ namespace MVCore
             //Parse MBIN to xml
 
             //Generate Reference object
-            Reference so = new Reference();
+            Reference so = new Reference(scene_ref);
             so.name = node.Name;
             so.nameHash = node.NameHash;
 
@@ -1844,28 +1870,29 @@ namespace MVCore
             so.init(transforms);
 
             Scene new_so;
+            
             //Check if scene has been parsed
             if (!Common.RenderState.activeResMgr.GLScenes.ContainsKey(scene_ref))
             {
                 //Read new Scene
-                new_so = LoadObjects(scene_ref);
+                //new_so = LoadObjects(scene_ref);
             }
             else
             {
                 //Make a shallow copy of the scene
-                new_so = (Scene)Common.RenderState.activeResMgr.GLScenes[scene_ref].Clone();
+                new_so = (Scene) RenderState.activeResMgr.GLScenes[scene_ref].Clone();
             }
 
-            so.ref_scene = new_so;
-            new_so.parent = so;
-            so.children.Add(new_so); //Keep it also as a child so the rest of pipeline is not affected
+            //so.ref_scene = new_so;
+            //new_so.parent = so;
+            //so.children.Add(new_so); //Keep it also as a child so the rest of pipeline is not affected
 
             //Handle Children
             //Common.CallBacks.Log("Children Count {0}", childs.ChildNodes.Count);
             foreach (TkSceneNodeData child in children)
             {
                 Model part = parseNode(child, gobject, so, scene);
-                so.children.Add(part);
+                so.AddChild(part);
             }
 
             scene.nodeDict[so.Name] = so;
@@ -1923,7 +1950,7 @@ namespace MVCore
             foreach (TkSceneNodeData child in children)
             {
                 Model part = parseNode(child, gobject, so, scene);
-                so.children.Add(part);
+                so.AddChild(part);
             }
 
             //Do not restore the old AnimScene let them flow

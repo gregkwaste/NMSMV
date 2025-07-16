@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <Import Project="..\packages\Costura.Fody.5.7.0\build\Costura.Fody.props" Condition="Exists('..\packages\Costura.Fody.5.7.0\build\Costura.Fody.props')" />
   <PropertyGroup>
-    <TargetFramework>net8.0-windows7.0</TargetFramework>
+    <TargetFramework>net8.0-windows8.0</TargetFramework>
 	<SelfContained>false</SelfContained>
 	<RuntimeIdentifier>win-x64</RuntimeIdentifier>
 	<OutputType>WinExe</OutputType>
@@ -48,12 +48,15 @@
     <ApplicationManifest>Properties\app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="libHGPAK">
+      <HintPath>..\lib\libHGPAK.dll</HintPath>
+    </Reference>
     <Reference Include="libMBIN">
       <HintPath>..\lib\libMBIN.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="libPSARC">
-      <HintPath>..\lib\libPSARC.dll</HintPath>
+    <Reference Include="ZstdSharp">
+      <HintPath>..\lib\ZstdSharp.dll</HintPath>
     </Reference>
     <Reference Update="System.Xml">
       <Private>False</Private>
@@ -63,9 +66,6 @@
     </Reference>
     <Reference Update="WindowsFormsIntegration">
       <Private>False</Private>
-    </Reference>
-    <Reference Include="zlib.net">
-      <HintPath>..\lib\zlib.net.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -121,6 +121,7 @@
   <Import Project="..\MVCore\MVCore.projitems" Label="Shared" />
   <PropertyGroup>
     <PostBuildEvent>XCOPY "$(SolutionDir)Shaders" "$(TargetDir)Shaders" /s /i /y</PostBuildEvent>
+    <SupportedOSPlatformVersion>7.0</SupportedOSPlatformVersion>
   </PropertyGroup>
   <Import Project="..\packages\AssimpNet.5.0.0-beta1\build\AssimpNet.targets" Condition="Exists('..\packages\AssimpNet.5.0.0-beta1\build\AssimpNet.targets')" />
   <Import Project="..\packages\Fody.6.6.3\build\Fody.targets" Condition="Exists('..\packages\Fody.6.6.3\build\Fody.targets')" />

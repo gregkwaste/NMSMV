@@ -68,7 +68,7 @@ struct CustomPerMaterialUniforms  //locations:73
     sampler2DArray gDiffuse2Map;
     sampler2DArray gMasksMap;
     sampler2DArray gNormalMap;
-    sampler2DArray gDetailDiffuseMap;
+    sampler2DArray gOcclusionMap;
     sampler2DArray gDetailNormalMap;
     samplerBuffer skinMatsTex;
 

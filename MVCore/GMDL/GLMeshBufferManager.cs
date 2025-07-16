@@ -106,10 +106,8 @@ namespace MVCore.GMDL
 
         public static void removeInstance(GLMeshVao mesh, Model m)
         {
-            int id = mesh.instanceRefs.IndexOf(m);
-
-            //TODO: Make all the memory shit to push the instances backwards
-        }
+            //NOT NEEDED SINCE INSTANCES RESET EVERY FRAME
+        }   
 
 
         public static void setInstanceOccludedStatus(GLMeshVao mesh, int instance_id, bool status)

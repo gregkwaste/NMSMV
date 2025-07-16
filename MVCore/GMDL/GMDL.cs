@@ -120,11 +120,10 @@ namespace MVCore.GMDL
             new_m.instanceId = GLMeshBufferManager.addInstance(ref new_m.meshVao, new_m);
             
             //Clone children
-            foreach (Model child in children)
+            foreach (Model child in Children)
             {
                 Model new_child = child.Clone();
-                new_child.parent = new_m;
-                new_m.children.Add(new_child);
+                AddChild(new_child);
             }
 
             return new_m;
@@ -164,7 +163,7 @@ namespace MVCore.GMDL
 
         public bool interleaved;
         public int vx_size;
-        public int small_vx_size;
+        public int vp_size;
 
         //Counters
         public int indicesCount=0;
@@ -304,14 +303,35 @@ namespace MVCore.GMDL
             GL.BindVertexArray(vao.vao_id);
             
             //Generate VBOs
-            int[] vbo_buffers = new int[2];
-            GL.GenBuffers(2, vbo_buffers);
+            int[] vbo_buffers = new int[3];
+            GL.GenBuffers(3, vbo_buffers);
 
-            vao.vertex_buffer_object = vbo_buffers[0];
-            vao.element_buffer_object = vbo_buffers[1];
+            vao.vertex_pos_object = vbo_buffers[0];
+            vao.vertex_buffer_object = vbo_buffers[1];
+            vao.element_buffer_object = vbo_buffers[2];
+
+            //Bind vertex position buffer
+            int size;
+            GL.BindBuffer(BufferTarget.ArrayBuffer, vao.vertex_pos_object);
+            //Upload Vertex Position Buffer
+            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)meshMetaDataDict[so.metaData.Hash].vp_size,
+                meshDataDict[so.metaData.Hash].vp_buffer, BufferUsageHint.StaticDraw);
+            GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize,
+                out size);
+            if (size != vp_size * (so.metaData.vertrend_graphics + 1))
+            {
+                //throw new ApplicationException(String.Format("Problem with vertex buffer"));
+                ErrorUtils.throwException("Mesh metadata does not match the vertex buffer size from the geometry file");
+            }
+
+            if (bufInfo[0] != null)
+            {
+                bufInfo buf = bufInfo[0];
+                GL.VertexAttribPointer(buf.semantic, buf.count, buf.type, buf.normalize, vp_size, buf.offset);
+                GL.EnableVertexAttribArray(0);
+            }
             
             //Bind vertex buffer
-            int size;
             GL.BindBuffer(BufferTarget.ArrayBuffer, vao.vertex_buffer_object);
             //Upload Vertex Buffer
             GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr) meshMetaDataDict[so.metaData.Hash].vs_size,
@@ -327,12 +347,12 @@ namespace MVCore.GMDL
             RenderStats.vertNum += so.metaData.vertrend_graphics + 1; //Accumulate settings
 
             //Assign VertexAttribPointers
-            for (int i = 0; i < 7; i++)
+            for (int i = 1; i < 7; i++)
             {
                 if (bufInfo[i] == null) continue;
                 bufInfo buf = bufInfo[i];
-                GL.VertexAttribPointer(i, buf.count, buf.type, buf.normalize, vx_size, buf.offset);
-                GL.EnableVertexAttribArray(i);
+                GL.VertexAttribPointer(buf.semantic, buf.count, buf.type, buf.normalize, vx_size, buf.offset); 
+                GL.EnableVertexAttribArray(buf.semantic);
             }
 
             //Upload index buffer
@@ -405,6 +425,7 @@ namespace MVCore.GMDL
             temp_geom.ibuffer = new byte[temp_geom.indicesLength * metaData.batchcount];
             temp_geom.vbuffer = new byte[sizeof(float) * vx_buffer_float.Length];
 
+
             System.Buffer.BlockCopy(ibuffer, metaData.batchstart_physics * temp_geom.indicesLength, temp_geom.ibuffer, 0, temp_geom.ibuffer.Length);
             System.Buffer.BlockCopy(vx_buffer_float, 0, temp_geom.vbuffer, 0, temp_geom.vbuffer.Length);
 
@@ -451,7 +472,7 @@ namespace MVCore.GMDL
             //Assign VertexAttribPointers
             for (int i = 0; i < 7; i++)
             {
-                if (this.bufInfo[i] == null) continue;
+                if (bufInfo[i] == null) continue;
                 bufInfo buf = this.bufInfo[i];
                 GL.VertexAttribPointer(i, buf.count, buf.type, false, buf.stride, buf.offset);
                 GL.EnableVertexAttribArray(i);
@@ -630,6 +651,7 @@ namespace MVCore.GMDL
                 case "mpCustomPerMaterial.gDiffuse2Map":
                 case "mpCustomPerMaterial.gMasksMap":
                 case "mpCustomPerMaterial.gNormalMap":
+                case "mpCustomPerMaterial.gOcclusionMap":
                     texUnit = new MyTextureUnit(Name);
                     prepTextures();
                     break;
@@ -654,7 +676,7 @@ namespace MVCore.GMDL
                 string texMbin = temp + "TEXTURE.MBIN";
                 
                 //Detect Procedural Texture
-                if (Common.RenderState.activeResMgr.NMSFileToArchiveMap.Keys.Contains(texMbin))
+                if (RenderState.activeResMgr.NMSFileToArchiveMap.Keys.Contains(texMbin))
                 {
                     TextureMixer.combineTextures(Map, Palettes.paletteSel, ref texMgr);
                     //Override Map
@@ -798,8 +820,9 @@ namespace MVCore.GMDL
     }
 
     
-    public class Uniform: TkMaterialUniform
+    public class Uniform
     {
+        public string Name { get; set; }
         public MVector4 vec;
         private string prefix;
 
@@ -816,14 +839,27 @@ namespace MVCore.GMDL
             vec = new MVector4(0.0f);
         }
 
-        public Uniform(TkMaterialUniform un)
+        public Uniform(TkMaterialUniform_Float un)
         {
             //Copy Attributes
             Name = un.Name;
-            vec = new MVector4(un.Values.x, un.Values.y, un.Values.z, un.Values.t);
+            vec = new MVector4(un.Values.X, un.Values.Y, un.Values.Z, un.Values.W);
         }
 
-        public Uniform(string pref, TkMaterialUniform un) : this(un)
+        public Uniform(TkMaterialUniform_UInt un)
+        {
+            //Copy Attributes
+            Name = un.Name;
+            vec = new MVector4(un.Values.X, un.Values.Y, un.Values.Z, un.Values.W);
+        }
+
+        public Uniform(string pref, TkMaterialUniform_Float un) : this(un)
+        {
+            prefix = pref;
+            Name = prefix + un.Name;
+        }
+
+        public Uniform(string pref, TkMaterialUniform_UInt un) : this(un)
         {
             prefix = pref;
             Name = prefix + un.Name;
@@ -932,17 +968,18 @@ namespace MVCore.GMDL
             { "mpCustomPerMaterial.gMasksMap" ,   TextureUnit.Texture1 },
             { "mpCustomPerMaterial.gNormalMap" ,  TextureUnit.Texture2 },
             { "mpCustomPerMaterial.gDiffuse2Map" , TextureUnit.Texture3 },
-            { "mpCustomPerMaterial.gDetailDiffuseMap", TextureUnit.Texture4},
+            { "mpCustomPerMaterial.gOcclusionMap", TextureUnit.Texture4},
             { "mpCustomPerMaterial.gDetailNormalMap", TextureUnit.Texture5},
             { "mpCustomPerMaterial.skinMatsTex", TextureUnit.Texture6}
         };
+        
 
         public static Dictionary<string, int> MapTexUnitToSampler = new Dictionary<string, int> {
             { "mpCustomPerMaterial.gDiffuseMap" , 0 },
             { "mpCustomPerMaterial.gDiffuse2Map" , 1 },
             { "mpCustomPerMaterial.gMasksMap" ,   2 },
             { "mpCustomPerMaterial.gNormalMap" ,  3 },
-            { "mpCustomPerMaterial.gDetailDiffuseMap", 4},
+            { "mpCustomPerMaterial.gOcclusionMap", 4},
             { "mpCustomPerMaterial.gDetailNormalMap", 5}
         };
 
@@ -1068,6 +1105,10 @@ namespace MVCore.GMDL
                 case (0x32495441): //ATI2A2XY
                     pif = InternalFormat.CompressedRgRgtc2; //Normal maps are probably never srgb
                     break;
+                case (0x31495441): //ATI1
+                    pif = InternalFormat.CompressedRedRgtc1; //Mask maps
+                    blocksize = 8;
+                    break;
                 //DXT10 HEADER
                 case (0x30315844):
                     {
@@ -1091,8 +1132,8 @@ namespace MVCore.GMDL
                         }
                         break;
                     }
-                default:
-                    throw new ApplicationException("Unimplemented Pixel format");
+                default: 
+                    throw new ApplicationException($"Unimplemented Pixel format {pif}");
             }
             
             //Temp Variables
@@ -1126,6 +1167,9 @@ namespace MVCore.GMDL
                     GL.CompressedTexImage3D(target, i, pif, w, h, depth_count, 0, temp_size * depth_count, IntPtr.Zero + offset);
                     offset += temp_size * depth_count;
 
+                    //if (GL.GetError() != ErrorCode.NoError)
+                    //    Console.WriteLine("CHECK");
+                    
                     w = Math.Max(w >> 1, 1);
                     h = Math.Max(h >> 1, 1);
 
@@ -1139,8 +1183,6 @@ namespace MVCore.GMDL
                 GL.TexParameter(target, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
                 GL.TexParameter(target, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
                 GL.TexParameter(target, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
-                //Common.CallBacks.Log(GL.GetError());
-
             }
             else
             {

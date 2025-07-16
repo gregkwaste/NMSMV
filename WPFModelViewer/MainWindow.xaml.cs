@@ -1,27 +1,28 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.IO;
-using System.Windows;
-using System.Windows.Controls;
+﻿using libMBIN.NMS.Toolkit;
 using Microsoft.Win32;
 using Model_Viewer;
+using MVCore;
 using MVCore.Common;
 using MVCore.GMDL;
-using MVCore;
-using System.Runtime.InteropServices;
-using System.Windows.Input;
-using System.Windows.Data;
-using System.Threading;
-using System.Reflection;
-using OpenTK.Mathematics;
 using MVCore.Utils;
+using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Wpf;
-using System.Threading.Tasks;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
+using System.IO;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Media;
-using libMBIN.NMS.Toolkit;
 
 namespace WPFModelViewer
 {
@@ -131,7 +132,6 @@ namespace WPFModelViewer
 
             //Clear treeview
             SceneTreeView.Items.Clear();
-            
             RenderState.rootObject?.Dispose();
 
             if (testScene)
@@ -142,7 +142,7 @@ namespace WPFModelViewer
             glControl.engine.handleRequests();
             
             //Populate 
-            RenderState.rootObject.ID = itemCounter;
+            RenderState.rootObject.ID = 0;
             Util.setStatus("Creating Treeview...");
             //Add to UI
             SceneTreeView.Items.Add(RenderState.rootObject);
@@ -527,6 +527,11 @@ namespace WPFModelViewer
             NMSUtils.ProcGen();
         }
 
+        private void SelectLOD_OnClick(object sender, RoutedEventArgs e)
+        {
+            NMSUtils.SelectLOD(RenderState.rootObject, tb_LODLevel.SelectedIndex);
+        }
+
         private void RegenPose_Click(object sender, RoutedEventArgs e)
         {
             MessageBox.Show(Util.activeWindow, "This button should set random values to the pose slider of the active locator object");
@@ -756,7 +761,7 @@ namespace WPFModelViewer
             try
             {
                 TkSceneNodeData exported_node = root_node.ExportTemplate();
-                exported_node.WriteToExml("export.exml");
+                exported_node.WriteToMxml("export.mxml");
                 CallBacks.Log("Node Exported Successfully!", root_node.Name);
             }
             catch (Exception ex)
@@ -764,6 +769,53 @@ namespace WPFModelViewer
                 CallBacks.Log("Error during template export");
                 CallBacks.Log(ex.Message);
             }
+
+        }
+
+        private void SceneTreeView_Ctx_LoadReference(object sender, RoutedEventArgs e)
+        {
+            Reference root_node = (e.Source as Control).DataContext as Reference;
+            //Try to load the reference model and add it as a child to the reference
+
+            if (root_node.ref_scene_filepath is null)
+            {
+                CallBacks.Log($"Null Reference of {root_node.Name}");
+                return;
+            }
+                
+            CallBacks.Log("Loading Reference " + root_node.ref_scene_filepath);
+            ThreadRequest req;
+
+            //Pause renderer
+            req = new ThreadRequest();
+            req.type = THREAD_REQUEST_TYPE.GL_PAUSE_RENDER_REQUEST;
+            req.arguments.Clear();
+
+            //Send request
+            glControl.issueRenderingRequest(ref req);
+            glControl.engine.handleRequests();
+
+            //Send request for loading reference to the scene
+            req = new ThreadRequest();
+            req.type = THREAD_REQUEST_TYPE.LOAD_REFERENCE_REQUEST;
+            req.arguments.Add(root_node.ref_scene_filepath);
+
+            glControl.issueRenderingRequest(ref req);
+            glControl.engine.handleRequests();
+
+            //I think there might not be any need for treeview updates
+
+            //Generate Request for resuming rendering
+            ThreadRequest req2 = new ThreadRequest();
+            req2.type = THREAD_REQUEST_TYPE.GL_RESUME_RENDER_REQUEST;
+            req2.arguments.Clear();
+
+            glControl.issueRenderingRequest(ref req2);
+            glControl.engine.handleRequests();
+            //glControl.waitForRenderingRequest(ref req2);
+
+            //Bind new camera to the controls
+            CameraOptionsView.Content = RenderState.activeCam.settings;
 
         }
 
@@ -788,8 +840,25 @@ namespace WPFModelViewer
             }
         }
 
-        
+        private void camSpeed_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                TextBox block = (TextBox)sender;
+                //Make sure that the text is numeric
+                bool res = float.TryParse(block.Text, out float speed);
 
+                if (res)
+                {
+                    RenderState.activeCam.settings.Speed = speed;
+                    block.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next));
+                }
+                else
+                {
+                    block.Text = RenderState.activeCam.settings.Speed.ToString();
+                }
+            }
+        }
 
 
 #endif
@@ -808,10 +877,43 @@ namespace WPFModelViewer
         }
     }
 
+    
 }
 
 namespace WPFModelViewer
 {
+    public sealed class IsInstanceOfConverter : IValueConverter
+    {
+        public object Convert(object? value, Type targetType,
+                              object? parameter, CultureInfo culture)
+        {
+            if (parameter is Type expectedType)
+                return expectedType.IsInstanceOfType(value);
+            return false;
+        }
+
+        public object ConvertBack(object? value, Type targetType,
+                                    object? parameter, CultureInfo culture)
+        {
+            return Binding.DoNothing;
+        }
+    }
+
+    public class SceneNodeTemplateSelector : DataTemplateSelector
+    {
+        public DataTemplate? DefaultTemplate { get; set; }
+        public DataTemplate? ReferenceTemplate { get; set; }
+        
+        public override DataTemplate? SelectTemplate(object item, DependencyObject container)
+        {
+            return item switch
+            {
+                Reference => ReferenceTemplate,
+                _ => DefaultTemplate
+            };
+        }
+    }
+
     internal static class NativeMethods
     {
         // http://msdn.microsoft.com/en-us/library/ms681944(VS.85).aspx

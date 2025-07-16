@@ -19,6 +19,8 @@
     
     <Window.Resources>
         <ResourceDictionary>
+            <local:IsInstanceOfConverter x:Key="IsInstanceOf"/>
+
             <DataTemplate DataType="{x:Type gmdl:CameraSettings}">
                 <GroupBox Header="Camera Options">
                     <Grid>
@@ -39,29 +41,26 @@
                         </DockPanel>
                         <DockPanel Grid.Row="1" HorizontalAlignment="Stretch">
                             <TextBlock Width="100">Cam Speed</TextBlock>
-                            <Slider x:Name="sliderMovementSpeed" Value="{Binding Speed}" Minimum="1" Maximum="20" SmallChange="1"></Slider>
+                            <TextBox x:Name="camSpeed" Text="{Binding Speed, Mode=TwoWay, UpdateSourceTrigger=Explicit}" KeyDown="camSpeed_KeyDown"/>
                         </DockPanel>
+                        
                         <DockPanel Grid.Row="2" HorizontalAlignment="Stretch">
-                            <TextBlock Width="100">Cam Speed Boost</TextBlock>
-                            <Slider x:Name="sliderMovementFactor"  Value="{Binding SpeedPower}" Minimum="1" Maximum="10" SmallChange="0.5"></Slider>
-                        </DockPanel>
-                        <DockPanel Grid.Row="3" HorizontalAlignment="Stretch">
                             <TextBlock Width="100">Cam Sensitivity</TextBlock>
                             <Slider Value="{Binding Sensitivity}" Minimum="0" Maximum="2" SmallChange="0.01"></Slider>
                         </DockPanel>
-                        <DockPanel Grid.Row="4" HorizontalAlignment="Stretch">
+                        <DockPanel Grid.Row="3" HorizontalAlignment="Stretch">
                             <TextBlock Width="100">zNear</TextBlock>
                             <Slider x:Name="sliderzNear"  Value="{Binding ZNear}" Minimum="0.01" Maximum="1" SmallChange="0.1"></Slider>
                         </DockPanel>
-                        <DockPanel Grid.Row="5" HorizontalAlignment="Stretch">
+                        <DockPanel Grid.Row="4" HorizontalAlignment="Stretch">
                             <TextBlock Width="100">zFar</TextBlock>
                             <Slider x:Name="sliderzFar" Value="{Binding ZFar}" Minimum="101" Maximum="30000" SmallChange="5"></Slider>
                         </DockPanel>
-                        <DockPanel Grid.Row="6" HorizontalAlignment="Stretch">
+                        <DockPanel Grid.Row="5" HorizontalAlignment="Stretch">
                             <TextBlock Width="100">Light Distance</TextBlock>
                             <Slider x:Name="sliderlightDistance" Value="2.0" Minimum="0" Maximum="20" SmallChange="0.2"></Slider>
                         </DockPanel>
-                        <DockPanel Grid.Row="7" HorizontalAlignment="Stretch">
+                        <DockPanel Grid.Row="6" HorizontalAlignment="Stretch">
                             <TextBlock Width="100">Light Intensity</TextBlock>
                             <Slider x:Name="sliderLightIntensity"  Value="3.0" Minimum="0.0" Maximum="20.0" SmallChange="0.1"></Slider>
                         </DockPanel>
@@ -669,17 +668,59 @@
                 <StackPanel Orientation="Horizontal">
                     <!-- These elements are bound to a FooViewModel object. -->
                     <CheckBox
-                            Focusable="False" 
-                            IsChecked="{Binding IsRenderable}" 
-                            VerticalAlignment="Center"
-                        />
+                        Focusable="False" 
+                        IsChecked="{Binding IsRenderable}" 
+                        VerticalAlignment="Center"
+                    />
                     <ContentPresenter 
-                            Content="{Binding Name, Mode=OneTime}" 
+                            Content="{Binding}"
                             Margin="2,0">
+                        <ContentPresenter.ContentTemplate>
+                            <DataTemplate>
+                                <TextBlock DataContext="{Binding}" Text="{Binding Name}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding
+                                                            Converter={StaticResource IsInstanceOf},
+                                                            ConverterParameter={x:Type gmdl:Reference}}" 
+                                                             Value="true">
+                                                    <Setter Property="Foreground" Value="DarkGreen"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding}" Value="{x:Type gmdl:Mesh}">
+                                                    <Setter Property="Foreground" Value="LightGreen"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </DataTemplate>
+                        </ContentPresenter.ContentTemplate>
                     </ContentPresenter>
                     <StackPanel.ContextMenu>
-                        <ContextMenu>
+                        <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                             <MenuItem Header="Export Template (Experimental)" Click="SceneTreeView_Ctx_ExportTemplate"></MenuItem>
+                            <MenuItem Header="Load Reference" Click="SceneTreeView_Ctx_LoadReference">
+                                <MenuItem.Style>
+                                    <Style TargetType="MenuItem">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <!--   Binding brings in the current DataContext
+                       Value uses the converter to say “is it that type?” -->
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding
+                                                        Converter={StaticResource IsInstanceOf},
+                                                        ConverterParameter={x:Type gmdl:Reference}}"
+                                                        Value="True"/>
+                                                    <Condition Binding ="{Binding Path=isRefLoaded}" Value="False"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </MenuItem.Style>
+                            </MenuItem>
                         </ContextMenu>
                     </StackPanel.ContextMenu>
                 </StackPanel>
@@ -691,7 +732,7 @@
                 </ObjectDataProvider.MethodParameters>
             </ObjectDataProvider>
         </ResourceDictionary>
-
+        
     </Window.Resources>
 
     <Grid Margin="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
@@ -768,7 +809,7 @@
                                 </DockPanel>
                                 <DockPanel Grid.Row="2">
                                     <TextBlock HorizontalAlignment="Left">Camera Rotation</TextBlock>
-                                    <TextBlock HorizontalAlignment="Right" ToolTip="Hold the right mouse button and move around with the mouse">Hold RMB + Move</TextBlock>
+                                    <TextBlock HorizontalAlignment="Right" ToolTip="Hold the right mouse button and move around with the mouse">Hold LMB + Move</TextBlock>
                                 </DockPanel>
                                 <DockPanel Grid.Row="3">
                                     <TextBlock HorizontalAlignment="Left">Scene Rotate (Y Axis)</TextBlock>
@@ -788,17 +829,33 @@
                     <TabItem Header="Tools">
                         <Grid>
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="5*"/>
-                                <RowDefinition Height="5*"/>
+                                <RowDefinition Height="5*" MinHeight="50"/>
+                                <RowDefinition Height="1*" MinHeight="50"/>
                             </Grid.RowDefinitions>
-                            <GroupBox Grid.Row="0" Header="ProcGen Tools" BorderThickness="2">
+                            <GroupBox Grid.Row="1" MinHeight="50" Header="Viewport Tools" BorderThickness="2">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="50*"/>
                                         <ColumnDefinition Width="50*"/>
                                     </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0" FontSize="18" Click="ButtonBase_OnClick">ProcGen</Button>
-                                    <Button Grid.Column="1" FontSize="18" Click="RegenPose_Click">Regen Pose</Button>
+                                    <ComboBox x:Name="tb_LODLevel" Grid.Column="0" HorizontalAlignment="Left" Width="150">
+                                        <ComboBoxItem>0</ComboBoxItem>
+                                        <ComboBoxItem>1</ComboBoxItem>
+                                        <ComboBoxItem>2</ComboBoxItem>
+                                        <ComboBoxItem>3</ComboBoxItem>
+                                        <ComboBoxItem>4</ComboBoxItem>
+                                    </ComboBox>
+                                    <Button Grid.Column="1" FontSize="12" Click="SelectLOD_OnClick">Select LOD</Button>
+                                </Grid>
+                            </GroupBox>
+                            <GroupBox Grid.Row="0" MinHeight="50" Header="ProcGen Tools" BorderThickness="2">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="50*"/>
+                                        <ColumnDefinition Width="50*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" FontSize="12" Click="ButtonBase_OnClick">ProcGen</Button>
+                                    <Button Grid.Column="1" FontSize="12" Click="RegenPose_Click">Regen Pose</Button>
                                 </Grid>
                             </GroupBox>
                         </Grid>

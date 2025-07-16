@@ -15,7 +15,7 @@ namespace MVCore.GMDL
         public string name_key = "";
         public textureManager texMgr;
         public int shaderHash = int.MaxValue;
-
+        
         public static List<string> supported_flags = new List<string>() {
                 "_F01_DIFFUSEMAP",
                 "_F02_SKINNED",
@@ -23,20 +23,14 @@ namespace MVCore.GMDL
                 "_F07_UNLIT",
                 "_F09_TRANSPARENT",
                 "_F11_ALPHACUTOUT",
-                "_F14_UVSCROLL",
+                "_F13_UVEFFECT",
                 "_F16_DIFFUSE2MAP",
-                "_F17_MULTIPLYDIFFUSE2MAP",
-                "_F21_VERTEXCOLOUR",
-                "_F22_TRANSPARENT_SCALAR",
-                "_F24_AOMAP",
-                "_F28_VBSKINNED",
-                "_F29_VBCOLOUR",
-                "_F34_GLOW",
-                "_F35_GLOW_MASK",
-                "_F39_METALLIC_MASK",
-                "_F43_NORMAL_TILING",
-                "_F51_DECAL_DIFFUSE",
-                "_F52_DECAL_NORMAL",
+                "_F20_PARALLAX",
+                "_F21_VERTEXCUSTOM",
+                "_F22_OCCLUSION_MAP",
+                "_F25_MASKS_MAP",
+                "_F42_DETAIL_NORMAL",
+                "_F53_COLOURISABLE",
                 "_F55_MULTITEXTURE"};
 
         public string PName
@@ -106,8 +100,9 @@ namespace MVCore.GMDL
             DisableZTest = false;
             Flags = new List<TkMaterialFlags>();
             Samplers = new List<TkMaterialSampler>();
-            Uniforms = new List<TkMaterialUniform>();
-
+            Uniforms_Float = new List<TkMaterialUniform_Float>();
+            Uniforms_UInt = new List<TkMaterialUniform_UInt>();
+            
             //Clear material flags
             for (int i = 0; i < 64; i++)
                 material_flags[i] = 0.0f;
@@ -124,15 +119,19 @@ namespace MVCore.GMDL
             DisableZTest = md.DisableZTest;
             Flags = new List<TkMaterialFlags>();
             Samplers = new List<TkMaterialSampler>();
-            Uniforms = new List<TkMaterialUniform>();
-
+            Uniforms_Float = new List<TkMaterialUniform_Float>();
+            Uniforms_UInt = new List<TkMaterialUniform_UInt>();
+            
             for (int i = 0; i < md.Flags.Count; i++)
                 Flags.Add(md.Flags[i]);
             for (int i = 0; i < md.Samplers.Count; i++)
                 Samplers.Add(md.Samplers[i]);
-            for (int i = 0; i < md.Uniforms.Count; i++)
-                Uniforms.Add(md.Uniforms[i]);
-
+            
+            for (int i = 0; i < md.Uniforms_Float.Count; i++)
+                Uniforms_Float.Add(md.Uniforms_Float[i]);
+            for (int i = 0; i < md.Uniforms_UInt.Count; i++)
+                Uniforms_UInt.Add(md.Uniforms_UInt[i]);
+            
             //Clear material flags
             for (int i = 0; i < 64; i++)
                 material_flags[i] = 0.0f;
@@ -145,7 +144,7 @@ namespace MVCore.GMDL
             TkMaterialData template = NMSUtils.LoadNMSTemplate(path, ref Common.RenderState.activeResMgr) as TkMaterialData;
 #if DEBUG
             //Save NMSTemplate to exml
-            template.WriteToExml("Temp\\" + template.Name + ".exml");
+            template.WriteToMxml("Temp\\" + template.Name + ".mxml");
 #endif
 
             //Make new material based on the template
@@ -162,8 +161,15 @@ namespace MVCore.GMDL
             foreach (TkMaterialFlags f in Flags)
                 material_flags[(int)f.MaterialFlag] = 1.0f;
 
+            
             //Get Uniforms
-            foreach (TkMaterialUniform un in Uniforms)
+            foreach (TkMaterialUniform_Float un in Uniforms_Float)
+            {
+                Uniform my_un = new Uniform("mpCustomPerMaterial.", un);
+                CustomPerMaterialUniforms[my_un.Name] = my_un;
+            }
+
+            foreach (TkMaterialUniform_UInt un in Uniforms_UInt)
             {
                 Uniform my_un = new Uniform("mpCustomPerMaterial.", un);
                 CustomPerMaterialUniforms[my_un.Name] = my_un;
@@ -336,8 +342,7 @@ namespace MVCore.GMDL
                 meshList = Common.RenderState.activeResMgr.decalMeshShaderMap;
                 defines.Add("_D_DEFERRED_RENDERING");
             }
-            else if (MaterialFlags.Contains("_F09_TRANSPARENT") ||
-                     MaterialFlags.Contains("_F22_TRANSPARENT_SCALAR"))
+            else if (MaterialFlags.Contains("_F09_TRANSPARENT"))
             {
                 shaderDict = Common.RenderState.activeResMgr.GLForwardShaderMapTransparent;
                 meshList = Common.RenderState.activeResMgr.transparentMeshShaderMap;

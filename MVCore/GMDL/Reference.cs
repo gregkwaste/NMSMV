@@ -1,34 +1,35 @@
-﻿using System;
+﻿using libMBIN.NMS.Toolkit;
+using MVCore.Utils;
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
-using libMBIN.NMS.Toolkit;
 
 
 namespace MVCore.GMDL
 {
     public class Reference : Locator
     {
-        public Model ref_scene; //holds the referenced scene
+        public String ref_scene_filepath { get;} //holds the referenced scene file path
+        public bool isRefLoaded { get; set; } = false;
 
-        public Reference()
+        public Reference(string path)
         {
             type = TYPES.REFERENCE;
+            ref_scene_filepath = path;
         }
 
         public Reference(Reference input)
         {
             //Copy info
             base.copyFrom(input);
-
-            ref_scene = input.ref_scene.Clone();
-            ref_scene.parent = this;
-            children.Add(ref_scene);
+            ref_scene_filepath = input.ref_scene_filepath;
+            isRefLoaded = input.isRefLoaded;
         }
 
         public void copyFrom(Reference input)
         {
-            base.copyFrom(input); //Copy base stuff
-            this.ref_scene = input.ref_scene;
+            //Use the constructor
         }
 
         public override Model Clone()
@@ -40,7 +41,6 @@ namespace MVCore.GMDL
         {
             return new TkSceneNodeData();
         }
-
 
         public override void setParentScene(Scene animscene)
         {
