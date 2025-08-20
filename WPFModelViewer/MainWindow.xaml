@@ -43,7 +43,6 @@
                             <TextBlock Width="100">Cam Speed</TextBlock>
                             <TextBox x:Name="camSpeed" Text="{Binding Speed, Mode=TwoWay, UpdateSourceTrigger=Explicit}" KeyDown="camSpeed_KeyDown"/>
                         </DockPanel>
-                        
                         <DockPanel Grid.Row="2" HorizontalAlignment="Stretch">
                             <TextBlock Width="100">Cam Sensitivity</TextBlock>
                             <Slider Value="{Binding Sensitivity}" Minimum="0" Maximum="2" SmallChange="0.01"></Slider>

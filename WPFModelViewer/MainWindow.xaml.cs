@@ -41,7 +41,7 @@ namespace WPFModelViewer
         private WorkThreadDispacher workDispatcher = new WorkThreadDispacher();
         private System.Timers.Timer requestHandler = new System.Timers.Timer();
         private List<ThreadRequest> issuedRequests = new List<ThreadRequest>();
-        
+
         private const int WmExitSizeMove = 0x232; //Custom Windows Messages
         private const int WmEnterSizeMove = 0x231;
 
@@ -51,7 +51,7 @@ namespace WPFModelViewer
         Model init_drag;
         Model target_drag;
 
-        
+
 
         public MainWindow()
         {
@@ -78,13 +78,13 @@ namespace WPFModelViewer
 
             //Initialize Resource Manager
             RenderState.activeResMgr = new ResourceManager();
-            
+
 
             var settings = new GLWpfControlSettings()
             {
                 MajorVersion = 4,
                 MinorVersion = 6,
-                UseDeviceDpi= false,
+                UseDeviceDpi = false,
 #if DEBUG
                 GraphicsContextFlags = ContextFlags.Debug,
 #else
@@ -97,7 +97,7 @@ namespace WPFModelViewer
 
             //Generate CGLControl
             glControl = new CGLControl(Host);
-            
+
 
             //Load Settings
             //OVERRIDE SETTINGS
@@ -106,7 +106,7 @@ namespace WPFModelViewer
             SettingsForm.loadSettingsStatic();
 
             //Create SceneTreeView context menu
-            
+
             //Improve performance on Treeview
             SceneTreeView.SetValue(VirtualizingStackPanel.IsVirtualizingProperty, true);
             SceneTreeView.SetValue(VirtualizingStackPanel.VirtualizationModeProperty, VirtualizationMode.Recycling);
@@ -120,12 +120,12 @@ namespace WPFModelViewer
         {
             CallBacks.Log("Importing " + filename);
             ThreadRequest req;
-            
+
             //Pause renderer
             req = new ThreadRequest();
             req.type = THREAD_REQUEST_TYPE.GL_PAUSE_RENDER_REQUEST;
             req.arguments.Clear();
-            
+
             //Send request
             glControl.issueRenderingRequest(ref req);
             glControl.engine.handleRequests();
@@ -140,7 +140,7 @@ namespace WPFModelViewer
                 glControl.addScene(filename);
 
             glControl.engine.handleRequests();
-            
+
             //Populate 
             RenderState.rootObject.ID = 0;
             Util.setStatus("Creating Treeview...");
@@ -171,7 +171,7 @@ namespace WPFModelViewer
 
             if (res == false)
                 return;
-            
+
             var filename = openFileDlg.FileName;
             OpenFile(filename, false, 0);
         }
@@ -180,14 +180,14 @@ namespace WPFModelViewer
         {
             //I need to make a custom window for previewing the entire list of SCENE Files from the PAK files
             List<string> paths = new List<string>();
-            
-            foreach(string path in RenderState.activeResMgr.NMSFileToArchiveMap.Keys)
+
+            foreach (string path in RenderState.activeResMgr.NMSFileToArchiveMap.Keys)
             {
                 if (path.EndsWith(".SCENE.MBIN"))
                     paths.Add(path);
             }
             paths.Sort();
-                
+
             Window win = new Window();
             win.Title = "Select SCENE file from List";
 
@@ -219,7 +219,7 @@ namespace WPFModelViewer
             };
 
             CollectionView viewSource = (CollectionView)CollectionViewSource.GetDefaultView(lb.ItemsSource);
-            
+
 
             //Search box
             TextBox searchBox = new TextBox();
@@ -253,7 +253,7 @@ namespace WPFModelViewer
 
             win.Content = grid;
             win.Show();
-        
+
         }
 
         //Close Form
@@ -272,7 +272,7 @@ namespace WPFModelViewer
 
             //Stop request timer
             requestHandler.Stop();
-            
+
             //Send Terminate Rendering request to the rt_thread
             ThreadRequest req = new ThreadRequest();
             req.type = THREAD_REQUEST_TYPE.TERMINATE_REQUEST;
@@ -298,8 +298,8 @@ namespace WPFModelViewer
                         //Send resizing request
                         ThreadRequest req = new ThreadRequest();
                         req.type = THREAD_REQUEST_TYPE.GL_RESIZE_REQUEST;
-                        req.arguments.Add((int) Host.ActualWidth);
-                        req.arguments.Add((int) Host.ActualHeight);
+                        req.arguments.Add((int)Host.ActualWidth);
+                        req.arguments.Add((int)Host.ActualHeight);
 
                         //Send request
                         glControl.engine.issueRenderingRequest(ref req);
@@ -339,8 +339,8 @@ namespace WPFModelViewer
         //Do stuff once the GUI is ready
         private void MainWindow_OnLoaded(object sender, RoutedEventArgs e)
         {
-            
-            
+
+
             //Bind default camera to the controls
             CameraOptionsView.Content = RenderState.activeCam.settings;
 
@@ -356,10 +356,10 @@ namespace WPFModelViewer
             RenderState.rootObject = scene;
             glControl.modelUpdateQueue.Enqueue(scene);
             glControl.engine.renderMgr.populate(scene);
-            
+
             SceneTreeView.Items.Clear();
             SceneTreeView.Items.Add(scene);
-            
+
 
             //Check if Temp folder exists
 #if DEBUG
@@ -382,7 +382,7 @@ namespace WPFModelViewer
             //sliderMovementFactor.ValueChanged += Sliders_OnValueChanged;
 
             //Invoke the method in order to setup the control at startup
-            Sliders_OnValueChanged(null, new RoutedPropertyChangedEventArgs<double>(0.0f,0.0f));
+            Sliders_OnValueChanged(null, new RoutedPropertyChangedEventArgs<double>(0.0f, 0.0f));
             Dispatcher.UnhandledException += OnDispatcherUnhandledException;
 
 
@@ -427,7 +427,7 @@ namespace WPFModelViewer
             });
 
             t.Start();
-            
+
         }
 
 #if (DEBUG)
@@ -521,7 +521,7 @@ namespace WPFModelViewer
             Util.showError(errorMessage, "Error");
             e.Handled = true;
         }
-        
+
         private void ButtonBase_OnClick(object sender, RoutedEventArgs e)
         {
             NMSUtils.ProcGen();
@@ -559,7 +559,7 @@ namespace WPFModelViewer
 
         private void SceneTreeView_OnSelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
         {
-            Model node = (Model) SceneTreeView.SelectedItem;
+            Model node = (Model)SceneTreeView.SelectedItem;
             if (node != null)
             {
                 //Swap activeModels
@@ -606,14 +606,14 @@ namespace WPFModelViewer
 
             if ((e.OriginalSource is TextBlock) && (SceneTreeView.SelectedItem != null))
             {
-                Model node = (Model) SceneTreeView.SelectedItem;
+                Model node = (Model)SceneTreeView.SelectedItem;
                 init_drag = node; //Set start model node
                 //Common.CallBacks.Log("Grabbed " + node.Name);
                 var tv = sender as TreeView;
 
                 //Fetch textblock
-                old_tb = (TextBlock) e.OriginalSource;
-                start_tb = (TextBlock) e.OriginalSource;
+                old_tb = (TextBlock)e.OriginalSource;
+                start_tb = (TextBlock)e.OriginalSource;
 
                 DragDrop.DoDragDrop(tv, node, DragDropEffects.Move);
             }
@@ -644,7 +644,7 @@ namespace WPFModelViewer
             IInputElement target = SceneTreeView.InputHitTest(e.GetPosition(SceneTreeView));
             if (old_tb != start_tb)
                 old_tb.Background = null;
-            TextBlock tb = (TextBlock) target;
+            TextBlock tb = (TextBlock)target;
 
             if (tb == null || target_drag == null)
                 return;
@@ -693,7 +693,7 @@ namespace WPFModelViewer
             GetCursorPos(ref w32Mouse);
             var pfs = SceneTreeView.PointFromScreen(new Point(w32Mouse.X, w32Mouse.Y));
             var tb = SceneTreeView.InputHitTest(pfs) as TextBlock;
-            
+
             if (tb != null)
             {
 
@@ -707,15 +707,15 @@ namespace WPFModelViewer
                         tb.Background = System.Windows.Media.Brushes.DarkGray;
                         var s1 = System.Windows.Media.VisualTreeHelper.GetParent(tb);
                         StackPanel s2 = (StackPanel)System.Windows.Media.VisualTreeHelper.GetParent(s1);
-                        target_drag = (Model) s2.DataContext; //Set current target drag
+                        target_drag = (Model)s2.DataContext; //Set current target drag
                         //Common.CallBacks.Log("Cursor Over " + target_drag.Name);
                     }
 
                     old_tb = tb;
                 }
-    
+
             }
-        
+
         }
 
         //Updates textBox values on enter
@@ -782,7 +782,7 @@ namespace WPFModelViewer
                 CallBacks.Log($"Null Reference of {root_node.Name}");
                 return;
             }
-                
+
             CallBacks.Log("Loading Reference " + root_node.ref_scene_filepath);
             ThreadRequest req;
 
@@ -839,7 +839,8 @@ namespace WPFModelViewer
                     break;
             }
         }
-
+#endif
+    
         private void camSpeed_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
@@ -860,8 +861,6 @@ namespace WPFModelViewer
             }
         }
 
-
-#endif
     }
 
     public class BindingErrorTraceListener : System.Diagnostics.TraceListener
