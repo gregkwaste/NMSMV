@@ -30,7 +30,6 @@ namespace WPFModelViewer
 
             //Load settings from environment
             SettingsContainer.Content = RenderState.settings;
-            RenderSettingsContainer.Content = RenderState.renderSettings;
         }
 
         public static void loadSettingsStatic()
@@ -41,7 +40,6 @@ namespace WPFModelViewer
                 string jsonstring = File.ReadAllText("settings.json");
                 
                 Newtonsoft.Json.Linq.JObject tkn = Newtonsoft.Json.Linq.JObject.Parse(jsonstring);
-
 
                 AppSettings app_settings = JsonConvert.DeserializeObject<AppSettings>(tkn.GetValue("AppSettings").ToString());
                 RenderSettings render_settings = JsonConvert.DeserializeObject<RenderSettings>(tkn.GetValue("RenderSettings").ToString());

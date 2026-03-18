@@ -74,11 +74,10 @@ namespace MVCore.GMDL
 
         public event PropertyChangedEventHandler PropertyChanged;
 
-        private void NotifyPropertyChanged(String info)
+        protected void NotifyPropertyChanged(String info)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(info));
         }
-
 
         //Properties
         public Vector3 localPosition

@@ -898,6 +898,28 @@ namespace WPFModelViewer
         }
     }
 
+    public sealed class IsReferenceLoadedConverter : IValueConverter
+    {
+        public object Convert(object? value, Type targetType,
+                              object? parameter, CultureInfo culture)
+        {
+            Type ref_type = typeof(Reference);
+            var prop = ref_type.GetProperty("isRefLoaded");
+            if (prop == null) return false;
+            var propValue = prop.GetValue(value);
+            if ((bool)propValue == true)
+                Console.WriteLine("Something");
+                
+            return (bool) propValue;
+        }
+
+        public object ConvertBack(object? value, Type targetType,
+                                    object? parameter, CultureInfo culture)
+        {
+            return Binding.DoNothing;
+        }
+    }
+
     public class SceneNodeTemplateSelector : DataTemplateSelector
     {
         public DataTemplate? DefaultTemplate { get; set; }

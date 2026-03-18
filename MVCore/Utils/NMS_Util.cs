@@ -14,6 +14,7 @@ using Path = System.IO.Path;
 using MVCore.Common;
 using libHGPAK.HGPAK;
 using MVCore.GMDL;
+using Accessibility;
 
 namespace MVCore.Utils
 {
@@ -116,9 +117,11 @@ namespace MVCore.Utils
             switch (load_mode)
             {
                 case 0: //Load EXML
+                    CallBacks.Log("Loading exml file from unpacked folder" + effective_filepath);
                     result = new FileStream(Path.Combine(RenderState.settings.UnpackDir, exmlpath), FileMode.Open);
                     break;
                 case 1: //Load MBIN
+                    CallBacks.Log("Loading MBIN file from unpacked folder" + effective_filepath);
                     result = new FileStream(Path.Combine(RenderState.settings.UnpackDir, filepath), FileMode.Open);
                     break;
                 case 2: //Load File from Archive
@@ -153,6 +156,9 @@ namespace MVCore.Utils
 
         public static NMSTemplate LoadNMSTemplate(string filepath, ref ResourceManager resMgr)
         {
+            
+            //Load Template from stream
+            
             int load_mode = 0;
             NMSTemplate template = null;
             //filepath = Path.GetFullPath(filepath);
@@ -191,13 +197,15 @@ namespace MVCore.Utils
                 {
                     case 0: //Load EXML
                         {
+                            CallBacks.Log("Loading exml template from unpacked folder: " + effective_filepath);
                             string xml = File.ReadAllText(Path.Combine(RenderState.settings.UnpackDir, exmlpath));
                             template = MXmlFile.ReadTemplateFromString(xml);
                             break;
                         }
                     case 1: //Load MBIN
                         {
-                            string eff_path = Path.Combine(RenderState.settings.UnpackDir, filepath);
+                            CallBacks.Log("Loading mbin template from unpacked folder: " + effective_filepath);
+                            string eff_path = Path.Combine(RenderState.settings.UnpackDir, effective_filepath);
                             MBINFile mbinf = new MBINFile(eff_path);
                             mbinf.Load();
                             template = mbinf.GetData();
@@ -206,6 +214,7 @@ namespace MVCore.Utils
                         }
                     case 2: //Load File from Archive
                         {
+                            CallBacks.Log("Loading template from PAK: " + effective_filepath);
                             Archive arc = loadNMSArchive(resMgr.NMSFileToArchiveMap[effective_filepath]);
                             Stream file = arc.ExtractFile(effective_filepath);
                             MBINFile mbinf = new MBINFile(file);
@@ -480,7 +489,9 @@ namespace MVCore.Utils
             if (_m.type == TYPES.MESH)
             {
                 Mesh _mesh = (Mesh) _m;
-                _m.IsRenderable = _mesh.LodLevel == LOD;
+                //Apply the lod filter only on enabled meshes
+                if (_m.IsRenderable)
+                    _m.IsRenderable = _mesh.LodLevel == LOD;
             }
               
             //Recurse to children

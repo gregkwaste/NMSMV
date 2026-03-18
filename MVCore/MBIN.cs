@@ -1869,23 +1869,23 @@ namespace MVCore
             so.parent = parent;
             so.init(transforms);
 
-            Scene new_so;
+            Scene new_so = null;
             
             //Check if scene has been parsed
-            if (!Common.RenderState.activeResMgr.GLScenes.ContainsKey(scene_ref))
+            if (Common.RenderState.settings.LoadReferences)
             {
-                //Read new Scene
-                //new_so = LoadObjects(scene_ref);
-            }
-            else
-            {
-                //Make a shallow copy of the scene
-                new_so = (Scene) RenderState.activeResMgr.GLScenes[scene_ref].Clone();
-            }
+                if (Common.RenderState.activeResMgr.GLScenes.ContainsKey(scene_ref))
+                {
+                    //Make a shallow copy of the scene
+                    new_so = (Scene)RenderState.activeResMgr.GLScenes[scene_ref].Clone();
+                }
+                else {
+                    new_so = LoadObjects(scene_ref);
+                }
 
-            //so.ref_scene = new_so;
-            //new_so.parent = so;
-            //so.children.Add(new_so); //Keep it also as a child so the rest of pipeline is not affected
+                so.AddChild(new_so);
+                so.isRefLoaded = true;
+            }
 
             //Handle Children
             //Common.CallBacks.Log("Children Count {0}", childs.ChildNodes.Count);

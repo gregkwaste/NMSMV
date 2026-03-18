@@ -20,6 +20,7 @@
     <Window.Resources>
         <ResourceDictionary>
             <local:IsInstanceOfConverter x:Key="IsInstanceOf"/>
+            <local:IsReferenceLoadedConverter x:Key="IsReferenceLoaded"/>
 
             <DataTemplate DataType="{x:Type gmdl:CameraSettings}">
                 <GroupBox Header="Camera Options">
@@ -680,12 +681,17 @@
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding
                                                             Converter={StaticResource IsInstanceOf},
                                                             ConverterParameter={x:Type gmdl:Reference}}" 
-                                                             Value="true">
-                                                    <Setter Property="Foreground" Value="DarkGreen"/>
-                                                </DataTrigger>
+                                                                Value="True"/>
+                                                    </MultiDataTrigger.Conditions>
+                                                    <MultiDataTrigger.Setters>
+                                                        <Setter Property="Foreground" Value="DarkGreen"/>
+                                                    </MultiDataTrigger.Setters>
+                                                </MultiDataTrigger>
                                                 <DataTrigger Binding="{Binding}" Value="{x:Type gmdl:Mesh}">
                                                     <Setter Property="Foreground" Value="LightGreen"/>
                                                 </DataTrigger>

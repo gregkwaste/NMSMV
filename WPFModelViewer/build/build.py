@@ -30,8 +30,8 @@ if __name__ == "__main__":
 
     #DEBUG
     sys.argv.append("Release")
-    sys.argv.append("0.90.0")
-
+    sys.argv.append("0.93.1")
+    
     #Get configuration name
     try:
         configName = sys.argv[1]

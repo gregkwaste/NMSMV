@@ -330,7 +330,8 @@ namespace MVCore
                 shaderMeshMap = RenderState.activeResMgr.decalMeshShaderMap;
             }
             //Check if the model has a transparent material
-            else if (m.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F09_TRANSPARENT))
+            else if (m.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F30_REFRACTION) ||
+                    m.material.has_flag(TkMaterialFlags.MaterialFlagEnum._F32_REFRACTION_MASK))
             {
                 shaderMeshMap = RenderState.activeResMgr.transparentMeshShaderMap;
             }

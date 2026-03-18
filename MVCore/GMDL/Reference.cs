@@ -2,6 +2,7 @@
 using MVCore.Utils;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 
@@ -11,8 +12,38 @@ namespace MVCore.GMDL
     public class Reference : Locator
     {
         public String ref_scene_filepath { get;} //holds the referenced scene file path
-        public bool isRefLoaded { get; set; } = false;
+        private bool _isRefLoaded = false;
 
+        public new string Name
+        {
+            get
+            {
+                if (_isRefLoaded)
+                    return name + " - (Loaded)";
+                else
+                    return name + " - (Unloaded)";
+            }
+            set
+            {
+                name = value;
+            }
+        }
+        
+        public bool isRefLoaded
+        {
+            get
+            {
+                return _isRefLoaded;
+            }
+
+            set
+            {
+                _isRefLoaded = true;
+                NotifyPropertyChanged("isRefLoaded");
+                NotifyPropertyChanged("Name");
+            }
+        }
+        
         public Reference(string path)
         {
             type = TYPES.REFERENCE;

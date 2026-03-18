@@ -941,7 +941,7 @@ namespace MVCore.GMDL
         //Property Change callbacks
         public event PropertyChangedEventHandler PropertyChanged;
 
-        private void RaisePropertyChanged(string prop)
+        public void RaisePropertyChanged(string prop)
         {
             if (PropertyChanged != null)
                 PropertyChanged(this, new PropertyChangedEventArgs(prop));

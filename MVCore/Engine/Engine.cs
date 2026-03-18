@@ -486,7 +486,7 @@ namespace MVCore.Engine
             if (_m is Reference)
             {
                 Reference _m_ref = (Reference) _m;
-                if (_m_ref.ref_scene_filepath == scene_path)
+                if (_m_ref.ref_scene_filepath == scene_path && !_m_ref.isRefLoaded)
                     referers.Add(_m_ref);
             }
 

@@ -234,6 +234,7 @@ namespace MVCore.Common
         private string gamedir;
         private string unpackdir;
         private int _procGenWinNum;
+        private bool _loadReferences;
         [JsonIgnore]
         public Key KeyUp = Key.W;
         [JsonIgnore]
@@ -352,6 +353,16 @@ namespace MVCore.Common
                 else
                     forceProcGen = 0;
                 NotifyPropertyChanged("ForceProcGen");
+            }
+        }
+
+        public bool LoadReferences
+        {
+            get => _loadReferences;
+            set
+            {
+                _loadReferences = value;
+                NotifyPropertyChanged("LoadReferences");
             }
         }
 
