@@ -9,8 +9,6 @@
 	  MathNet.Numerics
       Newtonsoft.Json
       AssimpNet
-      NLog
-	  Gameloop.Vdf
 	  Microsoft.*
     </IncludeAssemblies>
   </Costura>

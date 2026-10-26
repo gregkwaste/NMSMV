@@ -32,6 +32,24 @@ namespace Model_Viewer
         
         //Palette Selection
         public static Dictionary<string, Dictionary<string, Vector4>> paletteSel;
+        //All 64 colours of each palette, for descriptors that ask for a fixed colour index
+        public static Dictionary<string, Vector4[]> paletteColours = new Dictionary<string, Vector4[]>();
+
+        //Colour for a TkPaletteTexture: a fixed Index wins over the ColourAlt selection
+        public static bool tryGetColour(string paletteName, string colourAlt, int index, out Vector4 colour)
+        {
+            if (index >= 0 && paletteColours.TryGetValue(paletteName, out Vector4[] colours) && index < colours.Length)
+            {
+                colour = colours[index];
+                return true;
+            }
+
+            if (paletteSel != null && paletteSel.TryGetValue(paletteName, out var alts) && alts.TryGetValue(colourAlt, out colour))
+                return true;
+
+            colour = Vector4.Zero;
+            return false;
+        }
 
         //Methods
         public static List<Vector3> getPalette(string name)
@@ -119,14 +137,14 @@ namespace Model_Viewer
                 return createPalette();
             }
         
-            TkPaletteTexture tkpt = new TkPaletteTexture();
-            GcPaletteData gcpd = new GcPaletteData();
-            
+            paletteColours.Clear();
+
             for (int i = 0; i < template.Palettes.Length; i++)
             {
                 string pal_name = ((TkPaletteTexture.PaletteEnum) i).ToString();
                 CallBacks.Log(string.Format("Palette {0} NumColors {1}", pal_name, template.Palettes[i].NumColours));
                 newPal[pal_name] = new Dictionary<string, Vector4>();
+                paletteColours[pal_name] = template.Palettes[i].Colours.Select(colour_to_vec4).ToArray();
 
                 //Generate Bitmap for palette
                 Bitmap bmp = new Bitmap(64, 1);
@@ -171,6 +189,7 @@ namespace Model_Viewer
                         index1 = index + 1;
                         index2 = index + 2;
                         index3 = index + 3;
+                        index4 = index; //Only 4 colours in the group, wrap around
                         unique_index = get_active_palette_index(1);
                         break;
                     case GcPaletteData.NumColoursEnum._16: //16 Color
@@ -200,7 +219,7 @@ namespace Model_Viewer
                 alt4 = colour_to_vec4(template.Palettes[i].Colours[index4]);
                 matchg = primary;
                 unique = colour_to_vec4(template.Palettes[i].Colours[unique_index]);
-                none = primary;
+                none = new Vector4(1.0f, 1.0f, 1.0f, 0.0f); //No recolouring (w is the recolour strength)
 
                 //save the colors to the dictionary
                 newPal[pal_name]["Primary"] = primary;
@@ -226,7 +245,8 @@ namespace Model_Viewer
 
         private static Vector4 colour_to_vec4(Colour col)
         {
-            return new Vector4(col.R, col.G, col.B, col.A);
+            //w is used as the recolour strength by the mixer, palette colours always recolour fully
+            return new Vector4(col.R, col.G, col.B, 1.0f);
         }
 
         public static void set_palleteColors()

@@ -181,7 +181,8 @@ namespace MVCore.Engine.Systems
 
             if (target == null)
             {
-                Common.CallBacks.Log("Node Not found");
+                Common.CallBacks.Log("Node " + action.Name + " not found");
+                return;
             }
 
 
@@ -206,7 +207,7 @@ namespace MVCore.Engine.Systems
 
         public void Add(Model scn)
         {
-            if (scn.actionComponentID >= 0)
+            if (scn.actionComponentID >= 0 && !ActionScenes.Contains(scn)) //Scenes are re-scanned after a reference loads
             {
                 ActionScenes.Add(scn);
                 ActionSceneStateMap[scn] = "BOOT"; //Add Default State

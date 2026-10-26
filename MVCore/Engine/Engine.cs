@@ -5,7 +5,6 @@ using MVCore.Common;
 using MVCore.Engine.Systems;
 using MVCore.GMDL;
 using MVCore.Input;
-using MVCore.Text;
 using MVCore.Utils;
 using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL4;
@@ -104,10 +103,28 @@ namespace MVCore.Engine
             renderMgr.setupGBuffer(800, 600);
         }
 
+        //Stop rendering right away and drop everything still queued, so nothing touches GL resources after shutdown
+        public void stop()
+        {
+            rt_State = EngineRenderingState.EXIT;
+            while (reqHandler.hasOpenRequests())
+            {
+                ThreadRequest req = reqHandler.Fetch();
+                lock (req)
+                    req.status = THREAD_REQUEST_STATUS.FINISHED; //Release anyone waiting on it
+            }
+        }
+
         public void handleRequests()
         {
-            if (reqHandler.hasOpenRequests())
+            //Handle everything queued so far, not one request per frame. Requests issued while these run
+            //wait for the next call, so a request that queues another can't loop forever
+            int count = reqHandler.Count;
+            for (int i = 0; i < count && reqHandler.hasOpenRequests(); i++)
             {
+                if (rt_State == EngineRenderingState.EXIT)
+                    break; //Resources are gone after a terminate request
+
                 ThreadRequest req = reqHandler.Fetch();
                 lock (req)
                 {
@@ -149,6 +166,10 @@ namespace MVCore.Engine
                                 target.Children.Add(source);
                             }));
 
+                            //Move the node's world transforms under the new parent
+                            source.update();
+                            RenderState.instancesDirty = true;
+
                             req.status = THREAD_REQUEST_STATUS.FINISHED;
                             break;
                         case THREAD_REQUEST_TYPE.UPDATE_SCENE_REQUEST:
@@ -173,8 +194,13 @@ namespace MVCore.Engine
                             break;
                         case THREAD_REQUEST_TYPE.GIZMO_PICKING_REQUEST:
                             //TODO: Send the nessessary arguments to the render manager and mark the active gizmoparts
-                            Gizmo g = (Gizmo)req.arguments[0];
-                            renderMgr.gizmoPick(ref g, (Vector2)req.arguments[1]);
+                            Gizmo g = req.arguments[0] as Gizmo;
+                            if (g != null && req.arguments[1] is Vector2 mousePos)
+                                renderMgr.gizmoPick(ref g, mousePos);
+                            req.status = THREAD_REQUEST_STATUS.FINISHED;
+                            break;
+                        case THREAD_REQUEST_TYPE.REGEN_PROC_TEXTURES_REQUEST:
+                            rt_regenProcTextures();
                             req.status = THREAD_REQUEST_STATUS.FINISHED;
                             break;
                         case THREAD_REQUEST_TYPE.TERMINATE_REQUEST:
@@ -339,6 +365,7 @@ namespace MVCore.Engine
 
             //Clear Instances
             renderMgr.clearInstances();
+            RenderState.instancesDirty = true; //Rebuild with culling on the next frame
             scene.updateMeshInfo(); //Update all mesh info
 
             scene.selected = 1;
@@ -400,10 +427,27 @@ namespace MVCore.Engine
             RenderState.renderSettings.ToggleAnimations = false;
             
             //Setup new object
-            Model root = GEOMMBIN.LoadObjects(filename);
-
-            //Cleanup NMS related file resources
-            NMSUtils.DisposeArchives();
+            Model root;
+            try
+            {
+                root = GEOMMBIN.LoadObjects(filename);
+            }
+            catch (Exception ex)
+            {
+                //Fall back to an empty scene so the viewer stays usable after a failed import
+                Common.CallBacks.Log("Failed to import " + filename + ": " + ex);
+                CallBacks.showError("Failed to import " + filename + "\n" + ex.Message, "Import Error");
+                Scene empty = new Scene();
+                empty.type = TYPES.MODEL;
+                empty.name = "EMPTY SCENE";
+                resMgr.GLScenes["EMPTY_SCENE"] = empty;
+                root = empty;
+            }
+            finally
+            {
+                //Cleanup NMS related file resources
+                NMSUtils.DisposeArchives();
+            }
 
             //Explicitly add default light to the rootObject
             root.AddChild(resMgr.GLlights[0]);
@@ -417,11 +461,15 @@ namespace MVCore.Engine
 
             //Clear Instances
             renderMgr.clearInstances();
+            RenderState.instancesDirty = true; //Rebuild with culling on the next frame
             root.updateMeshInfo(); //Update all mesh info
 
             root.selected = 1;
             RenderState.rootObject = root;
             //RenderState.activeModel = root; //Set the new scene as the new activeModel
+
+            //Frame the new model and fit the clip planes and move speed to its size
+            RenderState.activeCam?.frameScene(root, true);
             
 
             //Reinitialize gizmos
@@ -432,6 +480,26 @@ namespace MVCore.Engine
         
         }
 
+        //New palette colours and layer picks for every procedural texture of the loaded scene
+        private void rt_regenProcTextures()
+        {
+            if (RenderState.rootObject == null)
+                return;
+
+            Palettes.set_palleteColors();
+            HashSet<string> mixed = new HashSet<string>();
+            try
+            {
+                foreach (Material mat in resMgr.GLmaterials.Values)
+                    mat.regenProcTextures(mixed);
+            }
+            finally
+            {
+                NMSUtils.DisposeArchives(); //Layer textures may have been read from the PAKs
+            }
+            CallBacks.Log("Regenerated {0} procedural textures", mixed.Count);
+        }
+
         private void rt_addRefScene(string scene_name)
         {
             //Stop animation if on
@@ -439,10 +507,23 @@ namespace MVCore.Engine
             RenderState.renderSettings.ToggleAnimations = false;
 
             //Load new object
-            Model new_scene = GEOMMBIN.LoadObjects(scene_name);
-            
-            //Cleanup NMS related file resources
-            NMSUtils.DisposeArchives();
+            Model new_scene;
+            try
+            {
+                new_scene = GEOMMBIN.LoadObjects(scene_name);
+            }
+            catch (Exception ex)
+            {
+                Common.CallBacks.Log("Failed to load reference " + scene_name + ": " + ex);
+                CallBacks.showError("Failed to load reference " + scene_name + "\n" + ex.Message, "Import Error");
+                RenderState.renderSettings.ToggleAnimations = animToggleStatus;
+                return;
+            }
+            finally
+            {
+                //Cleanup NMS related file resources
+                NMSUtils.DisposeArchives();
+            }
 
             //Explicitly add default light to the rootObject
 
@@ -450,17 +531,21 @@ namespace MVCore.Engine
             List<Reference> referers = new List<Reference>();
             GetReferersToScene(RenderState.rootObject, referers, scene_name);
             
-            foreach (Reference _m in referers)
+            //The first referer takes the loaded scene, the others get copies. The loaded scene stays in
+            //GLScenes, so it must not be disposed while it is in use
+            for (int i = 0; i < referers.Count; i++)
             {
-                //Create copy
-                Model _clone = new_scene.Clone();
-                renderMgr.process_models(_clone);
-                _m.isRefLoaded = true;
-                _m.AddChild(_clone);
+                Model inst = (i == 0) ? new_scene : new_scene.Clone();
+                renderMgr.process_models(inst);
+                referers[i].isRefLoaded = true;
+                referers[i].AddChild(inst);
             }
 
-            //Dispose original ref
-            new_scene.Dispose();
+            if (referers.Count == 0)
+            {
+                RenderState.activeResMgr.GLScenes.Remove(scene_name);
+                new_scene.Dispose();
+            }
                 
             Model root = RenderState.rootObject;
             root.updateLODDistances();
@@ -472,7 +557,11 @@ namespace MVCore.Engine
 
             //Clear Instances
             renderMgr.clearInstances();
+            RenderState.instancesDirty = true; //Rebuild with culling on the next frame
             root.updateMeshInfo(); //Update all mesh info
+
+            //The references can grow the scene, refresh the bounds without moving the camera
+            RenderState.activeCam?.frameScene(root, false);
 
             root.selected = 1;
             

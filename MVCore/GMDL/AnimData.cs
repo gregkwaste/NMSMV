@@ -39,15 +39,10 @@ namespace MVCore.GMDL
     public class AnimData : TkAnimationData, INotifyPropertyChanged
     {
         public AnimMetadata animMeta;
-        private int prevFrameIndex = 0;
-        private int activeFrameIndex = 0;
+        private int prevFrameIndex = 0; //Keyframe indices into the whole anim file (FrameStart included)
         private int nextFrameIndex = 0;
-        //private AnimTransform prevFrameTransform;
-        //private AnimTransform nextFrameTransform;
-        //public AnimTransform activeFrameTransform;
-        private float animationTime = 0.0f;
-        private float prevFrameTime = 0.0f;
-        private float nextFrameTime = 0.0f;
+        private int activeFrameIndex = 0; //Frame within the clip, as shown in the UI
+        private float animationTime = 0.0f; //Time since the clip started in ms
         private float LERP_coeff = 0.0f;
         public bool loaded = false;
         private bool _playing = false;
@@ -158,7 +153,11 @@ namespace MVCore.GMDL
             set
             {
                 _playing = value;
-                prevFrameIndex = 0; //Reset frame counter on animation
+                //Restart the clip from its first frame
+                animationTime = 0.0f;
+                prevFrameIndex = clipStart;
+                nextFrameIndex = clipStart;
+                LERP_coeff = 0.0f;
                 NotifyPropertyChanged("IsPlaying");
             }
         }
@@ -189,14 +188,50 @@ namespace MVCore.GMDL
             get { return activeFrameIndex; }
             set
             {
+                if (activeFrameIndex == value)
+                    return;
                 activeFrameIndex = value;
                 NotifyPropertyChanged("ActiveFrame");
             }
         }
 
+        //Last frame index of the clip, the UI slider range
         public int FrameCount
         {
-            get { return (animMeta != null) ?  animMeta.FrameCount - 1 : 0;}
+            get { return Math.Max(clipFrameCount - 1, 0); }
+        }
+
+        //First keyframe of the clip in the anim file
+        private int clipStart
+        {
+            get { return (animMeta != null) ? Math.Clamp(FrameStart, 0, Math.Max(animMeta.FrameCount - 1, 0)) : 0; }
+        }
+
+        //Number of keyframes in the clip
+        public int clipFrameCount
+        {
+            get
+            {
+                if (animMeta == null)
+                    return 0;
+                int end = (FrameEnd == 0) ? animMeta.FrameCount : Math.Min(FrameEnd, animMeta.FrameCount);
+                return Math.Max(end - clipStart, 1);
+            }
+        }
+
+        private static float frameInterval
+        {
+            get { return 1000.0f / Math.Max(Common.RenderState.renderSettings.AnimFPS, 1); }
+        }
+
+        //Loops wrap from the last keyframe back to the first, one-shots stop on the last keyframe
+        private float clipDuration
+        {
+            get
+            {
+                int count = clipFrameCount;
+                return (AnimType == AnimTypeEnum.OneShot ? count - 1 : count) * frameInterval;
+            }
         }
 
         public bool isValid
@@ -247,6 +282,11 @@ namespace MVCore.GMDL
             {
                 TkAnimMetadata amd = NMSUtils.LoadNMSTemplate(Filename,
                     ref Common.RenderState.activeResMgr) as TkAnimMetadata;
+                if (amd == null)
+                {
+                    Common.CallBacks.Log("Animation file " + Filename + " could not be loaded");
+                    return;
+                }
                 animMeta = new AnimMetadata(amd);
                 animMeta.load(); //Load data as well
                 Common.RenderState.activeResMgr.Animations[Filename] = animMeta;
@@ -263,67 +303,69 @@ namespace MVCore.GMDL
                 loaded = true;
             }
             
+            if (Speed > 0.0f)
+                dt *= Speed;
+
             animationTime += dt;
             progress();
         }
 
 
-        public void progress() 
+        public void progress()
         {
+            if (animMeta == null)
+                return;
+
+            int start = clipStart;
+            int count = clipFrameCount;
+
             //Override frame based on the GUI
             if (Override)
             {
-                //Find frames
-                prevFrameIndex = ActiveFrame;
-                nextFrameIndex = ActiveFrame;
+                int frame = Math.Clamp(ActiveFrame, 0, count - 1);
+                prevFrameIndex = start + frame;
+                nextFrameIndex = start + frame;
                 LERP_coeff = 0.0f;
                 return;
             }
 
-            int activeFrameCount = (FrameEnd == 0 ? animMeta.FrameCount : Math.Min(FrameEnd, animMeta.FrameCount)) - (FrameStart != 0 ? FrameStart : 0);
-            float activeAnimDuration = activeFrameCount * 1000.0f / Common.RenderState.renderSettings.AnimFPS; // In ms TOTAL
-            float activeAnimInterval = activeAnimDuration / (activeFrameCount - 1); // Per frame time
+            bool oneShot = AnimType == AnimTypeEnum.OneShot;
+            float duration = clipDuration;
 
-            if (animationTime > activeAnimDuration)
+            if (animationTime >= duration)
             {
-                if ((AnimType == AnimTypeEnum.OneShot) && animationTime > activeAnimDuration)
+                if (oneShot)
                 {
-                    animationTime = 0.0f;
-                    prevFrameTime = 0.0f;
-                    nextFrameTime = 0.0f;
                     IsPlaying = false;
                     return;
                 }
-                else
-                {
-                    animationTime %= activeAnimDuration; //Clamp to correct time span
-
-                    //Properly calculate previous and nextFrameTimes
-                    prevFrameIndex = (int) Math.Floor(animationTime / activeAnimInterval);
-                    nextFrameIndex = (prevFrameIndex + 1) % activeFrameCount;
-                    prevFrameTime = activeAnimInterval * prevFrameIndex;
-                    nextFrameTime = prevFrameTime + activeAnimInterval;
-                }
-                    
+                animationTime = (duration > 0.0f) ? animationTime % duration : 0.0f;
             }
 
+            //The frame pair and the blend come straight from the clock, so long frames never leave the
+            //indices behind the time
+            float f = animationTime / frameInterval;
+            int prev = Math.Min((int) f, count - 1);
+            int next = oneShot ? Math.Min(prev + 1, count - 1) : (prev + 1) % count;
 
-            if (animationTime > nextFrameTime)
-            {
-                //Progress animation
-                prevFrameIndex = nextFrameIndex;
-                ActiveFrame = prevFrameIndex;
-                prevFrameTime = nextFrameTime;
-                
-                nextFrameIndex = (prevFrameIndex + 1) % activeFrameCount;
-                nextFrameTime = prevFrameTime + activeAnimInterval;
-            }
+            prevFrameIndex = start + prev;
+            nextFrameIndex = start + next;
+            LERP_coeff = Math.Clamp(f - prev, 0.0f, 1.0f);
+            ActiveFrame = prev;
+        }
 
-            LERP_coeff = (animationTime - prevFrameTime) / activeAnimInterval;
+        //Weight of the clip in the blend. One-shots fade in and out so they don't pop over the loops
+        public float getBlendWeight()
+        {
+            if (AnimType != AnimTypeEnum.OneShot)
+                return 1.0f;
 
-            //Common.CallBacks.Log("AnimationTime {0} PrevAnimationTime {1} NextAnimationTime {2} LERP Coeff {3}",
-            //    animationTime, prevFrameTime, nextFrameTime, LERP_coeff);
+            float duration = clipDuration;
+            float fade = Math.Min(150.0f, 0.25f * duration);
+            if (fade <= 0.0f)
+                return 1.0f;
 
+            return Math.Clamp(Math.Min(animationTime, duration - animationTime) / fade, 0.0f, 1.0f);
         }
 
         public void getCurrentTransform(ref Vector3 p, ref Vector3 s, ref Quaternion q, string node)
@@ -338,15 +380,26 @@ namespace MVCore.GMDL
             Vector3 next_p = animMeta.anim_positions[node][nextFrameIndex];
             Vector3 next_s = animMeta.anim_scales[node][nextFrameIndex];
 
-
-            //Debug.WriteLine($"{node} : Trans: {next_p} Rot: {next_q} Scale: {next_s}");
-
             //Interpolate
             q = Quaternion.Slerp(prev_q, next_q, LERP_coeff);
             p = next_p * LERP_coeff + prev_p * (1.0f - LERP_coeff);
             s = next_s * LERP_coeff + prev_s * (1.0f - LERP_coeff);
+        }
 
-            
+        //Turns a sampled transform into the change from the clip's first frame, which additive clips
+        //apply on top of the blended pose
+        public void toAdditiveDelta(ref Vector3 p, ref Vector3 s, ref Quaternion q, string node)
+        {
+            int r = clipStart;
+            Quaternion ref_q = animMeta.anim_rotations[node][r];
+            Vector3 ref_p = animMeta.anim_positions[node][r];
+            Vector3 ref_s = animMeta.anim_scales[node][r];
+
+            p -= ref_p;
+            s = new Vector3(ref_s.X != 0.0f ? s.X / ref_s.X : 1.0f,
+                            ref_s.Y != 0.0f ? s.Y / ref_s.Y : 1.0f,
+                            ref_s.Z != 0.0f ? s.Z / ref_s.Z : 1.0f);
+            q = Quaternion.Invert(ref_q) * q;
         }
 
     }

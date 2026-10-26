@@ -23,7 +23,18 @@ namespace MVCore.Engine
 
         public bool hasOpenRequests()
         {
-            return req_queue.Count > 0;
+            return Count > 0;
+        }
+
+        public int Count
+        {
+            get
+            {
+                lock (req_queue)
+                {
+                    return req_queue.Count;
+                }
+            }
         }
 
         public ThreadRequest Fetch()

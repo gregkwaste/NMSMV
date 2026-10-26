@@ -6,7 +6,6 @@ using System.Reflection;
 using MVCore;
 using MVCore.Common;
 using System.Windows;
-using WPFModelViewer;
 using MVCore.Utils;
 
 namespace GLSLHelper { 
@@ -31,14 +30,11 @@ namespace GLSLHelper {
         TEXTURE_MIX_SHADER,
         PASSTHROUGH_SHADER,
         LIGHT_SHADER,
-        TEXT_SHADER,
         MATERIAL_SHADER,
         GBUFFER_LIT_SHADER,
         GBUFFER_UNLIT_SHADER,
-        BRIGHTNESS_EXTRACT_SHADER,
-        GAUSSIAN_HORIZONTAL_BLUR_SHADER,
-        GAUSSIAN_VERTICAL_BLUR_SHADER,
-        ADDITIVE_BLEND_SHADER,
+        BLOOM_DOWNSAMPLE_SHADER,
+        BLOOM_UPSAMPLE_SHADER,
         FXAA_SHADER,
         TONE_MAPPING,
         INV_TONE_MAPPING,
@@ -122,7 +118,7 @@ namespace GLSLHelper {
             if (status_code != 1)
             {
                 CallBacks.Log(GLShaderHelper.NumberLines(actual_shader_source));
-                Util.showError("Failed to compile shader for the model. Contact Dev",
+                CallBacks.showError("Failed to compile shader for the model. Contact Dev",
                     "Shader Compilation Error");
                 GLShaderHelper.throwCompilationError(compilation_log +
                     GLShaderHelper.NumberLines(actual_shader_source) + "\n" + info);
@@ -284,6 +280,7 @@ namespace GLSLHelper {
         
         //Program ID
         public int program_id = -1;
+        public int linkVersion = 0; //Bumped on every link. Linking resets uniforms, cached state must be rebuilt
         public int shaderHash = -1; //Should contain the hashcode of all the material related preprocessor flags (is set externally)
         //Shader Compilation log
         public string log = "";
@@ -573,6 +570,7 @@ namespace GLSLHelper {
             }
 
             GL.LinkProgram(config.program_id);
+            config.linkVersion++;
 
             //Check Linking
             if (RenderState.enableShaderCompilationLog)
@@ -643,6 +641,7 @@ namespace GLSLHelper {
                     GL.DetachShader(shader_conf.program_id, attached_shaders[i]);
                     GL.AttachShader(shader_conf.program_id, shaderText.shader_object_id);
                     GL.LinkProgram(shader_conf.program_id);
+                    shader_conf.linkVersion++;
 
                     GL.GetProgram(shader_conf.program_id, GetProgramParameterName.LinkStatus, out status_code);
                     if (status_code != 1)

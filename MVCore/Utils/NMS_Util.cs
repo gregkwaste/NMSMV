@@ -4,8 +4,6 @@ using System.IO;
 using libMBIN;
 using OpenTK.Mathematics;
 using libMBIN.NMS.Toolkit;
-using System.Security.Permissions;
-using WPFModelViewer;
 using System.Linq;
 using OpenTK.Graphics.OpenGL4;
 using Microsoft.Win32;
@@ -31,6 +29,18 @@ namespace MVCore.Utils
             NMSArchiveMap.Clear();
         }
 
+        //Returns the path of the unpacked MXML (current MBINCompiler) or EXML (older versions) file
+        //for the given MBIN path. Defaults to the MXML path when neither exists
+        private static string getUnpackedXmlPath(string filepath)
+        {
+            string unpackDir = RenderState.settings.UnpackDir ?? "";
+            string mxmlpath = Path.ChangeExtension(filepath, "MXML").ToUpper();
+            string exmlpath = Path.ChangeExtension(filepath, "EXML").ToUpper();
+            if (!File.Exists(Path.Combine(unpackDir, mxmlpath)) && File.Exists(Path.Combine(unpackDir, exmlpath)))
+                return exmlpath;
+            return mxmlpath;
+        }
+
         public static int GetFieldOffset(string className, string fieldName)
         {
             return 0x20 + NMSTemplate.OffsetOf(className, fieldName);
@@ -41,8 +51,7 @@ namespace MVCore.Utils
             int load_mode = 0;
             NMSTemplate template;
 
-            string exmlpath = Path.ChangeExtension(filepath, "exml");
-            exmlpath = exmlpath.ToUpper(); //Make upper case
+            string exmlpath = getUnpackedXmlPath(filepath);
 
             if (File.Exists(exmlpath))
                 load_mode = 0;
@@ -71,12 +80,12 @@ namespace MVCore.Utils
             {
                 if (ex is DirectoryNotFoundException || ex is FileNotFoundException)
                 {
-                    Util.showError("File " + filepath + " Not Found...", "Error");
+                    CallBacks.showError("File " + filepath + " Not Found...", "Error");
 
 
                 } else if (ex is System.Reflection.TargetInvocationException)
                 {
-                    Util.showError("libMBIN failed to decompile the file. Try to update the libMBIN.dll (File->updateLibMBIN). If the issue persists contact the developer", "Error");
+                    CallBacks.showError("libMBIN failed to decompile the file. Try to update the libMBIN.dll (File->updateLibMBIN). If the issue persists contact the developer", "Error");
                 }
                 return null;
 
@@ -86,7 +95,17 @@ namespace MVCore.Utils
         }
 
 
-        public static Stream LoadNMSFileStream(string filepath, ref ResourceManager resMgr)
+        //True if the file is in the unpacked folder or in the loaded PAKs
+        public static bool NMSFileExists(string filepath, ResourceManager resMgr)
+        {
+            filepath = filepath.Replace('\\', '/');
+            return File.Exists(Path.Combine(RenderState.settings.UnpackDir, filepath)) ||
+                   File.Exists(Path.Combine(RenderState.settings.UnpackDir, getUnpackedXmlPath(filepath))) ||
+                   resMgr.NMSFileToArchiveMap.ContainsKey(filepath) ||
+                   resMgr.NMSFileToArchiveMap.ContainsKey("/" + filepath);
+        }
+
+        public static Stream LoadNMSFileStream(string filepath, ref ResourceManager resMgr, bool showError = true)
         {
             int load_mode = 0;
             
@@ -94,12 +113,10 @@ namespace MVCore.Utils
             filepath = filepath.Replace('\\', '/');
             string effective_filepath = filepath;
 
-            string exmlpath = Path.ChangeExtension(filepath, "exml");
-            exmlpath = exmlpath.ToUpper(); //Make upper case
+            string exmlpath = getUnpackedXmlPath(filepath);
 
-            if (File.Exists(Path.Combine(RenderState.settings.UnpackDir, exmlpath)))
-                load_mode = 0; //Load Exml
-            else if (File.Exists(Path.Combine(RenderState.settings.UnpackDir, filepath)))
+            //This returns raw binary streams (e.g. geometry), so unpacked MXML/EXML files are not used here
+            if (File.Exists(Path.Combine(RenderState.settings.UnpackDir, filepath)))
                 load_mode = 1; //Load MBIN from file
             else if (resMgr.NMSFileToArchiveMap.ContainsKey(filepath))
                 load_mode = 2; //Extract file from archive
@@ -110,7 +127,8 @@ namespace MVCore.Utils
             } else
             {
                 CallBacks.Log("File: " + filepath + " Not found in PAKs or local folders. ");
-                Util.showError("File: " + filepath + " Not found in PAKs or local folders. ", "Error");
+                if (showError)
+                    CallBacks.showError("File: " + filepath + " Not found in PAKs or local folders. ", "Error");
                 ErrorUtils.throwFileNotFoundException("File not found\n " + filepath);
             }
             Stream result = null;
@@ -169,8 +187,7 @@ namespace MVCore.Utils
             //if (filepath.Contains(' '))
             //    return null;
 
-            string exmlpath = Path.ChangeExtension(filepath, "exml");
-            exmlpath = exmlpath.ToUpper(); //Make upper case
+            string exmlpath = getUnpackedXmlPath(filepath);
             
 
             if (File.Exists(Path.Combine(RenderState.settings.UnpackDir, exmlpath)))
@@ -187,7 +204,7 @@ namespace MVCore.Utils
             else
             {
                 CallBacks.Log("File: " + filepath + " Not found in PAKs or local folders. ");
-                Util.showError("File: " + filepath + " Not found in PAKs or local folders. ", "Error");
+                CallBacks.showError("File: " + filepath + " Not found in PAKs or local folders. ", "Error");
                 return null;
             }
 
@@ -218,6 +235,22 @@ namespace MVCore.Utils
                             Archive arc = loadNMSArchive(resMgr.NMSFileToArchiveMap[effective_filepath]);
                             Stream file = arc.ExtractFile(effective_filepath);
                             MBINFile mbinf = new MBINFile(file);
+#if DEBUG
+                            //Check for decompilation issues and save locally
+                            if (mbinf.Header is null)
+                            {
+                                //Read the whole file from the start, then restore the position for libMBIN
+                                long position = file.Position;
+                                byte[] file_content = new byte[file.Length];
+                                file.Seek(0, SeekOrigin.Begin);
+                                file.ReadExactly(file_content, 0, file_content.Length);
+                                file.Seek(position, SeekOrigin.Begin);
+                                string mbin_path = Path.Combine("Temp", filepath);
+                                Directory.CreateDirectory(Path.GetDirectoryName(mbin_path));
+                                File.WriteAllBytes(mbin_path, file_content);
+                            } 
+#endif
+
                             mbinf.Load();
                             template = mbinf.GetData();
                             mbinf.Dispose();
@@ -227,18 +260,18 @@ namespace MVCore.Utils
             } catch (Exception ex)
             {
                 if (ex is DirectoryNotFoundException || ex is System.IO.FileNotFoundException)
-                    Util.showError("File " + effective_filepath + " Not Found...", "Error");
+                    CallBacks.showError("File " + effective_filepath + " Not Found...", "Error");
                 else if (ex is IOException)
-                    Util.showError("File " + effective_filepath + " problem...", "Error");
+                    CallBacks.showError("File " + effective_filepath + " problem...", "Error");
                 else if (ex is System.Reflection.TargetInvocationException)
                 {
-                    Util.showError($"libMBIN failed to decompile file {effective_filepath}. If this is a vanilla file, contact the MbinCompiler developer",
+                    CallBacks.showError($"libMBIN failed to decompile file {effective_filepath}. If this is a vanilla file, contact the MbinCompiler developer",
                     "Error");
-                    Util.Log(ex.StackTrace);
+                    CallBacks.Log(ex.StackTrace);
                 }
                 else
                 {
-                    Util.showError("Unhandled Exception " + ex.Message, "Error");
+                    CallBacks.showError("Unhandled Exception " + ex.Message, "Error");
                 }
                 return null;
 
@@ -246,6 +279,8 @@ namespace MVCore.Utils
 
 #if DEBUG
             //Save NMSTemplate to exml
+            if (template == null)
+                return null;
             string data = MXmlFile.WriteTemplate(template);
             string path =  Path.Combine("Temp", filepath + ".exml");
             Directory.CreateDirectory(Path.GetDirectoryName(path));
@@ -482,25 +517,6 @@ namespace MVCore.Utils
             CallBacks.Log($"Proc Parts: {partIds}");
         }
 
-        public static void SelectLOD(Model _m, int LOD)
-        {
-            //Enables only meshes with the desired LOD level on the scenegraph
-        
-            if (_m.type == TYPES.MESH)
-            {
-                Mesh _mesh = (Mesh) _m;
-                //Apply the lod filter only on enabled meshes
-                if (_m.IsRenderable)
-                    _m.IsRenderable = _mesh.LodLevel == LOD;
-            }
-              
-            //Recurse to children
-            foreach (Model child in _m.Children)
-            {
-                SelectLOD(child, LOD);
-            }
-        }
-
         //Load Game Archive Handles
         public static Archive loadNMSArchive(string pakPath)
         {
@@ -521,7 +537,7 @@ namespace MVCore.Utils
             CallBacks.Log("Trying to load PAK files from " + gameDir);
             if (!Directory.Exists(gameDir))
             {
-                Util.showError("Unable to locate game Directory. PAK files (Vanilla + Mods) not loaded. You can still work using unpacked files", "Info");
+                CallBacks.showError("Unable to locate game Directory. PAK files (Vanilla + Mods) not loaded. You can still work using unpacked files", "Info");
                 status = - 1;
                 return;
             }
@@ -545,7 +561,7 @@ namespace MVCore.Utils
                 }
                 catch (Exception ex)
                 {
-                    Util.showError("An Error Occured : " + ex.Message, "Error");
+                    CallBacks.showError("An Error Occured : " + ex.Message, "Error");
                     CallBacks.Log("Pak file " + pak_path + " failed to load");
                     CallBacks.Log("Error : " + ex.GetType().Name + " " + ex.Message);
                 }
@@ -569,7 +585,7 @@ namespace MVCore.Utils
                     }
                     catch (Exception ex)
                     {
-                        Util.showError("An Error Occured : " + ex.Message, "Error");
+                        CallBacks.showError("An Error Occured : " + ex.Message, "Error");
                         CallBacks.Log("Pak file " + pak_path + " failed to load");
                         CallBacks.Log("Error : " + ex.GetType().Name + " " + ex.Message);
                     }

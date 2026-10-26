@@ -32,6 +32,22 @@ namespace MVCore.GMDL
         //Transformation Parameters
         public Vector3 worldPosition;
         public Matrix4 worldMat;
+
+        //Inverse of worldMat, cached until worldMat changes (instancing asks for it every frame)
+        private Matrix4 _worldMatInv = Matrix4.Identity;
+        private Matrix4 _worldMatInvSource;
+        private bool _worldMatInvValid = false;
+
+        public Matrix4 getWorldMatInv()
+        {
+            if (!_worldMatInvValid || worldMat != _worldMatInvSource)
+            {
+                _worldMatInv = worldMat.Inverted();
+                _worldMatInvSource = worldMat;
+                _worldMatInvValid = true;
+            }
+            return _worldMatInv;
+        }
         public Matrix4 normMat;
         public Matrix4 localMat;
 
@@ -58,6 +74,9 @@ namespace MVCore.GMDL
         //LOD
         public float[] _LODDistances = new float[5];
         public int _LODNum = 1; //Default value of 1 LOD per model
+        public int lodModelCount = 0; //LOD model scenes of a TkLODComponentData under this node, one is shown at a time
+        public int lodModelIndex = -1; //This node's position among its parent's LOD models
+        public int activeLODModel = 0;
 
         //Bounding Volume
         public Vector3 AABBMIN = new Vector3();
@@ -67,6 +86,13 @@ namespace MVCore.GMDL
         public List<Vector3> PositionQueue = new();
         public List<Vector3> ScaleQueue = new();
         public List<Quaternion> RotationQueue = new();
+        public List<float> WeightQueue = new();
+        public List<bool> AdditiveQueue = new();
+
+        //Offsets from the AnimPoseComponent, kept on top of the animated transforms
+        public Vector3 posePosition = Vector3.Zero;
+        public Vector3 poseScale = Vector3.One;
+        public Quaternion poseRotation = Quaternion.Identity;
 
         //Disposable Stuff
         public bool disposed = false;
@@ -83,19 +109,19 @@ namespace MVCore.GMDL
         public Vector3 localPosition
         {
             get { return _localPosition; }
-            set { _localPosition = value; updated = true; }
+            set { _localPosition = value; updated = true; Common.RenderState.instancesDirty = true; }
         }
 
         public Matrix4 localRotation
         {
             get { return _localRotation; }
-            set { _localRotation = value; updated = true; }
+            set { _localRotation = value; updated = true; Common.RenderState.instancesDirty = true; }
         }
 
         public Vector3 localScale
         {
             get { return _localScale; }
-            set { _localScale = value; updated = true; }
+            set { _localScale = value; updated = true; Common.RenderState.instancesDirty = true; }
         }
 
         public int LODNumber
@@ -171,6 +197,7 @@ namespace MVCore.GMDL
             {
                 renderable = value;
                 updated = true;
+                Common.RenderState.instancesDirty = true;
                 foreach (var child in Children)
                     child.IsRenderable = value;
                 //meshVao?.setInstanceOccludedStatus(instanceId, !renderable);
@@ -195,8 +222,8 @@ namespace MVCore.GMDL
             AABBMIN = meshVao.metaData.AABBMIN;
             AABBMAX = meshVao.metaData.AABBMAX;
 
-            //Generate all 8 points from the AABB
-            List<Vector4> vecs = new List<Vector4>
+            //Generate all 8 points from the AABB (on the stack, this runs for every moved mesh)
+            Span<Vector4> vecs = stackalloc Vector4[8]
             {
                 new Vector4(AABBMIN.X, AABBMIN.Y, AABBMIN.Z, 1.0f),
                 new Vector4(AABBMAX.X, AABBMIN.Y, AABBMIN.Z, 1.0f),
@@ -273,8 +300,36 @@ namespace MVCore.GMDL
 
         public virtual void updateLODDistances()
         {
+            if (lodModelCount > 0)
+                activeLODModel = selectLOD(worldPosition, _LODDistances, lodModelCount, true);
+
             foreach (Model s in Children)
                 s.updateLODDistances();
+        }
+
+        //Picks the LOD level of a node: the level forced from the UI, LOD0 when LOD filtering is off,
+        //otherwise by camera distance. distances[j] is where level j + 1 starts. Entity lists that begin
+        //with 0 hold where each level starts, so they are read from their second entry
+        public static int selectLOD(Vector3 position, float[] distances, int count, bool entityDistances)
+        {
+            count = Math.Max(count, 1);
+            if (Common.RenderState.forcedLOD >= 0)
+                return Math.Min(Common.RenderState.forcedLOD, count - 1);
+            if (!Common.RenderState.renderSettings.LODFiltering || Common.RenderState.activeCam == null)
+                return 0;
+
+            //Meshes are drawn with worldMat * rotMat
+            Vector3 pos = (new Vector4(position, 1.0f) * Common.RenderState.rotMat).Xyz;
+            float distance = (pos - Common.RenderState.activeCam.Position).Length;
+
+            int first = (entityDistances && distances.Length > 0 && distances[0] <= 0.0f) ? 1 : 0;
+            for (int j = 0; j < count - 1; j++)
+            {
+                int k = j + first;
+                if (k >= distances.Length || distances[k] <= 0.0f || distance < distances[k])
+                    return j;
+            }
+            return count - 1;
         }
 
         public virtual void setupSkinMatrixArrays()
@@ -287,7 +342,9 @@ namespace MVCore.GMDL
         {
             foreach (Model child in Children)
             {
-                child.updateMeshInfo(lod_filter);
+                //The LOD models that are not active are hidden with everything under them
+                bool hidden = lod_filter || (child.lodModelIndex >= 0 && child.lodModelIndex != activeLODModel);
+                child.updateMeshInfo(hidden);
             }
         }
 
@@ -333,18 +390,27 @@ namespace MVCore.GMDL
         }
 
 
+        //Finds the first node with this name in this node's own scene. Referenced scenes, LOD models and child
+        //scenes are other instances that reuse the same names, so the search does not go into them
         public void findNode(string name, ref Model m)
         {
-            if (Name == name)
-            {
-                m = this;
-                return;
-            }
-                
+            m = findNodeInScene(name, true);
+        }
+
+        private Model findNodeInScene(string name, bool start)
+        {
+            if (this.name == name)
+                return this;
+            if (!start && (this is Scene || this is Reference))
+                return null;
+
             foreach (Model child in Children)
             {
-                child.findNode(name, ref m);
+                Model found = child.findNodeInScene(name, false);
+                if (found != null)
+                    return found;
             }
+            return null;
         }
 
 
@@ -456,6 +522,13 @@ namespace MVCore.GMDL
 
             //Clone LOD Info
             this._LODNum = input._LODNum;
+            this.lodModelCount = input.lodModelCount;
+            this.lodModelIndex = input.lodModelIndex;
+
+            //The local transforms above include the pose offsets
+            this.posePosition = input.posePosition;
+            this.poseScale = input.poseScale;
+            this.poseRotation = input.poseRotation;
             for (int i = 0; i < 5; i++)
                 this._LODDistances[i] = input._LODDistances[i];
 
@@ -466,7 +539,10 @@ namespace MVCore.GMDL
             //Clone components
             for (int i = 0; i < input.Components.Count; i++)
             {
-                this.Components.Add(input.Components[i].Clone());
+                Component c = input.Components[i].Clone();
+                if (c is AnimPoseComponent apc)
+                    apc.ref_object = this;
+                this.Components.Add(c);
             }
         }
 
@@ -552,89 +628,6 @@ namespace MVCore.GMDL
 
         #endregion
 
-        #region AnimPoseComponent
-        //TODO: It would be nice if I didn't have to do make the method public, but it needs a lot of work on the 
-        //AnimPoseComponent class to temporarily store the selected pose frames, while also in the model.update method
-
-        //Locator Animation Stuff
-
-        public Dictionary<string, Matrix4> loadPose()
-        {
-
-            if (animPoseComponentID < 0)
-                return new Dictionary<string, Matrix4>();
-
-            AnimPoseComponent apc = _components[animPoseComponentID] as AnimPoseComponent;
-            Dictionary<string, Matrix4> posematrices = new Dictionary<string, Matrix4>();
-
-            foreach (TkAnimNodeData node in apc._poseFrameData.NodeData)
-            {
-                List<Quaternion> quats = new List<Quaternion>();
-                List<Vector3> translations = new List<Vector3>();
-                List<Vector3> scales = new List<Vector3>();
-
-                //We should interpolate frame shit over all the selected Pose Data
-
-                //Gather all the transformation data for all the pose factors
-                for (int i = 0; i < apc._poseData.Count; i++)
-                //for (int i = 0; i < 1; i++)
-                {
-                    //Get Pose Frame
-                    int poseFrameIndex = apc._poseData[i].PActivePoseFrame;
-
-                    Vector3 v_t, v_s;
-                    Quaternion lq;
-                    //Fetch Rotation Quaternion
-                    lq = NMSUtils.fetchRotQuaternion(node, apc._poseFrameData, poseFrameIndex);
-                    v_t = NMSUtils.fetchTransVector(node, apc._poseFrameData, poseFrameIndex);
-                    v_s = NMSUtils.fetchScaleVector(node, apc._poseFrameData, poseFrameIndex);
-
-                    quats.Add(lq);
-                    translations.Add(v_t);
-                    scales.Add(v_s);
-                }
-
-                float fact = 1.0f / quats.Count;
-                Quaternion fq = new Quaternion();
-                Vector3 f_vt = new Vector3();
-                Vector3 f_vs = new Vector3();
-
-
-                fq = quats[0];
-                f_vt = translations[0];
-                f_vs = scales[0];
-
-                //Interpolate all data
-                for (int i = 1; i < quats.Count; i++)
-                {
-                    //Method A: Interpolate
-                    //Quaternion.Slerp(fq, quats[i], 0.5f);
-                    //Vector3.Lerp(f_vt, translations[i], 0.5f);
-                    //Vector3.Lerp(f_vs, scales[i], 0.5f);
-
-                    //Addup
-                    f_vs *= scales[i];
-                }
-
-                //Generate Transformation Matrix
-                //Matrix4 poseMat = Matrix4.CreateScale(f_vs) * Matrix4.CreateFromQuaternion(fq) * Matrix4.CreateTranslation(f_vt);
-                //Matrix4 poseMat = Matrix4.CreateScale(f_vs) * Matrix4.CreateFromQuaternion(fq);
-                Matrix4 poseMat = Matrix4.CreateScale(f_vs);
-                posematrices[node.Node] = poseMat;
-
-            }
-
-            return posematrices;
-
-        }
-
-        public virtual void applyPoses(Dictionary<string, Matrix4> poseMatrices)
-        {
-
-        }
-
-
-        #endregion
 
 
         public void Dispose()
@@ -667,15 +660,6 @@ namespace MVCore.GMDL
             disposed = true;
         }
 
-#if DEBUG
-        ~Model()
-        {
-            // If this finalizer runs, someone somewhere failed to
-            // call Dispose, which means we've failed to leave
-            // a monitor!
-            System.Diagnostics.Debug.Fail("Undisposed lock. Object Type " + type);
-        }
-#endif
 
 
     }

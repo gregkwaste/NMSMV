@@ -5,7 +5,6 @@ using GLSLHelper;
 using libMBIN.NMS.Toolkit;
 using MVCore.Common;
 using MVCore.GMDL;
-using MVCore.Text;
 using MVCore.Utils;
 using OpenTK.Mathematics;
 using OpenTK.Graphics.OpenGL4;
@@ -35,7 +34,6 @@ namespace MVCore
 
         public List<GMDL.Light> GLlights = new List<GMDL.Light>();
         public List<Camera> GLCameras = new List<Camera>();
-        public Dictionary<string, Font> FontMap = new Dictionary<string, Font>();
         //public Dictionary<string, int> GLShaders = new Dictionary<string, int>();
         public Dictionary<GLSLHelper.SHADER_TYPE, GLSLHelper.GLSLShaderConfig> GLShaders = new Dictionary<GLSLHelper.SHADER_TYPE, GLSLHelper.GLSLShaderConfig>(); //Generic Shaders
 
@@ -61,8 +59,6 @@ namespace MVCore
         //public int[] shader_programs;
         //Extra manager
         public textureManager texMgr = new textureManager();
-        public FontManager fontMgr = new FontManager();
-        public TextManager txtMgr = new TextManager();
 
         public bool initialized = false;
 
@@ -72,6 +68,8 @@ namespace MVCore
 
         //public DebugForm DebugWin;
 
+        private bool sharedResourcesCreated = false;
+
         public void Init()
         {
             initialized = false;
@@ -79,18 +77,39 @@ namespace MVCore
             //Add defaults
             addDefaultTextures();
             addDefaultMaterials();
-            addDefaultPrimitives();
             addDefaultLights();
-            addDefaultFonts();
-            addDefaultTexts();
             addDefaultCameras();
-            compileMainShaders();
+
+            //Primitives and the main shaders don't depend on the scene, so they are created once and kept
+            //across file opens instead of being rebuilt (and leaked) every time
+            if (!sharedResourcesCreated)
+            {
+                addDefaultPrimitives();
+                compileMainShaders();
+                sharedResourcesCreated = true;
+            }
+            else
+            {
+                //The default materials were recreated above, point the primitives at the new ones
+                foreach (GLMeshVao m in GLPrimitiveMeshVaos.Values)
+                {
+                    if (m.material != null && GLmaterials.TryGetValue(m.material.Name, out Material mat))
+                        m.material = mat;
+                }
+            }
 
             initialized = true;
         }
 
         public void compileMainShaders()
         {
+            //Recompiling (shader reload) replaces the programs, free the old ones first
+            foreach (GLSLShaderConfig conf in GLShaders.Values)
+            {
+                if (conf != null && conf.program_id > 0)
+                    GL.DeleteProgram(conf.program_id);
+            }
+            GLShaders.Clear();
 
 #if (DEBUG)
             //Query GL Extensions
@@ -188,44 +207,23 @@ namespace MVCore
             GLShaders[GLSLHelper.SHADER_TYPE.GBUFFER_LIT_SHADER] = shader_conf;
 
 
-            //GAUSSIAN HORIZONTAL BLUR SHADER
-            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText gaussian_blur_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
-            gaussian_blur_shader_fs.addStringFromFile("Shaders/gaussian_horizontalBlur_FS.glsl");
-            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gaussian_blur_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.GAUSSIAN_HORIZONTAL_BLUR_SHADER, ref log);
-            GLShaders[GLSLHelper.SHADER_TYPE.GAUSSIAN_HORIZONTAL_BLUR_SHADER] = shader_conf;
-
-
-            //GAUSSIAN VERTICAL BLUR SHADER
-            gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            gaussian_blur_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
-            gaussian_blur_shader_fs.addStringFromFile("Shaders/gaussian_verticalBlur_FS.glsl");
-            shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gaussian_blur_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.GAUSSIAN_VERTICAL_BLUR_SHADER, ref log);
-            GLShaders[GLSLHelper.SHADER_TYPE.GAUSSIAN_VERTICAL_BLUR_SHADER] = shader_conf;
-
-
-            //BRIGHTNESS EXTRACTION SHADER
+            //BLOOM DOWNSAMPLE (first pass also applies the bright threshold)
             gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
             gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
             gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
-            gbuffer_shader_fs.addStringFromFile("Shaders/brightness_extract_shader_fs.glsl");
+            gbuffer_shader_fs.addStringFromFile("Shaders/bloom_downsample_fs.glsl");
             shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.BRIGHTNESS_EXTRACT_SHADER, ref log);
-            GLShaders[GLSLHelper.SHADER_TYPE.BRIGHTNESS_EXTRACT_SHADER] = shader_conf;
+                            GLSLHelper.SHADER_TYPE.BLOOM_DOWNSAMPLE_SHADER, ref log);
+            GLShaders[GLSLHelper.SHADER_TYPE.BLOOM_DOWNSAMPLE_SHADER] = shader_conf;
 
-
-            //ADDITIVE BLEND
+            //BLOOM UPSAMPLE (also the final composite)
             gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
             gbuffer_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
             gbuffer_shader_vs.addStringFromFile("Shaders/Gbuffer_VS.glsl");
-            gbuffer_shader_fs.addStringFromFile("Shaders/additive_blend_fs.glsl");
+            gbuffer_shader_fs.addStringFromFile("Shaders/bloom_upsample_fs.glsl");
             shader_conf = GLShaderHelper.compileShader(gbuffer_shader_vs, gbuffer_shader_fs, null, null, null,
-                            GLSLHelper.SHADER_TYPE.ADDITIVE_BLEND_SHADER, ref log);
-            GLShaders[GLSLHelper.SHADER_TYPE.ADDITIVE_BLEND_SHADER] = shader_conf;
+                            GLSLHelper.SHADER_TYPE.BLOOM_UPSAMPLE_SHADER, ref log);
+            GLShaders[GLSLHelper.SHADER_TYPE.BLOOM_UPSAMPLE_SHADER] = shader_conf;
 
             //FXAA
             gbuffer_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
@@ -264,15 +262,6 @@ namespace MVCore
                             SHADER_TYPE.BWOIT_COMPOSITE_SHADER, ref log);
             GLShaders[SHADER_TYPE.BWOIT_COMPOSITE_SHADER] = shader_conf;
 
-
-            //Text Shaders
-            GLSLShaderText text_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText text_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            text_shader_vs.addStringFromFile("Shaders/Text_VS.glsl");
-            text_shader_fs.addStringFromFile("Shaders/Text_FS.glsl");
-            shader_conf = GLShaderHelper.compileShader(text_shader_vs, text_shader_fs, null, null, null,
-                            SHADER_TYPE.TEXT_SHADER, ref log);
-            GLShaders[SHADER_TYPE.TEXT_SHADER] = shader_conf;
 
             //Camera Shaders
             //TODO: Add Camera Shaders if required
@@ -316,13 +305,13 @@ namespace MVCore
             //White tex
             string texpath = "default.dds";
             Texture tex = new Texture();
-            tex.textureInit(WPFModelViewer.Properties.Resources._default, texpath); //Manually load data
+            tex.textureInit((byte[]) CallBacks.getResource("_default"), texpath); //Manually load data
             texMgr.addTexture(tex);
 
             //Transparent Mask
             texpath = "default_mask.dds";
             tex = new Texture();
-            tex.textureInit(WPFModelViewer.Properties.Resources.default_mask, texpath);
+            tex.textureInit((byte[]) CallBacks.getResource("default_mask"), texpath);
             texMgr.addTexture(tex);
         }
 
@@ -347,7 +336,8 @@ namespace MVCore
             mat = new Material();
             mat.Name = "crossMat";
             mat.add_flag(TkMaterialFlags.MaterialFlagEnum._F07_UNLIT);
-            mat.add_flag(TkMaterialFlags.MaterialFlagEnum._F21_VERTEXCUSTOM);
+            mat.UseVertexColour = true; //Axis colours come from the vertices
+            mat.ConstantScreenSize = true;
             var uf = new TkMaterialUniform_Float();
             uf.Name = "gMaterialColourVec4";
             uf.Values = new libMBIN.NMS.Vector4f(1.0f, 1.0f, 1.0f, 1.0f);
@@ -393,58 +383,6 @@ namespace MVCore
 
         }
 
-        private void addDefaultFonts()
-        {
-            Font f;
-            //Droid Sans
-            f = new Font(WPFModelViewer.Properties.Resources.droid_fnt,
-                        WPFModelViewer.Properties.Resources.droid_png, 1);
-            fontMgr.addFont(f);
-
-            //Segoe
-            f = new Font(WPFModelViewer.Properties.Resources.segoe_fnt,
-                        WPFModelViewer.Properties.Resources.segoe_png, 1);
-            fontMgr.addFont(f);
-        }
-
-        //fontMgr.addFont("droid.fnt");
-    
-
-        private void addDefaultTexts()
-        {
-            Font f = fontMgr.getFont("Segoe UI");
-            //Font f = fontMgr.getFont("Arial");
-            //Font f = fontMgr.getFont("Droid Sans Mono");
-
-            Vector3 default_color = new Vector3(1.0f, 1.0f, 0.5f);
-            float lineHeight = 15.0f;
-            int pos_x = 10;
-            int pos_y = 90;
-            Text.Text t = new Text.Text(f, new Vector2(pos_x, pos_y), lineHeight, default_color,
-                string.Format("FPS: {0:000.0}", RenderStats.fpsCount));
-            txtMgr.addText(t, TextManager.Semantic.FPS);
-            
-            t = new Text.Text(f, new Vector2(pos_x, pos_y - lineHeight), lineHeight, default_color,
-                string.Format("OccludedNum: {0:0000}", RenderStats.occludedNum));
-            txtMgr.addText(t, TextManager.Semantic.OCCLUDED_COUNT);
-
-            t = new Text.Text(f, new Vector2(pos_x, pos_y - 2 * lineHeight), lineHeight, default_color,
-                string.Format("Total Vertices: {0:D1}", RenderStats.vertNum));
-            txtMgr.addText(t, TextManager.Semantic.VERT_COUNT);
-            
-            t = new Text.Text(f, new Vector2(pos_x, pos_y - 3 * lineHeight), lineHeight, default_color,
-                string.Format("Total Triangles: {0:D1}", RenderStats.trisNum));
-            txtMgr.addText(t, TextManager.Semantic.TRIS_COUNT);
-
-            t = new Text.Text(f, new Vector2(pos_x, pos_y - 4 * lineHeight), lineHeight, default_color,
-                string.Format("Textures: {0:D1}", RenderStats.texturesNum));
-            txtMgr.addText(t, TextManager.Semantic.TEXTURE_COUNT);
-
-            t = new Text.Text(f, new Vector2(pos_x, pos_y - 5 * lineHeight), lineHeight, default_color,
-                string.Format("Controller: {0} ", RenderState.activeGamepad?.getName()));
-            txtMgr.addText(t, TextManager.Semantic.CTRL_ID);
-        
-        }
 
         public void addMaterial(Material mat)
         {
@@ -526,10 +464,11 @@ namespace MVCore
             GLPrimitiveMeshVaos["default_renderquad"].vao = GLPrimitiveVaos["default_renderquad"];
 
             //Default cross
-            GMDL.Primitives.Cross c = new GMDL.Primitives.Cross(0.1f, true);
+            //Default cross (locators): lines, kept at a constant size on screen by the vertex shader
+            GMDL.Primitives.Cross c = new GMDL.Primitives.Cross(0.1f, true, true);
             GLPrimitiveMeshVaos["default_cross"] = new GLMeshVao();
             GLPrimitiveVaos["default_cross"] = c.getVAO();
-            GLPrimitiveMeshVaos["default_cross"].type = TYPES.GIZMO;
+            GLPrimitiveMeshVaos["default_cross"].type = TYPES.LOCATOR; //Drawn as GL_LINES
             GLPrimitiveMeshVaos["default_cross"].metaData = new MeshMetaData();
             GLPrimitiveMeshVaos["default_cross"].metaData.batchcount = c.geom.indicesCount;
             GLPrimitiveMeshVaos["default_cross"].metaData.AABBMIN = new Vector3(-0.1f);
@@ -555,34 +494,44 @@ namespace MVCore
             generateGizmoParts();
         }
 
-        public bool shaderExistsForMaterial(Material mat)
+        //Picks the shader map and mesh map a material's shader belongs to. The existence check and the
+        //compilation must agree, otherwise the shader is recompiled (and the old program leaked) every time
+        public void getShaderMaps(Material mat, out Dictionary<int, GLSLShaderConfig> shaderDict,
+                                  out Dictionary<int, List<GLMeshVao>> meshList, out bool deferred)
         {
-            Dictionary<int, GLSLShaderConfig> shaderDict;
-            
-            //Save shader to resource Manager
+            deferred = true;
             if (mat.Name == "collisionMat" || mat.Name == "crossMat" || mat.Name == "jointMat")
             {
                 shaderDict = GLDefaultShaderMap;
+                meshList = defaultMeshShaderMap;
             }
-            else if (mat.MaterialFlags.Contains("_F51_DECAL_DIFFUSE") ||
-                mat.MaterialFlags.Contains("_F52_DECAL_NORMAL"))
+            else if (mat.ShaderFlags.Contains("_F51_DECAL_DIFFUSE") ||
+                mat.ShaderFlags.Contains("_F52_DECAL_NORMAL"))
             {
                 shaderDict = GLDeferredShaderMapDecal;
+                meshList = decalMeshShaderMap;
             }
-            else if (mat.MaterialFlags.Contains("_F09_TRANSPARENT") ||
-                     mat.MaterialFlags.Contains("_F11_ALPHACUTOUT"))
+            else if (mat.ShaderFlags.Contains("_F09_TRANSPARENT"))
             {
                 shaderDict = GLForwardShaderMapTransparent;
+                meshList = transparentMeshShaderMap;
+                deferred = false;
             }
-            else if (mat.MaterialFlags.Contains("_F07_UNLIT"))
+            else if (mat.ShaderFlags.Contains("_F07_UNLIT"))
             {
                 shaderDict = GLDeferredUNLITShaderMap;
+                meshList = opaqueMeshShaderMap;
             }
             else
             {
                 shaderDict = GLDeferredLITShaderMap;
+                meshList = opaqueMeshShaderMap;
             }
+        }
 
+        public bool shaderExistsForMaterial(Material mat)
+        {
+            getShaderMaps(mat, out Dictionary<int, GLSLShaderConfig> shaderDict, out _, out _);
             return shaderDict.ContainsKey(mat.shaderHash);
         }
 
@@ -590,8 +539,6 @@ namespace MVCore
         {
             //Cleanup global texture manager
             texMgr.cleanup();
-            fontMgr.cleanup();
-            txtMgr.cleanup();
             //procTextureLayerSelections.Clear();
 
             foreach (Scene p in GLScenes.Values)
@@ -616,22 +563,21 @@ namespace MVCore
                 p.Dispose();
             GLmaterials.Clear();
 
-            //Cleanup Material Shaders
-            opaqueMeshShaderMap.Clear();
-            defaultMeshShaderMap.Clear();
-            transparentMeshShaderMap.Clear();
-            decalMeshShaderMap.Clear();
+            //Material shaders only depend on the material flags, so the compiled programs are kept for the
+            //next file. Only the per-scene mesh lists are emptied (the keys stay, one per compiled shader)
+            foreach (List<GLMeshVao> l in opaqueMeshShaderMap.Values)
+                l.Clear();
+            foreach (List<GLMeshVao> l in defaultMeshShaderMap.Values)
+                l.Clear();
+            foreach (List<GLMeshVao> l in transparentMeshShaderMap.Values)
+                l.Clear();
+            foreach (List<GLMeshVao> l in decalMeshShaderMap.Values)
+                l.Clear();
 
             activeGLDeferredLITShaders.Clear();
             activeGLDeferredUNLITShaders.Clear();
             activeGLDeferredDecalShaders.Clear();
             activeGLForwardTransparentShaders.Clear();
-
-            GLDeferredLITShaderMap.Clear();
-            GLDeferredUNLITShaderMap.Clear();
-            GLForwardShaderMapTransparent.Clear();
-            GLDeferredShaderMapDecal.Clear();
-            GLDefaultShaderMap.Clear();
 
             //Cleanup archives
             NMSUtils.DisposeArchives();

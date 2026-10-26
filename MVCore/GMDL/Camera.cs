@@ -8,7 +8,6 @@ using MathNet.Numerics;
 using MathNet.Numerics.LinearAlgebra.Complex;
 using System.ComponentModel;
 using System.Drawing.Design;
-using System.Security.Permissions;
 
 namespace MVCore.GMDL
 {
@@ -107,6 +106,10 @@ namespace MVCore.GMDL
             }
         }
 
+        //Move speed in scene radii per second
+        public const float MinSpeed = 0.01f;
+        public const float MaxSpeed = 100.0f;
+
         public float Speed 
         {
             get
@@ -116,8 +119,26 @@ namespace MVCore.GMDL
 
             set
             {
-                _speed = value;
+                if (float.IsNaN(value))
+                    return;
+                _speed = Math.Clamp(value, MinSpeed, MaxSpeed);
                 NotifyPropertyChanged("Speed");
+                NotifyPropertyChanged("SpeedLog");
+            }
+        }
+
+        //log10 of Speed for the UI slider, so every step changes the speed by the same ratio
+        [Newtonsoft.Json.JsonIgnore]
+        public double SpeedLog
+        {
+            get
+            {
+                return Math.Log10(_speed);
+            }
+
+            set
+            {
+                Speed = (float) Math.Pow(10.0, value);
             }
         }
 
@@ -163,7 +184,16 @@ namespace MVCore.GMDL
         
         public CameraSettings settings = new CameraSettings();
 
-        
+        //Scene bounds (world space, before the scene rotation). A radius of 0 means no scene,
+        //then the near/far planes come from the settings
+        public Vector3 sceneCenter = Vector3.Zero;
+        public float sceneRadius = 0.0f;
+        //Move speed multiplier, follows the scene size so every model takes the same time to cross
+        public float speedScale = 1.0f;
+        //Near/far planes actually used by the projection
+        public float zNear;
+        public float zFar;
+
         //Matrices
         public Matrix4 projMat;
         public Matrix4 projMatInv;
@@ -208,16 +238,18 @@ namespace MVCore.GMDL
             Right = Vector3.Cross(Front, BaseUp).Normalized();
 
             lookMat = Matrix4.LookAt(Position, Position + Front, Vector3.Cross(Right, Front));
+
+            updateClipPlanes();
             
             if (type == 0) {
-                Matrix4.CreatePerspectiveFieldOfView(settings._fovRadians, aspect, settings.ZNear, settings.ZFar, out projMat);
+                Matrix4.CreatePerspectiveFieldOfView(settings._fovRadians, aspect, zNear, zFar, out projMat);
                 //projMat.Transpose();
                 viewMat = lookMat * projMat;
             }
             else
             {
                 //Create orthographic projection
-                Matrix4.CreateOrthographic(aspect * 2.0f, 2.0f, settings.ZNear, settings.ZFar, out projMat);
+                Matrix4.CreateOrthographic(aspect * 2.0f, 2.0f, zNear, zFar, out projMat);
                 //projMat.Transpose();
                 //Create scale matrix based on the fov
                 Matrix4 scaleMat = Matrix4.CreateScale(0.8f * settings._fovRadians);
@@ -229,6 +261,85 @@ namespace MVCore.GMDL
             projMatInv = Matrix4.Invert(projMat);
             
             updateFrustumPlanes();
+        }
+
+        //Fit the depth range tightly around the scene, so the depth buffer precision is spent on the model
+        private void updateClipPlanes()
+        {
+            if (sceneRadius <= 0.0f)
+            {
+                zNear = settings.ZNear;
+                zFar = settings.ZFar;
+                return;
+            }
+
+            float dist = (getRotatedSceneCenter() - Position).Length;
+            zFar = dist + 2.0f * sceneRadius;
+            //Inside the sphere the nearest geometry can be anywhere, so fall back to a fixed ratio
+            zNear = Math.Max(0.5f * (dist - sceneRadius), Math.Max(sceneRadius * 0.001f, zFar * 1e-5f));
+        }
+
+        private Vector3 getRotatedSceneCenter()
+        {
+            //Meshes are drawn with worldMat * rotMat
+            return (new Vector4(sceneCenter, 1.0f) * Common.RenderState.rotMat).Xyz;
+        }
+
+        //Union of the world AABBs of all visible meshes. Returns false if there are none
+        public static bool getSceneBounds(Model root, out Vector3 center, out float radius)
+        {
+            Vector3 min = new Vector3(float.MaxValue);
+            Vector3 max = new Vector3(float.MinValue);
+            bool found = false;
+            addBounds(root, ref min, ref max, ref found);
+
+            center = found ? 0.5f * (min + max) : Vector3.Zero;
+            radius = found ? 0.5f * (max - min).Length : 0.0f;
+            return found && radius > 0.0f;
+        }
+
+        private static void addBounds(Model node, ref Vector3 min, ref Vector3 max, ref bool found)
+        {
+            if (node == null || !node.renderable)
+                return;
+
+            if (node is Mesh m && m.type == TYPES.MESH && (m.LodLevel == 0 || !Common.RenderState.renderSettings.LODFiltering))
+            {
+                min = Vector3.ComponentMin(min, m.AABBMIN);
+                max = Vector3.ComponentMax(max, m.AABBMAX);
+                found = true;
+            }
+
+            foreach (Model child in node.Children)
+                addBounds(child, ref min, ref max, ref found);
+        }
+
+        //Store the scene bounds for the clip planes and speed. With moveCamera, also back the camera off
+        //along its current view direction until the whole bounding sphere fits in the view
+        public void frameScene(Model root, bool moveCamera)
+        {
+            if (!getSceneBounds(root, out Vector3 center, out float radius))
+            {
+                sceneRadius = 0.0f;
+                speedScale = 1.0f;
+                updateViewMatrix();
+                return;
+            }
+
+            sceneCenter = center;
+            sceneRadius = radius;
+            speedScale = radius;
+
+            if (moveCamera)
+            {
+                float fovY = settings._fovRadians;
+                float fovX = 2.0f * (float)Math.Atan(Math.Tan(fovY / 2.0f) * aspect);
+                float halfFov = Math.Max(Math.Min(fovY, fovX) / 2.0f, 0.01f);
+                float dist = 1.1f * radius / (float)Math.Sin(halfFov);
+                Position = getRotatedSceneCenter() - Front * dist;
+            }
+
+            updateViewMatrix();
         }
 
         public CameraJSONSettings GetSettings()
@@ -300,6 +411,9 @@ namespace MVCore.GMDL
 
             float radius = 0.5f * (AABBMIN - AABBMAX).Length;
             Vector3 bsh_center = AABBMIN + 0.5f * (AABBMAX - AABBMIN);
+
+            //The radius is in local units, so it has to grow with the largest scale of the transform
+            radius *= Math.Max(transform.Row0.Xyz.Length, Math.Max(transform.Row1.Xyz.Length, transform.Row2.Xyz.Length));
 
             //Move sphere to object's root position
             bsh_center = (new Vector4(bsh_center, 1.0f) * transform).Xyz;
@@ -379,7 +493,7 @@ namespace MVCore.GMDL
             //Bind elem buffer
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, element_buffer_object);
             GL.PointSize(10.0f);
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+            GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Line);
 
             //GL.DrawElements(PrimitiveType.Triangles, 36, DrawElementsType.UnsignedShort, indices_b);
             GL.DrawRangeElements(PrimitiveType.Triangles, 0, 36,
@@ -572,8 +686,10 @@ namespace MVCore.GMDL
 
         public void CalculateFrustum(Matrix4 mvp)
         {
-            //Front Plane
-            _frustum[(int)ClippingPlane.Front] = new Vector4(-mvp.M13, -mvp.M23, -mvp.M33, -mvp.M43);
+            //Front Plane (OpenGL clip space puts the near plane at z = -w, z = 0 is the Direct3D one)
+            _frustum[(int)ClippingPlane.Front] = new Vector4(-mvp.M13 - mvp.M14, -mvp.M23 - mvp.M24,
+                                                             -mvp.M33 - mvp.M34,
+                                                             -mvp.M43 - mvp.M44);
 
             //Back Plane
             _frustum[(int)ClippingPlane.Back] = new Vector4(mvp.M13 - mvp.M14, mvp.M23 - mvp.M24, mvp.M33 - mvp.M34,
@@ -604,9 +720,10 @@ namespace MVCore.GMDL
             for (int i = 0; i < 6; i++)
                 _frustum[i] *= -1.0f;
 
-            //Normalize planes (NOT SURE IF I NEED THAT)
+            //Normalize planes by the length of their normal so that dot(plane, point) is a real distance.
+            //The sphere test compares it against the radius, so normalizing all 4 components is wrong.
             for (int i = 0; i < 6; i++)
-                _frustum[i].Normalize();
+                _frustum[i] /= _frustum[i].Xyz.Length;
 
             /*
 

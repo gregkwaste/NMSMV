@@ -71,45 +71,6 @@ namespace WPFModelViewer.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to void main()
-        ///{	
-        ///	gl_FragColor = vec4(0.8, 0.0, 0.0, 1.0);	
-        ///}.
-        /// </summary>
-        internal static string camera_frag {
-            get {
-                return ResourceManager.GetString("camera_frag", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to /* Copies incoming vertex color without change.
-        /// * Applies the transformation matrix to vertex position.
-        /// */
-        ///layout(location=0) in vec4 vPosition;
-        ///layout(location=1) in vec4 nPosition; //normals
-        ///uniform mat4 self_mvp, mvp;
-        ///
-        /////Outputs
-        ///void main()
-        ///{
-        ///	vec4 inv_pos = inverse(self_mvp) * vPosition;
-        ///
-        ///	inv_pos.z = min(inv_pos.z, 1000);
-        ///
-        ///    gl_Position = mvp * inv_pos;
-        ///
-        ///	//gl_Position = mvp * vPosition;
-        ///	gl_Position = gl_Position * 1.0f/gl_Position.w;
-        ///}.
-        /// </summary>
-        internal static string camera_vert {
-            get {
-                return ResourceManager.GetString("camera_vert", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
         /// </summary>
         internal static byte[] default_mask {
@@ -120,51 +81,11 @@ namespace WPFModelViewer.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized resource of type System.Byte[].
-        /// </summary>
-        internal static byte[] droid_fnt {
-            get {
-                object obj = ResourceManager.GetObject("droid_fnt", resourceCulture);
-                return ((byte[])(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Drawing.Bitmap.
-        /// </summary>
-        internal static System.Drawing.Bitmap droid_png {
-            get {
-                object obj = ResourceManager.GetObject("droid_png", resourceCulture);
-                return ((System.Drawing.Bitmap)(obj));
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Bitmap.
         /// </summary>
         internal static System.Drawing.Bitmap ianm32logo_border {
             get {
                 object obj = ResourceManager.GetObject("ianm32logo_border", resourceCulture);
-                return ((System.Drawing.Bitmap)(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Byte[].
-        /// </summary>
-        internal static byte[] segoe_fnt {
-            get {
-                object obj = ResourceManager.GetObject("segoe_fnt", resourceCulture);
-                return ((byte[])(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Drawing.Bitmap.
-        /// </summary>
-        internal static System.Drawing.Bitmap segoe_png {
-            get {
-                object obj = ResourceManager.GetObject("segoe_png", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
             }
         }

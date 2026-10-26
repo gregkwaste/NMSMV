@@ -18,7 +18,6 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using System.Runtime.InteropServices;
 using GLSLHelper;
-using WPFModelViewer;
 using MVCore.Common;
 using MVCore.Utils;
 
@@ -143,7 +142,7 @@ namespace MVCore.GMDL
 
         public override void updateMeshInfo(bool lod_filter=false)
         {
-            if (renderable)
+            if (renderable && !lod_filter)
             {
                 instanceId = GLMeshBufferManager.addInstance(ref meshVao, this);
                 base.updateMeshInfo(lod_filter);
@@ -183,6 +182,9 @@ namespace MVCore.GMDL
         public List<int[]> bIndices = new List<int[]>();
         public List<float[]> bWeights = new List<float[]>();
         public List<bufInfo> bufInfo = new List<GMDL.bufInfo>();
+        public int packedFrameOffset = -1; //Offset of the packed normal/tangent attribute (semantic 11), -1 when absent
+        public const int PackedFrameLocation = 11; //Shader attribute location of the packed normal/tangent attribute
+        public int packedFrameStream = 1;
         public List<string> procGenNames = new List<string>();
         public List<int> procGenIDs = new List<int>();
         public int[] offsets; //List to save strides according to meshdescr
@@ -297,6 +299,15 @@ namespace MVCore.GMDL
         //Fetch main VAO
         public GLVao generateVAO(Mesh so)
         {
+            geomMeshMetaData mmd = meshMetaDataDict[so.metaData.Hash];
+            geomMeshData md = meshDataDict[so.metaData.Hash];
+            int vertexCount = so.metaData.vertrend_graphics + 1;
+
+            //The vertex data is split in two streams, each with its own layout:
+            //stream 0 is the position stream, stream 1 the main vertex stream
+            if (md.vp_buffer.Length < vp_size * vertexCount || md.vs_buffer.Length < vx_size * vertexCount)
+                ErrorUtils.throwException($"Mesh {mmd.name}: metadata does not match the vertex buffer size from the geometry file");
+
             //Generate VAO
             GLVao vao = new GLVao();
             vao.vao_id = GL.GenVertexArray();
@@ -310,62 +321,55 @@ namespace MVCore.GMDL
             vao.vertex_buffer_object = vbo_buffers[1];
             vao.element_buffer_object = vbo_buffers[2];
 
-            //Bind vertex position buffer
-            int size;
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vao.vertex_pos_object);
             //Upload Vertex Position Buffer
-            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)meshMetaDataDict[so.metaData.Hash].vp_size,
-                meshDataDict[so.metaData.Hash].vp_buffer, BufferUsageHint.StaticDraw);
-            GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize,
-                out size);
-            if (size != vp_size * (so.metaData.vertrend_graphics + 1))
-            {
-                //throw new ApplicationException(String.Format("Problem with vertex buffer"));
-                ErrorUtils.throwException("Mesh metadata does not match the vertex buffer size from the geometry file");
-            }
+            GL.BindBuffer(BufferTarget.ArrayBuffer, vao.vertex_pos_object);
+            GL.BufferData(BufferTarget.ArrayBuffer, md.vp_buffer.Length, md.vp_buffer, BufferUsageHint.StaticDraw);
 
-            if (bufInfo[0] != null)
-            {
-                bufInfo buf = bufInfo[0];
-                GL.VertexAttribPointer(buf.semantic, buf.count, buf.type, buf.normalize, vp_size, buf.offset);
-                GL.EnableVertexAttribArray(0);
-            }
-            
-            //Bind vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vao.vertex_buffer_object);
             //Upload Vertex Buffer
-            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr) meshMetaDataDict[so.metaData.Hash].vs_size,
-                meshDataDict[so.metaData.Hash].vs_buffer, BufferUsageHint.StaticDraw);
-            GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize,
-                out size);
-            if (size != vx_size * (so.metaData.vertrend_graphics + 1))
-            {
-                //throw new ApplicationException(String.Format("Problem with vertex buffer"));
-                ErrorUtils.throwException("Mesh metadata does not match the vertex buffer size from the geometry file");
-            }
+            GL.BindBuffer(BufferTarget.ArrayBuffer, vao.vertex_buffer_object);
+            GL.BufferData(BufferTarget.ArrayBuffer, md.vs_buffer.Length, md.vs_buffer, BufferUsageHint.StaticDraw);
                 
-            RenderStats.vertNum += so.metaData.vertrend_graphics + 1; //Accumulate settings
+            RenderStats.vertNum += vertexCount; //Accumulate settings
 
-            //Assign VertexAttribPointers
-            for (int i = 1; i < 7; i++)
+            //Assign VertexAttribPointers. The attribute location is the semantic id
+            for (int i = 0; i < bufInfo.Count; i++)
             {
-                if (bufInfo[i] == null) continue;
                 bufInfo buf = bufInfo[i];
-                GL.VertexAttribPointer(buf.semantic, buf.count, buf.type, buf.normalize, vx_size, buf.offset); 
+                if (buf == null) continue;
+                GL.BindBuffer(BufferTarget.ArrayBuffer, buf.stream == 0 ? vao.vertex_pos_object : vao.vertex_buffer_object);
+                GL.VertexAttribPointer(buf.semantic, buf.count, buf.type, buf.normalize, buf.stride, buf.offset); 
                 GL.EnableVertexAttribArray(buf.semantic);
             }
 
+            //Packed normal/tangent frame, passed to the shader as a raw uint
+            if (packedFrameOffset >= 0)
+            {
+                GL.BindBuffer(BufferTarget.ArrayBuffer, packedFrameStream == 0 ? vao.vertex_pos_object : vao.vertex_buffer_object);
+                GL.VertexAttribIPointer(PackedFrameLocation, 1, VertexAttribIntegerType.UnsignedInt,
+                    packedFrameStream == 0 ? vp_size : vx_size, (IntPtr) packedFrameOffset);
+                GL.EnableVertexAttribArray(PackedFrameLocation);
+                //Simple_VS decodes the packed frame when nPosition is zero, so keep the normal location's constant value at zero
+                if (bufInfo[2] == null)
+                    GL.VertexAttrib4(2, 0.0f, 0.0f, 0.0f, 0.0f);
+            }
+
+            //Normals generated on load, used when the geometry has no normal data the shaders can read
+            if (bufInfo[2] == null && md.n_buffer != null)
+            {
+                vao.vertex_normal_object = GL.GenBuffer();
+                GL.BindBuffer(BufferTarget.ArrayBuffer, vao.vertex_normal_object);
+                GL.BufferData(BufferTarget.ArrayBuffer, md.n_buffer.Length, md.n_buffer, BufferUsageHint.StaticDraw);
+                GL.VertexAttribPointer(2, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0);
+                GL.EnableVertexAttribArray(2);
+            }
+
+            //Without a tangent attribute, provide a constant tangent instead of the (0,0,0,1) default
+            if (bufInfo[3] == null)
+                GL.VertexAttrib4(3, 1.0f, 0.0f, 0.0f, 1.0f);
+
             //Upload index buffer
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, vao.element_buffer_object);
-            GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr) meshMetaDataDict[so.metaData.Hash].is_size, 
-                meshDataDict[so.metaData.Hash].is_buffer, BufferUsageHint.StaticDraw);
-            GL.GetBufferParameter(BufferTarget.ElementArrayBuffer, BufferParameterName.BufferSize,
-                out size);
-            if (size != meshMetaDataDict[so.metaData.Hash].is_size)
-            {
-                Util.showError("Mesh metadata does not match the index buffer size from the geometry file", "Error");
-                //throw new ApplicationException(String.Format("Problem with vertex buffer"));
-            }
+            GL.BufferData(BufferTarget.ElementArrayBuffer, md.is_buffer.Length, md.is_buffer, BufferUsageHint.StaticDraw);
 
             RenderStats.trisNum += (int) (so.metaData.batchcount / 3); //Accumulate settings
 
@@ -383,6 +387,10 @@ namespace MVCore.GMDL
         {
             //Collision Mesh isn't used anywhere else.
             //No need to check for hashes and shit
+
+            //Collision indices come from the geometry file's index buffer, which can be empty
+            if (ibuffer == null || ibuffer.Length < (metaData.batchstart_physics + metaData.batchcount) * indicesLength)
+                return null;
 
             float[] vx_buffer_float = new float[(metaData.boundhullend - metaData.boundhullstart) * 3];
 
@@ -556,6 +564,7 @@ namespace MVCore.GMDL
     public class bufInfo
     {
         public int semantic;
+        public int stream = 1; //0: position stream, 1: main vertex stream
         public VertexAttribPointerType type;
         public int count;
         public int stride;
@@ -610,7 +619,7 @@ namespace MVCore.GMDL
 
         public Sampler()
         {
-            Map = new libMBIN.NMS.VariableSizeString("");
+            Map = new libMBIN.NMS.GcFilename("");
         }
 
         public Sampler(TkMaterialSampler ms)
@@ -676,11 +685,11 @@ namespace MVCore.GMDL
                 string texMbin = temp + "TEXTURE.MBIN";
                 
                 //Detect Procedural Texture
-                if (RenderState.activeResMgr.NMSFileToArchiveMap.Keys.Contains(texMbin))
+                if (NMSUtils.NMSFileExists(texMbin, RenderState.activeResMgr)) //PAKs or the unpacked folder
                 {
                     TextureMixer.combineTextures(Map, Palettes.paletteSel, ref texMgr);
-                    //Override Map
-                    Map = temp + "DDS";
+                    //Override Map with the mixed result (X.MIXED.DDS, see TextureMixer.mixedName)
+                    Map = TextureMixer.mixedName(Map) + "DDS";
                     isProcGen = true;
                 }
             }
@@ -689,6 +698,21 @@ namespace MVCore.GMDL
             loadTexture();
         }
 
+
+        //Only color textures are stored in sRGB. Masks (AO, roughness, metallic), normals and occlusion
+        //hold linear data and must not be gamma decoded by the GPU
+        public static bool isColorSampler(string samplerName)
+        {
+            switch (samplerName)
+            {
+                case "mpCustomPerMaterial.gMasksMap":
+                case "mpCustomPerMaterial.gNormalMap":
+                case "mpCustomPerMaterial.gOcclusionMap":
+                    return false;
+                default:
+                    return true;
+            }
+        }
 
         private void loadTexture()
         {
@@ -702,7 +726,7 @@ namespace MVCore.GMDL
             }
             else
             {
-                tex = new Texture(Map);
+                tex = new Texture(Map, false, isColorSampler(Name));
                 tex.palOpt = new PaletteOpt(false);
                 tex.procColor = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
                 //At this point this should be a common texture. Store it to the master texture manager
@@ -1028,54 +1052,53 @@ namespace MVCore.GMDL
         //Empty Initializer
         public Texture() {}
         //Path Initializer
-        public Texture(string path, bool isCustom = false)
+        public Texture(string path, bool isCustom = false, bool srgb = true)
         {
-            Stream fs;
-            byte[] image_data;
-            int data_length;
+            byte[] image_data = null;
             try
             {
-                if (!isCustom)
+                //Missing textures are expected, so no error box is shown for them
+                using (Stream fs = isCustom ? new FileStream(path, FileMode.Open, FileAccess.Read) :
+                    NMSUtils.LoadNMSFileStream(path, ref Common.RenderState.activeResMgr, false))
                 {
-                    try
+                    if (fs != null)
                     {
-                        fs = NMSUtils.LoadNMSFileStream(path, ref Common.RenderState.activeResMgr);
-                    } catch (FileNotFoundException ex){
-                        //FileNotFoundExceptions during texture loading, are caught so that default textures are loaded
-                        fs = null;
+                        image_data = new byte[fs.Length];
+                        fs.Seek(0, SeekOrigin.Begin);
+                        fs.ReadExactly(image_data, 0, image_data.Length);
                     }
                 }
-                    
-                else
-                    fs = new FileStream(path, FileMode.Open);
-                    
-                if (fs == null)
-                {
-                    //throw new System.IO.FileNotFoundException();
-                    Common.CallBacks.Log("Texture {0} Missing. Using default.dds", path);
-
-                    //Load default.dds from resources
-                    image_data = File.ReadAllBytes("default.dds");
-                    data_length = image_data.Length;
-                }
-                else
-                {
-                    data_length = (int)fs.Length;
-                    image_data = new byte[data_length];
-                }
-
-                fs.Read(image_data, 0, data_length);
-
-            } catch (FileNotFoundException e)
+            } catch (Exception ex) when (ex is FileNotFoundException || ex is DirectoryNotFoundException || ex is EndOfStreamException)
             {
-                //Fallback to the default.dds
-                image_data = WPFModelViewer.Properties.Resources._default;
+                image_data = null;
             }
-            
-            textureInit(image_data, path);
+
+            if (image_data == null)
+            {
+                //Fallback to the default.dds from the resources
+                Common.CallBacks.Log("Texture {0} Missing. Using default.dds", path);
+                image_data = (byte[]) CallBacks.getResource("_default");
+            }
+
+            textureInit(image_data, path, srgb);
         }
 
-        public void textureInit(byte[] imageData, string _name)
+        private static InternalFormat toLinearFormat(InternalFormat format)
+        {
+            switch (format)
+            {
+                case InternalFormat.CompressedSrgbAlphaS3tcDxt1Ext:
+                    return InternalFormat.CompressedRgbaS3tcDxt1Ext;
+                case InternalFormat.CompressedSrgbAlphaS3tcDxt5Ext:
+                    return InternalFormat.CompressedRgbaS3tcDxt5Ext;
+                case InternalFormat.CompressedSrgbAlphaBptcUnorm:
+                    return InternalFormat.CompressedRgbaBptcUnorm;
+                default:
+                    return format;
+            }
+        }
+
+        public void textureInit(byte[] imageData, string _name, bool srgb = true)
         {
             DDSImage ddsImage;
             name = _name;
@@ -1135,6 +1158,9 @@ namespace MVCore.GMDL
                 default: 
                     throw new ApplicationException($"Unimplemented Pixel format {pif}");
             }
+
+            if (!srgb)
+                pif = toLinearFormat(pif);
             
             //Temp Variables
             int w = width;
@@ -1187,7 +1213,7 @@ namespace MVCore.GMDL
             else
             {
                 GL.TexImage3D(target, 0, PixelInternalFormat.Rgba8, w, h, depth_count, 0, PixelFormat.Bgra, PixelType.UnsignedByte, IntPtr.Zero);
-                GL.GenerateMipmap(GenerateMipmapTarget.Texture3D);
+                GL.GenerateMipmap(GenerateMipmapTarget.Texture2DArray);
             }
 
             //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureLodBias, -0.2f);
@@ -1230,7 +1256,10 @@ namespace MVCore.GMDL
 #endif
             //avgColor = getAvgColor(pixels);
             ddsImage = null;
-            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0); //Unbind texture PBO
+            //The PBO only feeds the upload. Exports read the texture back with GetTexImage/GetCompressedTexImage
+            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
+            GL.DeleteBuffer(pboID);
+            pboID = -1;
         }
 
         public void Dispose()
@@ -1248,7 +1277,7 @@ namespace MVCore.GMDL
             {
                 //Free other resources here
                 if (texID != -1) GL.DeleteTexture(texID);
-                GL.DeleteBuffer(pboID);
+                if (pboID != -1) GL.DeleteBuffer(pboID);
                 
             }
 
@@ -1322,60 +1351,12 @@ namespace MVCore.GMDL
     //Animation Classes
 
     
-    public class AnimNodeFrameData
+
+    public class AnimPoseData: TkAnimPoseData, System.ComponentModel.INotifyPropertyChanged
     {
-        public List<Quaternion> rotations = new List<Quaternion>();
-        public List<Vector3> translations = new List<Vector3>();
-        public List<Vector3> scales = new List<Vector3>();
-
-        public void LoadRotations(FileStream fs,int count)
-        {
-            BinaryReader br = new BinaryReader(fs);
-            for (int i = 0; i < count; i++)
-            {
-                Quaternion q = new Quaternion();
-                q.X = br.ReadSingle();
-                q.Y = br.ReadSingle();
-                q.Z = br.ReadSingle();
-                q.W = br.ReadSingle();
-
-                this.rotations.Add(q);
-            }
-        }
-
-        public void LoadTranslations(FileStream fs, int count)
-        {
-            BinaryReader br = new BinaryReader(fs);
-            for (int i = 0; i < count; i++)
-            {
-                Vector3 q = new Vector3();
-                q.X = br.ReadSingle();
-                q.Y = br.ReadSingle();
-                q.Z = br.ReadSingle();
-                br.ReadSingle();
-                this.translations.Add(q);
-            }
-        }
-
-        public void LoadScales(FileStream fs, int count)
-        {
-            BinaryReader br = new BinaryReader(fs);
-            for (int i = 0; i < count; i++)
-            {
-                Vector3 q = new Vector3();
-                q.X = br.ReadSingle();
-                q.Y = br.ReadSingle();
-                q.Z = br.ReadSingle();
-                br.ReadSingle();
-                this.scales.Add(q);
-            }
-        }
-
-    }
-    
-
-    public class AnimPoseData: TkAnimPoseData
-    {
+        private int activePoseFrame;
+        public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
+        public System.Action changed; //Lets the component re-apply the pose when the slider moves
 
         public AnimPoseData(TkAnimPoseData apd)
         {
@@ -1419,7 +1400,15 @@ namespace MVCore.GMDL
 
         public int PActivePoseFrame
         {
-            get; set;
+            get { return activePoseFrame; }
+            set
+            {
+                if (activePoseFrame == value)
+                    return;
+                activePoseFrame = value;
+                PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(PActivePoseFrame)));
+                changed?.Invoke();
+            }
         }
 
 
@@ -1488,6 +1477,20 @@ namespace MVCore.GMDL
     {
         public Matrix4 invBindMatrix = Matrix4.Identity;
         public Matrix4 BindMatrix = Matrix4.Identity;
+
+        public void Load(TkJointBindingData data)
+        {
+            float[] m = data.InvBindMatrix;
+            invBindMatrix = new Matrix4(m[0], m[1], m[2], m[3],
+                                        m[4], m[5], m[6], m[7],
+                                        m[8], m[9], m[10], m[11],
+                                        m[12], m[13], m[14], m[15]);
+
+            Vector3 BindTranslate = new Vector3(data.BindTranslate[0], data.BindTranslate[1], data.BindTranslate[2]);
+            Quaternion BindRotation = new Quaternion(data.BindRotate[0], data.BindRotate[1], data.BindRotate[2], data.BindRotate[3]);
+            Vector3 BindScale = new Vector3(data.BindScale[0], data.BindScale[1], data.BindScale[2]);
+            BindMatrix = Matrix4.CreateScale(BindScale) * Matrix4.CreateFromQuaternion(BindRotation) * Matrix4.CreateTranslation(BindTranslate);
+        }
 
         public void Load(Stream fs)
         {

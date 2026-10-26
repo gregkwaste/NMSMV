@@ -35,21 +35,21 @@ namespace WPFModelViewer
     public partial class MainWindow : Window
     {
         private CGLControl glControl;
+        private System.Windows.Threading.DispatcherTimer statsTimer;
         private int itemCounter = 0;
 
         //Async Request Handler
-        private WorkThreadDispacher workDispatcher = new WorkThreadDispacher();
         private System.Timers.Timer requestHandler = new System.Timers.Timer();
-        private List<ThreadRequest> issuedRequests = new List<ThreadRequest>();
-
-        private const int WmExitSizeMove = 0x232; //Custom Windows Messages
-        private const int WmEnterSizeMove = 0x231;
 
         //Treeview Helpers
         TextBlock old_tb;
         TextBlock start_tb;
         Model init_drag;
         Model target_drag;
+        //Drag candidate from the last left press, the drag only starts once the mouse moves far enough
+        Model drag_candidate;
+        TextBlock drag_candidate_tb;
+        Point drag_start;
 
 
 
@@ -62,23 +62,18 @@ namespace WPFModelViewer
             //Override Window Title
             Title += " " + Util.getVersion();
 
-            workDispatcher.Start();
-
-            //Setup Logger
-            Util.loggingSr = new StreamWriter("log.out");
-
             //SETUP THE CALLBACKS OF MVCORE
             CallBacks.updateStatus = Util.setStatus;
             CallBacks.openAnim = Util.loadAnimationFile;
             CallBacks.Log = Util.Log;
             CallBacks.issueRequestToGLControl = Util.sendRequest;
+            CallBacks.showError = Util.showError;
+            CallBacks.getResource = name => Properties.Resources.ResourceManager.GetObject(name, Properties.Resources.Culture);
 
             //Toggle waiting to attach renderdoc
             //System.Threading.Thread.Sleep(10000);
 
-            //Initialize Resource Manager
-            RenderState.activeResMgr = new ResourceManager();
-
+            //The resource manager is created by the engine on the first render (MainWindow_OnLoaded waits for it)
 
             var settings = new GLWpfControlSettings()
             {
@@ -86,17 +81,24 @@ namespace WPFModelViewer
                 MinorVersion = 6,
                 UseDeviceDpi = false,
 #if DEBUG
-                GraphicsContextFlags = ContextFlags.Debug,
-#else
-                GraphicsContextFlags = ContextFlags.ForwardCompatible,
+                ContextFlags = ContextFlags.Debug,
 #endif
-                GraphicsProfile = ContextProfile.Compatability
+                //Compatibility profile: allows wide lines for the helpers. Forward compatible only applies to core
+                Profile = ContextProfile.Compatability
             };
 
             Host.Start(settings);
 
             //Generate CGLControl
             glControl = new CGLControl(Host);
+
+            //Stats overlay refresh. A few times a second is enough to read and keeps string work off the frame loop
+            statsTimer = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromMilliseconds(250)
+            };
+            statsTimer.Tick += updateStatsOverlay;
+            statsTimer.Start();
 
 
             //Load Settings
@@ -130,32 +132,39 @@ namespace WPFModelViewer
             glControl.issueRenderingRequest(ref req);
             glControl.engine.handleRequests();
 
-            //Clear treeview
-            SceneTreeView.Items.Clear();
-            RenderState.rootObject?.Dispose();
+            try
+            {
+                //Clear treeview
+                SceneTreeView.Items.Clear();
+                RenderState.rootObject?.Dispose();
 
-            if (testScene)
-                glControl.addTestScene(testSceneID);
-            else
-                glControl.addScene(filename);
+                if (testScene)
+                    glControl.addTestScene(testSceneID);
+                else
+                    glControl.addScene(filename);
 
-            glControl.engine.handleRequests();
+                glControl.engine.handleRequests();
 
-            //Populate 
-            RenderState.rootObject.ID = 0;
-            Util.setStatus("Creating Treeview...");
-            //Add to UI
-            SceneTreeView.Items.Add(RenderState.rootObject);
-            Util.setStatus("Ready");
+                if (RenderState.rootObject != null)
+                {
+                    //Populate 
+                    RenderState.rootObject.ID = 0;
+                    Util.setStatus("Creating Treeview...");
+                    //Add to UI
+                    SceneTreeView.Items.Add(RenderState.rootObject);
+                }
+                Util.setStatus("Ready");
+            }
+            finally
+            {
+                //Always resume rendering, even if the import failed
+                ThreadRequest req2 = new ThreadRequest();
+                req2.type = THREAD_REQUEST_TYPE.GL_RESUME_RENDER_REQUEST;
+                req2.arguments.Clear();
 
-            //Generate Request for resuming rendering
-            ThreadRequest req2 = new ThreadRequest();
-            req2.type = THREAD_REQUEST_TYPE.GL_RESUME_RENDER_REQUEST;
-            req2.arguments.Clear();
-
-            glControl.issueRenderingRequest(ref req2);
-            glControl.engine.handleRequests();
-            //glControl.waitForRenderingRequest(ref req2);
+                glControl.issueRenderingRequest(ref req2);
+                glControl.engine.handleRequests();
+            }
 
             //Bind new camera to the controls
             CameraOptionsView.Content = RenderState.activeCam.settings;
@@ -166,7 +175,7 @@ namespace WPFModelViewer
         {
             CallBacks.Log("Opening File");
             OpenFileDialog openFileDlg = new OpenFileDialog();
-            openFileDlg.Filter = "SCENE Files (*.SCENE.MBIN, *.SCENE.EXML)|*.SCENE.MBIN;*.SCENE.EXML";
+            openFileDlg.Filter = "SCENE Files (*.SCENE.MBIN, *.SCENE.MXML, *.SCENE.EXML)|*.SCENE.MBIN;*.SCENE.MXML;*.SCENE.EXML";
             var res = openFileDlg.ShowDialog();
 
             if (res == false)
@@ -176,8 +185,26 @@ namespace WPFModelViewer
             OpenFile(filename, false, 0);
         }
 
+        //Tool windows open once: asking again brings the open one to the front
+        private Window sceneListWindow;
+        private Window aboutWindow;
+        private Window settingsWindow;
+
+        private bool activateIfOpen(Window w)
+        {
+            if (w == null)
+                return false;
+            if (w.WindowState == System.Windows.WindowState.Minimized)
+                w.WindowState = System.Windows.WindowState.Normal;
+            w.Activate();
+            return true;
+        }
+
         private void OpenFilePAK(object sender, RoutedEventArgs e)
         {
+            if (activateIfOpen(sceneListWindow))
+                return;
+
             //I need to make a custom window for previewing the entire list of SCENE Files from the PAK files
             List<string> paths = new List<string>();
 
@@ -190,6 +217,9 @@ namespace WPFModelViewer
 
             Window win = new Window();
             win.Title = "Select SCENE file from List";
+            win.Owner = this;
+            sceneListWindow = win;
+            win.Closed += delegate { sceneListWindow = null; };
 
             //Add Keyboard HAndler
             win.KeyUp += new KeyEventHandler(delegate (object s, KeyEventArgs ee)
@@ -272,74 +302,46 @@ namespace WPFModelViewer
 
             //Stop request timer
             requestHandler.Stop();
+            statsTimer?.Stop();
 
-            //Send Terminate Rendering request to the rt_thread
-            ThreadRequest req = new ThreadRequest();
-            req.type = THREAD_REQUEST_TYPE.TERMINATE_REQUEST;
-            glControl.engine.issueRenderingRequest(ref req);
+            //Stop rendering first, then free the GL resources (a queued terminate request would only run on the
+            //next frame, after the resources were already gone)
+            glControl.shutdown();
+        }
 
-            //Cleanup GL Context
-            glControl.engine.resMgr.Cleanup();
+        private void updateStatsOverlay(object sender, EventArgs e)
+        {
+            bool show = RenderState.renderViewSettings?.RenderInfo ?? false;
+            StatsOverlay.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            if (!show)
+                return;
+
+            float fps = RenderStats.fpsCount;
+            StatsText.Text = $"FPS: {fps:0.0} ({(fps > 0.0f ? 1000.0f / fps : 0.0f):0.00} ms)\n" +
+                             $"Occluded: {RenderStats.occludedNum}\n" +
+                             $"Vertices: {RenderStats.vertNum:N0}\n" +
+                             $"Triangles: {RenderStats.trisNum:N0}\n" +
+                             $"Textures: {RenderStats.texturesNum}\n" +
+                             $"Controller: {RenderState.activeGamepad?.getName() ?? "None"}";
         }
 
         private void MainWindow_OnClosed(object sender, EventArgs e)
         {
+            statsTimer?.Stop();
             CallBacks.Log("Window Closed");
-            //CLose Logger
-            Util.loggingSr.Close();
-        }
-
-        private IntPtr HwndMessageHook(IntPtr wnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
-        {
-            switch (msg)
-            {
-                case WmExitSizeMove:
-                    {
-                        //Send resizing request
-                        ThreadRequest req = new ThreadRequest();
-                        req.type = THREAD_REQUEST_TYPE.GL_RESIZE_REQUEST;
-                        req.arguments.Add((int)Host.ActualWidth);
-                        req.arguments.Add((int)Host.ActualHeight);
-
-                        //Send request
-                        glControl.engine.issueRenderingRequest(ref req);
-                        issuedRequests.Add(req);
-
-                        //Send Unpause rendering requenst
-                        req = new ThreadRequest();
-                        req.type = THREAD_REQUEST_TYPE.GL_RESUME_RENDER_REQUEST;
-
-                        //Send request
-                        glControl.issueRenderingRequest(ref req);
-                        issuedRequests.Add(req);
-
-                        //Mark as handled event
-                        handled = true;
-                        break;
-                    }
-                case WmEnterSizeMove:
-                    {
-                        //Send Unpause rendering requenst
-                        ThreadRequest req = new ThreadRequest();
-                        req.type = THREAD_REQUEST_TYPE.GL_PAUSE_RENDER_REQUEST;
-                        req.arguments.Clear();
-
-                        //Send request
-                        glControl.engine.issueRenderingRequest(ref req);
-                        issuedRequests.Add(req);
-
-                        //Mark as handled event
-                        handled = true;
-                        break;
-                    }
-            }
-            return IntPtr.Zero;
+            Util.closeLog();
         }
 
         //Do stuff once the GUI is ready
-        private void MainWindow_OnLoaded(object sender, RoutedEventArgs e)
+        private async void MainWindow_OnLoaded(object sender, RoutedEventArgs e)
         {
+            //Keep the open functions off until the archives are loaded
+            OpenFileHandle.IsEnabled = false;
+            OpenFilePAKHandle.IsEnabled = false;
 
+            //Everything below needs the engine, which is set up on the first render. Don't rely on that
+            //render happening before Loaded
+            await glControl.ready.Task;
 
             //Bind default camera to the controls
             CameraOptionsView.Content = RenderState.activeCam.settings;
@@ -375,20 +377,13 @@ namespace WPFModelViewer
             RenderOptionsControl.Content = RenderState.renderSettings;
 
             //Add event handlers to GUI elements
-            //sliderzNear.ValueChanged += Sliders_OnValueChanged;
-            //sliderzFar.ValueChanged += Sliders_OnValueChanged;
             //sliderFOV.ValueChanged += Sliders_OnValueChanged;
             //sliderMovementSpeed.ValueChanged += Sliders_OnValueChanged;
             //sliderMovementFactor.ValueChanged += Sliders_OnValueChanged;
 
             //Invoke the method in order to setup the control at startup
             Sliders_OnValueChanged(null, new RoutedPropertyChangedEventArgs<double>(0.0f, 0.0f));
-            Dispatcher.UnhandledException += OnDispatcherUnhandledException;
 
-
-            //Disable Open File Functions
-            OpenFileHandle.IsEnabled = false;
-            OpenFilePAKHandle.IsEnabled = false;
             TestOptions.Visibility = Visibility.Hidden; //Hide the test options by default
 
 #if (DEBUG)
@@ -397,36 +392,22 @@ namespace WPFModelViewer
             setTestComponents();
 #endif
 
-            //Issue work request 
-            ThreadRequest rq = new ThreadRequest();
-            //rq.arguments.Add("NMSmanifest");
-            rq.arguments.Add(Path.Combine(Path.Combine(RenderState.settings.GameDir, "GAMEDATA"), "PCBANKS"));
-            rq.arguments.Add(RenderState.activeResMgr);
-            rq.type = THREAD_REQUEST_TYPE.LOAD_NMS_ARCHIVES_REQUEST;
-            workDispatcher.sendRequest(rq);
-
-            Task t = new(() =>
+            //Load the NMS archives in the background, then enable the open file functions
+            string pakDir = Path.Combine(RenderState.settings.GameDir ?? "", "GAMEDATA", "PCBANKS");
+            ResourceManager resMgr = RenderState.activeResMgr;
+            int archiveStatus = -1;
+            try
             {
-                while (true)
-                {
-                    lock (rq)
-                    {
-                        //Debug.WriteLine("TASK RUNNING");
-                        if (rq.status == THREAD_REQUEST_STATUS.FINISHED)
-                        {
-                            Application.Current.Dispatcher.BeginInvoke(new System.Action(() =>
-                            {
-                                OpenFileHandle.IsEnabled = true;
-                                if (rq.response == 0)
-                                    OpenFilePAKHandle.IsEnabled = true;
-                            }));
-                            return;
-                        }
-                    }
-                }
-            });
+                await Task.Run(() => NMSUtils.loadNMSArchives(pakDir, ref resMgr, ref archiveStatus));
+            }
+            catch (Exception ex)
+            {
+                Util.showError("Failed to load the NMS archives: " + ex.Message, "Error");
+            }
 
-            t.Start();
+            OpenFileHandle.IsEnabled = true;
+            if (archiveStatus == 0)
+                OpenFilePAKHandle.IsEnabled = true;
 
         }
 
@@ -515,13 +496,6 @@ namespace WPFModelViewer
         }
 #endif
 
-        void OnDispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
-        {
-            string errorMessage = string.Format("An unhandled exception occurred: {0}", e.Exception.Message);
-            Util.showError(errorMessage, "Error");
-            e.Handled = true;
-        }
-
         private void ButtonBase_OnClick(object sender, RoutedEventArgs e)
         {
             NMSUtils.ProcGen();
@@ -529,12 +503,32 @@ namespace WPFModelViewer
 
         private void SelectLOD_OnClick(object sender, RoutedEventArgs e)
         {
-            NMSUtils.SelectLOD(RenderState.rootObject, tb_LODLevel.SelectedIndex);
+            //The first entry is Auto, which picks the level by camera distance
+            RenderState.forcedLOD = Math.Max(tb_LODLevel.SelectedIndex, 0) - 1;
+            RenderState.instancesDirty = true;
+        }
+
+        private void RegenTextures_Click(object sender, RoutedEventArgs e)
+        {
+            //Mixing needs the GL context, so it runs on the next frame
+            ThreadRequest req = new ThreadRequest();
+            req.type = THREAD_REQUEST_TYPE.REGEN_PROC_TEXTURES_REQUEST;
+            glControl.engine.issueRenderingRequest(ref req);
         }
 
         private void RegenPose_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show(Util.activeWindow, "This button should set random values to the pose slider of the active locator object");
+            if (RenderState.rootObject != null)
+                randomisePoses(RenderState.rootObject);
+        }
+
+        private static void randomisePoses(Model m)
+        {
+            if (m.animPoseComponentID >= 0 && m._components[m.animPoseComponentID] is AnimPoseComponent apc)
+                apc.randomise();
+
+            foreach (Model child in m.Children)
+                randomisePoses(child);
         }
 
         //Event Handlers
@@ -548,8 +542,11 @@ namespace WPFModelViewer
 
         private void CameraResetPos(object sender, RoutedEventArgs e)
         {
-            Camera.SetCameraPosition(ref RenderState.activeCam, new Vector3(0.0f));
-            Camera.SetCameraDirection(ref RenderState.activeCam, new Quaternion(new Vector3(0.0f, (float)Math.PI / 2.0f, 0.0f)));
+            //Frame the loaded model, or go back to the origin when there is none
+            if (RenderState.rootObject != null)
+                RenderState.activeCam.frameScene(RenderState.rootObject, true);
+            else
+                Camera.SetCameraPosition(ref RenderState.activeCam, new Vector3(0.0f));
         }
 
         private void SceneResetRotation(object sender, RoutedEventArgs e)
@@ -575,6 +572,7 @@ namespace WPFModelViewer
                 //Deselect Previews model
                 if (prev_activeModel != null)
                     prev_activeModel.selected = 0;
+                RenderState.instancesDirty = true;
 
                 return;
             }
@@ -582,40 +580,85 @@ namespace WPFModelViewer
 
         private void showAboutDialog(object sender, RoutedEventArgs e)
         {
-            Window about = new AboutDialog();
-            about.Show();
+            if (activateIfOpen(aboutWindow))
+                return;
+
+            aboutWindow = new AboutDialog();
+            aboutWindow.Owner = this;
+            aboutWindow.Closed += delegate { aboutWindow = null; };
+            aboutWindow.Show();
         }
 
         private void showSettingsDialog(object sender, RoutedEventArgs e)
         {
+            if (activateIfOpen(settingsWindow))
+                return;
+
             SettingsForm settingsForm = new SettingsForm();
+            settingsForm.Owner = this;
             settingsForm.KeyUp += new KeyEventHandler(delegate (object s, KeyEventArgs ee)
             {
                 if (ee.Key == Key.Escape)
-                {
                     settingsForm.Close();
-                    settingsForm = null;
-                }
             });
+            settingsWindow = settingsForm;
+            settingsForm.Closed += delegate { settingsWindow = null; };
             settingsForm.Show();
         }
 
-        private void SceneTreeView_PreviewMouseLeftButtonDown(object sender, MouseEventArgs e)
+        private void SceneTreeView_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
-            //Todo Maybe add a timer to prevent the grabbing process from starting on single clicks
+            //Only remember what was pressed. The node is the one under the cursor, not SelectedItem, which
+            //still holds the previous selection at this point. Starting the drag here made every click a drag
+            //of the old node, dropped on whatever node the button was released over
+            drag_candidate_tb = e.OriginalSource as TextBlock;
+            drag_candidate = drag_candidate_tb?.DataContext as Model;
+            drag_start = e.GetPosition(SceneTreeView);
+        }
 
-            if ((e.OriginalSource is TextBlock) && (SceneTreeView.SelectedItem != null))
+        private void SceneTreeView_PreviewMouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            drag_candidate = null;
+            drag_candidate_tb = null;
+        }
+
+        private void SceneTreeView_PreviewMouseMove(object sender, MouseEventArgs e)
+        {
+            if (drag_candidate == null)
+                return;
+
+            if (e.LeftButton != MouseButtonState.Pressed)
             {
-                Model node = (Model)SceneTreeView.SelectedItem;
+                drag_candidate = null;
+                drag_candidate_tb = null;
+                return;
+            }
+
+            Vector delta = e.GetPosition(SceneTreeView) - drag_start;
+            if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
+                return;
+
+            {
+                Model node = drag_candidate;
                 init_drag = node; //Set start model node
-                //Common.CallBacks.Log("Grabbed " + node.Name);
                 var tv = sender as TreeView;
 
                 //Fetch textblock
-                old_tb = (TextBlock)e.OriginalSource;
-                start_tb = (TextBlock)e.OriginalSource;
+                old_tb = drag_candidate_tb;
+                start_tb = drag_candidate_tb;
+                drag_candidate = null;
+                drag_candidate_tb = null;
 
                 DragDrop.DoDragDrop(tv, node, DragDropEffects.Move);
+
+                //The drag is over once DoDragDrop returns, dropped or cancelled
+                if (old_tb != null && old_tb != start_tb)
+                    old_tb.Background = null;
+                init_drag = null;
+                target_drag = null;
+                old_tb = null;
+                start_tb = null;
             }
 
         }
@@ -640,22 +683,19 @@ namespace WPFModelViewer
 
         private void SceneTreeView_Drop(object sender, DragEventArgs e)
         {
-            var tv = sender as TreeView;
-            IInputElement target = SceneTreeView.InputHitTest(e.GetPosition(SceneTreeView));
-            if (old_tb != start_tb)
-                old_tb.Background = null;
-            TextBlock tb = (TextBlock)target;
+            //Only nodes dragged from this tree can be dropped. The target is the node under the cursor now
+            Model source = init_drag;
+            Model target = (SceneTreeView.InputHitTest(e.GetPosition(SceneTreeView)) as FrameworkElement)?.DataContext as Model;
 
-            if (tb == null || target_drag == null)
+            if (source == null || target == null || !canReparent(source, target))
                 return;
 
-            if (init_drag != target_drag)
             {
                 //Remove child from parent model node
                 ThreadRequest req = new ThreadRequest();
                 req.type = THREAD_REQUEST_TYPE.CHANGE_MODEL_PARENT_REQUEST;
-                req.arguments.Add(init_drag);
-                req.arguments.Add(target_drag);
+                req.arguments.Add(source);
+                req.arguments.Add(target);
                 glControl.engine.issueRenderingRequest(ref req);
 
                 /*
@@ -686,6 +726,21 @@ namespace WPFModelViewer
 
         }
 
+        //A node can't move under itself or one of its own children, and scene roots stay where they are
+        private static bool canReparent(Model source, Model target)
+        {
+            if (source == target || source.parent == null || source.parent == target)
+                return false;
+
+            for (Model m = target; m != null; m = m.parent)
+            {
+                if (m == source)
+                    return false;
+            }
+
+            return true;
+        }
+
         private void SceneTreeView_GiveFeedback(object sender, GiveFeedbackEventArgs e)
         {
             // update the position of the visual feedback item
@@ -699,15 +754,13 @@ namespace WPFModelViewer
 
                 if (tb != old_tb) {
 
-                    if (old_tb != start_tb)
+                    if (old_tb != null && old_tb != start_tb)
                         old_tb.Background = null;
 
                     if (tb != start_tb)
                     {
                         tb.Background = System.Windows.Media.Brushes.DarkGray;
-                        var s1 = System.Windows.Media.VisualTreeHelper.GetParent(tb);
-                        StackPanel s2 = (StackPanel)System.Windows.Media.VisualTreeHelper.GetParent(s1);
-                        target_drag = (Model)s2.DataContext; //Set current target drag
+                        target_drag = tb.DataContext as Model; //Set current target drag
                         //Common.CallBacks.Log("Cursor Over " + target_drag.Name);
                     }
 
@@ -747,9 +800,8 @@ namespace WPFModelViewer
         {
             if (HTMLUtils.fetchLibMBINDLL())
             {
-                string app_path = Assembly.GetEntryAssembly().Location;
-                app_path = Path.ChangeExtension(app_path, "exe");
-                Process.Start(app_path);
+                //Restart the app so the new libMBIN.dll gets loaded
+                Process.Start(Environment.ProcessPath);
                 Close();
             }
         }
@@ -761,7 +813,7 @@ namespace WPFModelViewer
             try
             {
                 TkSceneNodeData exported_node = root_node.ExportTemplate();
-                exported_node.WriteToMxml("export.mxml");
+                exported_node.WriteToMxml("export.mxml", false, true);
                 CallBacks.Log("Node Exported Successfully!", root_node.Name);
             }
             catch (Exception ex)
@@ -803,7 +855,9 @@ namespace WPFModelViewer
             glControl.issueRenderingRequest(ref req);
             glControl.engine.handleRequests();
 
-            //I think there might not be any need for treeview updates
+            //Animated or action-driven parts of the reference join the systems
+            glControl.findAnimScenes(RenderState.rootObject);
+            glControl.findActionScenes(RenderState.rootObject);
 
             //Generate Request for resuming rendering
             ThreadRequest req2 = new ThreadRequest();
@@ -845,20 +899,31 @@ namespace WPFModelViewer
         {
             if (e.Key == Key.Enter)
             {
-                TextBox block = (TextBox)sender;
-                //Make sure that the text is numeric
-                bool res = float.TryParse(block.Text, out float speed);
-
-                if (res)
-                {
-                    RenderState.activeCam.settings.Speed = speed;
-                    block.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next));
-                }
-                else
-                {
-                    block.Text = RenderState.activeCam.settings.Speed.ToString();
-                }
+                commitCamSpeed((TextBox)sender);
+                ((TextBox)sender).MoveFocus(new TraversalRequest(FocusNavigationDirection.Next));
             }
+            else if (e.Key == Key.Escape)
+            {
+                ((TextBox)sender).MoveFocus(new TraversalRequest(FocusNavigationDirection.Next)); //Lost focus restores the value
+            }
+        }
+
+        private void camSpeed_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+        {
+            commitCamSpeed((TextBox)sender);
+        }
+
+        //Apply a typed speed (clamped by the setting), or put the current one back if the text isn't a number
+        private void commitCamSpeed(TextBox box)
+        {
+            if (float.TryParse(box.Text, out float speed) && speed > 0.0f)
+                RenderState.activeCam.settings.Speed = speed;
+            box.GetBindingExpression(TextBox.TextProperty)?.UpdateTarget(); //Show the value actually used
+        }
+
+        private void camSpeedSlider_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            RenderState.activeCam.settings.Speed = 1.0f;
         }
 
     }
@@ -935,34 +1000,6 @@ namespace WPFModelViewer
         }
     }
 
-    internal static class NativeMethods
-    {
-        // http://msdn.microsoft.com/en-us/library/ms681944(VS.85).aspx
-        /// <summary>
-        /// Allocates a new console for the calling process.
-        /// </summary>
-        /// <returns>nonzero if the function succeeds; otherwise, zero.</returns>
-        /// <remarks>
-        /// A process can be associated with only one console,
-        /// so the function fails if the calling process already has a console.
-        /// </remarks>
-        [DllImport("kernel32.dll", SetLastError = true)]
-        internal static extern int AllocConsole();
-
-        // http://msdn.microsoft.com/en-us/library/ms683150(VS.85).aspx
-        /// <summary>
-        /// Detaches the calling process from its console.
-        /// </summary>
-        /// <returns>nonzero if the function succeeds; otherwise, zero.</returns>
-        /// <remarks>
-        /// If the calling process is not already attached to a console,
-        /// the error code returned is ERROR_INVALID_PARAMETER (87).
-        /// </remarks>
-        [DllImport("kernel32.dll", SetLastError = true)]
-        internal static extern int FreeConsole();
-
-        
-    }
 }
 
 

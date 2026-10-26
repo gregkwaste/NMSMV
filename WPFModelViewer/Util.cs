@@ -15,8 +15,8 @@ namespace WPFModelViewer
     public static class Util
     {
         public static int VersionMajor = 0;
-        public static int VersionMedium = 93;
-        public static int VersionMinor = 1;
+        public static int VersionMedium = 96;
+        public static int VersionMinor = 0;
         public static bool Prerelease = true;
         
         public static string donateLink = "https://www.paypal.com/donate/?hosted_button_id=UMHWZK6BU5MWG";
@@ -27,8 +27,10 @@ namespace WPFModelViewer
         public static Window activeWindow;
         public static TextBlock activeStatusStrip;
         
-        //Public LogFile
-        public static StreamWriter loggingSr;
+        //Log file (log.out next to the exe). Opened on first use so startup crashes are logged too
+        private static StreamWriter loggingSr;
+        private static bool logOpened = false; //Reopen in append mode after closeLog, so late messages keep the earlier ones
+        private static readonly object logLock = new object(); //Log is called from the GL driver thread and loaders too
         
 
         public static string getVersion()
@@ -102,16 +104,44 @@ namespace WPFModelViewer
             if (msg.Length == 0)
                 return;
 
-            string message = "";
-            if (msg[0].GetType() == typeof(string))
-                message = string.Format((string) msg[0], msg.Skip(1).ToArray());
+            //Only treat the first string as a format when arguments follow it, so a plain message
+            //with braces (exception text, json, shader source) is written as-is
+            string message;
+            if (msg[0] is string fmt && msg.Length > 1)
+            {
+                try
+                {
+                    message = string.Format(fmt, msg.Skip(1).ToArray());
+                }
+                catch (FormatException)
+                {
+                    message = string.Join(" ", msg);
+                }
+            }
             else
                 message = string.Join(" ", msg);
 #if DEBUG
             Console.WriteLine(message); //Write to console if we are in debug mode
 #endif
-            loggingSr.WriteLine(message);
-            loggingSr.Flush();
+            lock (logLock)
+            {
+                if (loggingSr == null)
+                {
+                    loggingSr = new StreamWriter("log.out", logOpened);
+                    logOpened = true;
+                }
+                loggingSr.WriteLine(message);
+                loggingSr.Flush();
+            }
+        }
+
+        public static void closeLog()
+        {
+            lock (logLock)
+            {
+                loggingSr?.Close();
+                loggingSr = null;
+            }
         }
 
         public static void sendRequest(ref ThreadRequest req)

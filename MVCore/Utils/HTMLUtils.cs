@@ -1,114 +1,115 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
-using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Reflection;
-using System.Text;
 using System.Windows;
-using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace MVCore.Utils
 {
     public static class HTMLUtils
     {
+        //Shared client, HttpClient is meant to be reused for the lifetime of the app
+        private static readonly HttpClient httpClient = createClient();
+
+        private static HttpClient createClient()
+        {
+            HttpClient client = new HttpClient();
+            client.Timeout = TimeSpan.FromSeconds(60);
+            //GitHub's API requires a User-Agent
+            client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("NMSModelViewer", "1.0"));
+            return client;
+        }
 
         public static string request(Uri uri)
         {
-            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(uri);
-            request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:79.0) Gecko/20100101 Firefox/79.0";
-            request.Accept = "text/ html,application / xhtml + xml,application / xml; q = 0.9,image / webp,*/*;q=0.8";
-            request.Headers.Add(HttpRequestHeader.AcceptEncoding, "gzip, deflate, br");
-            request.Headers.Add(HttpRequestHeader.AcceptLanguage, "en-US,en;q=0.5");
-            request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
-            request.Proxy = new WebProxy();
+            using HttpRequestMessage msg = new HttpRequestMessage(HttpMethod.Get, uri);
+            msg.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+            using HttpResponseMessage response = httpClient.Send(msg);
+            response.EnsureSuccessStatusCode();
+            using StreamReader reader = new StreamReader(response.Content.ReadAsStream());
+            return reader.ReadToEnd();
+        }
 
-            using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
-            using (Stream stream = response.GetResponseStream())
-            using (StreamReader reader = new StreamReader(stream))
-            {
-                return reader.ReadToEnd();
-            }
+        private static void downloadFile(string url, string destination)
+        {
+            using HttpResponseMessage response = httpClient.Send(new HttpRequestMessage(HttpMethod.Get, url));
+            response.EnsureSuccessStatusCode();
+            using Stream source = response.Content.ReadAsStream();
+            using FileStream target = new FileStream(destination, FileMode.Create, FileAccess.Write);
+            source.CopyTo(target);
         }
 
         public static bool fetchLibMBINDLL()
         {
-            Uri uri = new Uri("https://api.github.com/repos/monkeyman192/MBINCompiler/releases/latest");
-            string resp = request(uri);
+            //The app is portable, libMBIN.dll lives next to the executable
+            string appDir = AppContext.BaseDirectory;
+            string assemblyLoc = Path.Combine(appDir, "libMBIN.dll");
+            string tempAssemblyLoc = Path.Combine(appDir, "_templibMBIN.dll");
+            string oldAssemblyLoc = Path.Combine(appDir, "libMBIN_old.dll");
 
-            Dictionary<string, dynamic> data = JsonConvert.DeserializeObject<Dictionary<string, dynamic>>(resp);
-
-            var assets = data["assets"];
-            var libMBINVersion = data["tag_name"];
-            //Iterate in assets
-            //Dictionary<string, dynamic> assets = JsonConvert.DeserializeObject<Dictionary<string, dynamic>>(data["assets"]);
-
-            string downloadUrl_net5 = "";
-            string downloadUrl_net6 = "";
-
-            //Look for a NET6 assembly first
-            foreach (var k in assets)
+            try
             {
-                if (k["name"] == "libMBIN-dotnet6.dll")
+                Uri uri = new Uri("https://api.github.com/repos/monkeyman192/MBINCompiler/releases/latest");
+                JObject data = JObject.Parse(request(uri));
+
+                //Prefer a dotnet6 build of the library if the release has one
+                string downloadUrl_net5 = "";
+                string downloadUrl_net6 = "";
+                foreach (JToken asset in data["assets"] ?? new JArray())
                 {
-                    downloadUrl_net6 = k["browser_download_url"];
+                    string name = (string) asset["name"];
+                    if (name == "libMBIN-dotnet6.dll")
+                        downloadUrl_net6 = (string) asset["browser_download_url"];
+                    else if (name == "libMBIN.dll")
+                        downloadUrl_net5 = (string) asset["browser_download_url"];
                 }
-                else if (k["name"] == "libMBIN.dll")
+
+                string downloadUrl = (downloadUrl_net6 != "") ? downloadUrl_net6 : downloadUrl_net5;
+                if (downloadUrl == "")
                 {
-                    downloadUrl_net5 = k["browser_download_url"];
+                    MessageBox.Show("No libMBIN.dll was found in the latest MBINCompiler release (" + data["tag_name"] + ").", "Info", MessageBoxButton.OK);
+                    return false;
                 }
-            }
 
-            string downloadUrl = (downloadUrl_net6 != "") ? downloadUrl_net6 : downloadUrl_net5;
-            
-            //local attributes  
-            string assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            string assemblyLoc = Path.Combine(assemblyDir, "libMBIN.dll");
-            string assemblyVersion = Assembly.LoadFile(assemblyLoc).GetName().Version.ToString();
+                Common.CallBacks.Log("Downloading latest libMBIN release " + data["tag_name"]);
+                downloadFile(downloadUrl, tempAssemblyLoc);
 
-            //fetch online version to temp
+                //Read the versions from the files without loading them into the running app
+                Version assemblyVersion = AssemblyName.GetAssemblyName(assemblyLoc).Version;
+                Version tempAssemblyVersion = AssemblyName.GetAssemblyName(tempAssemblyLoc).Version;
 
-            if (downloadUrl == "")
-                return false;
-
-            if (File.Exists("_templibMBIN.dll"))
-                File.Delete("_templibMBIN.dll");
-
-            Common.CallBacks.Log("Downloading latest libMBIN release");
-            using (var client = new WebClient())
-            {
-                client.DownloadFile(downloadUrl, "_templibMBIN.dll");
-            }
-            
-            //Fetch version of temp assembly
-            string tempAssemblyLoc = Path.Combine(assemblyDir, "_templibMBIN.dll");
-            string tempAssemblyVersion = Assembly.LoadFile(tempAssemblyLoc).GetName().Version.ToString();
-
-            if (assemblyVersion == tempAssemblyVersion)
-            {
-                
-                MessageBox.Show("libMBIN is already updated.", "Info", MessageBoxButton.OK);
-            } else
-            {
+                if (assemblyVersion == tempAssemblyVersion)
+                {
+                    File.Delete(tempAssemblyLoc);
+                    MessageBox.Show("libMBIN is already updated.", "Info", MessageBoxButton.OK);
+                    return false;
+                }
 
                 var res = MessageBox.Show("Old Version: " + assemblyVersion + " Online Version: " + tempAssemblyVersion + "\nDo you want to update?", "Info", MessageBoxButton.YesNo, MessageBoxImage.Information);
 
-                if (res == MessageBoxResult.Yes)
+                if (res != MessageBoxResult.Yes)
                 {
-                    if (File.Exists("libMBIN_old.dll"))
-                        File.Delete("libMBIN_old.dll");
-                    File.Move("libMBIN.dll", "libMBIN_old.dll");
-                    File.Move("_templibMBIN.dll", "libMBIN.dll");
-
-                    //MessageBox.Show("Please restart the app to re-load the assembly", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
-
-                    return true;
-
+                    File.Delete(tempAssemblyLoc);
+                    return false;
                 }
+
+                //Windows allows renaming a dll that is in use, so swap the files and restart
+                if (File.Exists(oldAssemblyLoc))
+                    File.Delete(oldAssemblyLoc);
+                File.Move(assemblyLoc, oldAssemblyLoc);
+                File.Move(tempAssemblyLoc, assemblyLoc);
+                return true;
             }
-
-
-            return false;
+            catch (Exception ex)
+            {
+                Common.CallBacks.Log("libMBIN update failed: " + ex);
+                MessageBox.Show("libMBIN update failed: " + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                if (File.Exists(tempAssemblyLoc))
+                    File.Delete(tempAssemblyLoc);
+                return false;
+            }
         }
     }
 }

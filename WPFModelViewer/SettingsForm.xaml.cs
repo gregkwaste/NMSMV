@@ -3,13 +3,9 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
-using System.Security.RightsManagement;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Forms;
-using System.Windows.Media.Media3D;
-using Microsoft.WindowsAPICodePack.Dialogs;
 using MVCore.Common;
 using MVCore.GMDL;
 using MVCore.Utils;
@@ -34,75 +30,104 @@ namespace WPFModelViewer
 
         public static void loadSettingsStatic()
         {
-            //Load jsonstring
-            try
+            if (File.Exists("settings.json"))
             {
-                string jsonstring = File.ReadAllText("settings.json");
-                
-                Newtonsoft.Json.Linq.JObject tkn = Newtonsoft.Json.Linq.JObject.Parse(jsonstring);
-
-                AppSettings app_settings = JsonConvert.DeserializeObject<AppSettings>(tkn.GetValue("AppSettings").ToString());
-                RenderSettings render_settings = JsonConvert.DeserializeObject<RenderSettings>(tkn.GetValue("RenderSettings").ToString());
-                RenderViewSettings view_settings = JsonConvert.DeserializeObject<RenderViewSettings>(tkn.GetValue("ViewSettings").ToString());
-                MVCore.GMDL.CameraJSONSettings cam_settings = JsonConvert.DeserializeObject<MVCore.GMDL.CameraJSONSettings>(tkn.GetValue("CameraSettings").ToString());
-                
-                saveSettingsToEnv(app_settings, render_settings, view_settings, cam_settings);
-            }
-            catch (FileNotFoundException)
-            {
-                //Generating new settings file
-
-                string gamedir = NMSUtils.getGameInstallationDir();
-                string unpackdir;
-
-                if (gamedir == "" || gamedir is null)
+                try
                 {
-                    Util.showInfo("NMS Installation not found. Please choose your NMS Installation folder (root).", "Info");
-                    var openFileDlg = new CommonOpenFileDialog()
-                    {
-                        Title = "Select NMS Installation Folder",
-                        IsFolderPicker = true
-                    };
+                    string jsonstring = File.ReadAllText("settings.json");
+                    Newtonsoft.Json.Linq.JObject tkn = Newtonsoft.Json.Linq.JObject.Parse(jsonstring);
 
-                    if (openFileDlg.ShowDialog() == CommonFileDialogResult.Cancel)
-                        unpackdir = "";
-                    else
-                        unpackdir = openFileDlg.FileName;
-                    openFileDlg.Dispose();
-                    //Store paths
-                    RenderState.settings.GameDir = unpackdir;
-                    RenderState.settings.UnpackDir = unpackdir;
+                    //A missing or broken section keeps its defaults instead of failing the whole file
+                    AppSettings app_settings = readSettingsSection(tkn, "AppSettings", RenderState.settings);
+                    RenderSettings render_settings = readSettingsSection(tkn, "RenderSettings", RenderState.renderSettings);
+                    RenderViewSettings view_settings = readSettingsSection(tkn, "ViewSettings", RenderState.renderViewSettings);
+                    MVCore.GMDL.CameraJSONSettings cam_settings = readSettingsSection(tkn, "CameraSettings", RenderState.camSettings);
+
+                    saveSettingsToEnv(app_settings, render_settings, view_settings, cam_settings);
                     return;
                 }
-
-                //Ask if the user has files unpacked
-                MessageBoxResult result = MessageBox.Show("Do you have unpacked game files?", "", MessageBoxButton.YesNo);
-
-                if (result == MessageBoxResult.No)
+                catch (Exception ex) when (ex is JsonException || ex is IOException || ex is UnauthorizedAccessException)
                 {
-                    unpackdir = gamedir;
-                } else
-                {
-                    var dialog = new CommonOpenFileDialog()
+                    //Keep the unreadable file for reference and start over with new settings
+                    //and overwrite it with the defaults, so the next start doesn't hit it again
+                    try
                     {
-                        Title = "Select the unpacked GAMEDATA folder",
-                        IsFolderPicker = true
-                    };
+                        File.Copy("settings.json", "settings.json.bak", true);
+                        saveSettingsStatic();
+                    }
+                    catch (Exception) { }
 
-                    if (dialog.ShowDialog() == CommonFileDialogResult.Cancel)
-                        unpackdir = "";
-                    else
-                        unpackdir = dialog.FileName;
-
+                    Util.showInfo("settings.json could not be read, so new settings will be created. " +
+                                  "The old file was kept as settings.json.bak.\n\n" + ex.Message, "Info");
                 }
-
-                //Save path settings to the environment
-                RenderState.settings.GameDir = gamedir;
-                RenderState.settings.UnpackDir = unpackdir;
-                
-                saveSettingsStatic(); //Save Settings right away
             }
 
+            createSettings();
+        }
+
+        private static T readSettingsSection<T>(Newtonsoft.Json.Linq.JObject tkn, string name, T fallback) where T : class
+        {
+            Newtonsoft.Json.Linq.JToken section = tkn[name];
+            if (section == null || section.Type == Newtonsoft.Json.Linq.JTokenType.Null)
+                return fallback;
+
+            try
+            {
+                return section.ToObject<T>() ?? fallback;
+            }
+            catch (JsonException)
+            {
+                return fallback;
+            }
+        }
+
+        //Generates a new settings file
+        private static void createSettings()
+        {
+            //Generating new settings file
+
+            string gamedir = NMSUtils.getGameInstallationDir();
+            string unpackdir;
+
+            if (gamedir == "" || gamedir is null)
+            {
+                Util.showInfo("NMS Installation not found. Please choose your NMS Installation folder (root).", "Info");
+                unpackdir = pickFolder("Select NMS Installation Folder") ?? "";
+                //Store paths
+                RenderState.settings.GameDir = unpackdir;
+                RenderState.settings.UnpackDir = unpackdir;
+                return;
+            }
+
+            //Ask if the user has files unpacked
+            MessageBoxResult result = MessageBox.Show("Do you have unpacked game files?", "", MessageBoxButton.YesNo);
+
+            if (result == MessageBoxResult.No)
+            {
+                unpackdir = gamedir;
+            } else
+            {
+                unpackdir = pickFolder("Select the unpacked GAMEDATA folder") ?? "";
+            }
+
+            //Save path settings to the environment
+            RenderState.settings.GameDir = gamedir;
+            RenderState.settings.UnpackDir = unpackdir;
+            
+            saveSettingsStatic(); //Save Settings right away
+
+        }
+
+        //Built-in WPF folder picker (.NET 8+). Returns null when cancelled
+        private static string pickFolder(string title)
+        {
+            var dialog = new Microsoft.Win32.OpenFolderDialog()
+            {
+                Title = title,
+                Multiselect = false
+            };
+
+            return dialog.ShowDialog() == true ? dialog.FolderName : null;
         }
 
         public static void saveSettingsToEnv(AppSettings app_settings, 
@@ -150,19 +175,11 @@ namespace WPFModelViewer
         {
             System.Windows.Controls.Button but = (System.Windows.Controls.Button) sender;
 
-            CommonOpenFileDialog openFileDlg = new()
-            {
-                IsFolderPicker = true,
-                Multiselect = false
-            };
-            
-            var res = openFileDlg.ShowDialog();
+            string path = pickFolder(but.Name == "GameDirSetButton" ? "Select NMS Installation Folder" : "Select the unpacked GAMEDATA folder");
 
-            string path = "";
-
-            if (res == CommonFileDialogResult.Ok)
-                path = openFileDlg.FileName;
-            openFileDlg.Dispose();
+            //Cancelling keeps the current folder instead of clearing it
+            if (path is null)
+                return;
 
             if (but.Name == "GameDirSetButton")
             {

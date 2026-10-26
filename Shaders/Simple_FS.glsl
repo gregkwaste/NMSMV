@@ -68,9 +68,11 @@ out vec4 outcolors[3];
 
 
 //New Decoding function - RGTC
+//Two channel normal maps (BC5/RGTC) only store x and y, so z is rebuilt from them.
+//The b and a channels hold no normal data and must not take part in the normalization
 vec3 DecodeNormalMap(vec4 lNormalTexVec4 ){
-    lNormalTexVec4 = normalize(2.0 * lNormalTexVec4 - 1.0);
-    return ( vec3( lNormalTexVec4.r, lNormalTexVec4.g, sqrt( max( 1.0 - lNormalTexVec4.r*lNormalTexVec4.r - lNormalTexVec4.g*lNormalTexVec4.g, 0.0 ) ) ) );
+    vec2 lXY = 2.0 * lNormalTexVec4.rg - 1.0;
+    return normalize( vec3( lXY, sqrt( max( 1.0 - dot( lXY, lXY ), 0.0 ) ) ) );
 }
 
 float
@@ -114,10 +116,11 @@ vec4 worldfromDepth()
 }
 
 
+//Green highlight for the mesh selected in the scene tree (keeps some of the texture detail)
 vec4 ApplySelectedColor(vec4 color){
 	vec4 new_col = color;
 	if (isSelected > 0.0)
-		new_col *= vec4(0.005, 1.5, 0.005, 1.0);
+		new_col.rgb = mix(new_col.rgb, vec3(0.1, 0.9, 0.1), 0.5);
 	return new_col;
 }
 
@@ -148,13 +151,13 @@ void pbr_lighting(){
 	vec4 lColourVec4;
 	float diffTex2Factor = 1.0;
 	vec3 lNormalVec3 = mTangentSpaceNormalVec3;
-	float lLowAlpha = 1.0; //TODO : Find out what exactly is that shit
+	float lLowAlpha = 1.0; //Diffuse texture alpha, used as the glow mask on opaque materials
 	float lHighAlpha = 1.0; //TODO : Find out what exactly is that shit
 	vec4 world = fragPos;
 	float isLit = 1.0;
 	float lfRoughness = 1.0;
 	float lfMetallic = 0.0;
-	float lfSubsurface = 0.0; //Not used atm
+	float lfSubsurface = 0.0; //Not used atm. Its G-buffer slot (params.a) carries glow instead
 	float ao = 1.0;
 	float lfGlow = 0.0;
 
@@ -216,6 +219,7 @@ void pbr_lighting(){
 				lColourVec4 = texture(mpCustomPerMaterial.gDiffuseMap, vec3(lTexCoordsVec4.xy, 0.0));
 			#endif
 
+			lLowAlpha = lColourVec4.a;
 			#if !defined(__F09_TRANSPARENT) && !defined(__F11_ALPHACUTOUT)
 				lColourVec4.a = 1.0;
 			#endif
@@ -237,9 +241,14 @@ void pbr_lighting(){
 			lColourVec4.rgb = mix( lColourVec4.rgb, lDiffuse2Vec4.rgb, lDiffuse2Vec4.a );
 		#endif
 
-		#if defined(__F21_VERTEXCUSTOM)
-		  	lColourVec4 *= vertColor;
+		//Viewer helpers (locator crosses) take their colour from the vertices
+		#ifdef __D_VERTEX_COLOUR
+			lColourVec4 *= vertColor;
 		#endif
+
+		//_F21_VERTEXCUSTOM (formerly VERTEXCOLOUR) marks custom per-vertex data, not a colour: the bytes are
+		//small raw values (normalised they turn everything black, raw they blow colours out and make
+		//translucent materials opaque). Until its meaning is known it is not applied to the colour
 		
 		//TRANSPARENCY
 		// Transparency scalar comes from float in Material
@@ -317,6 +326,12 @@ void pbr_lighting(){
 	    	//TODO ADD SOME SHIT HERE
 	    #endif
 
+		//Double-sided: back faces use the flipped normal
+		#ifdef __F36_DOUBLESIDED
+			if (!gl_FrontFacing)
+				lNormalVec3 = -lNormalVec3;
+		#endif
+
 		//LIGHTING
 		
 		#ifndef __F07_UNLIT
@@ -383,6 +398,13 @@ void pbr_lighting(){
     }
     #endif
 
+	//Glow material class (current game versions): the surface emits its own colour
+	#ifdef __D_CLASS_GLOW
+		lfGlow = max(lfGlow, 1.0);
+	#endif
+
+
+	lColourVec4 = ApplySelectedColor(lColourVec4);
 
 	//WRITE OUTPUT
 
@@ -399,9 +421,7 @@ void pbr_lighting(){
 		outcolors[2].x = ao;
 		outcolors[2].y = saturate(lfMetallic);
 		outcolors[2].z = lfRoughness;
-		outcolors[2].a = saturate(lfSubsurface);
-
-		//TODO SEND GLOW TO NEXT STAGES
+		outcolors[2].a = max(lfGlow, 0.0); //Glow intensity (RGBA16F, may exceed 1)
 
 	#else
 		
@@ -410,7 +430,15 @@ void pbr_lighting(){
 
 		#ifndef __F07_UNLIT
 		if (mpCommonPerFrame.use_lighting > 0.0) {
-			for(int i = 0; i < mpCommonPerFrame.light_count; ++i) 
+			//Lights and the camera live in the rotated scene space, like the deferred pass
+			vec4 lRotatedFragPos = mpCommonPerFrame.rotMat * fragPos;
+			lNormalVec3 = dot(lNormalVec3, lNormalVec3) > 1e-12 ? normalize(lNormalVec3) : vec3(0.0, 0.0, 1.0);
+
+			//Start from the environment lighting instead of the unlit colour
+			finalColor.rgb = calcEnvironmentLighting(mpCommonPerFrame.lights[0], lRotatedFragPos, lNormalVec3,
+				mpCommonPerFrame.cameraPosition.xyz, lColourVec4.rgb, lfMetallic, lfRoughness, ao);
+
+			for(int i = 1; i < mpCommonPerFrame.light_count; ++i) 
 		    {
 		    	// calculate per-light radiance
 		        Light light = mpCommonPerFrame.lights[i]; 
@@ -419,7 +447,7 @@ void pbr_lighting(){
 				if (light.position.w < 1.0)
 		        	continue;
 	    		
-	    		finalColor.rgb += calcLighting(light, fragPos, lNormalVec3, 
+	    		finalColor.rgb += calcLighting(light, lRotatedFragPos, lNormalVec3, 
 				mpCommonPerFrame.cameraPosition.xyz, mpCommonPerFrame.cameraDirection.xyz,
 		            lColourVec4.rgb, lfMetallic, lfRoughness, ao);
 			} 
@@ -428,10 +456,17 @@ void pbr_lighting(){
 			finalColor = lColourVec4;
 		#endif
 
-		//Weighted Blended order independent transparency
-		float z = screenPos.z / screenPos.w;
+		//Emissive
+		finalColor.rgb += lColourVec4.rgb * max(lfGlow, 0.0);
+
+		//Keep the RGBA16F accumulation finite (max 65504) when bright glow layers overlap
+		finalColor.rgb = min(finalColor.rgb, vec3(64.0));
+
+		//Weighted Blended order independent transparency (McGuire & Bavoil, depth weight from window z).
+		//The old weight ran pow() on NDC z, which is negative for the nearer half of the depth range and gives NaN
+		float d = 1.0 - gl_FragCoord.z;
 		float weight = max(min(1.0, max3(finalColor.rgb) * finalColor.a), finalColor.a) *
-						clamp(0.03 / (1e-5 + pow(z/200, 4.0)), 1e-2, 3e3);
+						clamp(100.0 * d * d * d, 1e-2, 1e2);
 		
 		outcolors[0] = vec4(finalColor.rgb * finalColor.a, finalColor.a) * weight;
 		outcolors[1] = vec4(finalColor.a);

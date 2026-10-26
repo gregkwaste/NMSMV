@@ -46,11 +46,6 @@ namespace MVCore.Engine
             root.AABBMAX = new IVector3(max_width, max_width, max_width);
         }
 
-        ~Octree()
-        {
-
-        }
-
 
         //Methods
         public void insert(Model m)
@@ -292,7 +287,7 @@ namespace MVCore.Engine
             GL.PointSize(5.0f);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, eb_bbox);
 
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+            GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Line);
 
             GL.DrawRangeElements(PrimitiveType.Triangles, 0, verts1.Length,
                 indices.Length, DrawElementsType.UnsignedInt, IntPtr.Zero);

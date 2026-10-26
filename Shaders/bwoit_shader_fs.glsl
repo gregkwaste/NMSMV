@@ -11,5 +11,10 @@ void main()
 	vec4 accum = texelFetch(in1Tex, ivec2(gl_FragCoord.xy), 0);
     float reveal = texelFetch(in2Tex, ivec2(gl_FragCoord.xy), 0).r;
 
-    fragColour = vec4(accum.rgb/max(accum.a, 1e-5), reveal);
+    vec3 colour = accum.rgb / max(accum.a, 1e-5);
+    //Never let a bad pixel through, bloom would spread it over the whole screen
+    if (any(isnan(colour)) || any(isinf(colour)))
+        colour = vec3(0.0);
+
+    fragColour = vec4(min(colour, vec3(64.0)), reveal);
 }

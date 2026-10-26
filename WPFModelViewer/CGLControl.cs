@@ -10,7 +10,6 @@ using GLSLHelper;
 using MVCore;
 using MVCore.Common;
 using MVCore.GMDL;
-using MVCore.Text;
 using MVCore.Utils;
 using MVCore.Input;
 using MVCore.Engine.Systems;
@@ -52,6 +51,8 @@ namespace Model_Viewer
         //public Model rootObject;
         public Model activeModel; //Active Model Reference
         public Queue<Model> modelUpdateQueue = new Queue<Model>();
+        private Matrix4 lastViewMat; //Camera state the instances were last culled with
+        private Matrix4 lastRotMat;
         public List<Tuple<AnimComponent, AnimData>> activeAnimScenes = new List<Tuple<AnimComponent, AnimData>>();
 
         //Gizmo
@@ -71,11 +72,16 @@ namespace Model_Viewer
         private System.ComponentModel.IContainer components;
 
 
-        //Private fps Counter
+        //Frame clock. dt is the last frame's length in milliseconds (animations, actions and shader time use ms)
         private int frames = 0;
-        private double dt = 0.0f;
-        private DateTime oldtime;
-        private DateTime prevtime;
+        private double dt = 0.0;
+        private readonly Stopwatch frameClock = new Stopwatch();
+        private readonly Stopwatch fpsClock = new Stopwatch();
+        //A longer frame (a file load, a pause, a breakpoint) counts as this long, so the camera and animations don't jump
+        private const double MAX_FRAME_MS = 100.0;
+
+        //Completed once the engine (resource manager, cameras, shaders) exists, which happens on the first render
+        public readonly TaskCompletionSource ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         //Input Polling Thread
         private bool _capture_input = false;
@@ -106,12 +112,32 @@ namespace Model_Viewer
                     RenderState.activeCam.yaw = RenderState.camSettings.Yaw;
                     RenderState.activeCam.pitch = RenderState.camSettings.Pitch;
 
-                    rendering_thread_initialized = true;
+                    ready.TrySetResult();
                 }
 
-                //GL.ClearColor(1.0f, 0.0f, 0.0f, 1.0f);
-                //GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-                RenderLocal(time.TotalSeconds);
+                RenderLocal();
+            });
+
+            //A key released while another window has focus never reaches us, so forget all keys when focus goes
+            _control.LostKeyboardFocus += new((object sender, KeyboardFocusChangedEventArgs args) =>
+            {
+                engine.kbHandler.Clear();
+            });
+
+            //Capture can be taken away mid-drag (Alt+Tab, a dialog), which ends the camera drag
+            _control.LostMouseCapture += new((object sender, MouseEventArgs args) =>
+            {
+                if (mouseMovementStatus == MouseMovementStatus.CAMERA_MOVEMENT)
+                    mouseMovementStatus = MouseMovementStatus.IDLE;
+            });
+
+            //Mouse wheel during a camera drag changes the move speed by 25% per notch
+            _control.MouseWheel += new((object sender, System.Windows.Input.MouseWheelEventArgs args) =>
+            {
+                if (mouseMovementStatus != MouseMovementStatus.CAMERA_MOVEMENT)
+                    return;
+                RenderState.activeCam.settings.Speed *= (float) Math.Pow(1.25, args.Delta / 120.0);
+                args.Handled = true;
             });
 
             _control.MouseDown += new MouseButtonEventHandler(genericMouseDown);
@@ -123,7 +149,9 @@ namespace Model_Viewer
             //Register handlers after the engine has been initialized
             _control.MouseLeave += new((object sender, MouseEventArgs args) =>
             {
-                _capture_input = false;
+                //A camera drag keeps the mouse captured and goes on outside the viewport
+                if (!_control.IsMouseCaptured)
+                    _capture_input = false;
             });
 
             _control.MouseEnter += new((object sender, MouseEventArgs args) =>
@@ -131,6 +159,16 @@ namespace Model_Viewer
                 _capture_input = true;
                 engine.kbHandler.Clear();
                 engine.msHandler.Clear();
+
+                //Start mouse deltas from here, not from where the cursor left the viewport
+                Point p = args.GetPosition(_control);
+                engine.msHandler.Position = engine.msHandler.PrevPosition = new((float)p.X, (float)p.Y);
+                engine.msHandler.Delta = Vector2.Zero;
+
+                //GLWpfControl 4.3+ only gets key events while focused (4.2 hooked the window).
+                //Take focus on hover like before, unless the user is typing in a text box
+                if (Keyboard.FocusedElement is not System.Windows.Controls.Primitives.TextBoxBase)
+                    _control.Focus();
             });
         }
 
@@ -150,16 +188,38 @@ namespace Model_Viewer
             
         }
 
-        private void RenderLocal(double dt)
+        private void applyPendingResize()
         {
+            //The control can recreate its framebuffer when it resizes, so fetch it every frame
+            int w = _control.FrameBufferWidth;
+            int h = _control.FrameBufferHeight;
+            engine.renderMgr.screen_fbo = _control.Framebuffer;
+            engine.renderMgr.setScreenSize(w, h);
+
+            if (w <= 0 || h <= 0 || engine.renderMgr.hasRenderSize(w, h))
+                return; //Minimized or already the right size
+            if (resizeTimer.IsRunning && resizeTimer.ElapsedMilliseconds < RESIZE_SETTLE_MS)
+                return; //Still resizing
+
+            resizeTimer.Reset();
+            engine.renderMgr.resize(w, h);
+        }
+
+        private void RenderLocal()
+        {
+            //One clock for everything that moves: the camera gets seconds, the rest milliseconds
+            dt = frameClock.IsRunning ? Math.Min(frameClock.Elapsed.TotalMilliseconds, MAX_FRAME_MS) : 0.0;
+            frameClock.Restart();
+
             if (engine.rt_State != EngineRenderingState.EXIT)
             {
                 engine.handleRequests();
 
                 if (engine.rt_State == EngineRenderingState.ACTIVE)
                 {
+                    applyPendingResize();
                     if (_capture_input)
-                        processInput(dt);
+                        processInput(dt / 1000.0);
                     frameUpdate();
                     engine.renderMgr.render(); //Render Everything
 
@@ -173,8 +233,26 @@ namespace Model_Viewer
 
         }
 
+        //Stop the engine, then free the GL resources with this control's context current.
+        //Called from the window's Closing handler, before the control and its context go away
+        public void shutdown()
+        {
+            engine.stop();
+            try
+            {
+                _control.Context?.MakeCurrent();
+                engine.resMgr.Cleanup();
+            }
+            catch (Exception ex)
+            {
+                CallBacks.Log("GL cleanup on exit failed: " + ex.Message);
+            }
+        }
+
         public void setActiveCam(int index)
         {
+            if (index < 0 || index >= RenderState.activeResMgr.GLCameras.Count)
+                return;
             if (RenderState.activeCam != null)
                 RenderState.activeCam.isActive = false;
             RenderState.activeCam = RenderState.activeResMgr.GLCameras[index];
@@ -231,16 +309,14 @@ namespace Model_Viewer
 
 
 
-            //Update Camera Rotation
-            if (e.LeftButton == MouseButtonState.Pressed)
+            //Update Camera Rotation, only for a drag that started in the viewport
+            if (mouseMovementStatus == MouseMovementStatus.CAMERA_MOVEMENT && e.LeftButton == MouseButtonState.Pressed)
             {
-                //Debug.WriteLine("Mouse Delta {0} {1}", engine.msHandler.Delta.X, engine.msHandler.Delta.Y);
-
-                if (RenderState.activeCam.pitch > 360) RenderState.activeCam.pitch = 0;
-                if (RenderState.activeCam.pitch < -360) RenderState.activeCam.pitch = 0;
-
-                RenderState.activeCam.pitch += engine.msHandler.Delta.X * RenderState.activeCam.settings.Sensitivity;
-                RenderState.activeCam.yaw -= engine.msHandler.Delta.Y * RenderState.activeCam.settings.Sensitivity;
+                //pitch is the horizontal angle and yaw the vertical one. The vertical angle is kept inside the
+                //view limit, so dragging back responds at once, and the horizontal one wraps around
+                Camera cam = RenderState.activeCam;
+                cam.pitch = (cam.pitch + engine.msHandler.Delta.X * cam.settings.Sensitivity) % 360.0f;
+                cam.yaw = Math.Clamp(cam.yaw - engine.msHandler.Delta.Y * cam.settings.Sensitivity, -89.0f, 89.0f);
             }
 
             //Take action
@@ -265,6 +341,7 @@ namespace Model_Viewer
 
         private void genericMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
+            _control.Focus(); //Clicking the viewport always gives it the keyboard
             if (!_capture_input)
             {
                 e.Handled = true;
@@ -282,38 +359,54 @@ namespace Model_Viewer
             } else if (e.LeftButton == MouseButtonState.Pressed)
             {
                 mouseMovementStatus = MouseMovementStatus.CAMERA_MOVEMENT;
+                _control.CaptureMouse(); //Keep turning when the cursor leaves the viewport
             }
 
             e.Handled = true;
         }
 
+        //dt in seconds
         private void processInput(double dt)
         {
-            float step = 0.002f;
             float x = engine.kbHandler.getKeyStatus(RenderState.settings.KeyRight) - engine.kbHandler.getKeyStatus(RenderState.settings.KeyLeft);
             float z = engine.kbHandler.getKeyStatus(RenderState.settings.KeyUp) - engine.kbHandler.getKeyStatus(RenderState.settings.KeyDown);
             float y = engine.kbHandler.getKeyStatus(Key.R) - engine.kbHandler.getKeyStatus(Key.F);
             Vector3 newPos = RenderState.activeCam.Right * x + RenderState.activeCam.Front * z + Camera.BaseUp * y;
-            newPos *= (float) dt * RenderState.activeCam.settings.Speed;
+            if (newPos.LengthSquared > 1.0f)
+                newPos.Normalize(); //Diagonals are not faster
+            newPos *= (float) dt * RenderState.activeCam.settings.Speed * RenderState.activeCam.speedScale;
             newPos += RenderState.activeCam.Position;
 
             Camera.SetCameraPosition(ref RenderState.activeCam, newPos);
             //Debug.WriteLine("Deltas {0} {1}", _camPos.Rotation.X, _camPos.Rotation.Y);
             //RenderState.activeCam?.updateTarget(_camPos, (float) input_poller.Interval);
-            RenderState.rotAngles.Y += 100 * step * (engine.kbHandler.getKeyStatus(Key.E) - engine.kbHandler.getKeyStatus(Key.Q));
+            //Scene rotation in degrees per second, so it doesn't depend on the frame rate
+            RenderState.rotAngles.Y += 30.0f * (float) dt * (engine.kbHandler.getKeyStatus(Key.E) - engine.kbHandler.getKeyStatus(Key.Q));
             RenderState.rotAngles.Y %= 360;
         }
 
         private void genericMouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
+            //End a camera drag wherever the button is released
+            if (e.ChangedButton == System.Windows.Input.MouseButton.Left && mouseMovementStatus == MouseMovementStatus.CAMERA_MOVEMENT)
+            {
+                mouseMovementStatus = MouseMovementStatus.IDLE;
+                _control.ReleaseMouseCapture();
+                _capture_input = _control.IsMouseOver;
+                engine.msHandler.SetButtonState(System.Windows.Input.MouseButton.Left, false);
+                e.Handled = true;
+                return;
+            }
+
             if (!_capture_input)
             {
                 e.Handled = true;
                 return;
             }
 
-            engine.msHandler.SetButtonState(System.Windows.Input.MouseButton.Left, e.LeftButton == MouseButtonState.Released);
-            engine.msHandler.SetButtonState(System.Windows.Input.MouseButton.Right, e.RightButton == MouseButtonState.Released);
+            //The event carries the state after the release, so a released button reads as not pressed
+            engine.msHandler.SetButtonState(System.Windows.Input.MouseButton.Left, e.LeftButton == MouseButtonState.Pressed);
+            engine.msHandler.SetButtonState(System.Windows.Input.MouseButton.Right, e.RightButton == MouseButtonState.Pressed);
             
 
             if (e.LeftButton == MouseButtonState.Released && e.ChangedButton == System.Windows.Input.MouseButton.Left)
@@ -322,8 +415,6 @@ namespace Model_Viewer
             } else if (e.RightButton == MouseButtonState.Released && e.ChangedButton == System.Windows.Input.MouseButton.Right)
             {
                 contextMenuStrip1.IsOpen = true;
-
-
             }
             e.Handled = true;
         }
@@ -353,6 +444,11 @@ namespace Model_Viewer
             //Debug.WriteLine("Key pressed {0}",e.Key.ToString());
             switch (e.Key)
             {
+                //Frame the model
+                case Key.Home:
+                    if (RenderState.rootObject != null)
+                        RenderState.activeCam.frameScene(RenderState.rootObject, true);
+                    break;
                 //Light Rotation
                 case Key.N:
                     engine.light_angle_y -= 1;
@@ -389,10 +485,9 @@ namespace Model_Viewer
                 */
                 //Switch cameras
                 case Key.NumPad0:
-                    if (engine.resMgr.GLCameras[0].isActive)
-                        setActiveCam(1);
-                    else
-                        setActiveCam(0);
+                    //Cycle through the cameras, when there is more than one
+                    if (engine.resMgr.GLCameras.Count > 1)
+                        setActiveCam((engine.resMgr.GLCameras.IndexOf(RenderState.activeCam) + 1) % engine.resMgr.GLCameras.Count);
                     break;
                 //Animation playback (Play/Pause Mode) with Space
                 //case Keys.Space:
@@ -406,9 +501,14 @@ namespace Model_Viewer
             e.Handled = true;
         }
 
+        //Reallocating every render target on each step of a window drag makes resizing stutter, so the
+        //targets are resized once the size has stopped changing. Until then the old ones are stretched
+        private readonly Stopwatch resizeTimer = new Stopwatch();
+        private const int RESIZE_SETTLE_MS = 100;
+
         private void OnResize(object sender, SizeChangedEventArgs e)
         {
-            engine.renderMgr.resize((int)e.NewSize.Width, (int)e.NewSize.Height);
+            resizeTimer.Restart();
 #if DEBUG
             CallBacks.Log($"RESIZING VIEWPORT {e.NewSize.Width} {e.NewSize.Height} RENDERSIZE {_control.RenderSize.Width} {_control.RenderSize.Height} FRAMEBUFFERSIZE {_control.FrameBufferWidth}  {_control.FrameBufferHeight}");
             CallBacks.Log($"Control Size {_control.Width}  {_control.Height}");
@@ -426,10 +526,6 @@ namespace Model_Viewer
             MenuItem assimp_export = new MenuItem();
             assimp_export.Header = "Export to Assimp";
             assimp_export.Click += new RoutedEventHandler(exportToAssimp);
-                
-            MenuItem load_reference = new MenuItem();
-            assimp_export.Header = "Load Reference";
-            assimp_export.Click += new RoutedEventHandler(loadReference);
 
             contextMenuStrip1 = new ContextMenu();
             contextMenuStrip1.Items.Add(obj_export);
@@ -467,11 +563,6 @@ namespace Model_Viewer
             findGeoms(RenderState.rootObject, obj, ref index);
             
             obj.Close();
-
-        }
-
-        private void loadReference(object sender, EventArgs e)
-        {
 
         }
 
@@ -692,7 +783,6 @@ namespace Model_Viewer
         {
             //Capture Input
             //engine.input_poller(dt);
-            //VSync = RenderState.renderSettings.UseVSYNC; //Update Vsync 
 
             //Common.CallBacks.Log(RenderState.renderSettings.RENDERMODE);
 
@@ -700,36 +790,77 @@ namespace Model_Viewer
             //Send picking request
             //Make new request
             activeGizmo = null;
-            if (RenderState.renderViewSettings.RenderGizmos)
+            //Picking needs an active gizmo, otherwise the request would fail every frame
+            if (RenderState.renderViewSettings.RenderGizmos && activeGizmo != null)
             {
                 ThreadRequest req = new ThreadRequest();
                 req.type = THREAD_REQUEST_TYPE.GIZMO_PICKING_REQUEST;
                 req.arguments.Clear();
                 req.arguments.Add(activeGizmo);
-                req.arguments.Add(null);
+                req.arguments.Add(engine.msHandler.Position);
                 engine.issueRenderingRequest(ref req);
             }
 
             //Set time to the renderManager
             engine.renderMgr.progressTime(dt);
             
-            //Reset Stats
-            RenderStats.occludedNum = 0;
+            //Everything that moves is updated first, so culling and instancing below see this frame's state
 
-            //Update moving queue
+            //Common.CallBacks.Log("Dt {0}", dt);
+            if (RenderState.renderViewSettings.EmulateActions)
+            {
+                engine.actionSys.update((float)dt);
+            }
+
+            //Progress animations. Only scenes whose pose changed need their transforms updated
+            if (RenderState.renderSettings.ToggleAnimations)
+            {
+                engine.animationSys.update((float) dt);
+                foreach (Model s in engine.animationSys.ActiveScenes)
+                    modelUpdateQueue.Enqueue(s.parentScene);
+            }
+
+            //Update moving queue (propagates the new local transforms to world matrices)
             while (modelUpdateQueue.Count > 0)
             {
                 Model m = modelUpdateQueue.Dequeue();
                 m.update();
             }
 
-            if (RenderState.renderSettings.LODFiltering)
+            //Camera & Light Positions. A collapsed or minimized viewport has no size, then the last aspect is kept
+            Camera cam = RenderState.activeCam;
+            if (_control.RenderSize.Width > 0 && _control.RenderSize.Height > 0)
+                cam.aspect = (float) (_control.RenderSize.Width / _control.RenderSize.Height);
+
+            //Apply extra viewport rotation
+            Matrix4 Rotx = Matrix4.CreateRotationX(MathUtils.radians(RenderState.rotAngles.X));
+            Matrix4 Roty = Matrix4.CreateRotationY(MathUtils.radians(RenderState.rotAngles.Y));
+            Matrix4 Rotz = Matrix4.CreateRotationZ(MathUtils.radians(RenderState.rotAngles.Z));
+            RenderState.rotMat = Rotz * Rotx * Roty;
+            //RenderState.rotMat = Matrix4.Identity;
+
+            cam.updateViewMatrix();
+
+            Matrix4 viewMat = cam.viewMat;
+            if (viewMat != lastViewMat || RenderState.rotMat != lastRotMat)
             {
-                RenderState.rootObject?.updateLODDistances(); //Update Distances from camera
+                lastViewMat = viewMat;
+                lastRotMat = RenderState.rotMat;
+                RenderState.instancesDirty = true;
             }
-            
-            engine.renderMgr.clearInstances(); //Clear All mesh instances
-            RenderState.rootObject?.updateMeshInfo(); //Reapply frustum culling and re-setup visible instances
+
+            //Culling and instancing use the camera and transforms updated above. The instances stay valid
+            //until the camera, a transform, an animation or a setting changes
+            if (RenderState.instancesDirty)
+            {
+                RenderState.instancesDirty = false;
+                RenderStats.occludedNum = 0;
+
+                RenderState.rootObject?.updateLODDistances(); //Pick the LOD levels (forced, LOD0 with filtering off, or by distance)
+
+                engine.renderMgr.clearInstances(); //Clear All mesh instances
+                RenderState.rootObject?.updateMeshInfo(); //Reapply frustum culling and re-setup visible instances
+            }
 
             //Update gizmo
             if (activeModel != null)
@@ -740,48 +871,9 @@ namespace Model_Viewer
                 //GLMeshVao gz = resMgr.GLPrimitiveMeshVaos["default_translation_gizmo"];
                 //GLMeshBufferManager.addInstance(ref gz, TranslationGizmo);
             }
-
-            //Identify dynamic Objects
-            foreach (Model s in engine.animationSys.AnimScenes)
-            {
-                modelUpdateQueue.Enqueue(s.parentScene);
-            }
-
-            //Common.CallBacks.Log("Dt {0}", dt);
-            if (RenderState.renderViewSettings.EmulateActions)
-            {
-                engine.actionSys.update((float)dt);
-            }
-
-            //Progress animations
-            if (RenderState.renderSettings.ToggleAnimations)
-            {
-                engine.animationSys.update((float) dt);
-            }
-                
-
-            //Camera & Light Positions
-            //Update common transforms
-            RenderState.activeResMgr.GLCameras[0].aspect = (float) (_control.RenderSize.Width / _control.RenderSize.Height);
-
-            //Apply extra viewport rotation
-            Matrix4 Rotx = Matrix4.CreateRotationX(MathUtils.radians(RenderState.rotAngles.X));
-            Matrix4 Roty = Matrix4.CreateRotationY(MathUtils.radians(RenderState.rotAngles.Y));
-            Matrix4 Rotz = Matrix4.CreateRotationZ(MathUtils.radians(RenderState.rotAngles.Z));
-            RenderState.rotMat = Rotz * Rotx * Roty;
-            //RenderState.rotMat = Matrix4.Identity;
-
-            //RenderState.activeResMgr.GLCameras[0].Move(dt);
-            RenderState.activeResMgr.GLCameras[0].updateViewMatrix();
             
             //Update Frame Counter
-            fps();
-
-            //Update Text Counters
-            RenderState.activeResMgr.txtMgr.getText(TextManager.Semantic.FPS).update(string.Format("FPS: {0:000.0}",
-                                                                        (float)RenderStats.fpsCount));
-            RenderState.activeResMgr.txtMgr.getText(TextManager.Semantic.OCCLUDED_COUNT).update(string.Format("OccludedNum: {0:0000}",
-                                                                        RenderStats.occludedNum));
+            fps(); //The stats overlay in MainWindow reads RenderStats
 
         }
 
@@ -791,27 +883,20 @@ namespace Model_Viewer
             
         }
 
+        //Frames per second, averaged over about a second
         private void fps()
         {
-            //Get FPS
-            DateTime now = DateTime.UtcNow;
-            TimeSpan time = now - oldtime;
-            dt = (now - prevtime).TotalMilliseconds;
+            if (!fpsClock.IsRunning)
+                fpsClock.Start();
 
-            if (time.TotalMilliseconds > 1000)
+            frames++;
+            double ms = fpsClock.Elapsed.TotalMilliseconds;
+            if (ms >= 1000.0)
             {
-                //Common.CallBacks.Log("{0} {1} {2}", frames, RenderStats.fpsCount, time.TotalMilliseconds);
-                //Reset
+                RenderStats.fpsCount = (float) (1000.0 * frames / ms);
                 frames = 0;
-                oldtime = now;
+                fpsClock.Restart();
             }
-            else
-            {
-                frames += 1;
-                prevtime = now;
-            }
-
-            RenderStats.fpsCount = 1000.0f * frames / (float)time.TotalMilliseconds;
         }
     
     }

@@ -93,7 +93,7 @@ void main()
 	float ao = fragParams.x;
 	float lfMetallic = fragParams.y;
 	float lfRoughness = fragParams.z;
-	float lfSubsurface = fragParams.a;
+	float lfGlow = fragParams.a; //Simple_FS writes glow intensity here
 	float isLit = fragNormal.a;
 	
 	vec4 finalColor = vec4(0.0);
@@ -101,15 +101,32 @@ void main()
 	//finalColor = mix(finalColor, albedoColor, lfGlow);
 	vec4 ambient = vec4(vec3(0.03) * albedoColor.rgb, 0.0);
 
-	if (dot(albedoColor, vec4(1.0)) < 1e-3){
+#ifdef _D_LIGHTING
+	//Background: nothing was drawn at this pixel. Dark materials are not background.
+	//Only the lighting pass has the depth texture bound; the final unlit pass receives the lit
+	//result, where the background already holds the clear colour
+	if (depthColor.r >= 1.0){
 		fragColor = vec4(clearColor, 1.0);
 		return;
 	}
+#endif
 
 #ifdef _D_LIGHTING
-	finalColor.rgb = ambient.rgb;
-	if ((mpCommonPerFrame.use_lighting > 0.0)) {
-		for(int i = 0; i < mpCommonPerFrame.light_count; ++i) 
+	if ((mpCommonPerFrame.use_lighting > 0.0) && (isLit < 0.5)) {
+		//Unlit materials keep their colour
+		finalColor.rgb = albedoColor.rgb;
+		finalColor.rgb += albedoColor.rgb * lfGlow;
+		finalColor.a = albedoColor.a;
+	} else if ((mpCommonPerFrame.use_lighting > 0.0)) {
+		//A zero normal (degenerate vertex or normal map texel) would normalize to NaN
+		vec3 lNormal = dot(fragNormal.xyz, fragNormal.xyz) > 1e-12 ? normalize(fragNormal.xyz) : vec3(0.0, 0.0, 1.0);
+
+		//Viewport environment lighting. Light 0 is the default light and acts as the key light direction
+		finalColor.rgb = calcEnvironmentLighting(mpCommonPerFrame.lights[0], fragPos, lNormal,
+			mpCommonPerFrame.cameraPosition.xyz, albedoColor.rgb, lfMetallic, lfRoughness, ao);
+
+		//Scene lights
+		for(int i = 1; i < mpCommonPerFrame.light_count; ++i) 
 		{
 	    	// calculate per-light radiance
 	        Light light = mpCommonPerFrame.lights[i]; 
@@ -117,9 +134,12 @@ void main()
 			if (light.position.w < 1.0)
 	        	continue;
 
-        	finalColor.rgb += calcLighting(light, fragPos, fragNormal.xyz, 
+        	finalColor.rgb += calcLighting(light, fragPos, lNormal, 
 			mpCommonPerFrame.cameraPosition.xyz, mpCommonPerFrame.cameraDirection.xyz, albedoColor.rgb, lfMetallic, lfRoughness, ao);
 		}
+
+		//Emissive, added before bloom so bright glow blooms
+		finalColor.rgb += albedoColor.rgb * lfGlow;
 
 		finalColor.a = albedoColor.a;
 	} else {
@@ -134,8 +154,6 @@ void main()
 
 	//vec3 lumcoeff = vec3(0.299,0.587,0.114);
     
-	//TODO: Add glow depending on the material parameters cached in the gbuffer (normalmap.a) if necessary
-	
 	//fragColor = vec4(albedoColor.rgb, 1.0);
 	//fragColor = vec4(mix(clearColor, finalColor.rgb, albedoColor.a), 1.0);
 	fragColor = finalColor;

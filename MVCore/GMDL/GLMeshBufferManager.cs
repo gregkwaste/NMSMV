@@ -43,27 +43,44 @@ namespace MVCore.GMDL
         //17-18: isSelected
         //18-20: padding
 
+        //Float index where an instance starts in the mesh data buffer. The buffer starts with a
+        //4 float header (color, skinned), matching _COMMON_PER_MESH in the shaders
+        public static int instanceBase(int instance_id)
+        {
+            return instanceData_Float_Offset + instance_id * instance_struct_size_floats;
+        }
+
+        //Grow the data buffer so that instance_id fits. Doubling keeps reallocations rare
+        private static void ensureInstanceCapacity(GLMeshVao mesh, int instance_id)
+        {
+            int required = instanceBase(instance_id + 1);
+            if (required <= mesh.dataBuffer.Length)
+                return;
+
+            float[] newBuffer = new float[Math.Max(required, 2 * mesh.dataBuffer.Length)];
+            Array.Copy(mesh.dataBuffer, newBuffer, mesh.dataBuffer.Length);
+            mesh.dataBuffer = newBuffer;
+        }
+
         public static int addInstance(ref GLMeshVao mesh, Model m)
         {
             int instance_id = mesh.instance_count;
 
-            //Expand mesh data buffer if required
-            if (instance_id * instance_struct_size_bytes > mesh.dataBuffer.Length)
-            {
-                float[] newBuffer = new float[mesh.dataBuffer.Length + instance_struct_size_floats * 2];
-                Array.Copy(mesh.dataBuffer, newBuffer, mesh.dataBuffer.Length);
-                mesh.dataBuffer = newBuffer;
-            }
+            ensureInstanceCapacity(mesh, instance_id);
 
             if (instance_id < GLMeshVao.MAX_INSTANCES)
             {
                 //Uplod worldMat to the meshVao
 
                 Matrix4 actualWorldMat = m.worldMat;
-                Matrix4 actualWorldMatInv = (actualWorldMat).Inverted();
+                Matrix4 actualWorldMatInv = m.getWorldMatInv();
                 setInstanceWorldMat(mesh, instance_id, actualWorldMat);
                 setInstanceWorldMatInv(mesh, instance_id, actualWorldMatInv);
                 setInstanceNormalMat(mesh, instance_id, Matrix4.Transpose(actualWorldMatInv));
+
+                //Slots are reused across frames and meshes, so clear the per-instance flags
+                mesh.dataBuffer[instanceBase(instance_id) + instance_isOccluded_Float_Offset] = 0.0f;
+                mesh.dataBuffer[instanceBase(instance_id) + instance_isSelected_Float_Offset] = 0.0f;
 
                 mesh.instanceRefs.Add(m); //Keep reference
                 mesh.instance_count++;
@@ -77,19 +94,17 @@ namespace MVCore.GMDL
         {
             int instance_id = mesh.instance_count;
 
-            //Expand mesh data buffer if required
-            if (instance_id * instance_struct_size_bytes > mesh.dataBuffer.Length)
-            {
-                float[] newBuffer = new float[mesh.dataBuffer.Length + 256];
-                Array.Copy(mesh.dataBuffer, newBuffer, mesh.dataBuffer.Length);
-                mesh.dataBuffer = newBuffer;
-            }
+            ensureInstanceCapacity(mesh, instance_id);
 
             if (instance_id < GLMeshVao.MAX_INSTANCES)
             {
                 setInstanceWorldMat(mesh, instance_id, worldMat);
                 setInstanceWorldMatInv(mesh, instance_id, worldMatInv);
                 setInstanceNormalMat(mesh, instance_id, normMat);
+
+                //Slots are reused across frames and meshes, so clear the per-instance flags
+                mesh.dataBuffer[instanceBase(instance_id) + instance_isOccluded_Float_Offset] = 0.0f;
+                mesh.dataBuffer[instanceBase(instance_id) + instance_isSelected_Float_Offset] = 0.0f;
 
                 mesh.instanceRefs.Add(m); //Keep reference
                 mesh.instance_count++;
@@ -115,7 +130,7 @@ namespace MVCore.GMDL
             mesh.visible_instances += (status ? -1 : 1);
             unsafe
             {
-                mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_isOccluded_Float_Offset] = status ? 1.0f : 0.0f;
+                mesh.dataBuffer[instanceBase(instance_id) + instance_isOccluded_Float_Offset] = status ? 1.0f : 0.0f;
             }
         }
 
@@ -123,7 +138,7 @@ namespace MVCore.GMDL
         {
             unsafe
             {
-                return mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_isOccluded_Float_Offset] > 0.0f;
+                return mesh.dataBuffer[instanceBase(instance_id) + instance_isOccluded_Float_Offset] > 0.0f;
             }
         }
 
@@ -131,7 +146,7 @@ namespace MVCore.GMDL
         {
             unsafe
             {
-                mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_LOD_Float_Offset] = (float)level;
+                mesh.dataBuffer[instanceBase(instance_id) + instance_LOD_Float_Offset] = (float)level;
             }
         }
 
@@ -139,7 +154,7 @@ namespace MVCore.GMDL
         {
             unsafe
             {
-                return (int)mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_LOD_Float_Offset];
+                return (int)mesh.dataBuffer[instanceBase(instance_id) + instance_LOD_Float_Offset];
             }
         }
 
@@ -147,7 +162,7 @@ namespace MVCore.GMDL
         {
             unsafe
             {
-                mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_isSelected_Float_Offset] = status ? 1.0f : 0.0f;
+                mesh.dataBuffer[instanceBase(instance_id) + instance_isSelected_Float_Offset] = status ? 1.0f : 0.0f;
             }
         }
 
@@ -155,7 +170,7 @@ namespace MVCore.GMDL
         {
             unsafe
             {
-                return mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_isSelected_Float_Offset] > 0.0f;
+                return mesh.dataBuffer[instanceBase(instance_id) + instance_isSelected_Float_Offset] > 0.0f;
             }
         }
 
@@ -165,7 +180,7 @@ namespace MVCore.GMDL
             {
                 fixed (float* ar = mesh.dataBuffer)
                 {
-                    int offset = instanceData_Float_Offset + instance_id * instance_struct_size_floats + instance_worldMat_Float_Offset;
+                    int offset = instanceBase(instance_id) + instance_worldMat_Float_Offset;
                     return MathUtils.Matrix4FromArray(ar, offset);
                 }
             }
@@ -178,7 +193,7 @@ namespace MVCore.GMDL
             {
                 fixed (float* ar = mesh.dataBuffer)
                 {
-                    return MathUtils.Matrix4FromArray(ar, instance_id * instance_struct_size_floats + instance_normalMat_Float_Offset);
+                    return MathUtils.Matrix4FromArray(ar, instanceBase(instance_id) + instance_normalMat_Float_Offset);
                 }
             }
         }
@@ -188,7 +203,7 @@ namespace MVCore.GMDL
             float col;
             unsafe
             {
-                col = mesh.dataBuffer[instance_id * instance_struct_size_floats + instance_color_Float_Offset];
+                col = mesh.dataBuffer[instanceBase(instance_id) + instance_color_Float_Offset];
             }
 
             return new Vector3(col, col, col);
@@ -198,7 +213,7 @@ namespace MVCore.GMDL
         {
             unsafe
             {
-                int offset = instanceData_Float_Offset + instance_id * instance_struct_size_floats + instance_Uniforms_Float_Offset;
+                int offset = instanceBase(instance_id) + instance_Uniforms_Float_Offset;
                 int uniform_id = 0;
                 switch (un_name)
                 {
@@ -221,7 +236,7 @@ namespace MVCore.GMDL
             Vector4 un;
             unsafe
             {
-                int offset = instanceData_Float_Offset + instance_id * instance_struct_size_floats + instance_Uniforms_Float_Offset;
+                int offset = instanceBase(instance_id) + instance_Uniforms_Float_Offset;
                 int uniform_id = 0;
                 switch (un_name)
                 {
@@ -247,7 +262,7 @@ namespace MVCore.GMDL
             {
                 fixed (float* ar = mesh.dataBuffer)
                 {
-                    int offset = instanceData_Float_Offset + instance_id * instance_struct_size_floats + instance_worldMat_Float_Offset;
+                    int offset = instanceBase(instance_id) + instance_worldMat_Float_Offset;
                     MathUtils.insertMatToArray16(ar, offset, mat);
                 }
             }
@@ -259,7 +274,7 @@ namespace MVCore.GMDL
             {
                 fixed (float* ar = mesh.dataBuffer)
                 {
-                    int offset = instanceData_Float_Offset + instance_id * instance_struct_size_floats + instance_worldMatInv_Float_Offset;
+                    int offset = instanceBase(instance_id) + instance_worldMatInv_Float_Offset;
                     MathUtils.insertMatToArray16(ar, offset, mat);
                 }
             }
@@ -271,7 +286,7 @@ namespace MVCore.GMDL
             {
                 fixed (float* ar = mesh.dataBuffer)
                 {
-                    int offset = instanceData_Float_Offset + instance_id * instance_struct_size_floats + instance_normalMat_Float_Offset;
+                    int offset = instanceBase(instance_id) + instance_normalMat_Float_Offset;
                     MathUtils.insertMatToArray16(ar, offset, mat);
                 }
             }

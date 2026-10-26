@@ -34,11 +34,6 @@
     <Compile Include="$(MSBuildThisFileDirectory)Image\DDSImage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\GLMeshBufferManager.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Common\TextureManager.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Text\Font.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Text\FontManager.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Text\Text.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Text\TextManager.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Text\TextRenderer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Utils\FileUtils.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Input\GamepadHandler.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Engine\Gbuffer.cs" />

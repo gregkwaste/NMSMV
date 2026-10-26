@@ -118,29 +118,11 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <assembly alias="System.Windows.Forms" name="System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" />
-  <data name="camera_frag" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\camera.frag;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
-  </data>
-  <data name="camera_vert" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\camera.vert;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
-  </data>
   <data name="default_mask" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\default_mask.dds;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name="droid_fnt" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\droid.fnt;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="droid_png" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\droid.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
   <data name="ianm32logo_border" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\ianm32logo_border.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="segoe_fnt" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\segoe.fnt;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="segoe_png" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\segoe.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
   <data name="_default" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\default.dds;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>

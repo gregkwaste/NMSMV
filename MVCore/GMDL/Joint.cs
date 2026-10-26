@@ -24,7 +24,7 @@ namespace MVCore.GMDL
         public Matrix4 localPoseMatrix
         {
             get { return _localPoseMatrix; }
-            set { _localPoseMatrix = value; updated = true; }
+            set { _localPoseMatrix = value; updated = true; Common.RenderState.instancesDirty = true; }
         }
 
         public Joint()
@@ -52,7 +52,7 @@ namespace MVCore.GMDL
         public override void updateMeshInfo(bool lod_filter=false)
         {
             //We do not apply frustum occlusion on joint objects
-            if (renderable && (Children.Count > 0))
+            if (!lod_filter && renderable && (Children.Count > 0))
             {
                 //Update Vertex Buffer based on the new positions
                 float[] verts = new float[2 * Children.Count * 3];

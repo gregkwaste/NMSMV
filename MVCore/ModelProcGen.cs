@@ -192,28 +192,53 @@ namespace MVCore
 
         public static void parse_procTexture(ref List<TkProceduralTexture> parts, TkProceduralTextureList template, ref ResourceManager resMgr)
         {
+            Dictionary<string, int> selections = new Dictionary<string, int>(); //Layer name -> chosen texture index
             for (int i = 0; i < template.Layers.Length; i++)
             {
                 TkProceduralTextureLayer layer = template.Layers[i];
-                string layername = layer.Name;
                 int layerid = i;
                 List<TkProceduralTexture> textures = layer.Textures;
-                //Debug.WriteLine("Texture Layer: " + layerid.ToString());
 
                 parts[layerid] = null; //Init to null
 
-                int sel;
-                if (textures.Count > 0)
-                {
-                    //Select one descriptor at random
-                    sel = Common.RenderState.randgen.Next(0, textures.Count);
+                if (textures == null || textures.Count == 0)
+                    continue;
 
-                    TkProceduralTexture texture = textures[sel];
-                    string partName = texture.TextureName;
-                    parts[layerid] = texture;
-                    //addToStr(ref parts, partName);
-                }
+                //Each layer only appears with its probability (the base is always kept)
+                if (i > 0 && Common.RenderState.randgen.NextDouble() >= layer.Probability)
+                    continue;
+
+                int sel;
+                //A linked layer picks the same entry as the layer it names
+                if (!string.IsNullOrEmpty(layer.LinkedLayer) && selections.TryGetValue(layer.LinkedLayer, out int linked) && linked < textures.Count)
+                    sel = linked;
+                else
+                    sel = weightedPick(textures);
+
+                if (!string.IsNullOrEmpty(layer.Name))
+                    selections[layer.Name] = sel;
+                parts[layerid] = textures[sel];
             }
+        }
+
+        //Pick a texture by its Probability weight (uniform when all weights are 0)
+        private static int weightedPick(List<TkProceduralTexture> textures)
+        {
+            float total = 0.0f;
+            foreach (TkProceduralTexture t in textures)
+                total += Math.Max(t.Probability, 0.0f);
+
+            if (total <= 0.0f)
+                return Common.RenderState.randgen.Next(0, textures.Count);
+
+            double r = Common.RenderState.randgen.NextDouble() * total;
+            for (int i = 0; i < textures.Count; i++)
+            {
+                r -= Math.Max(textures[i].Probability, 0.0f);
+                if (r < 0.0)
+                    return i;
+            }
+            return textures.Count - 1;
         }
 
         public static GMDL.Model collectPart(ObservableCollection<GMDL.Model> coll, string name)
@@ -236,12 +261,6 @@ namespace MVCore
             }
             return null;
         }
-    }
-
-    class opt_dict_val
-    {
-        public List<string> opts = new List<string>();
-        public List<XmlElement> nodes = new List<XmlElement>();
     }
 
     class Selector

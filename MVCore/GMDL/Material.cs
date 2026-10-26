@@ -4,6 +4,8 @@ using System.Text;
 using libMBIN.NMS.Toolkit;
 using MVCore.Utils;
 using GLSLHelper;
+using libHGPAK;
+using libMBIN.NMS.GameComponents;
 
 namespace MVCore.GMDL
 {
@@ -15,6 +17,12 @@ namespace MVCore.GMDL
         public string name_key = "";
         public textureManager texMgr;
         public int shaderHash = int.MaxValue;
+        public bool DoubleSided = false; //Back faces are drawn (no culling). Set in init
+        //Viewer helpers (locator crosses, ...) carry float colours in vertex attribute 4. Game meshes use that
+        //slot for _F21_VERTEXCUSTOM data, which is not a colour, so this is a separate viewer-only switch
+        public bool UseVertexColour = false;
+        //Viewer helpers: scaled by the camera distance in the vertex shader so they keep their size on screen
+        public bool ConstantScreenSize = false;
         
         public static List<string> supported_flags = new List<string>() {
                 "_F01_DIFFUSEMAP",
@@ -29,6 +37,7 @@ namespace MVCore.GMDL
                 "_F21_VERTEXCUSTOM",
                 "_F22_OCCLUSION_MAP",
                 "_F25_MASKS_MAP",
+                "_F36_DOUBLESIDED",
                 "_F42_DETAIL_NORMAL",
                 "_F53_COLOURISABLE",
                 "_F55_MULTITEXTURE"};
@@ -49,7 +58,78 @@ namespace MVCore.GMDL
         {
             get
             {
-                return Class;
+                return Class.MaterialClass.ToString(); //TODO: Check this
+            }
+        }
+
+        //Shader features of the material: the supported material flags, plus the features current game
+        //versions express through the material class (their _F09/_F11/_F34/_F51 flags are unnamed and unused)
+        public List<string> ShaderFlags
+        {
+            get
+            {
+                List<string> l = new List<string>();
+                foreach (string f in MaterialFlags)
+                {
+                    if (supported_flags.Contains(f) && !l.Contains(f))
+                        l.Add(f);
+                }
+
+                void add(string f) { if (!l.Contains(f)) l.Add(f); }
+
+                if (UseVertexColour)
+                    add("_D_VERTEX_COLOUR");
+                if (ConstantScreenSize)
+                    add("_D_SCREEN_SIZE");
+
+                switch (Class.MaterialClass)
+                {
+                    case TkMaterialClass.MaterialClassEnum.Translucent:
+                    case TkMaterialClass.MaterialClassEnum.TranslucentPostScene:
+                    case TkMaterialClass.MaterialClassEnum.MapTrans:
+                    case TkMaterialClass.MaterialClassEnum.HighlightTrans:
+                    case TkMaterialClass.MaterialClassEnum.HighlightTransDoubleSided:
+                    case TkMaterialClass.MaterialClassEnum.HighlightTransOccluded:
+                    //Additive blending is approximated with the regular transparent pass
+                    case TkMaterialClass.MaterialClassEnum.Additive:
+                    case TkMaterialClass.MaterialClassEnum.AdditiveHighQuality:
+                    case TkMaterialClass.MaterialClassEnum.DoublesidedAdditive:
+                    case TkMaterialClass.MaterialClassEnum.GunAdditive:
+                    case TkMaterialClass.MaterialClassEnum.HighlightAdditive:
+                        add("_F09_TRANSPARENT");
+                        break;
+                    case TkMaterialClass.MaterialClassEnum.GlowTranslucent:
+                        add("_F09_TRANSPARENT");
+                        add("_D_CLASS_GLOW");
+                        break;
+                    case TkMaterialClass.MaterialClassEnum.Glow:
+                    case TkMaterialClass.MaterialClassEnum.GunGlow:
+                        add("_D_CLASS_GLOW");
+                        break;
+                    case TkMaterialClass.MaterialClassEnum.Cutout:
+                        add("_F11_ALPHACUTOUT");
+                        break;
+                    case TkMaterialClass.MaterialClassEnum.Decal:
+                    case TkMaterialClass.MaterialClassEnum.DecalTerrain:
+                    case TkMaterialClass.MaterialClassEnum.GunDecal:
+                        add("_F51_DECAL_DIFFUSE");
+                        if (l.Contains("_F03_NORMALMAP"))
+                            add("_F52_DECAL_NORMAL");
+                        break;
+                }
+
+                switch (Class.MaterialClass)
+                {
+                    case TkMaterialClass.MaterialClassEnum.DoubleSided:
+                    case TkMaterialClass.MaterialClassEnum.DoublesidedAdditive:
+                    case TkMaterialClass.MaterialClassEnum.HighlightDoubleSided:
+                    case TkMaterialClass.MaterialClassEnum.HighlightOverlayDoubleSided:
+                    case TkMaterialClass.MaterialClassEnum.HighlightTransDoubleSided:
+                        add("_F36_DOUBLESIDED");
+                        break;
+                }
+
+                return l;
             }
         }
 
@@ -94,7 +174,7 @@ namespace MVCore.GMDL
             Name = "NULL";
             Shader = "NULL";
             Link = "NULL";
-            Class = "NULL";
+            Class = new TkMaterialClass();
             TransparencyLayerID = -1;
             CastShadow = false;
             DisableZTest = false;
@@ -142,9 +222,11 @@ namespace MVCore.GMDL
             //Load template
             //Try to use libMBIN to load the Material files
             TkMaterialData template = NMSUtils.LoadNMSTemplate(path, ref Common.RenderState.activeResMgr) as TkMaterialData;
+            if (template == null)
+                return null; //Missing or unreadable material, the caller uses a fallback
 #if DEBUG
             //Save NMSTemplate to exml
-            template.WriteToMxml("Temp\\" + template.Name + ".mxml");
+            template.WriteToMxml("Temp\\" + template.Name + ".mxml", false, true);
 #endif
 
             //Make new material based on the template
@@ -153,6 +235,56 @@ namespace MVCore.GMDL
             mat.texMgr = input_texMgr;
             mat.init();
             return mat;
+        }
+
+        //Mix this material's procedural textures again (new layer picks and palette colours) and point the
+        //samplers at the results. Several materials can share one procedural texture, mixed holds what is done
+        public void regenProcTextures(HashSet<string> mixed)
+        {
+            Sampler diffuse = null;
+            foreach (Sampler s in PSamplers.Values)
+            {
+                if (s.isProcGen)
+                {
+                    diffuse = s;
+                    break;
+                }
+            }
+            if (diffuse == null || diffuse.texMgr == null)
+                return;
+
+            string baseName = diffuse.Map; //X.MIXED.DDS
+            string prefix = baseName.Substring(0, baseName.Length - 3); //X.MIXED.
+            string[] names = { prefix + "DDS", prefix + "MASKS.DDS", prefix + "NORMAL.DDS" };
+            textureManager tm = diffuse.texMgr;
+
+            if (mixed.Add(tm.GetHashCode() + ":" + baseName))
+            {
+                //The mixer replaces the entries, free the old textures only once the new ones exist
+                List<Texture> old = new List<Texture>();
+                foreach (string n in names)
+                    if (tm.GLtextures.TryGetValue(n, out Texture t))
+                        old.Add(t);
+
+                TextureMixer.combineTextures(baseName, Model_Viewer.Palettes.paletteSel, ref tm);
+
+                foreach (Texture t in old)
+                {
+                    bool replaced = true;
+                    foreach (string n in names)
+                        if (tm.GLtextures.TryGetValue(n, out Texture cur) && cur == t)
+                            replaced = false;
+                    if (replaced)
+                        t.Dispose();
+                }
+            }
+
+            foreach (Sampler s in PSamplers.Values)
+            {
+                string map = s.Map;
+                if (Array.IndexOf(names, map) >= 0 && s.texMgr != null && s.texMgr.hasTexture(map))
+                    s.tex = s.texMgr.getTexture(map);
+            }
         }
 
         public void init()
@@ -220,14 +352,9 @@ namespace MVCore.GMDL
             }
 
             //Calculate material hash
-            List<string> includes = new List<string>();
-            for (int i = 0; i < MaterialFlags.Count; i++)
-            {
-                if (supported_flags.Contains(MaterialFlags[i]))
-                    includes.Add(MaterialFlags[i]);
-            }
-
-            shaderHash = GLShaderHelper.calculateShaderHash(includes);
+            List<string> shaderFlags = ShaderFlags;
+            shaderHash = GLShaderHelper.calculateShaderHash(shaderFlags);
+            DoubleSided = shaderFlags.Contains("_F36_DOUBLESIDED");
 
             if (!Common.RenderState.activeResMgr.shaderExistsForMaterial(this))
             {
@@ -297,11 +424,6 @@ namespace MVCore.GMDL
             disposed = true;
         }
 
-        ~Material()
-        {
-            Dispose(false);
-        }
-
         public static int calculateShaderHash(List<TkMaterialFlags> flags)
         {
             string hash = "";
@@ -321,51 +443,16 @@ namespace MVCore.GMDL
 
         private void compileMaterialShader()
         {
-            Dictionary<int, GLSLShaderConfig> shaderDict;
-            Dictionary<int, List<GLMeshVao>> meshList;
-
             List<string> includes = new List<string>();
             List<string> defines = new List<string>();
 
             //Save shader to resource Manager
-            //Check for explicit materials
-            if (Name == "collisionMat" || Name == "jointMat" || Name == "crossMat")
-            {
-                shaderDict = Common.RenderState.activeResMgr.GLDefaultShaderMap;
-                meshList = Common.RenderState.activeResMgr.defaultMeshShaderMap;
+            Common.RenderState.activeResMgr.getShaderMaps(this, out Dictionary<int, GLSLShaderConfig> shaderDict,
+                out Dictionary<int, List<GLMeshVao>> meshList, out bool deferred);
+            if (deferred)
                 defines.Add("_D_DEFERRED_RENDERING");
-            }
-            else if (MaterialFlags.Contains("_F51_DECAL_DIFFUSE") ||
-                MaterialFlags.Contains("_F52_DECAL_NORMAL"))
-            {
-                shaderDict = Common.RenderState.activeResMgr.GLDeferredShaderMapDecal;
-                meshList = Common.RenderState.activeResMgr.decalMeshShaderMap;
-                defines.Add("_D_DEFERRED_RENDERING");
-            }
-            else if (MaterialFlags.Contains("_F09_TRANSPARENT"))
-            {
-                shaderDict = Common.RenderState.activeResMgr.GLForwardShaderMapTransparent;
-                meshList = Common.RenderState.activeResMgr.transparentMeshShaderMap;
-            }
 
-            else if (MaterialFlags.Contains("_F07_UNLIT"))
-            {
-                shaderDict = Common.RenderState.activeResMgr.GLDeferredUNLITShaderMap;
-                meshList = Common.RenderState.activeResMgr.opaqueMeshShaderMap;
-                defines.Add("_D_DEFERRED_RENDERING");
-            }
-            else
-            {
-                shaderDict = Common.RenderState.activeResMgr.GLDeferredLITShaderMap;
-                meshList = Common.RenderState.activeResMgr.opaqueMeshShaderMap;
-                defines.Add("_D_DEFERRED_RENDERING");
-            }
-
-            for (int i = 0; i < MaterialFlags.Count; i++)
-            {
-                if (supported_flags.Contains(MaterialFlags[i]))
-                    includes.Add(MaterialFlags[i]);
-            }
+            includes.AddRange(ShaderFlags);
 
             GLSLShaderConfig shader = GLShaderHelper.compileShader("Shaders/Simple_VS.glsl", "Shaders/Simple_FS.glsl", null, null, null,
                 defines, includes, SHADER_TYPE.MATERIAL_SHADER, ref Common.RenderState.shaderCompilationLog);

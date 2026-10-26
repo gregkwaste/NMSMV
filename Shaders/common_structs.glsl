@@ -5,7 +5,7 @@ struct Light //locations:5
     vec4 color; //w is intensity
     vec4 direction; //w is fov
     float falloff;
-    int type;
+    float type; //Uploaded as a float by the engine (0: point, 1: spot)
 };
 
 struct MeshInstance
@@ -71,6 +71,7 @@ struct CustomPerMaterialUniforms  //locations:73
     sampler2DArray gOcclusionMap;
     sampler2DArray gDetailNormalMap;
     samplerBuffer skinMatsTex;
+    int skinMatsStride; //Bone matrices per instance in skinMatsTex
 
     vec4 gMaterialColourVec4;
     vec4 gMaterialParamsVec4;

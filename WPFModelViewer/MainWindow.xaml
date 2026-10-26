@@ -33,38 +33,33 @@
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
-                            <RowDefinition Height="20"/>
-                            <RowDefinition Height="20"/>
                         </Grid.RowDefinitions>
                         <DockPanel Grid.Row="0" HorizontalAlignment="Stretch">
                             <TextBlock Width="100">FOV</TextBlock>
                             <Slider x:Name="sliderFOV" Value="{Binding FOV}" Minimum="1" Maximum="100" SmallChange="1"></Slider>
                         </DockPanel>
-                        <DockPanel Grid.Row="1" HorizontalAlignment="Stretch">
+                        <DockPanel Grid.Row="1" HorizontalAlignment="Stretch"
+                                   ToolTip="Scene radii per second. Mouse wheel while dragging in the viewport also changes it. Double-click the slider to reset.">
                             <TextBlock Width="100">Cam Speed</TextBlock>
-                            <TextBox x:Name="camSpeed" Text="{Binding Speed, Mode=TwoWay, UpdateSourceTrigger=Explicit}" KeyDown="camSpeed_KeyDown"/>
+                            <TextBox x:Name="camSpeed" DockPanel.Dock="Right" Width="45" VerticalContentAlignment="Center"
+                                     Text="{Binding Speed, Mode=TwoWay, UpdateSourceTrigger=Explicit, StringFormat={}{0:0.###}}"
+                                     KeyDown="camSpeed_KeyDown" LostKeyboardFocus="camSpeed_LostKeyboardFocus"/>
+                            <Slider Value="{Binding SpeedLog}" Minimum="-2" Maximum="2" SmallChange="0.05" LargeChange="0.25"
+                                    IsMoveToPointEnabled="True" MouseDoubleClick="camSpeedSlider_MouseDoubleClick"/>
                         </DockPanel>
                         <DockPanel Grid.Row="2" HorizontalAlignment="Stretch">
                             <TextBlock Width="100">Cam Sensitivity</TextBlock>
                             <Slider Value="{Binding Sensitivity}" Minimum="0" Maximum="2" SmallChange="0.01"></Slider>
                         </DockPanel>
                         <DockPanel Grid.Row="3" HorizontalAlignment="Stretch">
-                            <TextBlock Width="100">zNear</TextBlock>
-                            <Slider x:Name="sliderzNear"  Value="{Binding ZNear}" Minimum="0.01" Maximum="1" SmallChange="0.1"></Slider>
-                        </DockPanel>
-                        <DockPanel Grid.Row="4" HorizontalAlignment="Stretch">
-                            <TextBlock Width="100">zFar</TextBlock>
-                            <Slider x:Name="sliderzFar" Value="{Binding ZFar}" Minimum="101" Maximum="30000" SmallChange="5"></Slider>
-                        </DockPanel>
-                        <DockPanel Grid.Row="5" HorizontalAlignment="Stretch">
                             <TextBlock Width="100">Light Distance</TextBlock>
                             <Slider x:Name="sliderlightDistance" Value="2.0" Minimum="0" Maximum="20" SmallChange="0.2"></Slider>
                         </DockPanel>
-                        <DockPanel Grid.Row="6" HorizontalAlignment="Stretch">
+                        <DockPanel Grid.Row="4" HorizontalAlignment="Stretch">
                             <TextBlock Width="100">Light Intensity</TextBlock>
                             <Slider x:Name="sliderLightIntensity"  Value="3.0" Minimum="0.0" Maximum="20.0" SmallChange="0.1"></Slider>
                         </DockPanel>
-                        <Grid Grid.Row="8">
+                        <Grid Grid.Row="6">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="50*"/>
                                 <ColumnDefinition Width="50*"/>
@@ -554,6 +549,9 @@
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
+                            <RowDefinition Height="20"/>
+                            <RowDefinition Height="20"/>
+                            <RowDefinition Height="20"/>
                         </Grid.RowDefinitions>
                         <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                             <TextBlock HorizontalAlignment="Left">Toggle Animations</TextBlock>
@@ -584,20 +582,32 @@
                             <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding UseFXAA}"></CheckBox>
                         </DockPanel>
                         <DockPanel Grid.Row="7" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                            <TextBlock HorizontalAlignment="Left">Use VSYNC</TextBlock>
-                            <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding UseVSYNC, Mode=TwoWay}"></CheckBox>
-                        </DockPanel>
-                        <DockPanel Grid.Row="8" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                             <TextBlock HorizontalAlignment="Left">Use BLOOM</TextBlock>
                             <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding UseBLOOM}"></CheckBox>
                         </DockPanel>
-                        <DockPanel Grid.Row="9" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                        <DockPanel Grid.Row="8" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                             <TextBlock Width="100" HorizontalAlignment="Left">Animation FPS</TextBlock>
                             <Slider ToolTip="{Binding AnimFPS}" HorizontalAlignment="Stretch" Value="{Binding AnimFPS, Mode=TwoWay}" Minimum="30" Maximum="400" SmallChange="1"/>
                         </DockPanel>
-                        <DockPanel Grid.Row="10" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                        <DockPanel Grid.Row="9" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                             <TextBlock Width="100" HorizontalAlignment="Left">HDR Exposure</TextBlock>
-                            <Slider ToolTip="{Binding HDRExposure}" Value="{Binding HDRExposure, Mode=TwoWay}" Minimum="0.01" Maximum="1.0" SmallChange="0.001"/>
+                            <Slider ToolTip="{Binding HDRExposure}" Value="{Binding HDRExposure, Mode=TwoWay}" Minimum="-4.0" Maximum="4.0" SmallChange="0.1"/>
+                        </DockPanel>
+                        <DockPanel Grid.Row="10" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                            <TextBlock Width="100" HorizontalAlignment="Left">Bloom Intensity</TextBlock>
+                            <Slider ToolTip="{Binding BloomIntensity}" Value="{Binding BloomIntensity, Mode=TwoWay}" Minimum="0.0" Maximum="0.5" SmallChange="0.005"/>
+                        </DockPanel>
+                        <DockPanel Grid.Row="11" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                            <TextBlock Width="100" HorizontalAlignment="Left">Bloom Threshold</TextBlock>
+                            <Slider ToolTip="{Binding BloomThreshold}" Value="{Binding BloomThreshold, Mode=TwoWay}" Minimum="0.0" Maximum="5.0" SmallChange="0.05"/>
+                        </DockPanel>
+                        <DockPanel Grid.Row="12" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                            <TextBlock Width="100" HorizontalAlignment="Left">Bloom Knee</TextBlock>
+                            <Slider ToolTip="{Binding BloomKnee}" Value="{Binding BloomKnee, Mode=TwoWay}" Minimum="0.0" Maximum="1.0" SmallChange="0.01"/>
+                        </DockPanel>
+                        <DockPanel Grid.Row="13" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                            <TextBlock Width="100" HorizontalAlignment="Left">Bloom Radius</TextBlock>
+                            <Slider ToolTip="{Binding BloomRadius}" Value="{Binding BloomRadius, Mode=TwoWay}" Minimum="0.5" Maximum="3.0" SmallChange="0.05"/>
                         </DockPanel>
                     </Grid>
                 </GroupBox>
@@ -766,6 +776,12 @@
             </Grid.ColumnDefinitions>
 
             <opentk_wpf:GLWpfControl x:Name="Host" Grid.Column="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+            <!-- Render stats drawn by WPF on top of the viewport: crisp, anti-aliased text at any DPI. Not hit-testable so the viewport keeps the mouse -->
+            <Border x:Name="StatsOverlay" Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8"
+                    Padding="6,3" CornerRadius="3" Background="#66000000" IsHitTestVisible="False">
+                <TextBlock x:Name="StatsText" Foreground="#FFFFFF80" FontFamily="Segoe UI" FontSize="12"
+                           TextOptions.TextFormattingMode="Display"/>
+            </Border>
             <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" />
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
@@ -780,6 +796,8 @@
                                 ItemTemplate="{StaticResource CheckBoxItemTemplate}"
                                 SelectedItemChanged="SceneTreeView_OnSelectedItemChanged"
                                 PreviewMouseLeftButtonDown="SceneTreeView_PreviewMouseLeftButtonDown"
+                                PreviewMouseMove="SceneTreeView_PreviewMouseMove"
+                                PreviewMouseLeftButtonUp="SceneTreeView_PreviewMouseLeftButtonUp"
                                 PreviewMouseRightButtonDown="SceneTreeView_PreviewMouseRightButtonDown"
                                 Drop="SceneTreeView_Drop"
                                 ScrollViewer.CanContentScroll="True" 
@@ -843,7 +861,8 @@
                                         <ColumnDefinition Width="50*"/>
                                         <ColumnDefinition Width="50*"/>
                                     </Grid.ColumnDefinitions>
-                                    <ComboBox x:Name="tb_LODLevel" Grid.Column="0" HorizontalAlignment="Left" Width="150">
+                                    <ComboBox x:Name="tb_LODLevel" Grid.Column="0" HorizontalAlignment="Left" Width="150" SelectedIndex="0">
+                                        <ComboBoxItem>Auto</ComboBoxItem>
                                         <ComboBoxItem>0</ComboBoxItem>
                                         <ComboBoxItem>1</ComboBoxItem>
                                         <ComboBoxItem>2</ComboBoxItem>
@@ -856,11 +875,13 @@
                             <GroupBox Grid.Row="0" MinHeight="50" Header="ProcGen Tools" BorderThickness="2">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="50*"/>
-                                        <ColumnDefinition Width="50*"/>
+                                        <ColumnDefinition Width="33*"/>
+                                        <ColumnDefinition Width="33*"/>
+                                        <ColumnDefinition Width="33*"/>
                                     </Grid.ColumnDefinitions>
                                     <Button Grid.Column="0" FontSize="12" Click="ButtonBase_OnClick">ProcGen</Button>
                                     <Button Grid.Column="1" FontSize="12" Click="RegenPose_Click">Regen Pose</Button>
+                                    <Button Grid.Column="2" FontSize="12" Click="RegenTextures_Click" ToolTip="New palette colours and layers for the procedural textures">Regen Textures</Button>
                                 </Grid>
                             </GroupBox>
                         </Grid>

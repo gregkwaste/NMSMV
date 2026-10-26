@@ -24,6 +24,7 @@ namespace MVCore
         OPEN_FILE_REQUEST,
         GIZMO_PICKING_REQUEST,
         INIT_RESOURCE_MANAGER,
+        REGEN_PROC_TEXTURES_REQUEST,
         NULL
     };
 

@@ -38,7 +38,7 @@ namespace MVCore.GMDL
 
             set
             {
-                _isRefLoaded = true;
+                _isRefLoaded = value;
                 NotifyPropertyChanged("isRefLoaded");
                 NotifyPropertyChanged("Name");
             }
@@ -65,7 +65,11 @@ namespace MVCore.GMDL
 
         public override Model Clone()
         {
-            return new Reference(this);
+            //The loaded scene comes along, so references inside a copied scene stay loaded
+            Reference r = new Reference(this);
+            foreach (Model child in Children)
+                r.AddChild(child.Clone());
+            return r;
         }
 
         public override TkSceneNodeData ExportTemplate()

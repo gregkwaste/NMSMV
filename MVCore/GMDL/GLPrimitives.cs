@@ -485,6 +485,48 @@ namespace MVCore.GMDL.Primitives
         }
         
 
+        //Line version for the locator helpers: three axis lines (6 segments from the centre, 12 vertices),
+        //drawn as GL_LINES with the same axis colours as the arrow version
+        public Cross(float scale, bool generateGeom, bool lines)
+        {
+            if (!lines)
+            {
+                Primitive p = generatePrimitive(new Vector3(scale));
+                verts = p.verts;
+                indices = p.indices;
+                colors = p.colors;
+                normals = p.normals;
+            }
+            else
+            {
+                Vector3[] dirs = { Vector3.UnitX, -Vector3.UnitX, Vector3.UnitY, -Vector3.UnitY, Vector3.UnitZ, -Vector3.UnitZ };
+                Vector3[] cols = { new Vector3(10.5f, 0.0f, 0.0f), new Vector3(10.5f, 0.1f, 0.1f),
+                                   new Vector3(0.0f, 10.5f, 0.0f), new Vector3(0.1f, 10.5f, 0.1f),
+                                   new Vector3(0.0f, 0.0f, 10.5f), new Vector3(0.1f, 0.1f, 10.5f) };
+                verts = new float[12 * 3];
+                colors = new float[12 * 3];
+                normals = new float[12 * 3];
+                indices = new int[12];
+                for (int i = 0; i < 6; i++)
+                {
+                    Vector3 end = dirs[i] * scale;
+                    for (int k = 0; k < 3; k++)
+                    {
+                        verts[6 * i + 3 + k] = end[k]; //First vertex of each segment stays at the centre
+                        colors[6 * i + k] = cols[i][k];
+                        colors[6 * i + 3 + k] = cols[i][k];
+                        normals[6 * i + k] = dirs[i][k];
+                        normals[6 * i + 3 + k] = dirs[i][k];
+                    }
+                    indices[2 * i] = 2 * i;
+                    indices[2 * i + 1] = 2 * i + 1;
+                }
+            }
+
+            if (generateGeom)
+                geom = getGeom();
+        }
+
         public Cross(Vector3 scale, bool generateGeom = false)
         {
             Primitive p = generatePrimitive(scale);

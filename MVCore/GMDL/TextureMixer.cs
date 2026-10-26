@@ -33,13 +33,14 @@ namespace MVCore.GMDL
             normaltextures.Clear();
             reColourings.Clear();
             avgColourings.Clear();
+            palOpts.Clear();
             for (int i = 0; i < 8; i++)
             {
                 difftextures.Add(null);
                 masktextures.Add(null);
                 normaltextures.Add(null);
                 reColourings.Add(new float[] { 0.0f, 0.0f, 0.0f, 0.0f });
-                avgColourings.Add(new float[] { 0.5f, 0.5f, 0.5f, 0.5f });
+                avgColourings.Add(new float[] { -1.0f, -1.0f, -1.0f, -1.0f }); //Negative: the mixer uses the texture's own average
                 palOpts.Add(null);
             }
         }
@@ -71,14 +72,17 @@ namespace MVCore.GMDL
                 return;
             }
 
+            //The results get their own names: a layer texture can be the descriptor's own X.DDS
+            //(e.g. SHARED/PRIMARY.DDS), and sharing that name made the samplers pick the raw layer
+            string outName = mixedName(path);
             Texture diffTex = mixDiffuseTextures(tex_width, tex_height);
-            diffTex.name = temp + "DDS";
+            diffTex.name = outName + "DDS";
 
             Texture maskTex = mixMaskTextures(tex_width, tex_height);
-            maskTex.name = temp + "MASKS.DDS";
+            maskTex.name = outName + "MASKS.DDS";
 
             Texture normalTex = mixNormalTextures(tex_width, tex_height);
-            normalTex.name = temp + "NORMAL.DDS";
+            normalTex.name = outName + "NORMAL.DDS";
 
             revertFrameBuffer(fbo, fbo_tex);
 
@@ -126,18 +130,17 @@ namespace MVCore.GMDL
                     continue;
                 }
                 
-                //TODO: Find out where on earth the Diffuse/Mask/Normal textures have gone
+                //Each layer's masks and normals sit next to its diffuse (X.DDS -> X.MASKS.DDS, X.NORMAL.DDS).
+                //Not every layer has them, and a missing one must not fall back to default.dds
                 string partNameDiff = ptex.TextureName;
-                string partNameMask = ptex.TextureName;
-                string partNameNormal = ptex.TextureName;
+                string partNameMask = siblingTexture(partNameDiff, "MASKS");
+                string partNameNormal = siblingTexture(partNameDiff, "NORMAL");
 
                 TkPaletteTexture paletteNode = ptex.Palette;
                 string paletteName = paletteNode.Palette.ToString();
                 string colorName = paletteNode.ColourAlt.ToString();
                 Vector4 palColor;
-                if (palette.ContainsKey(paletteName))
-                    palColor = palette[paletteName][colorName];
-                else
+                if (!Model_Viewer.Palettes.tryGetColour(paletteName, colorName, paletteNode.Index, out palColor))
                     palColor = new Vector4(0.8f, 0.3f, 0.7f, 1.0f);
                 //Randomize palette Color every single time
                 //Vector3 palColor = Model_Viewer.Palettes.get_color(paletteName, colorName);
@@ -205,7 +208,7 @@ namespace MVCore.GMDL
                     //Configure Mask
                     try
                     {
-                        Texture texmask = new Texture(partNameMask);
+                        Texture texmask = new Texture(partNameMask, false, false); //Masks hold linear data
                         //Store to master texture manager
                         Common.RenderState.activeResMgr.texMgr.addTexture(texmask);
                         //Store Texture to material
@@ -240,7 +243,7 @@ namespace MVCore.GMDL
                 {
                     try
                     {
-                        Texture texnormal = new Texture(partNameNormal);
+                        Texture texnormal = new Texture(partNameNormal, false, false); //Normals hold linear data
                         //Store to master texture manager
                         Common.RenderState.activeResMgr.texMgr.addTexture(texnormal);
                         //Store Texture to material
@@ -260,6 +263,29 @@ namespace MVCore.GMDL
                     normaltextures[i] = tex;
                 }
             }
+        }
+
+        //X.DDS (or X.MIXED.DDS) -> "X.MIXED.", the prefix of the mixed diffuse/masks/normal names
+        public static string mixedName(string path)
+        {
+            return path.Split('.')[0] + ".MIXED.";
+        }
+
+        private static string siblingTexture(string diffusePath, string suffix)
+        {
+            if (string.IsNullOrEmpty(diffusePath) || !diffusePath.EndsWith(".DDS", StringComparison.OrdinalIgnoreCase))
+                return "";
+            string path = diffusePath.Substring(0, diffusePath.Length - 4) + "." + suffix + ".DDS";
+            return NMSUtils.NMSFileExists(path, Common.RenderState.activeResMgr) ? path : "";
+        }
+
+        //The base layer is the lowest used one (layer 0 is named BASE in the descriptors)
+        private static int firstUsedLayer(Func<int, bool> used)
+        {
+            for (int i = 0; i < 8; i++)
+                if (used(i))
+                    return i;
+            return 0;
         }
 
         private static bool setupFrameBuffer(ref int fbo, ref int fbo_tex, ref int texWidth, ref int texHeight)
@@ -333,17 +359,12 @@ namespace MVCore.GMDL
             GL.UseProgram(pass_program);
 
             //Upload base Layers Used
-            int baseLayerIndex = 0;
+            int baseLayerIndex = firstUsedLayer(i => baseLayersUsed[i] > 0.0f);
             loc = GL.GetUniformLocation(pass_program, "lbaseLayersUsed");
             if (loc >= 0)
             {
                 for (int i = 0; i < 8; i++)
-                {
-                    int active_id = i;
-                    GL.Uniform1(loc + i, baseLayersUsed[active_id]);
-                    if (baseLayersUsed[i] > 0.0f)
-                        baseLayerIndex = i;
-                }
+                    GL.Uniform1(loc + i, baseLayersUsed[i]);
             }
 
             loc = GL.GetUniformLocation(pass_program, "baseLayerIndex");
@@ -405,7 +426,7 @@ namespace MVCore.GMDL
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
             GL.BindVertexArray(RenderState.activeResMgr.GLPrimitiveVaos["default_renderquad"].vao_id);
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
+            GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill);
             GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, IntPtr.Zero);
 
             //Common.CallBacks.Log("MixTextures5, Last GL Error: " + GL.GetError());
@@ -453,22 +474,24 @@ namespace MVCore.GMDL
             int pass_program = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.TEXTURE_MIX_SHADER].program_id;
             GL.UseProgram(pass_program);
 
-            //Upload base Layers Used
-            int baseLayerIndex = 0;
+            //Same layers and coverage as the diffuse: every layer with a diffuse takes part, so a layer
+            //without its own masks (default_mask.dds is used instead) still covers the layers below it
+            int baseLayerIndex = firstUsedLayer(i => baseLayersUsed[i] > 0.0f);
             loc = GL.GetUniformLocation(pass_program, "lbaseLayersUsed");
             if (loc >= 0)
             {
                 for (int i = 0; i < 8; i++)
-                {
-                    if (masktextures[i] != null)
-                    {
-                        GL.Uniform1(loc + i, 1.0f);
-                        baseLayerIndex = i;
-                    }
-                    else
-                        GL.Uniform1(loc + i, 0.0f);
-                }
+                    GL.Uniform1(loc + i, baseLayersUsed[i]);
             }
+
+            loc = GL.GetUniformLocation(pass_program, "lHasMap");
+            if (loc >= 0)
+            {
+                for (int i = 0; i < 8; i++)
+                    GL.Uniform1(loc + i, 1.0f);
+            }
+            //Flat tangent space normal (works for both the RG and the RGB decode)
+            GL.Uniform4(GL.GetUniformLocation(pass_program, "lMissingValue"), 0.5f, 0.5f, 1.0f, 1.0f);
 
             loc = GL.GetUniformLocation(pass_program, "baseLayerIndex");
             GL.Uniform1(loc, baseLayerIndex);
@@ -528,7 +551,7 @@ namespace MVCore.GMDL
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
             GL.BindVertexArray(RenderState.activeResMgr.GLPrimitiveVaos["default_renderquad"].vao_id);
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
+            GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill);
             GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, IntPtr.Zero);
 
             //Common.CallBacks.Log("MixTextures5, Last GL Error: " + GL.GetError());
@@ -574,22 +597,24 @@ namespace MVCore.GMDL
             int pass_program = Common.RenderState.activeResMgr.GLShaders[GLSLHelper.SHADER_TYPE.TEXTURE_MIX_SHADER].program_id;
             GL.UseProgram(pass_program);
 
-            //Upload base Layers Used
-            int baseLayerIndex = 0;
+            //Same layers and coverage as the diffuse: every layer with a diffuse takes part, so a layer
+            //without its own normals still covers the layers below it
+            int baseLayerIndex = firstUsedLayer(i => baseLayersUsed[i] > 0.0f);
             loc = GL.GetUniformLocation(pass_program, "lbaseLayersUsed");
             if (loc >= 0)
             {
                 for (int i = 0; i < 8; i++)
-                {
-                    if (normaltextures[i] != null)
-                    {
-                        GL.Uniform1(loc + i, 1.0f);
-                        baseLayerIndex = i;
-                    }
-                    else
-                        GL.Uniform1(loc + i, 0.0f);
-                }
+                    GL.Uniform1(loc + i, baseLayersUsed[i]);
             }
+
+            loc = GL.GetUniformLocation(pass_program, "lHasMap");
+            if (loc >= 0)
+            {
+                for (int i = 0; i < 8; i++)
+                    GL.Uniform1(loc + i, normaltextures[i] != null ? 1.0f : 0.0f);
+            }
+            //Flat tangent space normal (works for both the RG and the RGB decode)
+            GL.Uniform4(GL.GetUniformLocation(pass_program, "lMissingValue"), 0.5f, 0.5f, 1.0f, 1.0f);
 
             loc = GL.GetUniformLocation(pass_program, "baseLayerIndex");
             GL.Uniform1(loc, baseLayerIndex);
@@ -649,7 +674,7 @@ namespace MVCore.GMDL
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
             GL.BindVertexArray(RenderState.activeResMgr.GLPrimitiveVaos["default_renderquad"].vao_id);
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
+            GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill);
             GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, IntPtr.Zero);
 
             //Common.CallBacks.Log("MixTextures5, Last GL Error: " + GL.GetError());

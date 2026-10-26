@@ -65,11 +65,11 @@ vec3
 GammaCorrectOutput(
     in vec3 lColourVec3 )
 {
-    vec3 kGammaOutVec3 = vec3( 1.0 / 2.2 );
-
-    vec3 lCorrectColourVec3;
-    lCorrectColourVec3 = pow( lColourVec3, kGammaOutVec3 );
-    return lCorrectColourVec3;
+    //Exact sRGB encode (linear segment near black, 2.4 power above)
+    vec3 c = max(lColourVec3, vec3(0.0));
+    vec3 lo = c * 12.92;
+    vec3 hi = 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055;
+    return mix(hi, lo, vec3(lessThanEqual(c, vec3(0.0031308))));
 }
 
 //Saturate Function

@@ -13,6 +13,27 @@ using System.Globalization;
 
 namespace MVCore.GMDL
 {
+    //Remembers the texture bound on each unit so draws that share textures skip the GL calls.
+    //Only valid while nothing else binds textures, so every mesh pass starts with reset()
+    public static class TextureBindCache
+    {
+        private static readonly int[] bound = new int[32];
+
+        public static void bind(int unit, TextureTarget target, int id)
+        {
+            if (bound[unit] == id)
+                return;
+            bound[unit] = id;
+            GL.ActiveTexture(TextureUnit.Texture0 + unit);
+            GL.BindTexture(target, id);
+        }
+
+        public static void reset()
+        {
+            Array.Clear(bound);
+        }
+    }
+
 
     public class GLVao : IDisposable
     {
@@ -22,6 +43,7 @@ namespace MVCore.GMDL
         public int vertex_pos_object;
         public int vertex_buffer_object;
         public int element_buffer_object;
+        public int vertex_normal_object; //Optional, normals generated on load
 
         #region IDisposable Support
         private bool disposedValue = false; // To detect redundant calls
@@ -32,6 +54,7 @@ namespace MVCore.GMDL
             vertex_buffer_object = -1;
             vertex_pos_object = -1;
             element_buffer_object = -1;
+            vertex_normal_object = -1;
         }
 
         public void Dispose()
@@ -55,6 +78,8 @@ namespace MVCore.GMDL
                         GL.DeleteBuffer(vertex_buffer_object);
                         GL.DeleteBuffer(vertex_pos_object);
                         GL.DeleteBuffer(element_buffer_object);
+                        if (vertex_normal_object > 0)
+                            GL.DeleteBuffer(vertex_normal_object);
                     }
 
                 }
@@ -188,6 +213,70 @@ namespace MVCore.GMDL
         //Material Properties
         public Material material;
         public Vector3 color;
+
+        //Uniform and sampler locations of the material for one shader program, resolved once
+        //instead of looking every name up on every draw
+        private class MaterialBinding
+        {
+            public Material material;
+            public Uniform[] uniforms;
+            public int[] uniformLocations;
+            public Sampler[] samplers;
+            public int[] samplerLocations;
+            public int[] samplerUnits;
+            public int linkVersion;
+        }
+        private Dictionary<int, MaterialBinding> materialBindings = new Dictionary<int, MaterialBinding>();
+
+        private MaterialBinding getMaterialBinding(GLSLShaderConfig shader)
+        {
+            if (materialBindings.TryGetValue(shader.program_id, out MaterialBinding b) && b.material == material &&
+                b.linkVersion == shader.linkVersion)
+                return b;
+
+            b = new MaterialBinding() { material = material, linkVersion = shader.linkVersion };
+
+            List<Uniform> uniforms = new List<Uniform>();
+            List<int> uniformLocations = new List<int>();
+            foreach (Uniform un in material.CustomPerMaterialUniforms.Values)
+            {
+                if (shader.uniformLocations.TryGetValue(un.Name, out int loc))
+                {
+                    uniforms.Add(un);
+                    uniformLocations.Add(loc);
+                }
+            }
+
+            List<Sampler> samplers = new List<Sampler>();
+            List<int> samplerLocations = new List<int>();
+            List<int> samplerUnits = new List<int>();
+            foreach (Sampler s in material.PSamplers.Values)
+            {
+                if (shader.uniformLocations.TryGetValue(s.Name, out int loc) &&
+                    MyTextureUnit.MapTexUnitToSampler.TryGetValue(s.Name, out int unit))
+                {
+                    samplers.Add(s);
+                    samplerLocations.Add(loc);
+                    samplerUnits.Add(unit);
+                }
+            }
+
+            b.uniforms = uniforms.ToArray();
+            b.uniformLocations = uniformLocations.ToArray();
+            b.samplers = samplers.ToArray();
+            b.samplerLocations = samplerLocations.ToArray();
+            b.samplerUnits = samplerUnits.ToArray();
+            materialBindings[shader.program_id] = b;
+
+            //A sampler keeps its unit inside the program and the unit only depends on the sampler name,
+            //so set it here once instead of on every draw
+            for (int i = 0; i < b.samplerLocations.Length; i++)
+                GL.ProgramUniform1(shader.program_id, b.samplerLocations[i], b.samplerUnits[i]);
+            if (shader.uniformLocations.TryGetValue("mpCustomPerMaterial.skinMatsTex", out int skinLoc))
+                GL.ProgramUniform1(shader.program_id, skinLoc, 6);
+
+            return b;
+        }
 
 
 
@@ -326,7 +415,7 @@ namespace MVCore.GMDL
                 //Step 2 Bind & Render Vao
                 //Render Bounding Sphere
                 GL.BindVertexArray(bsh_Vao.vao_id);
-                GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+                GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Line);
                 GL.DrawElements(PrimitiveType.Triangles, 600, DrawElementsType.UnsignedInt, (IntPtr)0);
 
                 GL.BindVertexArray(0);
@@ -384,11 +473,24 @@ namespace MVCore.GMDL
             //GL.BindVertexArray(0);
         }
 
+        //Wide lines work here because the context uses the compatibility profile. Clamped to what the driver supports
+        private const float LOCATOR_LINE_WIDTH = 2.0f;
+        private static float locatorLineWidth = -1.0f;
+
         private void renderLocator()
         {
+            if (locatorLineWidth < 0.0f)
+            {
+                float[] range = new float[2];
+                GL.GetFloat(GetPName.AliasedLineWidthRange, range);
+                locatorLineWidth = Math.Clamp(LOCATOR_LINE_WIDTH, range[0], Math.Max(range[1], 1.0f));
+            }
+
+            GL.LineWidth(locatorLineWidth);
             GL.BindVertexArray(vao.vao_id);
-            GL.DrawElementsInstanced(PrimitiveType.Lines, 6, 
+            GL.DrawElementsInstanced(PrimitiveType.Lines, metaData.batchcount > 0 ? metaData.batchcount : 6,
                 metaData.indicesLength, IntPtr.Zero, instance_count); //Use Instancing
+            GL.LineWidth(1.0f);
             //GL.BindVertexArray(0);
         }
 
@@ -405,33 +507,26 @@ namespace MVCore.GMDL
         {
             //Upload Material Information
 
+            MaterialBinding binding = getMaterialBinding(shader);
+
             //Upload Custom Per Material Uniforms
-            foreach (Uniform un in material.CustomPerMaterialUniforms.Values)
-            {
-                if (shader.uniformLocations.Keys.Contains(un.Name))
-                    GL.Uniform4(shader.uniformLocations[un.Name], un.vec.vec4);
-            }
+            for (int i = 0; i < binding.uniforms.Length; i++)
+                GL.Uniform4(binding.uniformLocations[i], binding.uniforms[i].vec.vec4);
 
             //BIND TEXTURES
-            //Diffuse Texture
-            foreach (Sampler s in material.PSamplers.Values)
+            for (int i = 0; i < binding.samplers.Length; i++)
             {
-                if (shader.uniformLocations.ContainsKey(s.Name) && s.Map.Value != "")
-                {
-                    GL.ActiveTexture(s.texUnit.texUnit);
-                    GL.BindTexture(s.tex.target, s.tex.texID);
-                    GL.Uniform1(shader.uniformLocations[s.Name], MyTextureUnit.MapTexUnitToSampler[s.Name]);
-                }
+                Sampler s = binding.samplers[i];
+                if (s.Map.Value != "")
+                    TextureBindCache.bind(binding.samplerUnits[i], s.tex.target, s.tex.texID);
             }
 
             //BIND TEXTURE Buffer
             if (skinned)
             {
-                GL.ActiveTexture(TextureUnit.Texture6);
-                GL.BindTexture(TextureTarget.TextureBuffer, instanceBoneMatricesTex);
-                GL.TexBuffer(TextureBufferTarget.TextureBuffer,
-                    SizedInternalFormat.Rgba32f, instanceBoneMatricesTexTBO);
-                GL.Uniform1(shader.uniformLocations["mpCustomPerMaterial.skinMatsTex"], 6);
+                TextureBindCache.bind(6, TextureTarget.TextureBuffer, instanceBoneMatricesTex); //Buffer attached once at setup
+                if (shader.uniformLocations.TryGetValue("mpCustomPerMaterial.skinMatsStride", out int strideLoc))
+                    GL.Uniform1(strideLoc, skinMatsStride / 16);
             }
 
             //if (instance_count > 100)
@@ -543,9 +638,67 @@ namespace MVCore.GMDL
 
 
 
+        //Bounds of the skinned mesh in scene space. Each vertex is a weighted blend of its bind position moved
+        //by the bones it uses, so the union of the AABB moved by every bone the mesh uses contains it.
+        public bool getSkinnedAABB(float[] skinMats, out Vector3 min, out Vector3 max)
+        {
+            min = new Vector3(float.MaxValue);
+            max = new Vector3(float.MinValue);
+            if (skinMats == null || BoneRemapIndices == null)
+                return false;
+
+            Vector3 center = 0.5f * (metaData.AABBMIN + metaData.AABBMAX);
+            Vector3 extent = 0.5f * (metaData.AABBMAX - metaData.AABBMIN);
+            bool found = false;
+
+            for (int i = 0; i < BoneRemapIndicesCount; i++)
+            {
+                int o = BoneRemapIndices[i] * 16;
+                if (o < 0 || o + 16 > skinMats.Length)
+                    continue;
+
+                //Matrices are stored row major and used as row vectors (v * M)
+                Vector3 c = new Vector3(
+                    center.X * skinMats[o + 0] + center.Y * skinMats[o + 4] + center.Z * skinMats[o + 8] + skinMats[o + 12],
+                    center.X * skinMats[o + 1] + center.Y * skinMats[o + 5] + center.Z * skinMats[o + 9] + skinMats[o + 13],
+                    center.X * skinMats[o + 2] + center.Y * skinMats[o + 6] + center.Z * skinMats[o + 10] + skinMats[o + 14]);
+                Vector3 e = new Vector3(
+                    extent.X * Math.Abs(skinMats[o + 0]) + extent.Y * Math.Abs(skinMats[o + 4]) + extent.Z * Math.Abs(skinMats[o + 8]),
+                    extent.X * Math.Abs(skinMats[o + 1]) + extent.Y * Math.Abs(skinMats[o + 5]) + extent.Z * Math.Abs(skinMats[o + 9]),
+                    extent.X * Math.Abs(skinMats[o + 2]) + extent.Y * Math.Abs(skinMats[o + 6]) + extent.Z * Math.Abs(skinMats[o + 10]));
+
+                min = Vector3.ComponentMin(min, c - e);
+                max = Vector3.ComponentMax(max, c + e);
+                found = true;
+            }
+
+            return found;
+        }
+
+        //Floats per instance in the bone matrix buffer. The shader gets the same stride in bones through skinMatsStride
+        public int skinMatsStride
+        {
+            get { return Math.Max(BoneRemapIndicesCount, 1) * 16; }
+        }
+
+        //Grows the bone matrix array when more instances need it. The texture buffer follows on the next
+        //upload, which reallocates it at the array's size
+        private void ensureSkinCapacity(int instances)
+        {
+            int needed = instances * skinMatsStride;
+            int oldLength = instanceBoneMatrices?.Length ?? 0;
+            if (oldLength >= needed)
+                return;
+
+            Array.Resize(ref instanceBoneMatrices, Math.Max(needed, oldLength * 2));
+            for (int o = oldLength; o + 16 <= instanceBoneMatrices.Length; o += 16)
+                MathUtils.insertMatToArray16(instanceBoneMatrices, o, Matrix4.Identity);
+        }
+
         public void setSkinMatrices(Scene animScene, int instance_id)
         {
-            int instance_offset = 128 * 16 * instance_id;
+            ensureSkinCapacity(instance_id + 1);
+            int instance_offset = skinMatsStride * instance_id;
 
             for (int i = 0; i < BoneRemapIndicesCount; i++)
             {
@@ -555,7 +708,8 @@ namespace MVCore.GMDL
 
         public void setDefaultSkinMatrices(int instance_id)
         {
-            int instance_offset = 128 * 16 * instance_id;
+            ensureSkinCapacity(instance_id + 1);
+            int instance_offset = skinMatsStride * instance_id;
             for (int i = 0; i < BoneRemapIndicesCount; i++)
             {
                 MathUtils.insertMatToArray16(instanceBoneMatrices, instance_offset + i * 16, Matrix4.Identity);
@@ -565,57 +719,44 @@ namespace MVCore.GMDL
 
         public void initializeSkinMatrices(Scene animScene)
         {
-            if (instance_count == 0 || animScene == null)
+            if (animScene == null)
                 return;
 
-            int jointCount = animScene.jointDict.Values.Count;
+            //Identity matrices for the instances known so far, more are added on demand
+            ensureSkinCapacity(Math.Max(instance_count, 1));
 
-            //TODO: Use the jointCount to adaptively setup the instanceBoneMatrices
-            //Common.CallBacks.Log("MAX : 128  vs Effective : " + jointCount.ToString());
-
-            //Re-initialize the array based on the number of instances
-            instanceBoneMatrices = new float[instance_count * 128 * 16];
-            int bufferSize = instance_count * 128 * 16 * 4;
-
-            //Init to unit matrices
-            
-            for (int i = 0; i < 128; i++)
+            //Setup the TBO once, later calls reuse it
+            if (instanceBoneMatricesTex == 0)
             {
-                instanceBoneMatrices[16 * i + 0] = 1.0f;
-                instanceBoneMatrices[16 * i + 1] = 0.0f;
-                instanceBoneMatrices[16 * i + 2] = 0.0f;
-                instanceBoneMatrices[16 * i + 3] = 0.0f;
-                instanceBoneMatrices[16 * i + 4] = 0.0f;
-                instanceBoneMatrices[16 * i + 5] = 1.0f;
-                instanceBoneMatrices[16 * i + 6] = 0.0f;
-                instanceBoneMatrices[16 * i + 7] = 0.0f;
-                instanceBoneMatrices[16 * i + 8] = 0.0f;
-                instanceBoneMatrices[16 * i + 9] = 0.0f;
-                instanceBoneMatrices[16 * i + 10] = 1.0f;
-                instanceBoneMatrices[16 * i + 11] = 0.0f;
-                instanceBoneMatrices[16 * i + 12] = 0.0f;
-                instanceBoneMatrices[16 * i + 13] = 0.0f;
-                instanceBoneMatrices[16 * i + 14] = 0.0f;
-                instanceBoneMatrices[16 * i + 15] = 1.0f;
+                instanceBoneMatricesTex = GL.GenTexture();
+                instanceBoneMatricesTexTBO = GL.GenBuffer();
+
+                GL.BindBuffer(BufferTarget.TextureBuffer, instanceBoneMatricesTexTBO);
+                GL.BufferData(BufferTarget.TextureBuffer, instanceBoneMatrices.Length * 4, instanceBoneMatrices, BufferUsageHint.StreamDraw);
+                GL.BindBuffer(BufferTarget.TextureBuffer, 0);
+
+                //Attach the buffer to the texture once. TexBuffer acts on the bound texture, so bind it first
+                GL.BindTexture(TextureTarget.TextureBuffer, instanceBoneMatricesTex);
+                GL.TexBuffer(TextureBufferTarget.TextureBuffer, SizedInternalFormat.Rgba32f, instanceBoneMatricesTexTBO);
+                GL.BindTexture(TextureTarget.TextureBuffer, 0);
             }
-            
-
-            //Setup the TBO
-            instanceBoneMatricesTex = GL.GenTexture();
-            instanceBoneMatricesTexTBO = GL.GenBuffer();
-
-            GL.BindBuffer(BufferTarget.TextureBuffer, instanceBoneMatricesTexTBO);
-            GL.BufferData(BufferTarget.TextureBuffer, bufferSize, instanceBoneMatrices, BufferUsageHint.StreamDraw);
-            GL.TexBuffer(TextureBufferTarget.TextureBuffer, SizedInternalFormat.Rgba32f, instanceBoneMatricesTexTBO);
-            GL.BindBuffer(BufferTarget.TextureBuffer, 0);
 
         }
 
         public void uploadSkinningData()
         {
+            if (instanceBoneMatrices == null || BoneRemapIndicesCount == 0 || instanceBoneMatricesTexTBO == 0)
+                return;
+
+            int instances = Math.Min(instance_count, instanceBoneMatrices.Length / skinMatsStride);
+
             GL.BindBuffer(BufferTarget.TextureBuffer, instanceBoneMatricesTexTBO);
-            int bufferSize = instance_count * 128 * 16 * 4;
-            GL.BufferSubData(BufferTarget.TextureBuffer, IntPtr.Zero, bufferSize, instanceBoneMatrices);
+
+            //Orphan the buffer so the driver hands out fresh storage instead of waiting for the GPU
+            //to finish drawing with last frame's matrices. This also grows it with the array
+            GL.BufferData(BufferTarget.TextureBuffer, instanceBoneMatrices.Length * 4, IntPtr.Zero, BufferUsageHint.StreamDraw);
+            GL.BufferSubData(BufferTarget.TextureBuffer, IntPtr.Zero, instances * skinMatsStride * 4, instanceBoneMatrices);
+
             GL.BindBuffer(BufferTarget.TextureBuffer, 0);
         }
 
@@ -817,14 +958,13 @@ namespace MVCore.GMDL
 #if(DEBUG)
             if (instanceId < 0)
                 Common.CallBacks.Log("test");
-            if (meshVao.BoneRemapIndicesCount > 128)
-                Common.CallBacks.Log("test");
 #endif
 
-            if (!active || !renderable || (parentScene.activeLOD != LodLevel) && RenderState.renderSettings.LODFiltering)
+            bool otherLOD = parentScene != null && parentScene.activeLOD != LodLevel;
+            if (lod_filter || !active || !renderable || otherLOD)
             {
                 base.updateMeshInfo(true);
-                if ((parentScene.activeLOD != LodLevel) && RenderState.renderSettings.LODFiltering)
+                if (otherLOD)
                     RenderStats.occludedNum += 1;
                 return;
             }
@@ -832,7 +972,16 @@ namespace MVCore.GMDL
             bool occluded_status = false;
 
             if (RenderState.renderSettings.UseFrustumCulling)
-                occluded_status = !RenderState.activeCam.frustum_occlude(meshVao, worldMat * RenderState.rotMat);
+            {
+                if (Skinned)
+                {
+                    //Skinned vertices are placed by the bone matrices, not by worldMat, so cull the animated bounds
+                    if (meshVao.getSkinnedAABB(parentScene?.skinMats, out Vector3 skinMin, out Vector3 skinMax))
+                        occluded_status = !RenderState.activeCam.frustum_occlude(skinMin, skinMax, RenderState.rotMat);
+                }
+                else
+                    occluded_status = !RenderState.activeCam.frustum_occlude(meshVao, worldMat * RenderState.rotMat);
+            }
 
         
             //Recalculations && Data uploads
@@ -843,6 +992,9 @@ namespace MVCore.GMDL
                 //Upload commonperMeshUniforms
                 GLMeshBufferManager.setInstanceUniform4(meshVao, instanceId,
                     "gUserDataVec4", CommonPerMeshUniforms["gUserDataVec4"].Vec.Vec);
+
+                //Selected in the scene tree: the shaders tint it green
+                GLMeshBufferManager.setInstanceSelectedStatus(meshVao, instanceId, selected > 0);
 
                 if (Skinned)
                 {

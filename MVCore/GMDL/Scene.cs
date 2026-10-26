@@ -28,41 +28,6 @@ namespace MVCore.GMDL
         }
 
         
-        public void resetPoses()
-        {
-            foreach (Joint j in jointDict.Values)
-                j.localPoseMatrix = Matrix4.Identity;
-            update();
-        }
-
-        public void applyPoses(Dictionary<string, Matrix4> poseMatrices)
-        {
-            foreach (KeyValuePair<string, Matrix4> kp in poseMatrices)
-            {
-                string node_name = kp.Key;
-
-                if (jointDict.ContainsKey(node_name))
-                {
-                    Joint j = jointDict[node_name];
-                    //j.localPoseMatrix = kp.Value;
-
-                    //Vector3 tr = kp.Value.ExtractTranslation();
-                    Vector3 sc = kp.Value.ExtractScale();
-                    Quaternion q = kp.Value.ExtractRotation();
-
-                    //j.localRotation = Matrix4.CreateFromQuaternion(q);
-                    //j.localPosition = tr;
-
-                    j.localRotation = Matrix4.CreateFromQuaternion(q) * j.__localRotation;
-                    j.localScale = sc;
-
-                    //j.localPoseMatrix = kp.Value;
-                }
-            }
-
-            update();
-        }
-
         //TODO Add button in the UI to toggle that shit
         private void resetAnimation()
         {
@@ -101,7 +66,7 @@ namespace MVCore.GMDL
             new_s.copyFrom(this);
 
             new_s.meshVao = meshVao;
-            new_s.instanceId = GLMeshBufferManager.addInstance(ref new_s.meshVao, this);
+            new_s.instanceId = GLMeshBufferManager.addInstance(ref new_s.meshVao, new_s);
 
             //Clone children
             foreach (Model child in Children)
@@ -120,12 +85,31 @@ namespace MVCore.GMDL
             return new_s;
         }
 
+        //Child scenes keep their own owner: this scene's nodes belong to it, the child scene's nodes to the child
+        public override void setParentScene(Scene scene)
+        {
+            parentScene = scene;
+            foreach (Model child in Children)
+                child.setParentScene(this);
+        }
+
         public void setupJointDict(Model m)
         {
+            //Child scenes have their own joints and nodes, like on the first load. A Reference node is
+            //listed, but what it loaded is not
+            if (m != this && m is Scene)
+                return;
+
+            if (m is Reference)
+            {
+                nodeDict[m.Name] = m;
+                return;
+            }
+
+            //Joints go in both, like on the first load: the animation system finds the animated nodes in nodeDict
             if (m.type == TYPES.JOINT)
                 jointDict[m.Name] = (Joint)m;
-            else
-                nodeDict[m.Name] = m;
+            nodeDict[m.Name] = m;
             
             foreach (Model c in m.Children)
                 setupJointDict(c);
@@ -133,22 +117,7 @@ namespace MVCore.GMDL
 
         public override void updateLODDistances()
         {
-            //TODO: Cache the distance elsewhere
-
-            //Set Current LOD Level
-            double distance = (worldPosition - Common.RenderState.activeCam.Position).Length;
-
-            //Find active LOD
-            activeLOD = _LODNum - 1;
-            for (int j = 0; j < _LODNum - 1; j++)
-            {
-                if (distance < _LODDistances[j])
-                {
-                    activeLOD = j;
-                    break;
-                }
-            }
-
+            activeLOD = selectLOD(worldPosition, _LODDistances, _LODNum, false);
             base.updateLODDistances();
         }
 

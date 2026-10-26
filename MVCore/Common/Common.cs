@@ -7,7 +7,6 @@ using MVCore.GMDL;
 using MVCore.Input;
 using MVCore;
 using GLSLHelper;
-using WPFModelViewer;
 using System.ComponentModel;
 using System.Diagnostics.Contracts;
 using System.Windows.Input;
@@ -36,6 +35,13 @@ namespace MVCore.Common
 
         //Keep the view rotation Matrix
         public static Matrix4 rotMat = Matrix4.Identity;
+
+        //Set when anything that affects culling or the instance data changes. The frame update rebuilds
+        //the mesh instances only when it is set
+        public static bool instancesDirty = true;
+
+        //LOD level picked in the UI for every scene, -1 picks by camera distance
+        public static int forcedLOD = -1;
 
         //Keep the view rotation Angles (in degrees)
         public static Vector3 rotAngles = new Vector3(0.0f);
@@ -103,6 +109,7 @@ namespace MVCore.Common
 
         private void NotifyPropertyChanged(String info)
         {
+            RenderState.instancesDirty = true;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(info));
         }
 
@@ -111,8 +118,11 @@ namespace MVCore.Common
     public class RenderSettings: INotifyPropertyChanged
     {
         private int animFPS = 60;
-        private bool _useVSYNC = false;
-        private float _HDRExposure = 0.5f;
+        private float _HDRExposure = 0.0f; //Exposure in EV stops (multiplier 2^EV)
+        private float _bloomIntensity = 0.08f; //Bloom strength when composited into the frame
+        private float _bloomThreshold = 1.0f; //Linear HDR brightness where bloom starts
+        private float _bloomKnee = 0.5f; //Soft transition around the threshold
+        private float _bloomRadius = 1.0f; //Upsample tent radius in texels
         //Set Full rendermode by default
         public PolygonMode RENDERMODE = PolygonMode.Fill;
         public System.Drawing.Color clearColor = System.Drawing.Color.FromArgb(255, 33, 33, 33);
@@ -132,19 +142,6 @@ namespace MVCore.Common
 
         public bool UseBLOOM { get; set; } = true;
 
-        public bool UseVSYNC
-        {
-            get
-            {
-                return _useVSYNC;
-            }
-            set
-            {
-                _useVSYNC = value;
-                NotifyPropertyChanged("UseVSYNC");
-            }
-        }
-
         
         public int AnimFPS
         {
@@ -163,6 +160,47 @@ namespace MVCore.Common
             {
                 _HDRExposure = value;
                 NotifyPropertyChanged("HDRExposure");
+            }
+        }
+
+
+        public float BloomIntensity
+        {
+            get => _bloomIntensity;
+            set
+            {
+                _bloomIntensity = value;
+                NotifyPropertyChanged("BloomIntensity");
+            }
+        }
+
+        public float BloomThreshold
+        {
+            get => _bloomThreshold;
+            set
+            {
+                _bloomThreshold = value;
+                NotifyPropertyChanged("BloomThreshold");
+            }
+        }
+
+        public float BloomKnee
+        {
+            get => _bloomKnee;
+            set
+            {
+                _bloomKnee = value;
+                NotifyPropertyChanged("BloomKnee");
+            }
+        }
+
+        public float BloomRadius
+        {
+            get => _bloomRadius;
+            set
+            {
+                _bloomRadius = value;
+                NotifyPropertyChanged("BloomRadius");
             }
         }
 
@@ -201,9 +239,19 @@ namespace MVCore.Common
             }
         }
 
-        public bool UseFrustumCulling { get; set; } = true;
+        private bool _useFrustumCulling = true;
+        public bool UseFrustumCulling
+        {
+            get => _useFrustumCulling;
+            set { _useFrustumCulling = value; NotifyPropertyChanged("UseFrustumCulling"); }
+        }
 
-        public bool LODFiltering { get; set; } = true;
+        private bool _LODFiltering = true;
+        public bool LODFiltering
+        {
+            get => _LODFiltering;
+            set { _LODFiltering = value; NotifyPropertyChanged("LODFiltering"); }
+        }
 
         public bool ToggleWireframe
         {
@@ -223,6 +271,7 @@ namespace MVCore.Common
 
         private void NotifyPropertyChanged(String info)
         {
+            RenderState.instancesDirty = true;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(info));
         }
 
@@ -397,6 +446,8 @@ namespace MVCore.Common
     public delegate void OpenPoseCallBack(string filepath, Model animScene);
     public delegate void LogCallBack(params object[] msg);
     public delegate void SendRequestCallBack(ref ThreadRequest req);
+    public delegate void ShowMessageCallBack(string message, string caption);
+    public delegate object GetResourceCallBack(string name);
     
     public static class CallBacks
     {
@@ -405,5 +456,7 @@ namespace MVCore.Common
         public static OpenPoseCallBack openPose = null;
         public static LogCallBack Log = null;
         public static SendRequestCallBack issueRequestToGLControl = null;
+        public static ShowMessageCallBack showError = null; //Error dialog of the host app
+        public static GetResourceCallBack getResource = null; //Embedded resources of the host app (default textures, fonts)
     }
 }

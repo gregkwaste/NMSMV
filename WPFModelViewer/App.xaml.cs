@@ -1,5 +1,5 @@
-﻿using NLog;
-using System;
+﻿using System;
+using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
 
@@ -10,10 +10,13 @@ namespace WPFModelViewer
     /// </summary>
     public partial class App : Application
     {
-        private static Logger _logger = LogManager.GetCurrentClassLogger();
-
         protected override void OnStartup(StartupEventArgs e)
         {
+            //Settings, logs, shaders and other data files are opened with relative paths.
+            //Pin the working directory to the exe folder so they are found no matter how
+            //the app was launched (shortcut, file explorer, another folder, Visual Studio)
+            Directory.SetCurrentDirectory(AppContext.BaseDirectory);
+
             base.OnStartup(e);
 
             SetupExceptionHandling();
@@ -27,6 +30,7 @@ namespace WPFModelViewer
             DispatcherUnhandledException += (s, e) =>
             {
                 LogUnhandledException(e.Exception, "Application.Current.DispatcherUnhandledException");
+                Util.showError("An unhandled exception occurred: " + e.Exception.Message, "Error");
                 e.Handled = true;
             };
 
@@ -47,11 +51,12 @@ namespace WPFModelViewer
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Exception in LogUnhandledException");
+                Util.Log("{0}", "Exception in LogUnhandledException: " + ex);
             }
             finally
             {
-                _logger.Error(exception, message);
+                //Same log.out as the rest of the app (NLog had no configuration, so these went nowhere)
+                Util.Log("{0}", message + ": " + exception);
             }
         }
     }
