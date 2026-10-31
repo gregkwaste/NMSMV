@@ -9,7 +9,7 @@
     #define D_MASKS
 #endif
 
-#if defined( __F01_DIFFUSEMAP ) || defined( __F03_NORMALMAP ) || defined( D_IMPOSTERMASKS ) || defined(D_MASKS)
+#if defined( __F01_DIFFUSEMAP ) || defined( __F03_NORMALMAP ) || defined( D_IMPOSTERMASKS ) || defined(D_MASKS) || defined(__F53_COLOURISABLE)
     #define D_TEXCOORDS
 #endif
 
@@ -27,6 +27,11 @@
 //TODO: Do some queries internally and figure out the exact locations of the uniforms
 uniform CustomPerMaterialUniforms mpCustomPerMaterial;
 uniform CommonPerFrameSamplers mpCommonPerFrameSamplers;
+
+#if defined(__F51_DECAL_DIFFUSE) || defined(__F52_DECAL_NORMAL)
+uniform vec3 decalAabbMin;
+uniform vec3 decalAabbMax;
+#endif
 
 //Uniform Blocks
 layout (std140, binding=0) uniform _COMMON_PER_FRAME
@@ -101,6 +106,10 @@ vec4 worldfromDepth()
 	
 	//Fetch depth
 	float depth = texture(mpCommonPerFrameSamplers.depthMap, depth_uv).x; 
+	//The opaque pass leaves the background at the far plane. It has no receiver surface,
+	//so allowing it through would project the decal onto arbitrary far-plane positions.
+	if (depth >= 0.999999)
+		discard;
 
 	//Convert depth back to (-1:1)
 	world.xy = 2.0 * depth_uv - 1.0;
@@ -180,17 +189,24 @@ void pbr_lighting(){
             world = worldfromDepth();
 			//Convert vertex to the local space of the box
 
-			vec4 localPos = instanceData[instanceId].worldMatInv * world;
+			//Depth reconstruction returns the rotated scene space used for rendering. Instance
+			//matrices are stored in the unrotated scene space, so undo the global scene rotation
+			//before entering the projector's local space.
+			vec4 localPos = instanceData[instanceId].worldMatInv * mpCommonPerFrame.rotMatInv * world;
 			localPos /= localPos.w;
 
-			//Clip
-			float decalBias = 0.01;
-			clip(0.5 - decalBias - abs(localPos.x));
-			clip(0.5 - decalBias- abs(localPos.y));
-			clip(0.5 - decalBias- abs(localPos.z));
+			//Use the imported projector bounds. Most game projectors are unit cubes, but some
+			//carry deeper custom volumes and must not be truncated to hardcoded +/-0.5 limits.
+			vec3 decalSize = max(decalAabbMax - decalAabbMin, vec3(1e-6));
+			vec3 decalBias = 0.01 * decalSize;
+			clip(localPos.x - decalAabbMin.x - decalBias.x);
+			clip(localPos.y - decalAabbMin.y - decalBias.y);
+			clip(localPos.z - decalAabbMin.z - decalBias.z);
+			clip(decalAabbMax.x - decalBias.x - localPos.x);
+			clip(decalAabbMax.y - decalBias.y - localPos.y);
+			clip(decalAabbMax.z - decalBias.z - localPos.z);
 
-
-			lTexCoordsVec4.xy = localPos.xy + 0.5;
+			lTexCoordsVec4.xy = (localPos.xy - decalAabbMin.xy) / decalSize.xy;
 			lTexCoordsVec4.y *= -1; //Flip on Y axis
         }
         #endif
@@ -220,7 +236,8 @@ void pbr_lighting(){
 			#endif
 
 			lLowAlpha = lColourVec4.a;
-			#if !defined(__F09_TRANSPARENT) && !defined(__F11_ALPHACUTOUT)
+			#if !defined(__F09_TRANSPARENT) && !defined(__F11_ALPHACUTOUT) && \
+			    !defined(__F51_DECAL_DIFFUSE) && !defined(__F52_DECAL_NORMAL)
 				lColourVec4.a = 1.0;
 			#endif
 		#else
@@ -241,6 +258,23 @@ void pbr_lighting(){
 			lColourVec4.rgb = mix( lColourVec4.rgb, lDiffuse2Vec4.rgb, lDiffuse2Vec4.a );
 		#endif
 
+		#ifdef __F53_COLOURISABLE
+		{
+			vec4 colouriseMask = texture(mpCustomPerMaterial.gColouriseMaskMap,
+				vec3(lTexCoordsVec4.xy, 0.0));
+			float weight = dot(colouriseMask, vec4(1.0));
+			if (weight > 1e-5)
+			{
+				vec3 tint = (instanceData[instanceId].colourisePrimary.rgb * colouriseMask.r +
+				             instanceData[instanceId].colouriseSecondary.rgb * colouriseMask.g +
+				             instanceData[instanceId].colouriseTernary.rgb * colouriseMask.b +
+				             instanceData[instanceId].colouriseQuaternary.rgb * colouriseMask.a) / weight;
+				lColourVec4.rgb = mix(lColourVec4.rgb, lColourVec4.rgb * tint,
+				                       clamp(weight, 0.0, 1.0));
+			}
+		}
+		#endif
+
 		//Viewer helpers (locator crosses) take their colour from the vertices
 		#ifdef __D_VERTEX_COLOUR
 			lColourVec4 *= vertColor;
@@ -253,6 +287,13 @@ void pbr_lighting(){
 		//TRANSPARENCY
 		// Transparency scalar comes from float in Material
 		lColourVec4.a *= mpCustomPerMaterial.gMaterialColourVec4.a;
+
+		//Decals historically relied on texture coverage even without the ordinary transparent
+		//or cutout flags. Discard empty coverage instead of replacing the G-buffer with a box.
+		#if defined(__F51_DECAL_DIFFUSE) || defined(__F52_DECAL_NORMAL)
+			if (lColourVec4.a < 0.001)
+				discard;
+		#endif
 	    
 		// Discard fully transparent pixels
 	    #if defined( __F09_TRANSPARENT ) || defined( __F11_ALPHACUTOUT )
@@ -298,10 +339,22 @@ void pbr_lighting(){
 
 			#ifdef __F52_DECAL_NORMAL
 	        {
-	        	/* TODO ENABLE THAT SHIT AT SOME POINT
-	           		// lTangentSpaceMat = GetDecalTangentSpaceMatrix( lWorldPositionVec3, lUniforms.mpPerFrame->gViewMat4 );
-	            	lTangentSpaceMat = GetCotangentFrame( lWorldPositionVec3, lUniforms.mpPerFrame->gViewPositionVec3, lTexCoordsVec4.xy );
-	            */
+	        	//The projected UV axes are the projector's local X and Y axes, not the tangent
+	        	//frame of whichever cube face happened to rasterize this pixel. Transform those
+	        	//axes into the rotated render space and orthonormalize them for non-uniform scale.
+	        	mat3 projectorMat = mat3(mpCommonPerFrame.rotMat) *
+	        	                    mat3(instanceData[instanceId].worldMat);
+	        	vec3 decalTangent = normalize(projectorMat * vec3(1.0, 0.0, 0.0));
+	        	vec3 decalBitangent = projectorMat * vec3(0.0, 1.0, 0.0);
+	        	decalBitangent -= dot(decalBitangent, decalTangent) * decalTangent;
+	        	if (dot(decalBitangent, decalBitangent) < 1e-8)
+	        		decalBitangent = cross(projectorMat * vec3(0.0, 0.0, 1.0), decalTangent);
+	        	decalBitangent = normalize(decalBitangent);
+	        	vec3 decalNormal = normalize(cross(decalTangent, decalBitangent));
+	        	if (dot(decalNormal, projectorMat * vec3(0.0, 0.0, 1.0)) < 0.0)
+	        		decalNormal = -decalNormal;
+	        	decalBitangent = normalize(cross(decalNormal, decalTangent));
+	        	lTangentSpaceMat = mat3(decalTangent, decalBitangent, decalNormal);
 	        }
 	        #else
 	        {
@@ -318,7 +371,7 @@ void pbr_lighting(){
 	        #endif
 	        */
 
-			lNormalVec3 = normalize(TBN * lNormalVec3);        
+			lNormalVec3 = normalize(lTangentSpaceMat * lNormalVec3);
     	}
 	    #endif
 
@@ -435,22 +488,14 @@ void pbr_lighting(){
 			lNormalVec3 = dot(lNormalVec3, lNormalVec3) > 1e-12 ? normalize(lNormalVec3) : vec3(0.0, 0.0, 1.0);
 
 			//Start from the environment lighting instead of the unlit colour
+			//Transparent meshes do not receive key light shadows
 			finalColor.rgb = calcEnvironmentLighting(mpCommonPerFrame.lights[0], lRotatedFragPos, lNormalVec3,
-				mpCommonPerFrame.cameraPosition.xyz, lColourVec4.rgb, lfMetallic, lfRoughness, ao);
+				mpCommonPerFrame.cameraPosition.xyz, lColourVec4.rgb, lfMetallic, lfRoughness, ao, 1.0);
 
-			for(int i = 1; i < mpCommonPerFrame.light_count; ++i) 
-		    {
-		    	// calculate per-light radiance
-		        Light light = mpCommonPerFrame.lights[i]; 
-
-				//Pos.w is the renderable status of the light
-				if (light.position.w < 1.0)
-		        	continue;
-	    		
-	    		finalColor.rgb += calcLighting(light, lRotatedFragPos, lNormalVec3, 
-				mpCommonPerFrame.cameraPosition.xyz, mpCommonPerFrame.cameraDirection.xyz,
-		            lColourVec4.rgb, lfMetallic, lfRoughness, ao);
-			} 
+			//Scene lights, from the light clusters
+			finalColor.rgb += calcSceneLighting(gl_FragCoord.xy, viewDepthFromWindowZ(gl_FragCoord.z, mpCommonPerFrame.projMatInv),
+				lRotatedFragPos, lNormalVec3, mpCommonPerFrame.cameraPosition.xyz, mpCommonPerFrame.cameraDirection.xyz,
+				lColourVec4.rgb, lfMetallic, lfRoughness, ao);
 		}
 		#else
 			finalColor = lColourVec4;

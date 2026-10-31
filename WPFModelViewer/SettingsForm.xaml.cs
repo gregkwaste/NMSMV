@@ -86,6 +86,10 @@ namespace WPFModelViewer
         {
             //Generating new settings file
 
+            //Audio must always be an explicit user choice on first run. Existing settings retain
+            //their saved PlayAudio value because this method only runs when no usable settings file exists.
+            RenderState.renderViewSettings.PlayAudio = false;
+
             string gamedir = NMSUtils.getGameInstallationDir();
             string unpackdir;
 

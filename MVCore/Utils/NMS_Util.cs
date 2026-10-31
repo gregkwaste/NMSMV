@@ -29,16 +29,10 @@ namespace MVCore.Utils
             NMSArchiveMap.Clear();
         }
 
-        //Returns the path of the unpacked MXML (current MBINCompiler) or EXML (older versions) file
-        //for the given MBIN path. Defaults to the MXML path when neither exists
+        //Returns the path of the unpacked MXML file for the given MBIN path
         private static string getUnpackedXmlPath(string filepath)
         {
-            string unpackDir = RenderState.settings.UnpackDir ?? "";
-            string mxmlpath = Path.ChangeExtension(filepath, "MXML").ToUpper();
-            string exmlpath = Path.ChangeExtension(filepath, "EXML").ToUpper();
-            if (!File.Exists(Path.Combine(unpackDir, mxmlpath)) && File.Exists(Path.Combine(unpackDir, exmlpath)))
-                return exmlpath;
-            return mxmlpath;
+            return Path.ChangeExtension(filepath, "MXML").ToUpper();
         }
 
         public static int GetFieldOffset(string className, string fieldName)
@@ -51,20 +45,20 @@ namespace MVCore.Utils
             int load_mode = 0;
             NMSTemplate template;
 
-            string exmlpath = getUnpackedXmlPath(filepath);
+            string mxmlpath = getUnpackedXmlPath(filepath);
 
-            if (File.Exists(exmlpath))
+            if (File.Exists(mxmlpath))
                 load_mode = 0;
             else
                 load_mode = 1;
 
 
-            //Load Exml
+            //Load Mxml
             try
             {
                 if (load_mode == 0)
                 {
-                    string xml = File.ReadAllText(exmlpath);
+                    string xml = File.ReadAllText(mxmlpath);
                     template = MXmlFile.ReadTemplateFromString(xml);
                 }
                 else
@@ -113,9 +107,9 @@ namespace MVCore.Utils
             filepath = filepath.Replace('\\', '/');
             string effective_filepath = filepath;
 
-            string exmlpath = getUnpackedXmlPath(filepath);
+            string mxmlpath = getUnpackedXmlPath(filepath);
 
-            //This returns raw binary streams (e.g. geometry), so unpacked MXML/EXML files are not used here
+            //This returns raw binary streams (e.g. geometry), so unpacked MXML files are not used here
             if (File.Exists(Path.Combine(RenderState.settings.UnpackDir, filepath)))
                 load_mode = 1; //Load MBIN from file
             else if (resMgr.NMSFileToArchiveMap.ContainsKey(filepath))
@@ -134,20 +128,20 @@ namespace MVCore.Utils
             Stream result = null;
             switch (load_mode)
             {
-                case 0: //Load EXML
-                    CallBacks.Log("Loading exml file from unpacked folder" + effective_filepath);
-                    result = new FileStream(Path.Combine(RenderState.settings.UnpackDir, exmlpath), FileMode.Open);
+                case 0: //Load MXML
+                    CallBacks.Verbose("Loading mxml file from unpacked folder" + effective_filepath);
+                    result = new FileStream(Path.Combine(RenderState.settings.UnpackDir, mxmlpath), FileMode.Open);
                     break;
                 case 1: //Load MBIN
-                    CallBacks.Log("Loading MBIN file from unpacked folder" + effective_filepath);
+                    CallBacks.Verbose("Loading MBIN file from unpacked folder" + effective_filepath);
                     result = new FileStream(Path.Combine(RenderState.settings.UnpackDir, filepath), FileMode.Open);
                     break;
                 case 2: //Load File from Archive
                     {
-                        CallBacks.Log("Trying to export File from PAK" + effective_filepath);
+                        CallBacks.Verbose("Trying to export File from PAK" + effective_filepath);
                         if (resMgr.NMSFileToArchiveMap.ContainsKey(effective_filepath))
                         {
-                            CallBacks.Log("File was found in archives. File Index: " + resMgr.NMSFileToArchiveMap[effective_filepath]);
+                            CallBacks.Verbose("File was found in archives. File Index: " + resMgr.NMSFileToArchiveMap[effective_filepath]);
                         }
 
                         Archive arc = loadNMSArchive(resMgr.NMSFileToArchiveMap[effective_filepath]);
@@ -187,11 +181,11 @@ namespace MVCore.Utils
             //if (filepath.Contains(' '))
             //    return null;
 
-            string exmlpath = getUnpackedXmlPath(filepath);
+            string mxmlpath = getUnpackedXmlPath(filepath);
             
 
-            if (File.Exists(Path.Combine(RenderState.settings.UnpackDir, exmlpath)))
-                load_mode = 0; //Load Exml
+            if (File.Exists(Path.Combine(RenderState.settings.UnpackDir, mxmlpath)))
+                load_mode = 0; //Load Mxml
             else if (File.Exists(Path.Combine(RenderState.settings.UnpackDir, filepath)))
                 load_mode = 1; //Load MBIN from file
             else if (resMgr.NMSFileToArchiveMap.ContainsKey(filepath))
@@ -212,16 +206,16 @@ namespace MVCore.Utils
             {
                 switch (load_mode)
                 {
-                    case 0: //Load EXML
+                    case 0: //Load MXML
                         {
-                            CallBacks.Log("Loading exml template from unpacked folder: " + effective_filepath);
-                            string xml = File.ReadAllText(Path.Combine(RenderState.settings.UnpackDir, exmlpath));
+                            CallBacks.Verbose("Loading mxml template from unpacked folder: " + effective_filepath);
+                            string xml = File.ReadAllText(Path.Combine(RenderState.settings.UnpackDir, mxmlpath));
                             template = MXmlFile.ReadTemplateFromString(xml);
                             break;
                         }
                     case 1: //Load MBIN
                         {
-                            CallBacks.Log("Loading mbin template from unpacked folder: " + effective_filepath);
+                            CallBacks.Verbose("Loading mbin template from unpacked folder: " + effective_filepath);
                             string eff_path = Path.Combine(RenderState.settings.UnpackDir, effective_filepath);
                             MBINFile mbinf = new MBINFile(eff_path);
                             mbinf.Load();
@@ -231,7 +225,7 @@ namespace MVCore.Utils
                         }
                     case 2: //Load File from Archive
                         {
-                            CallBacks.Log("Loading template from PAK: " + effective_filepath);
+                            CallBacks.Verbose("Loading template from PAK: " + effective_filepath);
                             Archive arc = loadNMSArchive(resMgr.NMSFileToArchiveMap[effective_filepath]);
                             Stream file = arc.ExtractFile(effective_filepath);
                             MBINFile mbinf = new MBINFile(file);
@@ -278,11 +272,11 @@ namespace MVCore.Utils
             }
 
 #if DEBUG
-            //Save NMSTemplate to exml
+            //Save NMSTemplate to mxml
             if (template == null)
                 return null;
             string data = MXmlFile.WriteTemplate(template);
-            string path =  Path.Combine("Temp", filepath + ".exml");
+            string path =  Path.Combine("Temp", filepath + ".mxml");
             Directory.CreateDirectory(Path.GetDirectoryName(path));
             File.WriteAllText(path, data);
 #endif
@@ -525,7 +519,7 @@ namespace MVCore.Utils
                 FileStream arc_stream = new FileStream(pakPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                 Archive psarc = new Archive(arc_stream, true);
                 NMSArchiveMap[pakPath] = psarc;
-                CallBacks.Log("Loaded :" + pakPath);
+                CallBacks.Verbose("Loaded :" + pakPath);
             }
 
             return NMSArchiveMap[pakPath];
@@ -574,7 +568,7 @@ namespace MVCore.Utils
                 foreach (string pak_path in pak_files)
                 {
                     if (pak_path.Contains("CUSTOMMODELS"))
-                        CallBacks.Log(pak_path);
+                        CallBacks.Verbose(pak_path);
 
                     if (!pak_path.EndsWith(".pak"))
                         continue;
@@ -681,9 +675,254 @@ namespace MVCore.Utils
             }
             */
 
+            //TEMP (dev tool): component usage report, runs once
+            //scanComponents(ref resMgr);
+
             status = 0; // All good
             DisposeArchives();
             CallBacks.updateStatus("Ready");
+        }
+
+        //TEMP (dev tool): scans every archived entity and scene and writes ComponentScan.md and ComponentScan.csv to the
+        //working folder, listing which models use the entity components the viewer supports or might support. Runs
+        //once, delete ComponentScan.md to scan again
+        private static readonly string[] scanSupported = { "TkAnimPoseComponentData", "TkAnimationComponentData",
+            "TkLODComponentData", "TkPhysicsComponentData", "GcTriggerActionComponentData" };
+        private static readonly string[] scanCandidates = { "GcDestructableComponentData", "GcShootableComponentData",
+            "TkAudioComponentData", "GcCreatureFullBodyIKComponentData", "GcCombatEffectsComponentData" };
+        private static readonly string[] scanEmulated = { "GcPlayerNearbyEvent", "GcStateTimeEvent", "GcAnimFrameEvent",
+            "GcNodeActivationAction", "GcGoToStateAction", "GcPlayAnimAction", "EmptyNode", "None" };
+
+        private static void scanComponents(ref ResourceManager resMgr)
+        {
+            if (File.Exists("ComponentScan.md"))
+                return;
+
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            Dictionary<string, List<string>> entityComponents = new Dictionary<string, List<string>>();
+            Dictionary<string, List<string>> componentEntities = new Dictionary<string, List<string>>();
+            Dictionary<string, HashSet<string>> entityModels = new Dictionary<string, HashSet<string>>();
+            Dictionary<string, int> triggerTypeEntities = new Dictionary<string, int>();
+            List<string> fullyEmulated = new List<string>();
+            Dictionary<string, List<string>> animFeatures = new Dictionary<string, List<string>>();
+            int entities = 0, scenes = 0, failed = 0;
+            List<KeyValuePair<string, string>> files = resMgr.NMSFileToArchiveMap.ToList();
+
+            //Pass 1: entities and their components
+            foreach (KeyValuePair<string, string> kv in files)
+            {
+                if (!kv.Key.EndsWith(".ENTITY.MBIN", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (!(scanLoad(kv) is TkAttachmentData data))
+                {
+                    failed++;
+                    continue;
+                }
+                if (++entities % 500 == 0)
+                    CallBacks.updateStatus("Scanning entities... " + entities);
+
+                string entity = normalizeScanPath(kv.Key);
+                List<string> comps = new List<string>();
+                foreach (var comp in data.Components)
+                {
+                    string type = comp.Template?.GetType().Name ?? "Linked " + comp.Linked?.Value;
+                    comps.Add(type);
+                    if (!componentEntities.TryGetValue(type, out List<string> list))
+                        componentEntities[type] = list = new List<string>();
+                    list.Add(entity);
+
+                    if (comp.Template is libMBIN.NMS.GameComponents.GcTriggerActionComponentData tac)
+                        scanTriggerActions(entity, tac, triggerTypeEntities, fullyEmulated);
+                    else if (comp.Template is TkAnimationComponentData acd)
+                        scanAnimFeatures(entity, acd, animFeatures);
+                }
+                entityComponents[entity] = comps;
+            }
+
+            //Pass 2: scenes, to find the models that attach each entity
+            foreach (KeyValuePair<string, string> kv in files)
+            {
+                if (!kv.Key.EndsWith(".SCENE.MBIN", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (!(scanLoad(kv) is TkSceneNodeData root))
+                {
+                    failed++;
+                    continue;
+                }
+                if (++scenes % 500 == 0)
+                    CallBacks.updateStatus("Scanning scenes... " + scenes);
+                collectAttachments(normalizeScanPath(kv.Key), root, entityModels);
+            }
+
+            string modelsOf(string entity, int max)
+            {
+                if (!entityModels.TryGetValue(entity, out HashSet<string> s))
+                    return "(no scene attaches it)";
+                List<string> sorted = s.OrderBy(x => x).ToList();
+                return string.Join(", ", sorted.Take(max)) + (sorted.Count > max ? " (+" + (sorted.Count - max) + " more)" : "");
+            }
+
+            //Report
+            List<string> md = new List<string>();
+            md.Add("# Component scan");
+            md.Add("");
+            md.Add("Scanned " + entities + " entities and " + scenes + " scenes in " + clock.Elapsed.TotalMinutes.ToString("0.0") +
+                   " min. " + failed + " files failed to load.");
+            md.Add("");
+            md.Add("## Components by use");
+            md.Add("");
+            md.Add("| Component | Status | Entities | Models |");
+            md.Add("|---|---|---|---|");
+            foreach (KeyValuePair<string, List<string>> kv in componentEntities.OrderByDescending(x => x.Value.Count))
+            {
+                string status = scanSupported.Contains(kv.Key) ? "supported" : scanCandidates.Contains(kv.Key) ? "candidate" : "";
+                int models = kv.Value.Where(entityModels.ContainsKey).SelectMany(e => entityModels[e]).Distinct().Count();
+                md.Add("| " + kv.Key + " | " + status + " | " + kv.Value.Count + " | " + models + " |");
+            }
+
+            foreach (string comp in scanSupported.Concat(scanCandidates))
+            {
+                md.Add("");
+                md.Add("## " + comp);
+                md.Add("");
+                if (!componentEntities.TryGetValue(comp, out List<string> list))
+                {
+                    md.Add("Not used by any entity.");
+                    continue;
+                }
+                //Entities that sit on a model first, they are the ones that can be loaded and tested
+                foreach (string e in list.OrderBy(e => entityModels.ContainsKey(e) ? 0 : 1).ThenBy(e => e).Take(15))
+                    md.Add("- " + e + ": " + modelsOf(e, 2));
+            }
+
+            md.Add("");
+            md.Add("## TriggerAction event and action types");
+            md.Add("");
+            md.Add("| Type | Emulated | Entities |");
+            md.Add("|---|---|---|");
+            foreach (KeyValuePair<string, int> kv in triggerTypeEntities.OrderByDescending(x => x.Value))
+                md.Add("| " + kv.Key + " | " + (scanEmulated.Contains(kv.Key) ? "yes" : "no") + " | " + kv.Value + " |");
+            md.Add("");
+            md.Add("### Entities that only use emulated types (" + fullyEmulated.Count + ")");
+            md.Add("");
+            foreach (string e in fullyEmulated.OrderBy(e => entityModels.ContainsKey(e.Split(' ')[0]) ? 0 : 1).ThenBy(e => e).Take(30))
+                md.Add("- " + e + ": " + modelsOf(e.Split(' ')[0], 2));
+
+            md.Add("");
+            md.Add("## Animation features");
+            md.Add("");
+            md.Add("| Feature | Clips | Examples |");
+            md.Add("|---|---|---|");
+            foreach (KeyValuePair<string, List<string>> kv in animFeatures.OrderByDescending(x => x.Value.Count))
+                md.Add("| " + kv.Key + " | " + kv.Value.Count + " | " + string.Join("<br>", kv.Value.Take(5)) + " |");
+
+            List<string> csv = new List<string> { "Model;Entity;Components" };
+            foreach (KeyValuePair<string, List<string>> kv in entityComponents.OrderBy(x => x.Key))
+            {
+                string comps = string.Join(",", kv.Value);
+                if (entityModels.TryGetValue(kv.Key, out HashSet<string> models))
+                    foreach (string m in models.OrderBy(x => x))
+                        csv.Add(m + ";" + kv.Key + ";" + comps);
+                else
+                    csv.Add(";" + kv.Key + ";" + comps);
+            }
+
+            File.WriteAllLines("ComponentScan.md", md);
+            File.WriteAllLines("ComponentScan.csv", csv);
+            CallBacks.Log("Component scan written to " + Path.GetFullPath("ComponentScan.md"));
+        }
+
+        private static NMSTemplate scanLoad(KeyValuePair<string, string> file)
+        {
+            try
+            {
+                Archive arc = loadNMSArchive(file.Value);
+                using Stream s = arc.ExtractFile(file.Key);
+                MBINFile mbinf = new MBINFile(s);
+                mbinf.Load();
+                NMSTemplate data = mbinf.GetData();
+                mbinf.Dispose();
+                return data;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        private static string normalizeScanPath(string path)
+        {
+            return (path ?? "").Replace('\\', '/').TrimStart('/').ToUpperInvariant();
+        }
+
+        private static void collectAttachments(string scene, TkSceneNodeData node, Dictionary<string, HashSet<string>> entityModels)
+        {
+            if (node.Attributes != null)
+            {
+                foreach (TkSceneNodeAttributeData attr in node.Attributes)
+                {
+                    if (attr.Name?.Value != "ATTACHMENT" || string.IsNullOrEmpty(attr.Value?.Value))
+                        continue;
+                    string entity = normalizeScanPath(attr.Value.Value);
+                    if (!entityModels.TryGetValue(entity, out HashSet<string> set))
+                        entityModels[entity] = set = new HashSet<string>();
+                    set.Add(scene);
+                }
+            }
+
+            if (node.Children != null)
+                foreach (TkSceneNodeData child in node.Children)
+                    collectAttachments(scene, child, entityModels);
+        }
+
+        private static void scanTriggerActions(string entity, libMBIN.NMS.GameComponents.GcTriggerActionComponentData tac,
+            Dictionary<string, int> typeEntities, List<string> fullyEmulated)
+        {
+            HashSet<string> types = new HashSet<string>();
+            foreach (var state in tac.States)
+                foreach (var trig in state.Triggers)
+                {
+                    types.Add(trig.Event?.GetType().Name ?? "None");
+                    foreach (NMSTemplate a in trig.Action)
+                        types.Add(a?.GetType().Name ?? "None");
+                }
+
+            foreach (string t in types)
+                typeEntities[t] = typeEntities.GetValueOrDefault(t) + 1;
+            if (types.All(t => scanEmulated.Contains(t)))
+                fullyEmulated.Add(entity + " (" + tac.States.Count + " states)");
+        }
+
+        private static void scanAnimFeatures(string entity, TkAnimationComponentData acd, Dictionary<string, List<string>> features)
+        {
+            void add(string feature, TkAnimationData clip)
+            {
+                if (!features.TryGetValue(feature, out List<string> list))
+                    features[feature] = list = new List<string>();
+                list.Add(entity + ": " + clip.Anim?.Value);
+            }
+
+            List<TkAnimationData> clips = new List<TkAnimationData>();
+            if (acd.Idle != null)
+                clips.Add(acd.Idle);
+            if (acd.Anims != null)
+                clips.AddRange(acd.Anims);
+
+            foreach (TkAnimationData clip in clips)
+            {
+                if (clip.AnimType == TkAnimationData.AnimTypeEnum.OneShotBlendable)
+                    add("OneShotBlendable", clip);
+                if (clip.AnimType == TkAnimationData.AnimTypeEnum.Control)
+                    add("Control", clip);
+                if (clip.Additive)
+                    add("Additive", clip);
+                if (!string.IsNullOrEmpty(clip.AdditiveBaseAnim?.Value))
+                    add("AdditiveBaseAnim", clip);
+                if (!string.IsNullOrEmpty(clip.StartNode?.Value) || clip.ExtraStartNodes?.Count > 0)
+                    add("StartNode", clip);
+                if (!string.IsNullOrEmpty(clip.Mask?.Value) || clip.AdditionalMasks?.Count > 0)
+                    add("Mask", clip);
+            }
         }
 
         public static string getGameInstallationDir()

@@ -9,8 +9,14 @@ using libMBIN.NMS.GameComponents;
 
 namespace MVCore.GMDL
 {
-    public class Material : TkMaterialData, IDisposable
+    public class Material : IDisposable
     {
+        //The material file as libMBIN loaded it. The viewer reads the material data from here and
+        //ExportTemplate writes it back
+        public TkMaterialData Template;
+        //Only materials that were read from a file are written back. Fallback and viewer materials are not
+        public bool fromFile = false;
+
         private bool disposed = false;
         public bool proc = false;
         public float[] material_flags = new float[64];
@@ -31,7 +37,7 @@ namespace MVCore.GMDL
                 "_F07_UNLIT",
                 "_F09_TRANSPARENT",
                 "_F11_ALPHACUTOUT",
-                "_F13_UVEFFECT",
+                "_F13_UV_EFFECT", //UV scrolling (gUVScrollStepVec4). Formerly _F14_UVSCROLL
                 "_F16_DIFFUSE2MAP",
                 "_F20_PARALLAX",
                 "_F21_VERTEXCUSTOM",
@@ -41,6 +47,24 @@ namespace MVCore.GMDL
                 "_F42_DETAIL_NORMAL",
                 "_F53_COLOURISABLE",
                 "_F55_MULTITEXTURE"};
+
+        //Template data
+        public string Name
+        {
+            get { return Template.Name; }
+            set { Template.Name = value; }
+        }
+        public TkMaterialClass Class => Template.Class;
+        public List<TkMaterialFlags> Flags => Template.Flags;
+        public List<TkMaterialSampler> Samplers => Template.Samplers;
+        public List<TkMaterialUniform_Float> Uniforms_Float => Template.Uniforms_Float;
+        public List<TkMaterialUniform_UInt> Uniforms_UInt => Template.Uniforms_UInt;
+        public bool CastShadow => Template.CastShadow;
+        public bool DisableZTest => Template.DisableZTest;
+        public int TransparencyLayerID => Template.TransparencyLayerID;
+
+        //Shadow proxy: the game draws these meshes only into its shadow maps, never into the visible frame
+        public bool ShadowOnly => Class?.MaterialClass == TkMaterialClass.MaterialClassEnum.ShadowOnly;
 
         public string PName
         {
@@ -171,17 +195,19 @@ namespace MVCore.GMDL
 
         public Material()
         {
-            Name = "NULL";
-            Shader = "NULL";
-            Link = "NULL";
-            Class = new TkMaterialClass();
-            TransparencyLayerID = -1;
-            CastShadow = false;
-            DisableZTest = false;
-            Flags = new List<TkMaterialFlags>();
-            Samplers = new List<TkMaterialSampler>();
-            Uniforms_Float = new List<TkMaterialUniform_Float>();
-            Uniforms_UInt = new List<TkMaterialUniform_UInt>();
+            Template = new TkMaterialData();
+            Template.Name = "NULL";
+            Template.Shader = "NULL";
+            Template.Link = "NULL";
+            Template.Class = new TkMaterialClass();
+            Template.TransparencyLayerID = -1;
+            Template.CastShadow = false;
+            Template.DisableZTest = false;
+            Template.Flags = new List<TkMaterialFlags>();
+            Template.Samplers = new List<TkMaterialSampler>();
+            Template.Uniforms_Float = new List<TkMaterialUniform_Float>();
+            Template.Uniforms_UInt = new List<TkMaterialUniform_UInt>();
+            normalizeTemplate();
             
             //Clear material flags
             for (int i = 0; i < 64; i++)
@@ -190,31 +216,56 @@ namespace MVCore.GMDL
 
         public Material(TkMaterialData md)
         {
-            Name = md.Name;
-            Shader = md.Shader;
-            Link = md.Link;
-            Class = md.Class;
-            TransparencyLayerID = md.TransparencyLayerID;
-            CastShadow = md.CastShadow;
-            DisableZTest = md.DisableZTest;
-            Flags = new List<TkMaterialFlags>();
-            Samplers = new List<TkMaterialSampler>();
-            Uniforms_Float = new List<TkMaterialUniform_Float>();
-            Uniforms_UInt = new List<TkMaterialUniform_UInt>();
-            
-            for (int i = 0; i < md.Flags.Count; i++)
-                Flags.Add(md.Flags[i]);
-            for (int i = 0; i < md.Samplers.Count; i++)
-                Samplers.Add(md.Samplers[i]);
-            
-            for (int i = 0; i < md.Uniforms_Float.Count; i++)
-                Uniforms_Float.Add(md.Uniforms_Float[i]);
-            for (int i = 0; i < md.Uniforms_UInt.Count; i++)
-                Uniforms_UInt.Add(md.Uniforms_UInt[i]);
+            Template = md;
+            normalizeTemplate();
             
             //Clear material flags
             for (int i = 0; i < 64; i++)
                 material_flags[i] = 0.0f;
+        }
+
+        //The material file. All the material data lives in the template, so there is nothing to sync
+        public TkMaterialData ExportTemplate()
+        {
+            normalizeTemplate();
+            return Template;
+        }
+
+        //New viewer/Assimp materials do not pass through libMBIN deserialization, which normally
+        //instantiates every string wrapper and collection. Keep the in-memory template complete so
+        //it can be serialized just like a material loaded from the game.
+        private void normalizeTemplate()
+        {
+            Template ??= new TkMaterialData();
+            Template.Name ??= "";
+            Template.Shader ??= "";
+            Template.Link ??= "";
+            Template.Metamaterial ??= "";
+            Template.Class ??= new TkMaterialClass();
+            Template.Flags ??= new List<TkMaterialFlags>();
+            Template.FxFlags ??= new List<TkMaterialFxFlags>();
+            Template.Samplers ??= new List<TkMaterialSampler>();
+            Template.Uniforms_Float ??= new List<TkMaterialUniform_Float>();
+            Template.Uniforms_UInt ??= new List<TkMaterialUniform_UInt>();
+
+            foreach (TkMaterialSampler sampler in Template.Samplers)
+            {
+                sampler.Name ??= "";
+                sampler.Map ??= "";
+                sampler.MaterialAlternativeId ??= "";
+            }
+            foreach (TkMaterialUniform_Float uniform in Template.Uniforms_Float)
+            {
+                uniform.Name ??= "";
+                uniform.Values ??= new libMBIN.NMS.Vector4f();
+                uniform.ExtendedValues ??= new List<libMBIN.NMS.Vector4f>();
+            }
+            foreach (TkMaterialUniform_UInt uniform in Template.Uniforms_UInt)
+            {
+                uniform.Name ??= "";
+                uniform.Values ??= new libMBIN.NMS.Vector4i();
+                uniform.ExtendedValues ??= new List<libMBIN.NMS.Vector4i>();
+            }
         }
 
         public static Material Parse(string path, textureManager input_texMgr)
@@ -225,12 +276,13 @@ namespace MVCore.GMDL
             if (template == null)
                 return null; //Missing or unreadable material, the caller uses a fallback
 #if DEBUG
-            //Save NMSTemplate to exml
+            //Save NMSTemplate to mxml
             template.WriteToMxml("Temp\\" + template.Name + ".mxml", false, true);
 #endif
 
             //Make new material based on the template
             Material mat = new Material(template);
+            mat.fromFile = true;
 
             mat.texMgr = input_texMgr;
             mat.init();

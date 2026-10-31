@@ -3,4 +3,90 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:WPFModelViewer"
              StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <!-- Shared look of the Object Info templates and the Systems details pane -->
+
+        <!-- A collapsible section: Mesh, Material, Transform, one per component -->
+        <Style x:Key="SectionExpander" TargetType="Expander">
+            <Setter Property="Margin" Value="0,2,0,2"/>
+            <!-- No padding: the default Expander template pads the header too. Section content sets Margin="16,2,0,4" -->
+            <Setter Property="IsExpanded" Value="True"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}"/>
+        </Style>
+
+        <!-- Label / value row. The label column lines up across every row of the panel (shared size scope on the panel) -->
+        <Style x:Key="PropRow" TargetType="HeaderedContentControl">
+            <Setter Property="Margin" Value="0,1,0,1"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="IsTabStop" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="HeaderedContentControl">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" MinWidth="100" SharedSizeGroup="PropLabel"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <ContentPresenter ContentSource="Header" Margin="0,0,10,0" VerticalAlignment="Center"
+                                              TextBlock.Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"/>
+                            <ContentPresenter Grid.Column="1" VerticalAlignment="Center"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Read-only value that can still be selected and copied (names, hashes, paths) -->
+        <Style x:Key="ValueText" TargetType="TextBox">
+            <Setter Property="IsReadOnly" Value="True"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+
+        <!-- Small grey caption above a list inside a section -->
+        <Style x:Key="SubHeader" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,6,0,2"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"/>
+        </Style>
+
+        <!-- Short values shown as chips in a wrap panel (material flags, LOD distances) -->
+        <Style x:Key="TagList" TargetType="ItemsControl">
+            <Setter Property="ItemsPanel">
+                <Setter.Value>
+                    <ItemsPanelTemplate>
+                        <WrapPanel/>
+                    </ItemsPanelTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="ItemTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <Border Margin="0,1,4,1" Padding="5,0" CornerRadius="3"
+                                Background="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}">
+                            <TextBlock Text="{Binding}" FontSize="11"/>
+                        </Border>
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Numeric entry in vectors and the transform -->
+        <Style x:Key="NumberBox" TargetType="TextBox">
+            <Setter Property="Margin" Value="1,0,1,0"/>
+            <Setter Property="TextAlignment" Value="Right"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <!-- X / Y / Z / W captions in front of vector fields -->
+        <Style x:Key="AxisLabel" TargetType="TextBlock">
+            <Setter Property="Margin" Value="4,0,1,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"/>
+        </Style>
+    </Application.Resources>
 </Application>

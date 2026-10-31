@@ -10,9 +10,10 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)Engine\Engine.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Engine\RequestHandler.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Engine\Systems\ActionSystem.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Engine\Systems\AnimationSystem.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Engine\Systems\RotationSystem.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Engine\Systems\ParticleSystem.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\AnimData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Components\AnimComponent.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Camera.cs" />
@@ -22,9 +23,12 @@
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Components\LODModelComponent.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Components\PhysicsComponent.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Components\TriggerActionComponent.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\Components\InteractionComponent.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\Components\RotationComponent.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Joint.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Light.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Locator.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\ParticleEmitter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Material.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Mesh.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GMDL\Model.cs" />
@@ -46,13 +50,26 @@
     <Compile Include="$(MSBuildThisFileDirectory)Utils\MathUtils.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MBIN.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ModelProcGen.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SceneEdit.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Utils\NMS_Util.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Engine\Octree.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Palettes.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Engine\LightClusters.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Engine\RenderManager.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Common\ResourceManager.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Engine\ShadowRenderer.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Common\ThreadRequest.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Audio\AudioLibrary.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Audio\AudioMixer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Audio\WwiseBank.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Audio\WEMSharp\BitStream.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Audio\WEMSharp\CodebookLibrary.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Audio\WEMSharp\CRC32.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Audio\WEMSharp\OggStream.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Audio\WEMSharp\Packet.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Audio\WEMSharp\Packet8.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Audio\WEMSharp\WEMFile.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Engine\Systems\AudioSystem.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Text\EngineTextRenderer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GMDL\Components\AudioComponent.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="$(MSBuildThisFileDirectory)Common\" />

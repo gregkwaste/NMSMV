@@ -104,7 +104,7 @@ namespace MVCore.GMDL
 
             List<TkProceduralTexture> texList = new List<TkProceduralTexture>(8);
             for (int i = 0; i < 8; i++) texList.Add(null);
-            ModelProcGen.parse_procTexture(ref texList, template, ref Common.RenderState.activeResMgr);
+            ModelProcGen.parse_procTexture(texList, template);
 
             Common.CallBacks.Log("Proc Texture Selection");
             for (int i = 0; i < 8; i++)

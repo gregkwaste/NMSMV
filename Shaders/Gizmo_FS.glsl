@@ -26,8 +26,6 @@ uniform float is_active;
 
 
 void main(){
-	float avg_col = 0.33 * (vertColor.r + vertColor.g + vertColor.b);
-	vec4 gray = vec4(avg_col, avg_col, avg_col, 1.0);
-	vec4 col = mix(vertColor, gray, 0.5);
-	fragColor = mix(vertColor, col, is_active);
+	vec4 highlight = vec4(1.0, 0.85, 0.12, 1.0);
+	fragColor = mix(vertColor, highlight, 0.8 * is_active);
 }

@@ -8,9 +8,11 @@ using OpenTK.Mathematics;
 
 namespace MVCore.GMDL
 {
-    public class AnimPoseComponent : Component
+    public class AnimPoseComponent : IComponent
     {
         public Model ref_object = null;
+        //The component entry of the entity file
+        public TkAnimPoseComponentData Template;
         //AnimationPoseData
         public List<AnimPoseData> _poseData = new List<AnimPoseData>();
         public AnimMetadata poseAnim = null; //The pose file, one frame range per pose
@@ -43,11 +45,12 @@ namespace MVCore.GMDL
         //Default Constructor
         public AnimPoseComponent()
         {
-
+            Template = new TkAnimPoseComponentData();
         }
 
         public AnimPoseComponent(TkAnimPoseComponentData apcd)
         {
+            Template = apcd;
             //The pose file is shared by every node and instance that uses it, like regular animations
             if (Common.RenderState.activeResMgr.Animations.TryGetValue(apcd.Filename, out AnimMetadata cached))
                 poseAnim = cached;
@@ -232,10 +235,11 @@ namespace MVCore.GMDL
             return 0.5 * (1.0 + (z < 0 ? -erf : erf));
         }
 
-        public override Component Clone()
+        public IComponent Clone()
         {
             //The pose file and the correlation factor are read-only and shared, the slider values are copied
             AnimPoseComponent apc = new AnimPoseComponent();
+            apc.Template = Template;
             apc.poseAnim = poseAnim;
             apc.corrL = corrL;
             foreach (AnimPoseData pd in poseData)

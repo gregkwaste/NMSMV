@@ -11,6 +11,7 @@ using System.ComponentModel;
 using System.Diagnostics.Contracts;
 using System.Windows.Input;
 using Newtonsoft.Json;
+using System.Threading.Tasks;
 
 namespace MVCore.Common
 {
@@ -20,12 +21,6 @@ namespace MVCore.Common
         CAMERA_MOVEMENT = 0x0,
         GIZMO_MOVEMENT,
         IDLE
-    }
-
-    public class MouseMovementState
-    {
-        public Vector2 Position = new Vector2();
-        public Vector2 Delta = new Vector2();   
     }
 
     public static class RenderState
@@ -38,10 +33,57 @@ namespace MVCore.Common
 
         //Set when anything that affects culling or the instance data changes. The frame update rebuilds
         //the mesh instances only when it is set
-        public static bool instancesDirty = true;
+        private static int _instancesDirty = 1;
+        private static int dirtySets = 0;
+        public static bool instancesDirty
+        {
+            get => System.Threading.Volatile.Read(ref _instancesDirty) != 0;
+            [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+            set
+            {
+                int previous;
+                if (value)
+                    previous = System.Threading.Interlocked.Exchange(ref _instancesDirty, 1);
+                else
+                {
+                    System.Threading.Volatile.Write(ref _instancesDirty, 0);
+                    return;
+                }
+
+                //Diagnostics: a few samples of who keeps asking for a rebuild, to find what makes a still scene rebuild
+                //its instances every frame
+                if (previous == 0)
+                {
+                    int setNumber = System.Threading.Interlocked.Increment(ref dirtySets);
+                    if (setNumber <= 3 || setNumber % 600 == 0)
+                    {
+                        var frames = new System.Diagnostics.StackTrace(1, false).GetFrames();
+                        var sb = new System.Text.StringBuilder();
+                        for (int i = 0; i < frames.Length && i < 6; i++)
+                        {
+                            var m = frames[i].GetMethod();
+                            sb.Append(m?.DeclaringType?.Name).Append('.').Append(m?.Name).Append(i < 5 ? " <- " : "");
+                        }
+                        CallBacks.Log?.Invoke("[Dirty] #" + setNumber + " set by " + sb);
+                    }
+                }
+            }
+        }
+
+        //Atomically takes the pending rebuild request. A UI write that races with the render thread's
+        //take remains set for the next frame instead of being overwritten by a later false assignment.
+        public static bool consumeInstancesDirty()
+        {
+            return System.Threading.Interlocked.Exchange(ref _instancesDirty, 0) != 0;
+        }
 
         //LOD level picked in the UI for every scene, -1 picks by camera distance
-        public static int forcedLOD = -1;
+        private static int _forcedLOD = -1;
+        public static int forcedLOD
+        {
+            get => System.Threading.Volatile.Read(ref _forcedLOD);
+            set => System.Threading.Volatile.Write(ref _forcedLOD, value);
+        }
 
         //Keep the view rotation Angles (in degrees)
         public static Vector3 rotAngles = new Vector3(0.0f);
@@ -67,7 +109,7 @@ namespace MVCore.Common
         //ActiveModel
         public static Model activeModel;
         //ActiveGizmo
-        public static Gizmo activeGizmo;
+        public static TransformGizmo activeGizmo;
         //Active GamePad
         public static BaseGamepadHandler activeGamepad;
 
@@ -101,9 +143,33 @@ namespace MVCore.Common
 
         public bool RenderBoundHulls { get; set; } = false;
 
-        public bool RenderGizmos { get; set; } = false;
+        public bool RenderShadowMeshes { get; set; } = false;
 
-        public bool EmulateActions { get; set; } = false;
+        public bool RenderGizmos { get; set; } = true;
+
+        //Notifies, so the Emulate Actions toggle in the Tools tab follows changes made from code
+        private bool _emulateActions = false;
+        public bool EmulateActions
+        {
+            get { return _emulateActions; }
+            set
+            {
+                _emulateActions = value;
+                NotifyPropertyChanged("EmulateActions");
+            }
+        }
+
+        //Plays the entities' sounds, toggled next to Emulate Actions
+        private bool _playAudio = false;
+        public bool PlayAudio
+        {
+            get { return _playAudio; }
+            set
+            {
+                _playAudio = value;
+                NotifyPropertyChanged("PlayAudio");
+            }
+        }
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -141,6 +207,8 @@ namespace MVCore.Common
         public bool UseFXAA { get; set; } = true;
 
         public bool UseBLOOM { get; set; } = true;
+
+        public bool UseShadows { get; set; } = true;
 
         
         public int AnimFPS
@@ -431,6 +499,18 @@ namespace MVCore.Common
         public static int texturesNum = 0;
         public static float fpsCount = 0;
         public static int occludedNum = 0;
+        public static int lodFilteredNum = 0;
+
+        //Time of the last instance rebuild (ticks of Stopwatch.GetTimestamp), for the frame stats in the log:
+        //meshes (culling and instancing) and lights (including their helper line uploads)
+        public static long meshTicks = 0;
+        public static long lightTicks = 0;
+        public static int meshCount = 0;
+        public static int lightCount = 0;
+        public static int lightUploads = 0; //Lights whose helper line had to be uploaded again
+        public static long jointTicks = 0;
+        public static int jointCount = 0;
+        public static int jointUploads = 0; //Joints whose lines had to be uploaded again
 
         public static void ClearStats()
         {
@@ -445,7 +525,7 @@ namespace MVCore.Common
     public delegate void OpenAnimCallBack(string filepath, Model animScene);
     public delegate void OpenPoseCallBack(string filepath, Model animScene);
     public delegate void LogCallBack(params object[] msg);
-    public delegate void SendRequestCallBack(ref ThreadRequest req);
+    public delegate Task EnqueueRenderCommandCallBack(System.Action command);
     public delegate void ShowMessageCallBack(string message, string caption);
     public delegate object GetResourceCallBack(string name);
     
@@ -455,7 +535,10 @@ namespace MVCore.Common
         public static OpenAnimCallBack openAnim = null;
         public static OpenPoseCallBack openPose = null;
         public static LogCallBack Log = null;
-        public static SendRequestCallBack issueRequestToGLControl = null;
+        //High-volume resource/import tracing. The WPF host connects this only in Debug builds.
+        public static LogCallBack VerboseLog = null;
+        public static void Verbose(params object[] msg) => VerboseLog?.Invoke(msg);
+        public static EnqueueRenderCommandCallBack enqueueRenderCommand = null;
         public static ShowMessageCallBack showError = null; //Error dialog of the host app
         public static GetResourceCallBack getResource = null; //Embedded resources of the host app (default textures, fonts)
     }

@@ -64,13 +64,10 @@ namespace MVCore.Input
         MOVE_Y_NEG,
         MOVE_X,
         MOVE_X_POS,
-        MOVE_X_NEG
-    }
-
-    public enum ControllerType
-    {
-        PS4_v2,
-        XBOX
+        MOVE_X_NEG,
+        ROTATE_SCENE_POS,
+        ROTATE_SCENE_NEG,
+        FRAME_SCENE
     }
 
     public delegate float MapGamepadStatus(float val);
@@ -80,6 +77,9 @@ namespace MVCore.Input
         public int ID;
         private List<float> State = new List<float>();
         private Dictionary<ControllerActions, int> ActionMap = new Dictionary<ControllerActions, int>();
+        private int slot = -1; //GLFW joystick slot of the pad in use, -1 while none is connected
+        private static bool glfwReady = false;
+        private const int JoystickLastSlot = 15; //GLFW_JOYSTICK_LAST
     
         public BaseGamepadHandler(int id)
         {
@@ -88,52 +88,72 @@ namespace MVCore.Input
                 State.Add(0.0f);
         }
 
+        //Poll the pad, once per frame. GLFW wants this on the thread that initialized it, the UI thread here
         public virtual void updateState()
         {
-            //TODO: OBSOLETE in OPENTK 4+
-
-            //GamePadCapabilities caps = GamePad.GetCapabilities(ID);
-        
-            //if (!caps.IsConnected)
-            //{
-            //    //Common.CallBacks.Log("COntroller not connected");
-            //    return;
-            //}
+            if (!glfwReady)
+                glfwReady = GLFW.Init(); //The GL control has usually done it already, then this does nothing
             
-            //GamepadState pad_status = GamePad.GetState(ID);
-            
-            ////0,1,2,3 - DPAD UP, DOWN, LEFT, RIGHT
-            //State[0] = (float)pad_status.DPad.Up;
-            //State[1] = (float)pad_status.DPad.Down;
-            //State[2] = (float)pad_status.DPad.Left;
-            //State[3] = (float)pad_status.DPad.Right;
+            if (glfwReady && (slot < 0 || !GLFW.JoystickIsGamepad(slot)))
+                slot = findGamepad(); //Pick up a pad plugged in later, or another one when this one goes
 
-            ////4,5,6,7 - BUTTONS (UP), (DOWN), (LEFT), (RIGHT)
-            //State[4] = (float)pad_status.Buttons.Y;
-            //State[5] = (float)pad_status.Buttons.A;
-            //State[6] = (float)pad_status.Buttons.X;
-            //State[7] = (float)pad_status.Buttons.B;
+            if (slot < 0 || !GLFW.GetGamepadState(slot, out OpenTK.Windowing.GraphicsLibraryFramework.GamepadState pad_status))
+            {
+                for (int i = 0; i < State.Count; i++)
+                    State[i] = 0.0f;
+                return;
+            }
 
-            ////8, 9 - BUTTONS (LB), (RB)
-            //State[8] = (float)pad_status.Buttons.LeftShoulder;
-            //State[9] = (float)pad_status.Buttons.RightShoulder;
+            readState(ref pad_status);
+        }
 
-            ////10, 11 - BUTTONS (LS), (RS)
-            //State[10] = (float)pad_status.Buttons.LeftStick;
-            //State[11] = (float)pad_status.Buttons.RightStick;
+        //First joystick slot GLFW has a gamepad mapping for, starting with the preferred one
+        private int findGamepad()
+        {
+            for (int i = 0; i <= JoystickLastSlot; i++)
+            {
+                int jid = (ID + i) % (JoystickLastSlot + 1);
+                if (GLFW.JoystickIsGamepad(jid))
+                    return jid;
+            }
+            return -1;
+        }
 
-            ////12, 13 - TRIGGERS (Left), (Right) 
-            //State[12] = pad_status.Triggers.Left;
-            //State[13] = pad_status.Triggers.Right;
+        //GLFW reports every pad it knows (Xbox, DualShock/DualSense, Switch Pro...) in the Xbox layout.
+        //Store it in XBOXGamePadLayout order, triggers in 0..1 and sticks with up positive
+        private unsafe void readState(ref OpenTK.Windowing.GraphicsLibraryFramework.GamepadState pad_status)
+        {
+            //0,1,2,3 - DPAD UP, DOWN, LEFT, RIGHT
+            State[0] = pad_status.Buttons[11];
+            State[1] = pad_status.Buttons[13];
+            State[2] = pad_status.Buttons[14];
+            State[3] = pad_status.Buttons[12];
 
-            ////14, 15 - STICKS (Left Horizontal), (Left Vertical)
-            //State[14] = pad_status.ThumbSticks.Left.X;
-            //State[15] = pad_status.ThumbSticks.Left.Y;
+            //4,5,6,7 - BUTTONS Y, A, X, B
+            State[4] = pad_status.Buttons[3];
+            State[5] = pad_status.Buttons[0];
+            State[6] = pad_status.Buttons[2];
+            State[7] = pad_status.Buttons[1];
 
-            ////14, 15 - STICKS (Right Horizontal), (Right Vertical)
-            //State[16] = pad_status.ThumbSticks.Right.X;
-            //State[17] = pad_status.ThumbSticks.Right.Y;
+            //8, 9 - BUTTONS (LB), (RB)
+            State[8] = pad_status.Buttons[4];
+            State[9] = pad_status.Buttons[5];
 
+            //10, 11 - BUTTONS (LS), (RS)
+            State[10] = pad_status.Buttons[9];
+            State[11] = pad_status.Buttons[10];
+
+            //12, 13 - TRIGGERS (Left), (Right). GLFW gives -1 at rest
+            State[12] = 0.5f * (pad_status.Axes[4] + 1.0f);
+            State[13] = 0.5f * (pad_status.Axes[5] + 1.0f);
+
+            //14, 15 - STICKS (Left Horizontal), (Left Vertical). GLFW has down positive
+            State[14] = pad_status.Axes[0];
+            State[15] = -pad_status.Axes[1];
+
+            //16, 17 - STICKS (Right Horizontal), (Right Vertical)
+            State[16] = pad_status.Axes[2];
+            State[17] = -pad_status.Axes[3];
         }
 
 
@@ -144,9 +164,10 @@ namespace MVCore.Input
 
         public abstract float getAction(ControllerActions action);
 
+        //-1 when the action has no button
         public int getActionButton(ControllerActions action)
         {
-            return ActionMap[action];
+            return ActionMap.TryGetValue(action, out int btn) ? btn : -1;
         }
 
         public virtual float getState(int id)
@@ -173,17 +194,64 @@ namespace MVCore.Input
 
         public bool isConnected()
         {
-            return false;
-            //return GamePad.GetCapabilities(ID).IsConnected;
+            return slot >= 0;
         }
 
         public string getName()
         {
-            //return GamePad.GetName(ID);
-            return "";
+            return slot >= 0 ? (GLFW.GetGamepadName(slot) ?? "Gamepad") : "None";
         }
 
 
+    }
+
+
+    //Reads any pad GLFW has a mapping for, since GLFW puts them all in the Xbox layout
+    public class XBOXGamePadHandler : BaseGamepadHandler
+    {
+        //Sticks rest a bit off center, worn ones more so
+        private const float StickDeadZone = 0.15f;
+        private const float TriggerDeadZone = 0.05f;
+
+        public XBOXGamePadHandler(int id) : base(id)
+        {
+            setDefaultActionMap();
+        }
+
+        public override float getAction(ControllerActions action)
+        {
+            int btn = getActionButton(action);
+            if (btn < 0)
+                return 0.0f;
+
+            //Cut the dead zone and rescale the rest, so the response starts at 0 instead of jumping.
+            //Buttons are 0 or 1 and come through unchanged
+            float val = getState(btn);
+            float dead = btn >= (int) XBOXGamePadLayout.L_H ? StickDeadZone : TriggerDeadZone;
+            float mag = Math.Abs(val);
+            if (mag < dead)
+                return 0.0f;
+            return Math.Sign(val) * Math.Min((mag - dead) / (1.0f - dead), 1.0f);
+        }
+
+        //Left stick moves and strafes, the triggers go up (RT) and down (LT), the right stick looks around,
+        //the bumpers turn the scene like Q/E and Y frames the scene like Home
+        private void setDefaultActionMap()
+        {
+            Dictionary<ControllerActions, int> actMap = new Dictionary<ControllerActions, int>
+            {
+                [ControllerActions.MOVE_X] = (int)XBOXGamePadLayout.L_H,
+                [ControllerActions.MOVE_Z] = (int)XBOXGamePadLayout.L_V,
+                [ControllerActions.MOVE_Y_POS] = (int)XBOXGamePadLayout.RT,
+                [ControllerActions.MOVE_Y_NEG] = (int)XBOXGamePadLayout.LT,
+                [ControllerActions.CAMERA_MOVE_H] = (int)XBOXGamePadLayout.R_H,
+                [ControllerActions.CAMERA_MOVE_V] = (int)XBOXGamePadLayout.R_V,
+                [ControllerActions.ROTATE_SCENE_POS] = (int)XBOXGamePadLayout.RB,
+                [ControllerActions.ROTATE_SCENE_NEG] = (int)XBOXGamePadLayout.LB,
+                [ControllerActions.FRAME_SCENE] = (int)XBOXGamePadLayout.Y
+            };
+            setActionMap(actMap);
+        }
     }
 
 

@@ -1,297 +1,63 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml;
-using System.Diagnostics;
-using OpenTK;
-using OpenTK.Graphics.OpenGL4;
-using System.Reflection;
-using System.IO;
 using libMBIN.NMS.Toolkit;
-using MVCore.Utils;
-using System.Collections.ObjectModel;
 
 namespace MVCore
 {
-    public class ModelProcGen
+    public static class ModelProcGen
     {
-        //static Random randgen = new Random();
-        public static Dictionary<string, string> procDecisions = new Dictionary<string, string>();
-
-        public static void addToStr(ref List<string> parts, string entry)
+        public static void parse_procTexture(List<TkProceduralTexture> parts, TkProceduralTextureList template)
         {
-            if (!parts.Contains(entry))
-                parts.Add(entry);
-        }
-
-        public static void parse_descriptor(Random randgen, string dirpath, ref List<string> parts, XmlElement root)
-        {
-            foreach (XmlElement el in root.ChildNodes)
-            {
-                string TypeId = ((XmlElement)el.SelectSingleNode(".//Property[@name='TypeId']")).GetAttribute("value");
-                //Debug.WriteLine(TypeId);
-                //Select descriptors
-                XmlElement descriptors = (XmlElement)el.SelectSingleNode(".//Property[@name='Descriptors']");
-
-                //Select one descriptor
-                int sel = randgen.Next(0, descriptors.ChildNodes.Count);
-                XmlElement selNode = (XmlElement) descriptors.ChildNodes[sel];
-                //Add selection to parts
-                string partName = ((XmlElement)selNode.SelectSingleNode(".//Property[@name='Name']")).GetAttribute("value");
-                addToStr(ref parts, partName);
-
-                //Check for existing descriptors in the current element
-                XmlElement refNode = (XmlElement) selNode.SelectSingleNode(".//Property[@name='ReferencePaths']");
-                if (refNode.ChildNodes.Count > 0)
-                {
-                    for (int i = 0; i < refNode.ChildNodes.Count; i++)
-                    {
-                        XmlElement refChild = (XmlElement) refNode.ChildNodes[i];
-                        string refPath = ((XmlElement)refChild.SelectSingleNode("Property[@name='Value']")).GetAttribute("value");
-                        //Construct Descriptor Path
-                        string[] split = refPath.Split('.');
-                        string descrpath = "";
-                        for (int j = 0; j < split.Length - 2; j++)
-                            descrpath = Path.Combine(descrpath, split[j]);
-                        descrpath += ".DESCRIPTOR.MBIN";
-                        descrpath = Path.Combine(dirpath, descrpath);
-                        string exmlPath = FileUtils.getExmlPath(descrpath);
-
-                        //Check if descriptor exists at all
-                        if (File.Exists(descrpath))
-                        {
-                            //Convert only if file does not exist
-                            if (!File.Exists(exmlPath))
-                            {
-                                Debug.WriteLine("Exml does not exist, Converting...");
-                                //Convert Descriptor MBIN to exml
-                                FileUtils.MbinToExml(descrpath, exmlPath);
-                            }
-
-                            //Parse exml now
-                            XmlDocument descrXml = new XmlDocument();
-                            descrXml.Load(exmlPath);
-                            XmlElement newRoot = (XmlElement)descrXml.ChildNodes[2].ChildNodes[0];
-                            //Parse Descriptors from this object
-                            parse_descriptor(randgen, dirpath, ref parts, newRoot);
-                        }
-                    }
-                    
-
-                }
-                    
-                //Get to children
-                XmlElement children = (XmlElement)selNode.SelectSingleNode(".//Property[@name='Children']");
-
-                if (children.ChildNodes.Count != 0)
-                {
-                    foreach (XmlElement child in children.ChildNodes[0].ChildNodes)
-                        parse_descriptor(randgen, dirpath, ref parts, child);
-                }
-                
-
-                //foreach (XmlElement d in descriptors.ChildNodes)
-                //{
-                //    string Id = ((XmlElement) d.SelectSingleNode(".//Property[@name='Id']")).GetAttribute("value");
-                //    string Name = ((XmlElement)d.SelectSingleNode(".//Property[@name='Name']")).GetAttribute("value");
-                //    Debug.WriteLine(Id + Name);
-                //}
-
-            }
-        }
-
-
-        public static GMDL.Model get_procgen_parts(ref List<string> descriptors, GMDL.Model root)
-        {
-            //Make deep copy of root 
-            GMDL.Model newRoot = ((GMDL.Scene) root).Clone();
-            root.procFlag = true; //Always keep the root node
-
-            //PHASE 1
-            //Flag Procgen parts
-            get_procgen_parts_phase1(ref descriptors, newRoot);
-            //PHASE 2
-            //Save all candidates for removal
-            List<string> childDelList = new List<string>();
-            get_procgen_parts_phase2(ref childDelList, newRoot);
-            //PHASE 3
-            //Remove candidates
-            get_procgen_parts_phase3(childDelList, newRoot);
-            
-
-
-            return newRoot;
-        }
-
-        public static void get_procgen_parts_phase1(ref List<string> descriptors, GMDL.Model root)
-        {
-            //During phase one all procgen parts are flagged
-            foreach (GMDL.Model child in root.Children)
-            {
-                //Identify Descriptors
-                if (child.name.StartsWith("_"))
-                {
-                    for (int i = 0; i < descriptors.Count; i++)
-                    {
-                        if (child.name.Contains(descriptors[i]))
-                        {
-                            child.procFlag = true;
-                            Debug.WriteLine("Setting Flag on " + child.name);
-                            //iterate into Descriptor children
-                            get_procgen_parts_phase1(ref descriptors, child);
-                        }
-                    }
-                }
-                //DO FLAG JOINTS
-                else if (child.type == TYPES.JOINT)
-                    continue;
-                //Standard part, Endpoint as well
-                else
-                {
-                    //Add part to partlist if not Joint, Light or Collision
-                    if (child.type != TYPES.JOINT & child.type != TYPES.LIGHT & child.type != TYPES.COLLISION)
-                    {
-                        child.procFlag = true;
-                        Debug.WriteLine("Setting Flag on " + child.name);
-                        //Cover the case where endpoints have children as well
-                        get_procgen_parts_phase1(ref descriptors, child);
-                    }
-                }
-            }
-        }
-
-        public static void get_procgen_parts_phase2(ref List<string> dellist, GMDL.Model root)
-        {
-            foreach (GMDL.Model child in root.Children)
-            {
-                if (!child.procFlag)
-                    dellist.Add(child.name);
-                else
-                    get_procgen_parts_phase2(ref dellist, child);
-            }   
-        }
-
-        public static void get_procgen_parts_phase3(List<string> dellist, GMDL.Model root)
-        {
-            for (int i = 0; i < dellist.Count; i++)
-            {
-                string part_name = dellist[i];
-                GMDL.Model child;
-                child = collectPart(root.Children, part_name);
-
-                if (child != null)
-                {
-                    GMDL.Model parent = child.parent;
-                    parent.Children.Remove(child);
-                }
-                
-            }
-        }
-
-        public static void parse_procTexture(ref List<TkProceduralTexture> parts, TkProceduralTextureList template, ref ResourceManager resMgr)
-        {
-            Dictionary<string, int> selections = new Dictionary<string, int>(); //Layer name -> chosen texture index
+            Dictionary<string, int> selections = new Dictionary<string, int>();
             for (int i = 0; i < template.Layers.Length; i++)
             {
                 TkProceduralTextureLayer layer = template.Layers[i];
-                int layerid = i;
                 List<TkProceduralTexture> textures = layer.Textures;
 
-                parts[layerid] = null; //Init to null
+                parts[i] = null;
 
                 if (textures == null || textures.Count == 0)
                     continue;
 
-                //Each layer only appears with its probability (the base is always kept)
                 if (i > 0 && Common.RenderState.randgen.NextDouble() >= layer.Probability)
                     continue;
 
-                int sel;
-                //A linked layer picks the same entry as the layer it names
-                if (!string.IsNullOrEmpty(layer.LinkedLayer) && selections.TryGetValue(layer.LinkedLayer, out int linked) && linked < textures.Count)
-                    sel = linked;
+                int selection;
+                if (!string.IsNullOrEmpty(layer.LinkedLayer) &&
+                    selections.TryGetValue(layer.LinkedLayer, out int linked) &&
+                    linked < textures.Count)
+                {
+                    selection = linked;
+                }
                 else
-                    sel = weightedPick(textures);
+                {
+                    selection = weightedPick(textures);
+                }
 
                 if (!string.IsNullOrEmpty(layer.Name))
-                    selections[layer.Name] = sel;
-                parts[layerid] = textures[sel];
+                    selections[layer.Name] = selection;
+                parts[i] = textures[selection];
             }
         }
 
-        //Pick a texture by its Probability weight (uniform when all weights are 0)
         private static int weightedPick(List<TkProceduralTexture> textures)
         {
             float total = 0.0f;
-            foreach (TkProceduralTexture t in textures)
-                total += Math.Max(t.Probability, 0.0f);
+            foreach (TkProceduralTexture texture in textures)
+                total += Math.Max(texture.Probability, 0.0f);
 
             if (total <= 0.0f)
                 return Common.RenderState.randgen.Next(0, textures.Count);
 
-            double r = Common.RenderState.randgen.NextDouble() * total;
+            double selection = Common.RenderState.randgen.NextDouble() * total;
             for (int i = 0; i < textures.Count; i++)
             {
-                r -= Math.Max(textures[i].Probability, 0.0f);
-                if (r < 0.0)
+                selection -= Math.Max(textures[i].Probability, 0.0f);
+                if (selection < 0.0)
                     return i;
             }
+
             return textures.Count - 1;
         }
-
-        public static GMDL.Model collectPart(ObservableCollection<GMDL.Model> coll, string name)
-        {
-            foreach (GMDL.Model child in coll)
-            {
-                if (child.name == name)
-                {
-                    return child;
-                }
-                else
-                {
-
-                    GMDL.Model ret = collectPart(child.Children, name);
-                    if (ret != null)
-                        return ret;
-                    else
-                        continue;
-                }
-            }
-            return null;
-        }
     }
-
-    class Selector
-    {
-        public string split = "_";
-        public List<string> opts = new List<string>();
-        public Dictionary<string, List<Selector>> subs = new Dictionary<string, List<Selector>>();
-        public bool endpoint = false;
-        public string name;
-
-        public Selector(string nm)
-        {
-            this.name = nm;
-        }
-
-        public List<string> get_subnames(string key)
-        {
-            List<string> l = new List<string>();
-            Debug.WriteLine(this.subs[key]);
-            if (subs.Keys.Contains(key))
-                ErrorUtils.throwException("Malakia Key");
-            
-            foreach (Selector sel in this.subs[key])
-            {
-                l.Add(sel.name);
-            }
-
-            return l;
-        }
-        
-    }
-
-
 }

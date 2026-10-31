@@ -177,41 +177,41 @@ namespace MVCore.Utils
 
         }
 
-        public static Assimp.Matrix4x4 convertMatrix(Matrix4 localMat)
+        public static System.Numerics.Matrix4x4 convertMatrix(Matrix4 localMat)
         {
-            Assimp.Matrix4x4 mat = new Assimp.Matrix4x4();
-            mat.A1 = localMat.Column0.X;
-            mat.A2 = localMat.Column0.Y;
-            mat.A3 = localMat.Column0.Z;
-            mat.A4 = localMat.Column0.W;
-            mat.B1 = localMat.Column1.X;
-            mat.B2 = localMat.Column1.Y;
-            mat.B3 = localMat.Column1.Z;
-            mat.B4 = localMat.Column1.W;
-            mat.C1 = localMat.Column2.X;
-            mat.C2 = localMat.Column2.Y;
-            mat.C3 = localMat.Column2.Z;
-            mat.C4 = localMat.Column2.W;
-            mat.D1 = localMat.Column3.X;
-            mat.D2 = localMat.Column3.Y;
-            mat.D3 = localMat.Column3.Z;
-            mat.D4 = localMat.Column3.W;
+            System.Numerics.Matrix4x4 mat = new System.Numerics.Matrix4x4();
+            mat.M11 = localMat.Column0.X;
+            mat.M12 = localMat.Column0.Y;
+            mat.M13 = localMat.Column0.Z;
+            mat.M14 = localMat.Column0.W;
+            mat.M21 = localMat.Column1.X;
+            mat.M22 = localMat.Column1.Y;
+            mat.M23 = localMat.Column1.Z;
+            mat.M24 = localMat.Column1.W;
+            mat.M31 = localMat.Column2.X;
+            mat.M32 = localMat.Column2.Y;
+            mat.M33 = localMat.Column2.Z;
+            mat.M34 = localMat.Column2.W;
+            mat.M41 = localMat.Column3.X;
+            mat.M42 = localMat.Column3.Y;
+            mat.M43 = localMat.Column3.Z;
+            mat.M44 = localMat.Column3.W;
 
             return mat;
         }
 
-        public static Assimp.Vector3D convertVector(Vector3 localVec)
+        public static System.Numerics.Vector3 convertVector(Vector3 localVec)
         {
-            Assimp.Vector3D vec = new Assimp.Vector3D();
+            System.Numerics.Vector3 vec = new System.Numerics.Vector3();
             vec.X = localVec.X;
             vec.Y = localVec.Y;
             vec.Z = localVec.Z;
             return vec;
         }
 
-        public static Assimp.Quaternion convertQuaternion(OpenTK.Mathematics.Quaternion localQuat)
+        public static System.Numerics.Quaternion convertQuaternion(OpenTK.Mathematics.Quaternion localQuat)
         {
-            Assimp.Quaternion q = new Assimp.Quaternion();
+            System.Numerics.Quaternion q = new System.Numerics.Quaternion();
             q.X = localQuat.X;
             q.Y = localQuat.Y;
             q.Z = localQuat.Z;

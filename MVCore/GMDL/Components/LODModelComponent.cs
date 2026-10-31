@@ -5,8 +5,10 @@ using libMBIN.NMS.Toolkit;
 
 namespace MVCore.GMDL
 {
-    public class LODModelComponent : Component
+    public class LODModelComponent : IComponent
     {
+        //The component entry of the entity file
+        public TkLODComponentData Template;
         private List<LODModelResource> _resources;
 
         //Properties
@@ -14,12 +16,21 @@ namespace MVCore.GMDL
 
         public LODModelComponent()
         {
+            Template = new TkLODComponentData();
             _resources = new List<LODModelResource>();
         }
 
-        public override Component Clone()
+        public LODModelComponent(TkLODComponentData data)
         {
-            LODModelComponent lmc = new LODModelComponent();
+            Template = data;
+            _resources = new List<LODModelResource>();
+        }
+
+        public IComponent Clone()
+        {
+            //Copies share the entity data
+            LODModelComponent lmc = new LODModelComponent(Template);
+            lmc._resources.AddRange(_resources);
             return lmc;
         }
 
@@ -28,24 +39,21 @@ namespace MVCore.GMDL
 
     public class LODModelResource
     {
-        private string _filename;
-        private float _crossFadeTime;
-        private float _crossFadeoverlap;
+        //The LOD model entry of the entity file
+        public TkLODModelResource Template;
 
         //Properties
         public string Filename
         {
             get
             {
-                return _filename;
+                return Template.LODModel.Filename;
             }
         }
 
         public LODModelResource(TkLODModelResource res)
         {
-            _filename = res.LODModel.Filename;
-            //_crossFadeTime = res.CroCrossFadeTime;
-            //_crossFadeoverlap = res.CrossFadeOverlap;
+            Template = res;
         }
     }
 }

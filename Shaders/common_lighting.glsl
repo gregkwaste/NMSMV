@@ -38,7 +38,9 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 //(e.g. the camera fill light, where H == V), which produced NaN pixels
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
-    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+    float m = clamp(1.0 - cosTheta, 0.0, 1.0);
+    float m2 = m * m;
+    return F0 + (1.0 - F0) * (m2 * m2 * m);
 }  
 
 vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
@@ -158,25 +160,155 @@ vec3 calcBRDFLighting(vec3 L, vec3 radiance, vec3 N, vec3 V,
 }
 
 //Incoming radiance below this is invisible after tone mapping, even at high exposure. The attenuation
-//curves never reach zero, so without a cutoff every light would shade every pixel
-const float kLightCutoff = 1e-3;
+//curves never reach zero, so without a cutoff every light would shade every pixel.
+//LightClusters.cs sizes the light ranges with the same value
+const float kLightCutoff = 3e-3;
 
-vec3 calcLighting(Light light, vec4 fragPos, vec3 fragNormal, vec3 cameraPos, vec3 cameraDir,
-            vec3 albedoColor, float lfMetallic, float lfRoughness, float ao) {
-    
-    //Cheap rejections first: out of range, or the surface faces away from the light
-    float attenuation = calcLightAttenuation(light, fragPos);
-    vec3 radiance = light.color.xyz * light.color.w * attenuation;
+//The clustered path already needs the light vector and squared distance for its cheap rejection tests.
+//Accept them here so the expensive path does not calculate both values a second time.
+vec3 calcLightingPrepared(Light light, vec3 toLight, float d2, vec3 fragNormal, vec3 V,
+            vec3 albedoColor, float lfMetallic, float lfRoughness) {
+    float d = sqrt(d2);
+    float falloff = light.falloff;
+
+    //Same curves as calcLightAttenuation
+    float attenuation;
+    if (falloff < 1.0)
+        attenuation = 1.0 / max(1e-6, d2); //Quadratic
+    else if (falloff < 2.0)
+        attenuation = 1.0; //Constant
+    else if (falloff < 3.0)
+        attenuation = min(1.0 / max(d, 1e-6), 1.0); //Linear
+    else
+        attenuation = min(inversesqrt(max(d, 1e-6)), 1.0); //Square root
+
+    //The UBO key light predates this clustered-light field and contains zero in the padding slot.
+    //Treat zero as the neutral value; scene lights explicitly upload 1 or their LOD boundary gain.
+    float lodScale = light.lodAttenuationScale > 0.0 ? light.lodAttenuationScale : 1.0;
+    vec3 radiance = light.color.xyz * (light.color.w * attenuation * lodScale);
     if (max(radiance.r, max(radiance.g, radiance.b)) < kLightCutoff)
         return vec3(0.0);
 
-    vec3 L = normalize(light.position.xyz - fragPos.xyz);
-    if (dot(fragNormal, L) <= 0.0)
-        return vec3(0.0);
-
-    vec3 V = normalize(cameraPos - fragPos.xyz); //Calculate viewer vector based on camera position
-
+    vec3 L = toLight / max(d, 1e-6);
     return calcBRDFLighting(L, radiance, fragNormal, V, albedoColor, lfMetallic, lfRoughness);
+}
+
+//General non-clustered entry point. V is the normalized vector from the surface to the camera.
+vec3 calcLightingV(Light light, vec4 fragPos, vec3 fragNormal, vec3 V,
+            vec3 albedoColor, float lfMetallic, float lfRoughness) {
+    vec3 toLight = light.position.xyz - fragPos.xyz;
+    if (dot(fragNormal, toLight) <= 0.0)
+        return vec3(0.0);
+    return calcLightingPrepared(light, toLight, dot(toLight, toLight), fragNormal, V,
+                                albedoColor, lfMetallic, lfRoughness);
+}
+
+vec3 calcLighting(Light light, vec4 fragPos, vec3 fragNormal, vec3 cameraPos, vec3 cameraDir,
+            vec3 albedoColor, float lfMetallic, float lfRoughness, float ao) {
+    vec3 V = normalize(cameraPos - fragPos.xyz); //Calculate viewer vector based on camera position
+    return calcLightingV(light, fragPos, fragNormal, V, albedoColor, lfMetallic, lfRoughness);
+}
+
+
+//CLUSTERED SCENE LIGHTS
+//Every frame the engine (LightClusters.cs) splits the view into screen tiles and exponential depth
+//slices and lists the scene lights that reach each cluster. Lights that reach the whole view come
+//first in sceneLights and apply to every pixel. The key light (light 0) is not part of these.
+
+layout (std430, binding=2) readonly buffer _SCENE_LIGHTS
+{
+    Light sceneLights[];
+};
+
+layout (std430, binding=3) readonly buffer _LIGHT_CLUSTERS
+{
+    uvec4 clusterGrid; //x, y: screen tiles, z: depth slices, w: number of global lights
+    vec4 clusterParams; //x, w: tile width and height in pixels, y, z: depth slice scale and bias
+    uvec2 clusterCells[]; //Offset in clusterLightIndices and light count of every cluster
+};
+
+layout (std430, binding=4) readonly buffer _LIGHT_CLUSTER_INDICES
+{
+    uint clusterLightIndices[];
+};
+
+//Scene-light upload normalizes direction.xyz and stores cos(half cone angle) in direction.w.
+//Point lights are identified by type and deliberately bypass this test, including authored 360-degree lights.
+bool outsideSpotCone(Light light, vec3 toLight)
+{
+    if (light.type < 1.0)
+        return false;
+
+    vec3 lightToFragment = -toLight;
+    float distanceSquared = dot(lightToFragment, lightToFragment);
+    if (distanceSquared <= 1e-12)
+        return false;
+
+    float axialDistance = dot(light.direction.xyz, lightToFragment);
+    float coneCos = light.direction.w;
+    //Direction normalization and cos(half FOV) are handled once during light upload. Keep the
+    //per-pixel comparison branch-free; GPU reciprocal square root is cheaper than the prior
+    //branch-heavy squared test and remains correct for both acute and obtuse authored cones.
+    return axialDistance * inversesqrt(distanceSquared) < coneCos;
+}
+
+//Distance in front of the camera for a window space depth, as the clusters measure it
+float viewDepthFromWindowZ(float windowZ, mat4 projMatInv)
+{
+    vec4 v = projMatInv * vec4(0.0, 0.0, 2.0 * windowZ - 1.0, 1.0);
+    return -v.z / v.w;
+}
+
+vec3 calcSceneLighting(vec2 fragCoord, float viewDepth, vec4 fragPos, vec3 fragNormal, vec3 cameraPos, vec3 cameraDir,
+            vec3 albedoColor, float lfMetallic, float lfRoughness, float ao)
+{
+    vec3 finalColor = vec3(0.0);
+    if (clusterGrid.x == 0u)
+        return finalColor;
+
+    vec3 V = normalize(cameraPos - fragPos.xyz);
+
+    //Lights that reach the whole view
+    for (uint i = 0u; i < clusterGrid.w; ++i)
+    {
+        Light light = sceneLights[i];
+        vec3 toLight = light.position.xyz - fragPos.xyz;
+        //Reject authored spot cones before range, attenuation and BRDF work.
+        if (outsideSpotCone(light, toLight))
+            continue;
+        //About half the candidates face away; reject them before distance, attenuation and BRDF work.
+        if (dot(fragNormal, toLight) <= 0.0)
+            continue;
+        float d2 = dot(toLight, toLight);
+        if (d2 > light.range * light.range)
+            continue;
+        finalColor += calcLightingPrepared(light, toLight, d2, fragNormal, V,
+                                           albedoColor, lfMetallic, lfRoughness);
+    }
+
+    //Lights of this pixel's cluster
+    ivec2 tile = clamp(ivec2(fragCoord / clusterParams.xw), ivec2(0), ivec2(clusterGrid.xy) - 1);
+    int slice = clamp(int(floor(log(max(viewDepth, 1e-6)) * clusterParams.y + clusterParams.z)), 0, int(clusterGrid.z) - 1);
+    uvec2 cell = clusterCells[(uint(slice) * clusterGrid.y + uint(tile.y)) * clusterGrid.x + uint(tile.x)];
+
+    for (uint i = 0u; i < cell.y; ++i)
+    {
+        //A cluster is bigger than a pixel, so lights listed for it can still be out of range here.
+        //The distance check is much cheaper than the attenuation and BRDF
+        Light light = sceneLights[clusterLightIndices[cell.x + i]];
+        vec3 toLight = light.position.xyz - fragPos.xyz;
+        if (outsideSpotCone(light, toLight))
+            continue;
+        if (dot(fragNormal, toLight) <= 0.0)
+            continue;
+        float d2 = dot(toLight, toLight);
+        if (d2 > light.range * light.range)
+            continue;
+        finalColor += calcLightingPrepared(light, toLight, d2, fragNormal, V,
+                                           albedoColor, lfMetallic, lfRoughness);
+    }
+
+    return finalColor;
 }
 
 
@@ -190,7 +322,6 @@ const vec3 kEnvGroundColourVec3 = vec3(0.30, 0.27, 0.24);
 //Calibrated for the ACES tone curve at 0 EV: a mid grey surface under the key light lands around
 //0.2-0.5 linear, leaving headroom for highlights
 const float kEnvIntensity = 0.4;
-const float kKeyLightIntensity = 2.0;
 const float kFillLightIntensity = 0.3;
 
 vec3 EnvHemisphere(vec3 dir)
@@ -209,9 +340,10 @@ vec3 EnvBRDFApprox(vec3 F0, float roughness, float NoV)
     return F0 * AB.x + AB.y;
 }
 
-//keyLight is the default viewport light: only its direction from the scene origin and its color are used
+//keyLight is the default viewport light: only its direction from the scene origin and its color are used.
+//keyShadow scales the key light only (1: lit, 0: in shadow)
 vec3 calcEnvironmentLighting(Light keyLight, vec4 fragPos, vec3 N, vec3 cameraPos,
-            vec3 albedoColor, float lfMetallic, float lfRoughness, float ao)
+            vec3 albedoColor, float lfMetallic, float lfRoughness, float ao, float keyShadow)
 {
     lfRoughness = clampRoughness(lfRoughness);
     vec3 V = normalize(cameraPos - fragPos.xyz);
@@ -224,7 +356,7 @@ vec3 calcEnvironmentLighting(Light keyLight, vec4 fragPos, vec3 N, vec3 cameraPo
     {
         vec3 keyDir = keyLight.position.xyz;
         keyDir = dot(keyDir, keyDir) > 1e-8 ? normalize(keyDir) : normalize(vec3(1.0));
-        finalColor += calcBRDFLighting(keyDir, keyLight.color.rgb * kKeyLightIntensity, N, V, albedoColor, lfMetallic, lfRoughness);
+        finalColor += keyShadow * calcBRDFLighting(keyDir, keyLight.color.rgb * keyLight.color.w, N, V, albedoColor, lfMetallic, lfRoughness);
     }
 
     //Fill light from the camera, so the side facing the viewer is never black

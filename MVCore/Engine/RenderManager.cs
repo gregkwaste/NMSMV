@@ -9,6 +9,8 @@ using MVCore.GMDL;
 using MVCore.Engine;
 using OpenTK.Mathematics;
 using OpenTK.Graphics.OpenGL4;
+using MVCore.Text;
+using MVCore.Engine.Systems;
 
 
 namespace MVCore
@@ -23,8 +25,6 @@ namespace MVCore
         public float use_lighting; //Enable lighting
         [FieldOffset(8)]
         public float gfTime; //Fractional Time
-        [FieldOffset(12)]
-        public float MSAA_SAMPLES; //MSAA Samples
         [FieldOffset(16)]
         public Vector2 frameDim; //Frame Dimensions
         [FieldOffset(24)]
@@ -52,25 +52,87 @@ namespace MVCore
         public static readonly int SizeInBytes = 8592;
     };
 
-    public class renderManager : baseResourceManager, IDisposable
+    public class renderManager : IDisposable
     {
-        List<GLMeshVao> staticObjectsQueue = new List<GLMeshVao>();
-        List<GLMeshVao> movingMeshQueue = new List<GLMeshVao>();
-        
         List<GLMeshVao> globalMeshList = new List<GLMeshVao>();
+        private readonly HashSet<GLMeshVao> loggedDecalRoutes = new HashSet<GLMeshVao>();
         List<GLMeshVao> collisionMeshList = new List<GLMeshVao>();
         List<GLMeshVao> locatorMeshList = new List<GLMeshVao>();
         List<GLMeshVao> jointMeshList = new List<GLMeshVao>();
         List<GLMeshVao> lightMeshList = new List<GLMeshVao>();
 
-        public ResourceManager resMgr; //REf to the active resource Manager
+        private ResourceManager resMgr;
 
         public ShadowRenderer shdwRenderer; //Shadow Renderer instance
+        public LightClusters lightClusters; //Scene lights sorted into view clusters every frame
+        private ParticleSystem particleSystem;
+        private EngineTextRenderer textRenderer;
+        private readonly System.Diagnostics.Stopwatch textStatsClock = System.Diagnostics.Stopwatch.StartNew();
+        private string viewportStatsText = "";
+
+        //GPU times of the whole frame and of the deferred light pass, logged every few seconds
+        private GpuTimer frameTimer, lightPassTimer;
+        private readonly System.Diagnostics.Stopwatch frameStatsClock = System.Diagnostics.Stopwatch.StartNew();
+        private readonly System.Diagnostics.Stopwatch frameCpuClock = new();
+        public double lastRenderCpuMs { get; private set; } //CPU time of the last render(), for the frame loop stats
+        public double lastFrameGpuMs => frameTimer?.Ms ?? 0.0;
+        public double lastMeshUploadCpuMs { get; private set; }
+        public double lastFinalBlitCpuMs { get; private set; }
+        public int lastStableRecordsUploaded { get; private set; }
+        public int lastVisibleIdsUploaded { get; private set; }
+
+        //GPU time of a span of draw calls, from a pair of timestamps (unlike elapsed time queries, these can
+        //nest). The queries are read a few frames late, so the CPU never waits for them
+        private class GpuTimer : IDisposable
+        {
+            private const int QUERIES = 4;
+            private readonly int[] starts = new int[QUERIES];
+            private readonly int[] ends = new int[QUERIES];
+            private readonly bool[] used = new bool[QUERIES];
+            private int frame = 0;
+            public double Ms { get; private set; }
+
+            public GpuTimer()
+            {
+                GL.GenQueries(QUERIES, starts);
+                GL.GenQueries(QUERIES, ends);
+            }
+
+            public void Begin()
+            {
+                //Read the result of this slot's last use before reusing it
+                int q = frame % QUERIES;
+                if (used[q])
+                {
+                    GL.GetQueryObject(ends[q], GetQueryObjectParam.QueryResultAvailable, out int available);
+                    if (available != 0)
+                    {
+                        GL.GetQueryObject(starts[q], GetQueryObjectParam.QueryResult, out long start);
+                        GL.GetQueryObject(ends[q], GetQueryObjectParam.QueryResult, out long end);
+                        Ms = (end - start) / 1.0e6;
+                    }
+                }
+                GL.QueryCounter(starts[q], QueryCounterTarget.Timestamp);
+            }
+
+            public void End()
+            {
+                int q = frame % QUERIES;
+                GL.QueryCounter(ends[q], QueryCounterTarget.Timestamp);
+                used[q] = true;
+                frame++;
+            }
+
+            public void Dispose()
+            {
+                GL.DeleteQueries(QUERIES, starts);
+                GL.DeleteQueries(QUERIES, ends);
+            }
+        }
         
         private GBuffer gbuf;
         private PBuffer pbuf;
         public int screen_fbo;
-        private FBO gizmo_fbo;
         //Bloom mip chain: each level is half the size of the previous one, starting at half resolution
         private int bloomFbo = -1;
         private int[] bloomMips = new int[0];
@@ -79,7 +141,7 @@ namespace MVCore
         private const int BLOOM_MAX_MIPS = 6;
         private const int BLOOM_MIN_MIP_SIZE = 8;
         //Bloom parameters live in RenderState.renderSettings (Render Settings tab)
-        private float gfTime = 0.0f;
+        private double gfTime = 0.0; //Seconds. Kept in double so the wrap below stays exact
         private Dictionary<string, int> UBOs = new Dictionary<string, int>();
         private Dictionary<string, int> SSBOs = new Dictionary<string, int>();
 
@@ -88,21 +150,19 @@ namespace MVCore
         private List<IntPtr> multiBufferSyncStatuses = new List<IntPtr>(4); //Fence of the last frame that used each buffer
         private List<IntPtr> multiBufferPtrs = new List<IntPtr>(4); //Persistent mappings of the buffers
         
-        //Octree Structure
-        private Octree octree;
-
         //UBO structs
         CommonPerFrameUniforms cpfu;
         private int ssboSize; //Size of each per-mesh SSBO in bytes
+        private int ssboGeneration;
         private ReadBufferMode finalColorAttachment = ReadBufferMode.ColorAttachment0; //pbuf channel holding the finished frame
 
-        private int MAX_NUMBER_OF_MESHES = 2000;
-        private ulong MAX_OCTREE_WIDTH = 256;
         private int MULTI_BUFFER_COUNT = 3;
+#if DEBUG
         private DebugProc GLDebug;
+#endif
 
 
-        public void init(ResourceManager input_resMgr)
+        public void init(ResourceManager input_resMgr, ParticleSystem inputParticleSystem)
         {
 #if (DEBUG)
             //Asynchronous output: synchronous mode serializes the driver. The callback may run on a driver thread
@@ -124,13 +184,18 @@ namespace MVCore
 #endif
             //Setup Resource Manager
             resMgr = input_resMgr;
-
-            //Wait for the resource Manager to be initialized
-            while (!resMgr.initialized)
-                continue;
+            particleSystem = inputParticleSystem;
+            if (!resMgr.initialized)
+                throw new InvalidOperationException("The resource manager must be initialized before the renderer");
             
             //Setup Shadow Renderer
             shdwRenderer = new ShadowRenderer();
+
+            //Setup the scene light clusters
+            lightClusters = new LightClusters();
+            frameTimer = new GpuTimer();
+            lightPassTimer = new GpuTimer();
+            textRenderer = new EngineTextRenderer(resMgr, "Resources/droid.fnt", "Resources/droid.png");
 
             //Setup per Frame UBOs
             setupFrameUBO();
@@ -140,9 +205,6 @@ namespace MVCore
             multiBufferActiveId = 0;
             SSBOs["_COMMON_PER_MESH"] = multiBufferSSBOs[0];
             
-            //Initialize Octree
-            octree = new Octree(MAX_OCTREE_WIDTH);
-
         }
 
         private void GLDebugMessage(DebugSource source, DebugType type, int id, DebugSeverity severity, int length, IntPtr message, IntPtr userParam)
@@ -174,70 +236,15 @@ namespace MVCore
             gbuf = new GBuffer(width, height);
             pbuf = new PBuffer(width, height);
             setupBloom(width, height);
-            gizmo_fbo = new FBO(TextureTarget.Texture2D, 2, width, height, false);
         }
-
-        public void getMousePosInfo(int x, int y, ref Vector4[] arr)
-        {
-            //Fetch Depth
-            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, gbuf.fbo);
-            GL.ReadPixels(x, y, 1, 1, 
-                PixelFormat.DepthComponent, PixelType.Float, arr);
-            //Fetch color from UI Fbo
-        }
-
-        public void gizmoPick(ref Gizmo activeGizmo, Vector2 mousePos)
-        {
-            //Reset the active status of all the gizmo parts
-            activeGizmo.reset();
-
-            //Render the gizmos in the appropriate fbo
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, gizmo_fbo.fbo);
-            GL.ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            GLSLShaderConfig shader = resMgr.GLShaders[SHADER_TYPE.GIZMO_SHADER];
-            GL.UseProgram(shader.program_id);
-
-            foreach (GizmoPart gzPart in activeGizmo.gizmoParts)
-            {
-                //Render Translation Gizmo
-                GLMeshVao m = gzPart.meshVao;
-                //Render Start
-                Matrix4 mWMat = GLMeshBufferManager.getInstanceWorldMat(m, 0);
-                GL.UniformMatrix4(shader.uniformLocations["worldMat"], false, ref mWMat);
-                GL.Uniform1(shader.uniformLocations["is_active"], 0.0f); //Render with default color
-                m.render(shader, RENDERPASS.FORWARD);
-            }
-
-
-            //Pick color from the fbo in the mouse position
-            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, gizmo_fbo.fbo);
-            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-            float[] pixeldata = new float[10];
-            GL.ReadPixels((int) mousePos.X,  gizmo_fbo.size_y -  (int) mousePos.Y, 1, 1,
-                PixelFormat.Rgba, PixelType.Float, pixeldata);
-
-            Vector3 pixelColor = new Vector3(pixeldata[0], pixeldata[1], pixeldata[2]);
-            //Common.CallBacks.Log("Picking read color: {0}", pixelColor);
-
-            //Identify selected part and set status
-            foreach (GizmoPart gzPart in activeGizmo.gizmoParts)
-            {
-                if ((gzPart.pick_color - pixelColor).Length < 1e-5)
-                {
-                    gzPart.active = true;
-                } 
-            }
-
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-
-        }
-
 
         public void progressTime(double dt)
         {
-            gfTime += (float) dt / 500;
-            gfTime = gfTime % 1000.0f;
+            //dt is in milliseconds, the shaders expect seconds like the game's gfTime.
+            //Wrap after an hour so the float sent to the GPU keeps its precision. Common scroll steps
+            //(multiples of 1/3600) land on whole uv repeats there, so the wrap is seamless for them
+            gfTime += dt / 1000.0;
+            gfTime %= 3600.0;
         }
 
         public void cleanup()
@@ -245,14 +252,13 @@ namespace MVCore
             //Just cleanup the queues
             //The resource manager will handle the cleanup of the buffers and shit
 
+            resetInstanceRegistries();
+            loggedDecalRoutes.Clear();
             globalMeshList.Clear();
             collisionMeshList.Clear();
             locatorMeshList.Clear();
             jointMeshList.Clear();
             lightMeshList.Clear();
-            staticObjectsQueue.Clear();
-            movingMeshQueue.Clear();
-            octree.clear();
         }
 
         public void identifyActiveShaders()
@@ -289,31 +295,75 @@ namespace MVCore
                 if (RenderState.activeResMgr.decalMeshShaderMap[conf.shaderHash].Count > 0)
                     RenderState.activeResMgr.activeGLDeferredDecalShaders.Add(conf);
             }
+
+            foreach (GLSLShaderConfig shader in RenderState.activeResMgr.activeGLDeferredDecalShaders)
+            {
+                foreach (GLMeshVao mesh in RenderState.activeResMgr.decalMeshShaderMap[shader.shaderHash])
+                {
+                    if (!loggedDecalRoutes.Add(mesh))
+                        continue;
+
+                    CallBacks.Log("[DecalRoute] shader={0}; material={1}; class={2}; stableInstances={3}; visibleInstances={4}; indices={5}",
+                        shader.shaderHash, mesh.material?.Name ?? "<none>", mesh.material?.PClass ?? "<none>",
+                        mesh.stable_instance_count, mesh.instance_count, mesh.metaData?.batchcount ?? 0);
+                }
+            }
         }
 
-        public void populate(GMDL.Model root)
+        public void populate()
         {
             cleanup();
-
-            //Populate octree
-            octree.insert(root);
-            octree.report();
 
             foreach (Scene s in resMgr.GLScenes.Values)
                 process_models(s);
 
-            //Add gizmo meshes manually to the globalmeshlist\
-            //Translation gizmo parts
-            globalMeshList.Add(resMgr.GLPrimitiveMeshVaos["default_translation_gizmo_x_axis"]);
-            globalMeshList.Add(resMgr.GLPrimitiveMeshVaos["default_translation_gizmo_y_axis"]);
-            globalMeshList.Add(resMgr.GLPrimitiveMeshVaos["default_translation_gizmo_z_axis"]);
-
-
             //Add default light mesh
             process_model(resMgr.GLlights[0].meshVao);
+
+            logOccluderInventory();
             
             identifyActiveShaders();
 
+        }
+
+        //One-time scene inventory used to decide whether the game's simplified shadow geometry
+        //is substantial enough to justify building a separate local-light visibility structure. Triangle
+        //counts include stable instances and are approximate because batch counts are index counts.
+        private void logOccluderInventory()
+        {
+            int shadowProxyMeshes = 0, shadowProxyInstances = 0;
+            int regularCasterMeshes = 0, regularCasterInstances = 0;
+            long shadowProxyTriangles = 0, regularCasterTriangles = 0;
+
+            foreach (GLMeshVao mesh in globalMeshList)
+            {
+                if (mesh == null || mesh.metaData == null)
+                    continue;
+
+                int instances = Math.Max(mesh.stable_instance_count, 0);
+                long triangles = Math.Max(mesh.metaData.batchcount, 0) / 3L * instances;
+
+                if (mesh.type == TYPES.COLLISION)
+                    continue;
+
+                if (mesh.material?.ShadowOnly ?? false)
+                {
+                    shadowProxyMeshes++;
+                    shadowProxyInstances += instances;
+                    shadowProxyTriangles += triangles;
+                }
+                else if (mesh.material?.CastShadow ?? false)
+                {
+                    regularCasterMeshes++;
+                    regularCasterInstances += instances;
+                    regularCasterTriangles += triangles;
+                }
+            }
+
+            CallBacks.Log("[Occluders] shadow-only proxies: {0} mesh batches, {1} instances, ~{2} triangles; ordinary shadow casters: {3} mesh batches, {4} instances, ~{5} triangles",
+                shadowProxyMeshes, shadowProxyInstances, shadowProxyTriangles,
+                regularCasterMeshes, regularCasterInstances, regularCasterTriangles);
+            CallBacks.Log("[Occluders] the current shadow map uses these meshes for the key light only; collision geometry is excluded from local-light occlusion analysis");
         }
 
         private void process_model(GLMeshVao m)
@@ -398,6 +448,15 @@ namespace MVCore
             }
         }
 
+        public void resetInstanceRegistries()
+        {
+            lock (globalMeshList)
+            {
+                foreach (GLMeshVao m in globalMeshList)
+                    GLMeshBufferManager.resetInstances(m);
+            }
+        }
+
         private void setupFrameUBO()
         {
             int ubo_id = GL.GenBuffer();
@@ -407,6 +466,13 @@ namespace MVCore
 
             //Store buffer to UBO dictionary
             UBOs["_COMMON_PER_FRAME"] = ubo_id;
+
+            //Copy of the per frame data with the key light as the camera, bound while drawing the shadow map
+            ubo_id = GL.GenBuffer();
+            GL.BindBuffer(BufferTarget.UniformBuffer, ubo_id);
+            GL.BufferData(BufferTarget.UniformBuffer, CommonPerFrameUniforms.SizeInBytes, IntPtr.Zero, BufferUsageHint.StreamDraw);
+            GL.BindBuffer(BufferTarget.UniformBuffer, 0);
+            UBOs["_COMMON_PER_FRAME_SHADOW"] = ubo_id;
 
             //Attach the generated buffers to the binding points
             bindUBOs();
@@ -440,10 +506,9 @@ namespace MVCore
         private void setupSSBOs(int size)
         {
             //Allocate atlas
-            //int atlas_ssbo_buffer_size = MAX_NUMBER_OF_MESHES * CommonPerMeshUniformsInstanced.SizeInBytes;
-            //int atlas_ssbo_buffer_size = MAX_NUMBER_OF_MESHES * CommonPerMeshUniformsInstanced.SizeInBytes; //256 MB just to play safe
             //OpenGL Spec max size for the SSBO is 128 MB, lets stick to that
             ssboSize = size;
+            ssboGeneration++;
 
             //Generate 3 Buffers for triple buffering. Each one is mapped once and stays mapped (persistent),
             //coherent mapping makes CPU writes visible to the GPU without explicit flushes
@@ -522,12 +587,12 @@ namespace MVCore
             cpfu.cameraDirection = RenderState.activeCam.Front;
             cpfu.cameraNearPlane = RenderState.activeCam.zNear;
             cpfu.cameraFarPlane = RenderState.activeCam.zFar;
-            cpfu.light_number = Math.Min(32, resMgr.GLlights.Count);
-            cpfu.gfTime = gfTime;
-            cpfu.MSAA_SAMPLES = gbuf.msaa_samples;
+            //Only the key light goes in the UBO, the scene lights are in the light cluster buffers
+            cpfu.light_number = Math.Min(1, resMgr.GLlights.Count);
+            cpfu.gfTime = (float) gfTime;
 
             //Upload light information
-            for (int i = 0; i < Math.Min(32, resMgr.GLlights.Count); i++)
+            for (int i = 0; i < cpfu.light_number; i++)
             {
                 Light l = resMgr.GLlights[i];
                 //if (!l.update_changes)
@@ -565,31 +630,75 @@ namespace MVCore
             GL.BindBuffer(BufferTarget.UniformBuffer, 0);
         }
 
-        //Bytes a mesh takes in the per-mesh SSBO: the header and its instances, aligned to 256 bytes
-        //so that every mesh starts at a valid SSBO binding offset
+        private static int alignSSBORange(int bytes)
+        {
+            return ((bytes + 255) / 256) * 256;
+        }
+
+        //The instance record range contains every stable record for the batch. The visible-ID range
+        //contains only this frame's compact draw list. Both ranges share the mapped frame ring.
         private static int getMeshSSBOSize(GLMeshVao m)
         {
-            if (m.instance_count == 0)
+            if (m.stable_instance_count == 0)
                 return 0;
-            return ((4 * getMeshSSBOFloats(m) + 255) / 256) * 256;
+            return alignSSBORange(4 * getMeshSSBOFloats(m));
         }
 
         private static int getMeshSSBOFloats(GLMeshVao m)
         {
             int floats = GLMeshBufferManager.instanceData_Float_Offset +
-                         m.instance_count * GLMeshBufferManager.instance_struct_size_floats;
+                         m.stable_instance_count * GLMeshBufferManager.instance_struct_size_floats;
             return Math.Min(floats, m.dataBuffer.Length);
         }
 
-        private bool prepareCommonPermeshSSBO(GLMeshVao m, IntPtr ptr, ref int UBO_Offset)
+        private static int getVisibleIdsSSBOSize(GLMeshVao m)
         {
-            m.UBO_aligned_size = 0;
+            return m.instance_count == 0 ? 0 : alignSSBORange(m.instance_count * sizeof(int));
+        }
 
-            int size = getMeshSSBOSize(m);
-            if (size == 0)
+        private static void updateVisibleListVersion(GLMeshVao m)
+        {
+            bool changed = m.visibleListSnapshotCount != m.instance_count;
+            if (!changed)
+            {
+                for (int i = 0; i < m.instance_count; i++)
+                {
+                    if (m.visibleListSnapshot[i] != m.visibleInstanceIds[i])
+                    {
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!changed)
+                return;
+
+            if (m.visibleListSnapshot.Length < m.instance_count)
+                Array.Resize(ref m.visibleListSnapshot, Math.Max(m.instance_count, 2 * m.visibleListSnapshot.Length));
+            Array.Copy(m.visibleInstanceIds, m.visibleListSnapshot, m.instance_count);
+            m.visibleListSnapshotCount = m.instance_count;
+            unchecked { m.visibleListVersion++; }
+            if (m.visibleListVersion == 0)
+                m.visibleListVersion = 1;
+        }
+
+        private bool prepareCommonPermeshSSBO(GLMeshVao m, IntPtr ptr, int ringId,
+                                               ref int stableOffset, ref int visibleOffset,
+                                               out int stableRecordsCopied,
+                                               out int visibleIdsCopied)
+        {
+            stableRecordsCopied = 0;
+            visibleIdsCopied = 0;
+            m.UBO_aligned_size = 0;
+            m.visibleIds_aligned_size = 0;
+
+            int instanceSize = getMeshSSBOSize(m);
+            int visibleIdsSize = getVisibleIdsSSBOSize(m);
+            if (instanceSize == 0)
                 return true;
 
-            if (size + UBO_Offset > ssboSize)
+            if (stableOffset + instanceSize > ssboSize || visibleOffset + visibleIdsSize > ssboSize)
             {
 #if DEBUG
                 CallBacks.Log("Mesh overload skipping...");
@@ -600,14 +709,68 @@ namespace MVCore
             if (m.skinned)
                 m.uploadSkinningData();
 
-            //Write straight into the mapped buffer, only the header and the used instances
-            Marshal.Copy(m.dataBuffer, 0, ptr + UBO_Offset, getMeshSSBOFloats(m));
+            m.UBO_aligned_size = instanceSize;
+            m.UBO_offset = stableOffset;
 
-            m.UBO_aligned_size = size;
-            m.UBO_offset = UBO_Offset; //Save offset
-            UBO_Offset += size; //Increase the offset
+            bool stableLayoutChanged = m.stableUploadOffsets[ringId] != stableOffset ||
+                                       m.stableUploadGenerations[ringId] != ssboGeneration ||
+                                       m.stableUploadCounts[ringId] != m.stable_instance_count;
+            if (stableLayoutChanged)
+            {
+                //Only the four-float batch header is unconditional. Instance records are populated lazily
+                //below when they are visible in this ring slot.
+                Marshal.Copy(m.dataBuffer, 0, ptr + stableOffset,
+                             GLMeshBufferManager.instanceData_Float_Offset);
+                Array.Clear(m.uploadedInstanceVersions[ringId], 0, m.stable_instance_count);
+                m.stableUploadOffsets[ringId] = stableOffset;
+                m.stableUploadGenerations[ringId] = ssboGeneration;
+                m.stableUploadCounts[ringId] = m.stable_instance_count;
+            }
+
+            //Stable IDs are direct record slots. Only visible records whose version is stale in this
+            //particular ring buffer are copied; invisible dirty records wait until they are drawn.
+            for (int i = 0; i < m.instance_count; i++)
+            {
+                int instanceId = m.visibleInstanceIds[i];
+                long version = m.instanceVersions[instanceId];
+                if (m.uploadedInstanceVersions[ringId][instanceId] == version)
+                    continue;
+
+                int sourceFloat = GLMeshBufferManager.instanceBase(instanceId);
+                IntPtr destination = ptr + stableOffset + sourceFloat * sizeof(float);
+                Marshal.Copy(m.dataBuffer, sourceFloat, destination,
+                             GLMeshBufferManager.instance_struct_size_floats);
+                m.uploadedInstanceVersions[ringId][instanceId] = version;
+                stableRecordsCopied++;
+            }
+            stableOffset += instanceSize;
+
+            m.visibleIds_aligned_size = visibleIdsSize;
+            m.visibleIds_offset = visibleOffset;
+            if (visibleIdsSize > 0)
+            {
+                if (m.uploadedVisibleListVersions[ringId] != m.visibleListVersion ||
+                    m.uploadedVisibleOffsets[ringId] != visibleOffset ||
+                    m.uploadedVisibleGenerations[ringId] != ssboGeneration)
+                {
+                    Marshal.Copy(m.visibleInstanceIds, 0, ptr + visibleOffset, m.instance_count);
+                    m.uploadedVisibleListVersions[ringId] = m.visibleListVersion;
+                    m.uploadedVisibleOffsets[ringId] = visibleOffset;
+                    m.uploadedVisibleGenerations[ringId] = ssboGeneration;
+                    visibleIdsCopied = m.instance_count;
+                }
+                visibleOffset += visibleIdsSize;
+            }
 
             return true;
+        }
+
+        private void bindPerMeshSSBOs(GLMeshVao m)
+        {
+            GL.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 1, SSBOs["_COMMON_PER_MESH"],
+                (IntPtr)m.UBO_offset, m.UBO_aligned_size);
+            GL.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 5, SSBOs["_COMMON_PER_MESH"],
+                (IntPtr)m.visibleIds_offset, m.visibleIds_aligned_size);
         }
 
         //This Method binds UBos to binding points
@@ -646,55 +809,18 @@ namespace MVCore
 
 #region Rendering Methods
 
-        private void sortLights()
-        {
-            Light mainLight = resMgr.GLlights[0];
-
-            resMgr.GLlights.RemoveAt(0);
-            
-            resMgr.GLlights.Sort(
-                delegate (Light l1, Light l2)
-                {
-                    //Squared distances give the same order without a sqrt per comparison
-                    float d1 = (l1.worldPosition - RenderState.activeCam.Position).LengthSquared;
-                    float d2 = (l2.worldPosition - RenderState.activeCam.Position).LengthSquared;
-
-                    return d1.CompareTo(d2);
-                }
-            );
-
-            resMgr.GLlights.Insert(0, mainLight);
-        }
-
-
-        /* NOT USED
-        private void frustum_occlusion(List<GLMeshVao> model_list)
-        {
-            foreach (GLMeshVao m in model_list)
-            {
-                int occluded_instances = 0;
-                for (int i = 0; i < m.instance_count; i++)
-                {
-                    if (m.getInstanceOccludedStatus(i))
-                        continue;
-                    
-                    if (!RenderState.activeCam.frustum_occlude(m, i))
-                    {
-                        occludedNum++;
-                        occluded_instances++;
-                        m.setInstanceOccludedStatus(i, false);
-                    }
-                }
-            }
-        }
-        */
-
         private void prepareCommonPerMeshSSBOs()
         {
             //Grow the buffers before writing if this frame does not fit
-            int required = 0;
+            int stableRequired = 0;
+            int visibleRequired = 0;
             foreach (GLMeshVao m in globalMeshList)
-                required += getMeshSSBOSize(m);
+            {
+                updateVisibleListVersion(m);
+                stableRequired += getMeshSSBOSize(m);
+                visibleRequired += getVisibleIdsSSBOSize(m);
+            }
+            int required = stableRequired + visibleRequired;
 
             if (required > ssboSize)
                 resizeSSBOs(Math.Max(required + required / 2, ssboSize + ssboSize / 4));
@@ -706,9 +832,21 @@ namespace MVCore
             SSBOs["_COMMON_PER_MESH"] = multiBufferSSBOs[multiBufferActiveId];
 
             IntPtr ptr = multiBufferPtrs[multiBufferActiveId];
-            int ubo_offset = 0;
+            int stableOffset = 0;
+            int visibleOffset = stableRequired;
+            lastStableRecordsUploaded = 0;
+            lastVisibleIdsUploaded = 0;
             foreach (GLMeshVao m in globalMeshList)
-                prepareCommonPermeshSSBO(m, ptr, ref ubo_offset);
+            {
+                if (prepareCommonPermeshSSBO(m, ptr, multiBufferActiveId,
+                                             ref stableOffset, ref visibleOffset,
+                                             out int stableRecordsCopied,
+                                             out int visibleIdsCopied))
+                {
+                    lastStableRecordsUploaded += stableRecordsCopied;
+                    lastVisibleIdsUploaded += visibleIdsCopied;
+                }
+            }
         }
 
         private void waitForSSBO(int id)
@@ -754,8 +892,7 @@ namespace MVCore
                     if (m.instance_count == 0 || m.UBO_aligned_size == 0)
                         continue;
 
-                    GL.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 1, SSBOs["_COMMON_PER_MESH"],
-                        (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+                    bindPerMeshSSBOs(m);
                     
                     m.render(shader, RENDERPASS.DEFERRED);
                 }
@@ -774,8 +911,7 @@ namespace MVCore
                     if (m.instance_count == 0 || m.UBO_aligned_size == 0)
                         continue;
 
-                    GL.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 1, SSBOs["_COMMON_PER_MESH"],
-                        (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+                    bindPerMeshSSBOs(m);
 
                     m.render(shader, RENDERPASS.DEFERRED);
                 }
@@ -794,8 +930,7 @@ namespace MVCore
                     if (m.instance_count == 0 || m.UBO_aligned_size == 0)
                         continue;
 
-                    GL.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 1, SSBOs["_COMMON_PER_MESH"],
-                        (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+                    bindPerMeshSSBOs(m);
 
                     m.render(shader, RENDERPASS.DEFERRED);
                 }
@@ -816,8 +951,7 @@ namespace MVCore
                     if (m.instance_count == 0 || m.UBO_aligned_size == 0)
                         continue;
 
-                    GL.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 1, SSBOs["_COMMON_PER_MESH"],
-                        (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+                    bindPerMeshSSBOs(m);
 
                     m.render(shader, RENDERPASS.DEFERRED);
                 }
@@ -852,6 +986,7 @@ namespace MVCore
         {
             TextureBindCache.reset(); //Other passes bind textures directly
             beginMeshCulling();
+            bool showShadowMeshes = RenderState.renderViewSettings.RenderShadowMeshes;
             //Set polygon mode
             GL.PolygonMode(TriangleFace.FrontAndBack, RenderState.renderSettings.RENDERMODE);
             
@@ -865,8 +1000,11 @@ namespace MVCore
                     if (m.instance_count == 0 || m.UBO_aligned_size == 0)
                         continue;
 
-                    GL.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 1, SSBOs["_COMMON_PER_MESH"],
-                        (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+                    //Shadow proxies are hidden unless the user asks to see them
+                    if (!showShadowMeshes && (m.material?.ShadowOnly ?? false))
+                        continue;
+
+                    bindPerMeshSSBOs(m);
 
                     setMeshCulling(m);
                     m.render(shader, RENDERPASS.DEFERRED);
@@ -881,27 +1019,6 @@ namespace MVCore
 
                 GL.BindBuffer(BufferTarget.UniformBuffer, 0); //Unbind UBOs
                 beginMeshCulling();
-
-
-                /*
-                //TESTING - Render Bound Boxes for the transparent meshes
-                shader = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.BBOX_SHADER];
-                GL.UseProgram(shader.program_id);
-
-                //I don't expect any other object type here
-                foreach (GLMeshVao m in transparentMeshQueue)
-                {
-                    if (m.instance_count == 0)
-                        continue;
-
-                    //GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 1, UBOs["_COMMON_PER_MESH"],
-                    //    (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
-
-                    m.render(shader, RENDERPASS.BHULL);
-                    //if (RenderOptions.RenderBoundHulls)
-                    //    m.render(RENDERPASS.BHULL);
-                }
-                */
             }
 
         }
@@ -922,18 +1039,23 @@ namespace MVCore
             renderStaticMeshes(RenderState.activeResMgr.activeGLDeferredLITShaders); //LIT MESHES
 
             //Copy depth buffer from gbuf to pbuf
-            FBO.copyDepthChannel(gbuf.fbo, pbuf.fbo, pbuf.size[0], pbuf.size[1], gbuf.size[0], gbuf.size[1]);
+            FramebufferBlitter.CopyDepth(gbuf.fbo, pbuf.fbo, pbuf.size[0], pbuf.size[1], gbuf.size[0], gbuf.size[1]);
             gbuf.bind();
             renderDecalMeshes(); //Render Decals
             
+            lightPassTimer.Begin();
+            //Remove authored spotlights whose cones cannot intersect each cluster. The shader keeps
+            //the exact per-pixel cone test as a correctness fallback.
+            lightClusters.filterSpotCones(RenderState.activeCam);
             renderDeferredLightPass(); //Deferred Lighting Pass
+            lightPassTimer.End();
 
             //The unlit stage copies the lit image into albedo, draws on top of it and copies it back.
             //With nothing to draw both copies are wasted, and pbuf.color already holds the lit image.
             //Helpers (collisions, locators, joints, lights) are drawn later, after tone mapping
             if (needsUnlitStage())
             {
-                pass_tex(gbuf.fbo, DrawBufferMode.ColorAttachment0, pbuf.color, gbuf.size); //Copy accumulated light to albedo
+                pass_tex(gbuf.fbo, DrawBufferMode.ColorAttachment0, pbuf.color); //Copy accumulated light to albedo
                 gbuf.bind();
                 renderStaticMeshes(RenderState.activeResMgr.activeGLDeferredUNLITShaders); //UNLIT MESHES
 
@@ -944,8 +1066,10 @@ namespace MVCore
             //textures and composites)
             if (hasTransparentMeshes())
             {
+                //Cone-vs-cluster filtering is geometry independent and is valid for transparent pixels.
+                lightClusters.bindFilteredBuffers();
                 //Copy depth channel to pbuf
-                FBO.copyDepthChannel(gbuf.fbo, pbuf.fbo, pbuf.size[0], pbuf.size[1], gbuf.size[0], gbuf.size[1]);
+                FramebufferBlitter.CopyDepth(gbuf.fbo, pbuf.fbo, pbuf.size[0], pbuf.size[1], gbuf.size[0], gbuf.size[1]);
                 renderTransparent();
             }
                     
@@ -987,7 +1111,7 @@ namespace MVCore
             if (!hasVisibleHelpers())
                 return;
 
-            FBO.copyDepthChannel(gbuf.fbo, pbuf.fbo, pbuf.size[0], pbuf.size[1], gbuf.size[0], gbuf.size[1]);
+            FramebufferBlitter.CopyDepth(gbuf.fbo, pbuf.fbo, pbuf.size[0], pbuf.size[1], gbuf.size[0], gbuf.size[1]);
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
             GL.DrawBuffer(finalColorAttachment == ReadBufferMode.ColorAttachment1 ?
                 DrawBufferMode.ColorAttachment1 : DrawBufferMode.ColorAttachment0);
@@ -996,6 +1120,22 @@ namespace MVCore
             GL.DepthMask(true);
 
             renderDefaultMeshes(); //Collisions, Locators, Joints, Lights
+        }
+
+        //Particles are intentionally isolated from the weighted transparent-mesh compositor. They are
+        //drawn over the tone-mapped result, but retain scene depth testing. Additive profiles provide a
+        //usable glow approximation until particle authoring data and an HDR/bloom route are available.
+        private void renderParticleEffects()
+        {
+            if (particleSystem == null || particleSystem.ParticleCount == 0)
+                return;
+
+            FramebufferBlitter.CopyDepth(gbuf.fbo, pbuf.fbo, pbuf.size[0], pbuf.size[1], gbuf.size[0], gbuf.size[1]);
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
+            GL.DrawBuffer(finalColorAttachment == ReadBufferMode.ColorAttachment1 ?
+                DrawBufferMode.ColorAttachment1 : DrawBufferMode.ColorAttachment0);
+            GL.Viewport(0, 0, gbuf.size[0], gbuf.size[1]);
+            particleSystem.render();
         }
 
         private bool hasTransparentMeshes()
@@ -1011,6 +1151,11 @@ namespace MVCore
         private void renderDecalMeshes()
         {
             TextureBindCache.reset(); //Other passes bind textures directly
+
+            //Do not inherit blending or a depth function from a preceding helper/fullscreen pass.
+            GL.Disable(EnableCap.Blend);
+            GL.Enable(EnableCap.DepthTest);
+            GL.DepthFunc(DepthFunction.Lequal);
             GL.DepthMask(false);
             GL.Enable(EnableCap.CullFace);
             GL.CullFace(TriangleFace.Back);
@@ -1030,7 +1175,18 @@ namespace MVCore
                     if (m.instance_count == 0 || m.UBO_aligned_size == 0)
                         continue;
 
-                    GL.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 1, SSBOs["_COMMON_PER_MESH"], (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+                    if (shader.uniformLocations.TryGetValue("decalAabbMin", out int decalMinLocation))
+                    {
+                        Vector3 decalMin = m.metaData.AABBMIN;
+                        GL.Uniform3(decalMinLocation, ref decalMin);
+                    }
+                    if (shader.uniformLocations.TryGetValue("decalAabbMax", out int decalMaxLocation))
+                    {
+                        Vector3 decalMax = m.metaData.AABBMAX;
+                        GL.Uniform3(decalMaxLocation, ref decalMax);
+                    }
+
+                    bindPerMeshSSBOs(m);
                     m.render(shader, RENDERPASS.DECAL);
                 }
 
@@ -1039,14 +1195,13 @@ namespace MVCore
             GL.CullFace(TriangleFace.Back);
             GL.Enable(EnableCap.CullFace);
             GL.DepthMask(true);
+            GL.DepthFunc(DepthFunction.Less);
+            GL.Disable(EnableCap.Blend);
+            GL.ActiveTexture(TextureUnit.Texture0);
         }
 
         private static readonly float[] revealageClear = { 1.0f, 1.0f, 1.0f, 1.0f };
         private static readonly DrawBuffersEnum[] transparentDrawBuffers = { DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment2 };
-        private static readonly string[] gizmoPartNames = { "default_translation_gizmo_x_axis",
-                                                            "default_translation_gizmo_y_axis",
-                                                            "default_translation_gizmo_z_axis" };
-
         private void renderTransparent()
         {
             TextureBindCache.reset(); //Other passes bind textures directly
@@ -1080,8 +1235,7 @@ namespace MVCore
                     if (m.instance_count == 0 || m.UBO_aligned_size == 0)
                         continue;
                     
-                    GL.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 1, SSBOs["_COMMON_PER_MESH"],
-                        (IntPtr)(m.UBO_offset), m.UBO_aligned_size);
+                    bindPerMeshSSBOs(m);
 
                     setMeshCulling(m);
                     m.render(shader, RENDERPASS.FORWARD);
@@ -1127,8 +1281,14 @@ namespace MVCore
         {
             TextureBindCache.reset(); //Other passes bind textures directly
             
-            if (RenderState.renderViewSettings.RenderGizmos)
+            TransformGizmo gizmo = RenderState.activeGizmo;
+            if (RenderState.renderViewSettings.RenderGizmos && gizmo?.reference != null)
             {
+                //Draw into the tone-mapped intermediate image so the existing FXAA pass also
+                //smooths the procedurally generated gizmo edges.
+                GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
+                GL.DrawBuffer(DrawBufferMode.ColorAttachment1);
+                GL.Viewport(0, 0, gbuf.size[0], gbuf.size[1]);
                 GL.Clear(ClearBufferMask.DepthBufferBit); //Clear depth
                 GL.Enable(EnableCap.DepthTest);
                 GL.Disable(EnableCap.CullFace);
@@ -1137,51 +1297,130 @@ namespace MVCore
                 GL.UseProgram(shader.program_id);
 
 
-                //Render GizmoParts
-
-
-                foreach (string name in gizmoPartNames)
+                Matrix4 gizmoWorld = gizmo.GetWorldMatrix(RenderState.activeCam, gbuf.size[1]);
+                GL.UniformMatrix4(shader.uniformLocations["worldMat"], false, ref gizmoWorld);
+                foreach (GizmoPart part in gizmo.Parts)
                 {
-                    //Render Translation Gizmo
-                    GLMeshVao m = resMgr.GLPrimitiveMeshVaos[name];
-                    //Render Start
-                    //TODO: Bind the Mesh UBO directly
-                    Matrix4 mWMat = GLMeshBufferManager.getInstanceWorldMat(m, 0);
-                    GL.UniformMatrix4(shader.uniformLocations["worldMat"], false, ref mWMat);
-                    GL.Uniform1(shader.uniformLocations["is_active"], GLMeshBufferManager.getInstanceSelectedStatus(m, 0) ? 1.0f: 0.0f);
-                    m.render(shader, RENDERPASS.FORWARD);
+                    if (!resMgr.GLPrimitiveMeshVaos.TryGetValue(part.meshName, out GLMeshVao mesh))
+                        continue;
+                    bool highlighted = part.type == gizmo.HoveredPart || part.type == gizmo.ActivePart;
+                    GL.Uniform1(shader.uniformLocations["is_active"], highlighted ? 1.0f : 0.0f);
+                    GL.BindVertexArray(mesh.vao.vao_id);
+                    GL.DrawElements(PrimitiveType.Triangles, mesh.metaData.batchcount,
+                                    mesh.metaData.indicesLength, IntPtr.Zero);
                 }
+                GL.BindVertexArray(0);
 
                 GL.Enable(EnableCap.CullFace);
 
             }
         }
 
+        //True when this frame's shadow map holds casters and the light pass should sample it
+        private bool shadowsActive = false;
+
+        //Draws the meshes that cast shadows (materials with CastShadow, and the ShadowOnly proxies) into the
+        //key light's shadow map. The material shaders are reused: only the per frame mvp is swapped for the
+        //light's, so skinning, instancing and alpha cutouts behave as in the main pass
         private void renderShadows()
         {
+            shadowsActive = false;
+            if (!RenderState.renderSettings.UseShadows || RenderState.renderSettings._useLighting <= 0.0f ||
+                resMgr.GLlights.Count == 0 || RenderState.activeCam == null)
+                return;
 
+            GLLight key = resMgr.GLlights[0].strct;
+            if (key.position.W < 1.0f) //Key light switched off
+                return;
+
+            //Light positions and the gbuffer live in the rotated scene space
+            Camera cam = RenderState.activeCam;
+            Vector3 center = (new Vector4(cam.sceneCenter, 1.0f) * RenderState.rotMat).Xyz;
+            if (!shdwRenderer.update(key.position.Xyz, center, cam.sceneRadius))
+                return;
+
+            CommonPerFrameUniforms shadowFrame = cpfu;
+            shadowFrame.mvp = shdwRenderer.lightViewProj;
+            GL.BindBuffer(BufferTarget.UniformBuffer, UBOs["_COMMON_PER_FRAME_SHADOW"]);
+            GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, CommonPerFrameUniforms.SizeInBytes, ref shadowFrame);
+            GL.BindBuffer(BufferTarget.UniformBuffer, 0);
+            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 0, UBOs["_COMMON_PER_FRAME_SHADOW"]);
+
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, shdwRenderer.depth_fbo);
+            GL.Viewport(0, 0, ShadowRenderer.SHADOW_MAP_SIZE, ShadowRenderer.SHADOW_MAP_SIZE);
+            GL.Enable(EnableCap.DepthTest);
+            GL.DepthMask(true);
+            GL.Clear(ClearBufferMask.DepthBufferBit);
+            GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill);
+            //Shadow proxies are often open or single sided, so both faces cast
+            GL.Disable(EnableCap.CullFace);
+            //Slope scaled depth bias against shadow acne
+            GL.Enable(EnableCap.PolygonOffsetFill);
+            GL.PolygonOffset(2.0f, 4.0f);
+            TextureBindCache.reset(); //Other passes bind textures directly
+
+            int casters = 0;
+            renderShadowCasters(RenderState.activeResMgr.activeGLDeferredLITShaders, ref casters);
+            renderShadowCasters(RenderState.activeResMgr.activeGLDeferredUNLITShaders, ref casters);
+
+            GL.Disable(EnableCap.PolygonOffsetFill);
+            GL.Enable(EnableCap.CullFace);
+            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 0, UBOs["_COMMON_PER_FRAME"]);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+            GL.Viewport(0, 0, gbuf.size[0], gbuf.size[1]);
+
+            shadowsActive = casters > 0;
+        }
+
+        private void renderShadowCasters(List<GLSLShaderConfig> shaderList, ref int casters)
+        {
+            foreach (GLSLShaderConfig shader in shaderList)
+            {
+                bool programBound = false;
+                foreach (GLMeshVao m in resMgr.opaqueMeshShaderMap[shader.shaderHash])
+                {
+                    if (m.instance_count == 0 || m.UBO_aligned_size == 0 || m.material == null)
+                        continue;
+                    if (!m.material.CastShadow && !m.material.ShadowOnly)
+                        continue;
+
+                    if (!programBound)
+                    {
+                        GL.UseProgram(shader.program_id);
+                        programBound = true;
+                    }
+
+                    bindPerMeshSSBOs(m);
+                    m.render(shader, RENDERPASS.DEFERRED);
+                    casters++;
+                }
+            }
         }
 
         //Rendering Mechanism
         public void render()
         {
+            frameCpuClock.Restart();
+            frameTimer.Begin();
+
             //Prepare UBOs
             prepareCommonPerFrameUBO();
-            
-            //Render Shadows
-            renderShadows();
 
-            //Sort Lights
-            sortLights();
+            //Sort the scene lights into the view clusters, for the lighting passes. With lighting off the
+            //shaders do not read them
+            if (RenderState.renderSettings._useLighting > 0.0f)
+                lightClusters.update(resMgr.GLlights, RenderState.activeCam, gbuf.size[0], gbuf.size[1]);
             
             //Sort Transparent Objects
             //sortTransparent(); //NOT NEEDED ANYMORE
             
             //Prepare Mesh UBO
+            long phaseStart = System.Diagnostics.Stopwatch.GetTimestamp();
             prepareCommonPerMeshSSBOs();
-            
-            //Render octree
-            //octree.render(resMgr.GLShaders[GLSLHelper.SHADER_TYPE.BBOX_SHADER].program_id);
+            lastMeshUploadCpuMs = System.Diagnostics.Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds;
+
+            //Render Shadows (needs this frame's per mesh data and bone matrices)
+            renderShadows();
 
             //Render Geometry
             renderGeometry();
@@ -1189,56 +1428,46 @@ namespace MVCore
             //POST-PROCESSING
             post_process();
 
+            renderParticleEffects();
+
             //Helpers on top of the tone mapped frame
             renderHelpers();
 
             //Final Pass
+            phaseStart = System.Diagnostics.Stopwatch.GetTimestamp();
             renderFinalPass();
+            lastFinalBlitCpuMs = System.Diagnostics.Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds;
 
-            //Render UI();
-
-            renderUI();
+            renderEngineText();
 
             //Fence after every draw that reads the per-mesh SSBO
             fenceActiveSSBO();
+
+            frameTimer.End();
+            frameCpuClock.Stop();
+            lastRenderCpuMs = frameCpuClock.Elapsed.TotalMilliseconds;
+            logFrameStats();
         }
 
-        private void render_lights()
+        private void renderEngineText()
         {
+            if (textRenderer == null || !(RenderState.renderViewSettings?.RenderInfo ?? false))
+                return;
 
-            for (int i = 0; i < resMgr.GLlights.Count; i++)
-                resMgr.GLlights[i].meshVao.render(resMgr.GLShaders[GLSLHelper.SHADER_TYPE.MESH_DEFERRED_SHADER], RENDERPASS.DEFERRED);
-        }
-
-        private void render_cameras()
-        {
-            int active_program = resMgr.GLShaders[GLSLHelper.SHADER_TYPE.BBOX_SHADER].program_id;
-
-            GL.UseProgram(active_program);
-            int loc;
-            //Send object world Matrix to all shaders
-
-            foreach (Camera cam in resMgr.GLCameras)
+            if (viewportStatsText.Length == 0 || textStatsClock.ElapsedMilliseconds >= 250)
             {
-                //Old rendering the inverse clip space
-                //Upload uniforms
-                //loc = GL.GetUniformLocation(active_program, "self_mvp");
-                //Matrix4 self_mvp = cam.viewMat;
-                //GL.UniformMatrix4(loc, false, ref self_mvp);
-
-                //New rendering the exact frustum plane
-                loc = GL.GetUniformLocation(active_program, "worldMat");
-                Matrix4 test = Matrix4.Identity;
-                test[0, 0] = -1.0f;
-                test[1, 1] = -1.0f;
-                test[2, 2] = -1.0f;
-                GL.UniformMatrix4(loc, false, ref test);
-
-                //Render all inactive cameras
-                if (!cam.isActive) cam.render();
-
+                textStatsClock.Restart();
+                float fps = RenderStats.fpsCount;
+                viewportStatsText = $"FPS: {fps:0.0} ({(fps > 0.0f ? 1000.0f / fps : 0.0f):0.00} ms)\n" +
+                    $"Occluded: {RenderStats.occludedNum}\n" +
+                    $"Vertices: {RenderStats.vertNum:N0}\n" +
+                    $"Triangles: {RenderStats.trisNum:N0}\n" +
+                    $"Textures: {RenderStats.texturesNum}\n" +
+                    $"Controller: {RenderState.activeGamepad?.getName() ?? "None"}";
             }
 
+            textRenderer.Render(viewportStatsText, 8.0f, 8.0f, 14.0f,
+                new Vector3(1.0f, 1.0f, 0.5f), screenWidth, screenHeight);
         }
 
         //Spans let callers pass collection expressions ([...]), which live on the stack instead of
@@ -1272,7 +1501,7 @@ namespace MVCore
 
         }
 
-        private void pass_tex(int to_fbo, DrawBufferMode to_channel, int InTex, int[] to_buf_size)
+        private void pass_tex(int to_fbo, DrawBufferMode to_channel, int InTex)
         {
             //passthrough a texture to the specified to_channel of the to_fbo
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, to_fbo);
@@ -1281,7 +1510,6 @@ namespace MVCore
             GL.Disable(EnableCap.DepthTest); //Disable Depth test
             GL.Clear(ClearBufferMask.ColorBufferBit);
             GLSLShaderConfig shader = RenderState.activeResMgr.GLShaders[SHADER_TYPE.PASSTHROUGH_SHADER];
-            //render_quad(["sizeX", "sizeY"], [to_buf_size[0], to_buf_size[1]], ["InTex"], [InTex], shader);
             render_quad([], [], ["InTex"], [TextureTarget.Texture2D],  [InTex], shader);
             GL.Enable(EnableCap.DepthTest); //Re-enable Depth test
         }
@@ -1430,7 +1658,7 @@ namespace MVCore
             GLSLShaderConfig inv_tone_mapping_program = resMgr.GLShaders[SHADER_TYPE.INV_TONE_MAPPING];
 
             //Copy Color to first channel
-            pass_tex(pbuf.fbo, DrawBufferMode.ColorAttachment1, pbuf.color, pbuf.size); //LOOKS OK!
+            pass_tex(pbuf.fbo, DrawBufferMode.ColorAttachment1, pbuf.color);
 
             //Apply Tone Mapping
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
@@ -1448,29 +1676,38 @@ namespace MVCore
 
             tone_mapping(); //FINAL TONE MAPPING, INCLUDES GAMMA CORRECTION
 
+            //The gizmo is an editor overlay, but including it here lets the existing FXAA pass
+            //anti-alias its silhouette without adding another full-screen render pass.
+            renderUI();
+
             if (RenderState.renderSettings.UseFXAA)
                 fxaa(); //FXAA (INCLUDING TONE/UNTONE)
         }
 
-        private void backupDepth()
+        //Frame and lighting stats in the log every few seconds
+        private void logFrameStats()
         {
-            //NOT WORKING
-            //Backup the depth buffer to the secondary fbo
-            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, gbuf.fbo);
-            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, gbuf.fbo);
-            GL.BlitFramebuffer(0, 0, gbuf.size[0], gbuf.size[1], 0, 0, gbuf.size[0], gbuf.size[1],
-                ClearBufferMask.DepthBufferBit, BlitFramebufferFilter.Nearest);
-            
-        }
-
-        private void restoreDepth()
-        {
-            //NOT WORKING
-            //Backup the depth buffer to the secondary fbo
-            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, gbuf.fbo);
-            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, gbuf.fbo);
-            GL.BlitFramebuffer(0, 0, gbuf.size[0], gbuf.size[1], 0, 0, gbuf.size[0], gbuf.size[1],
-                ClearBufferMask.DepthBufferBit, BlitFramebufferFilter.Nearest);
+            if (frameStatsClock.ElapsedMilliseconds < 3000)
+                return;
+            frameStatsClock.Restart();
+            lightClusters.refreshPostFilterStats();
+            CallBacks.Log("[Lights] {0} in view ({1} global, {2} constant); spatial lists before spot cones: " +
+                "{3:0.0} avg / {4} max retained, {5:0.0} avg / {6} max candidates, " +
+                "after spot cones: {7:0.0} avg / {8} max; " +
+                "{9}/{10} clusters overflowed on {11}x{12}x{13} grid, {14} assignments dropped; " +
+                "cluster build {15:0.00} ms, light pass GPU {16:0.00} ms",
+                lightClusters.activeLightCount, lightClusters.globalLightCount, lightClusters.constantLightCount,
+                lightClusters.avgLightsPerCluster, lightClusters.maxLightsPerCluster,
+                lightClusters.avgCandidateLightsPerCluster, lightClusters.maxCandidateLightsPerCluster,
+                lightClusters.avgPostFilterLightsPerCluster, lightClusters.maxPostFilterLightsPerCluster,
+                lightClusters.overflowClusterCount, lightClusters.clusterCount,
+                lightClusters.tilesX, lightClusters.tilesY, LightClusters.DEPTH_SLICES,
+                lightClusters.droppedLightAssignments, lightClusters.updateMs, lightPassTimer.Ms);
+            CallBacks.Log("[Frame] render() CPU {0:0.00} ms, GPU {1:0.00} ms at {2}x{3}",
+                frameCpuClock.Elapsed.TotalMilliseconds, frameTimer.Ms, gbuf.size[0], gbuf.size[1]);
+            if (particleSystem != null && particleSystem.EmitterCount > 0)
+                CallBacks.Log("[Particles] {0} live particles across {1} emitters",
+                    particleSystem.ParticleCount, particleSystem.EmitterCount);
         }
 
         private void renderDeferredLightPass()
@@ -1487,10 +1724,16 @@ namespace MVCore
             //GL.ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-            render_quad([], [], ["albedoTex", "depthTex", "normalTex", "parameterTex"],
+            Matrix4 shadowMat = shdwRenderer.lightViewProj;
+            int shadowMatLoc = shader_conf.getLocation("shadowMat");
+            if (shadowMatLoc >= 0)
+                GL.ProgramUniformMatrix4(shader_conf.program_id, shadowMatLoc, false, ref shadowMat);
+
+            render_quad(["shadowsEnabled", "shadowTexelSize"], [shadowsActive ? 1.0f : 0.0f, shdwRenderer.texelWorldSize],
+                                                            ["albedoTex", "depthTex", "normalTex", "parameterTex", "shadowMap"],
                                                             [TextureTarget.Texture2D, TextureTarget.Texture2D,
-                                                            TextureTarget.Texture2D, TextureTarget.Texture2D],
-                                                            [gbuf.albedo, gbuf.depth, gbuf.normals, gbuf.info], shader_conf);
+                                                            TextureTarget.Texture2D, TextureTarget.Texture2D, TextureTarget.Texture2D],
+                                                            [gbuf.albedo, gbuf.depth, gbuf.normals, gbuf.info, shdwRenderer.depth_tex_id], shader_conf);
         }
 
         private void renderDeferredPass()
@@ -1523,7 +1766,12 @@ namespace MVCore
                 {
                     cleanup(); //Clean local resources
                     gbuf.Dispose(); //Dispose gbuffer
+                    pbuf.Dispose(); //Dispose post-process buffers
                     shdwRenderer.Dispose(); //Dispose shadowRenderer
+                    lightClusters.Dispose(); //Dispose the light cluster buffers
+                    frameTimer.Dispose();
+                    lightPassTimer.Dispose();
+                    textRenderer?.Dispose();
                 }
 
                 disposedValue = true;

@@ -10,7 +10,6 @@ namespace MVCore.GMDL.Primitives
     {
         internal float[] verts;
         internal float[] normals;
-        internal float[] uvs;
         internal float[] colors;
         internal int[] indices;
 
@@ -629,6 +628,100 @@ namespace MVCore.GMDL.Primitives
         }
     }
 
+    //Shared colored geometry layout used by editor gizmos. Gizmo shaders only consume position and
+    //vertex color, so these meshes stay small and independent of the material/lighting layouts.
+    public abstract class GizmoPrimitive : Primitive
+    {
+        public override GMDL.GeomObject getGeom()
+        {
+            GMDL.GeomObject result = new GMDL.GeomObject();
+            result.vertCount = verts.Length / 3;
+            result.indicesCount = indices.Length;
+            result.indicesLength = 0x4;
+            result.vx_size = 3 * 4;
+            result.offsets = new int[7];
+            result.bufInfo = new List<GMDL.bufInfo>();
+            for (int i = 0; i < 7; i++)
+            {
+                result.bufInfo.Add(null);
+                result.offsets[i] = -1;
+            }
+            result.mesh_descr = "vc";
+            result.offsets[0] = 0;
+            result.offsets[4] = 0;
+            result.bufInfo[0] = new GMDL.bufInfo(0, VertexAttribPointerType.Float, 3, 0, 0,
+                                                "vPosition", false);
+            result.bufInfo[4] = new GMDL.bufInfo(4, VertexAttribPointerType.Float, 3, 0,
+                                                result.vertCount * 12, "bPosition", false);
+            result.ibuffer = new byte[4 * indices.Length];
+            System.Buffer.BlockCopy(indices, 0, result.ibuffer, 0, result.ibuffer.Length);
+            result.vbuffer = new byte[4 * (verts.Length + colors.Length)];
+            System.Buffer.BlockCopy(verts, 0, result.vbuffer, 0, 4 * verts.Length);
+            System.Buffer.BlockCopy(colors, 0, result.vbuffer, 4 * verts.Length, 4 * colors.Length);
+            return result;
+        }
+    }
+
+    //A thin procedural torus whose normal is +Y. ResourceManager rotates copies for the X and Z rings.
+    public class GizmoRing : GizmoPrimitive
+    {
+        public GizmoRing(float radius, float thickness, Vector3 color, bool generateGeom = false,
+                         int segments = 64, int sides = 6)
+        {
+            verts = new float[segments * sides * 3];
+            colors = new float[verts.Length];
+            normals = new float[verts.Length];
+            indices = new int[segments * sides * 6];
+            for (int segment = 0; segment < segments; segment++)
+            {
+                float a = MathHelper.TwoPi * segment / segments;
+                Vector3 radial = new Vector3((float)Math.Cos(a), 0.0f, (float)Math.Sin(a));
+                for (int side = 0; side < sides; side++)
+                {
+                    float b = MathHelper.TwoPi * side / sides;
+                    Vector3 normal = radial * (float)Math.Cos(b) + Vector3.UnitY * (float)Math.Sin(b);
+                    Vector3 point = radial * radius + normal * thickness;
+                    int v = segment * sides + side;
+                    verts[3 * v] = point.X; verts[3 * v + 1] = point.Y; verts[3 * v + 2] = point.Z;
+                    normals[3 * v] = normal.X; normals[3 * v + 1] = normal.Y; normals[3 * v + 2] = normal.Z;
+                    colors[3 * v] = color.X; colors[3 * v + 1] = color.Y; colors[3 * v + 2] = color.Z;
+
+                    int nextSegment = ((segment + 1) % segments) * sides;
+                    int nextSide = (side + 1) % sides;
+                    int o = 6 * v;
+                    indices[o] = v;
+                    indices[o + 1] = nextSegment + side;
+                    indices[o + 2] = nextSegment + nextSide;
+                    indices[o + 3] = v;
+                    indices[o + 4] = nextSegment + nextSide;
+                    indices[o + 5] = segment * sides + nextSide;
+                }
+            }
+            if (generateGeom)
+                geom = getGeom();
+        }
+    }
+
+    //Cylinder with a cube tip, initially pointing along +Y.
+    public class GizmoScaleHandle : GizmoPrimitive
+    {
+        public GizmoScaleHandle(float radius, float length, float cubeSize, Vector3 color,
+                                bool generateGeom = false, int sides = 12)
+        {
+            Cylinder shaft = new Cylinder(radius, length, color, false, sides);
+            shaft.applyTransform(Matrix4.CreateTranslation(0.0f, length / 2.0f, 0.0f));
+            Box tip = new Box(cubeSize, cubeSize, cubeSize, color, false);
+            tip.applyTransform(Matrix4.CreateTranslation(0.0f, length, 0.0f));
+            Primitive merged = mergePrimitives(shaft, tip);
+            verts = merged.verts;
+            indices = merged.indices;
+            normals = merged.normals;
+            colors = merged.colors;
+            if (generateGeom)
+                geom = getGeom();
+        }
+    }
+
     public class TranslationGizmo : Primitive
     {
         public TranslationGizmo(Vector3 scale, bool generateGeom = false)
@@ -959,90 +1052,6 @@ namespace MVCore.GMDL.Primitives
             geom = getGeom();
         }
     
-    }
-
-    public class LineCross : Primitive
-    {
-        //Constructor
-        public LineCross(float scale)
-        {
-            //Set type
-            //this.type = "LOCATOR";
-            //Assemble geometry in the constructor
-            //X
-            verts = new float[6 * 3] { 1.0f, 0.0f, 0.0f,
-                   -1.0f, 0.0f, 0.0f,
-                    0.0f, 1.0f, 0.0f,
-                    0.0f, -1.0f, 0.0f,
-                    0.0f, 0.0f, 1.0f,
-                    0.0f, 0.0f, -1.0f};
-
-            //Apply Scane to verts
-            for (int i = 0; i < 3 * 6; i++)
-                verts[i] *= scale;
-
-            int arraysize = 6 * 3;
-            int b_size = 2 * arraysize;
-            float[] verts_combined = new float[b_size];
-
-            Array.Copy(verts, 0, verts_combined, 0, arraysize);
-            //Colors
-            float[] colors = new float[6 * 3] { 1.0f, 0.0f, 0.0f,
-                    1.0f, 0.0f, 0.0f,
-                    0.0f, 1.0f, 0.0f,
-                    0.0f, 1.0f, 0.0f,
-                    0.0f, 0.0f, 1.0f,
-                    0.0f, 0.0f, 1.0f};
-
-            Array.Copy(colors, 0, verts_combined, arraysize, arraysize);
-
-            //Indices
-            indices = new Int32[2 * 3] { 0, 1, 2, 3, 4, 5 };
-
-            //Replace verts
-            verts = verts_combined;
-
-            geom = getGeom();
-        }
-
-        public new GMDL.GeomObject getGeom()
-        {
-            GMDL.GeomObject geom = new GMDL.GeomObject();
-
-            //Set main Geometry Info
-            geom.vertCount = 6;
-            geom.indicesCount = indices.Length;
-            geom.indicesLength = 0x4;
-
-            //Set Strides
-            geom.vx_size = 3 * 4; //3 Floats * 4 Bytes each
-
-            //Set Buffer Offsets
-            geom.offsets = new int[7];
-            geom.bufInfo = new List<GMDL.bufInfo>();
-
-            for (int i = 0; i < 7; i++)
-            {
-                geom.bufInfo.Add(null);
-                geom.offsets[i] = -1;
-            }
-
-            geom.mesh_descr = "vn";
-            geom.offsets[0] = 0;
-            geom.offsets[2] = 0;
-            geom.offsets[4] = 0;
-            geom.bufInfo[0] = new GMDL.bufInfo(0, VertexAttribPointerType.Float, 3, 0, 0, "vPosition", false);
-            geom.bufInfo[2] = new GMDL.bufInfo(2, VertexAttribPointerType.Float, 3, 0, 72, "nPosition", false);
-            geom.bufInfo[4] = new GMDL.bufInfo(4, VertexAttribPointerType.Float, 3, 0, 72, "bPosition", false);
-
-            //Set Buffers
-            geom.ibuffer = new byte[4 * indices.Length];
-            System.Buffer.BlockCopy(indices, 0, geom.ibuffer, 0, geom.ibuffer.Length);
-            geom.vbuffer = new byte[4 * verts.Length];
-            System.Buffer.BlockCopy(verts, 0, geom.vbuffer, 0, geom.vbuffer.Length);
-
-            return geom;
-        }
     }
 
     public class LineSegment : Primitive

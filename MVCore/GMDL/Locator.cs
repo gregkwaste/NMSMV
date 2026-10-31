@@ -23,17 +23,6 @@ namespace MVCore.GMDL
             instanceId = GLMeshBufferManager.addInstance(ref meshVao, this);
         }
 
-        public void copyFrom(Locator input)
-        {
-            actionComponentID = input.actionComponentID;
-            base.copyFrom(input); //Copy stuff from base class
-        }
-
-        protected Locator(Locator input) : base(input)
-        {
-            this.copyFrom(input);
-        }
-
         public override GMDL.Model Clone()
         {
             Locator new_s = new Locator();
@@ -55,13 +44,10 @@ namespace MVCore.GMDL
             recalculateAABB(); //Update AABB
         }
 
-        public override void updateMeshInfo(bool lod_filter=false)
+        public override void updateOwnMeshInfo(bool lod_filter=false)
         {
-            if (!renderable || lod_filter)
-            {
-                base.updateMeshInfo(lod_filter);
+            if (!RenderState.renderViewSettings.RenderLocators || !renderable || lod_filter)
                 return;
-            }
 
             bool fr_status = RenderState.activeCam.frustum_occlude(meshVao, worldMat * RenderState.rotMat);
             bool occluded_status = !fr_status && RenderState.renderSettings.UseFrustumCulling;
@@ -72,7 +58,6 @@ namespace MVCore.GMDL
                 instanceId = GLMeshBufferManager.addInstance(ref meshVao, this);
             }
 
-            base.updateMeshInfo();
             updated = false; //All done
         }
 

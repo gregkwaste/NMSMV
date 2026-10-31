@@ -7,13 +7,13 @@ using MVCore.GMDL;
 using MVCore.Utils;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
-using OpenTK.Wpf;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -35,11 +35,26 @@ namespace WPFModelViewer
     public partial class MainWindow : Window
     {
         private CGLControl glControl;
-        private System.Windows.Threading.DispatcherTimer statsTimer;
-        private int itemCounter = 0;
+        private OpenTK.GLControl.GLControl nativeViewportControl;
+        private sealed class PakSceneEntry
+        {
+            public string Name { get; init; }
+            public long SizeBytes { get; init; }
+            public string Size => formatFileSize(SizeBytes);
+        }
 
-        //Async Request Handler
-        private System.Timers.Timer requestHandler = new System.Timers.Timer();
+        private static string formatFileSize(long bytes)
+        {
+            string[] units = { "B", "KB", "MB", "GB" };
+            double value = Math.Max(bytes, 0);
+            int unit = 0;
+            while (value >= 1024.0 && unit < units.Length - 1)
+            {
+                value /= 1024.0;
+                unit++;
+            }
+            return unit == 0 ? $"{value:0} {units[unit]}" : $"{value:0.##} {units[unit]}";
+        }
 
         //Treeview Helpers
         TextBlock old_tb;
@@ -66,7 +81,9 @@ namespace WPFModelViewer
             CallBacks.updateStatus = Util.setStatus;
             CallBacks.openAnim = Util.loadAnimationFile;
             CallBacks.Log = Util.Log;
-            CallBacks.issueRequestToGLControl = Util.sendRequest;
+#if DEBUG
+            CallBacks.VerboseLog = Util.Log;
+#endif
             CallBacks.showError = Util.showError;
             CallBacks.getResource = name => Properties.Resources.ResourceManager.GetObject(name, Properties.Resources.Culture);
 
@@ -75,30 +92,26 @@ namespace WPFModelViewer
 
             //The resource manager is created by the engine on the first render (MainWindow_OnLoaded waits for it)
 
-            var settings = new GLWpfControlSettings()
+            var settings = new OpenTK.GLControl.GLControlSettings
             {
-                MajorVersion = 4,
-                MinorVersion = 6,
-                UseDeviceDpi = false,
+                APIVersion = new Version(4, 6),
+                IsEventDriven = false,
+                Profile = ContextProfile.Compatability,
 #if DEBUG
-                ContextFlags = ContextFlags.Debug,
+                Flags = ContextFlags.Debug,
 #endif
-                //Compatibility profile: allows wide lines for the helpers. Forward compatible only applies to core
-                Profile = ContextProfile.Compatability
             };
-
-            Host.Start(settings);
-
-            //Generate CGLControl
-            glControl = new CGLControl(Host);
-
-            //Stats overlay refresh. A few times a second is enough to read and keeps string work off the frame loop
-            statsTimer = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
+            nativeViewportControl = new OpenTK.GLControl.GLControl(settings)
             {
-                Interval = TimeSpan.FromMilliseconds(250)
+                Dock = System.Windows.Forms.DockStyle.Fill,
+                TabStop = true
             };
-            statsTimer.Tick += updateStatsOverlay;
-            statsTimer.Start();
+            glControl = new CGLControl(nativeViewportControl);
+            NativeHost.Child = nativeViewportControl;
+            CallBacks.enqueueRenderCommand = command => glControl.engine.InvokeOnRenderThreadAsync(command);
+
+            Activated += (sender, args) => glControl.setWindowActive(true);
+            Deactivated += (sender, args) => glControl.setWindowActive(false);
 
 
             //Load Settings
@@ -118,71 +131,41 @@ namespace WPFModelViewer
         }
 
         //Open File
-        private void OpenFile(string filename, bool testScene, int testSceneID)
+        private async Task OpenFileAsync(string filename, bool testScene, int testSceneID)
         {
             CallBacks.Log("Importing " + filename);
-            ThreadRequest req;
 
-            //Pause renderer
-            req = new ThreadRequest();
-            req.type = THREAD_REQUEST_TYPE.GL_PAUSE_RENDER_REQUEST;
-            req.arguments.Clear();
+            SceneTreeView.Items.Clear();
+            if (testScene)
+                await glControl.addTestSceneAsync(testSceneID);
+            else
+                await glControl.addSceneAsync(filename);
 
-            //Send request
-            glControl.issueRenderingRequest(ref req);
-            glControl.engine.handleRequests();
-
-            try
+            if (RenderState.rootObject != null)
             {
-                //Clear treeview
-                SceneTreeView.Items.Clear();
-                RenderState.rootObject?.Dispose();
-
-                if (testScene)
-                    glControl.addTestScene(testSceneID);
-                else
-                    glControl.addScene(filename);
-
-                glControl.engine.handleRequests();
-
-                if (RenderState.rootObject != null)
-                {
-                    //Populate 
-                    RenderState.rootObject.ID = 0;
-                    Util.setStatus("Creating Treeview...");
-                    //Add to UI
-                    SceneTreeView.Items.Add(RenderState.rootObject);
-                }
-                Util.setStatus("Ready");
+                RenderState.rootObject.ID = 0;
+                Util.setStatus("Creating Treeview...");
+                SceneTreeView.Items.Add(RenderState.rootObject);
             }
-            finally
-            {
-                //Always resume rendering, even if the import failed
-                ThreadRequest req2 = new ThreadRequest();
-                req2.type = THREAD_REQUEST_TYPE.GL_RESUME_RENDER_REQUEST;
-                req2.arguments.Clear();
-
-                glControl.issueRenderingRequest(ref req2);
-                glControl.engine.handleRequests();
-            }
+            Util.setStatus("Ready");
 
             //Bind new camera to the controls
             CameraOptionsView.Content = RenderState.activeCam.settings;
         }
 
 
-        private void OpenFile(object sender, RoutedEventArgs e)
+        private async void OpenFile(object sender, RoutedEventArgs e)
         {
             CallBacks.Log("Opening File");
             OpenFileDialog openFileDlg = new OpenFileDialog();
-            openFileDlg.Filter = "SCENE Files (*.SCENE.MBIN, *.SCENE.MXML, *.SCENE.EXML)|*.SCENE.MBIN;*.SCENE.MXML;*.SCENE.EXML";
+            openFileDlg.Filter = "SCENE Files (*.SCENE.MBIN, *.SCENE.MXML)|*.SCENE.MBIN;*.SCENE.MXML";
             var res = openFileDlg.ShowDialog();
 
             if (res == false)
                 return;
 
             var filename = openFileDlg.FileName;
-            OpenFile(filename, false, 0);
+            await OpenFileAsync(filename, false, 0);
         }
 
         //Tool windows open once: asking again brings the open one to the front
@@ -205,18 +188,41 @@ namespace WPFModelViewer
             if (activateIfOpen(sceneListWindow))
                 return;
 
-            //I need to make a custom window for previewing the entire list of SCENE Files from the PAK files
-            List<string> paths = new List<string>();
+            showSceneList("Select SCENE file from List", selected => OpenFileAsync(selected, false, 0));
+        }
 
-            foreach (string path in RenderState.activeResMgr.NMSFileToArchiveMap.Keys)
+        //Lists the SCENE files of the PAKs, double clicking one closes the list and passes the path to onPick
+        private void showSceneList(string title, Func<string, Task> onPick)
+        {
+            //I need to make a custom window for previewing the entire list of SCENE Files from the PAK files
+            List<PakSceneEntry> paths = new List<PakSceneEntry>();
+
+            foreach (KeyValuePair<string, string> file in RenderState.activeResMgr.NMSFileToArchiveMap)
             {
-                if (path.EndsWith(".SCENE.MBIN"))
-                    paths.Add(path);
+                if (!file.Key.EndsWith(".SCENE.MBIN", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                long size = 0;
+                try
+                {
+                    libHGPAK.HGPAK.Archive archive = NMSUtils.loadNMSArchive(file.Value);
+                    int fileIndex = archive.GetFileIndex(file.Key);
+                    if (fileIndex >= 0)
+                    {
+                        ulong archiveSize = archive.fileEntries[fileIndex].uncompressedFileSize;
+                        size = archiveSize > long.MaxValue ? long.MaxValue : (long)archiveSize;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    CallBacks.Verbose("Could not read PAK entry size for " + file.Key + ": " + ex.Message);
+                }
+                paths.Add(new PakSceneEntry { Name = file.Key, SizeBytes = size });
             }
-            paths.Sort();
+            paths.Sort((left, right) => StringComparer.OrdinalIgnoreCase.Compare(left.Name, right.Name));
 
             Window win = new Window();
-            win.Title = "Select SCENE file from List";
+            win.Title = title;
             win.Owner = this;
             sceneListWindow = win;
             win.Closed += delegate { sceneListWindow = null; };
@@ -239,16 +245,54 @@ namespace WPFModelViewer
 
             ListView lb = new ListView(); //Item listbox
 
+            GridView listColumns = new GridView();
+            GridViewColumnHeader nameHeader = new GridViewColumnHeader { Content = "Name" };
+            GridViewColumnHeader sizeHeader = new GridViewColumnHeader { Content = "Size" };
+            listColumns.Columns.Add(new GridViewColumn
+            {
+                Header = nameHeader,
+                DisplayMemberBinding = new Binding(nameof(PakSceneEntry.Name)),
+                Width = 650
+            });
+            listColumns.Columns.Add(new GridViewColumn
+            {
+                Header = sizeHeader,
+                DisplayMemberBinding = new Binding(nameof(PakSceneEntry.Size)),
+                Width = 100
+            });
+            lb.View = listColumns;
+
             //Add items
             lb.ItemsSource = paths;
-            lb.MouseDoubleClick += delegate
+            lb.MouseDoubleClick += async delegate
             {
-                string selected = (string)lb.SelectedItem;
+                string selected = (lb.SelectedItem as PakSceneEntry)?.Name;
+                if (selected == null)
+                    return;
                 win.Close();
-                OpenFile(selected, false, 0);
+                await onPick(selected);
             };
 
             CollectionView viewSource = (CollectionView)CollectionViewSource.GetDefaultView(lb.ItemsSource);
+            viewSource.SortDescriptions.Add(new SortDescription(nameof(PakSceneEntry.Name), ListSortDirection.Ascending));
+
+            ListSortDirection nameDirection = ListSortDirection.Ascending;
+            ListSortDirection sizeDirection = ListSortDirection.Ascending;
+            nameHeader.Click += delegate
+            {
+                nameDirection = nameDirection == ListSortDirection.Ascending
+                    ? ListSortDirection.Descending : ListSortDirection.Ascending;
+                viewSource.SortDescriptions.Clear();
+                viewSource.SortDescriptions.Add(new SortDescription(nameof(PakSceneEntry.Name), nameDirection));
+            };
+            sizeHeader.Click += delegate
+            {
+                sizeDirection = sizeDirection == ListSortDirection.Ascending
+                    ? ListSortDirection.Descending : ListSortDirection.Ascending;
+                viewSource.SortDescriptions.Clear();
+                viewSource.SortDescriptions.Add(new SortDescription(nameof(PakSceneEntry.SizeBytes), sizeDirection));
+                viewSource.SortDescriptions.Add(new SortDescription(nameof(PakSceneEntry.Name), ListSortDirection.Ascending));
+            };
 
 
             //Search box
@@ -263,7 +307,8 @@ namespace WPFModelViewer
                 if (string.IsNullOrEmpty(searchBox.Text))
                     return true;
                 else
-                    return (obj as string).IndexOf(searchBox.Text, StringComparison.OrdinalIgnoreCase) >= 0;
+                    return (obj as PakSceneEntry)?.Name.IndexOf(searchBox.Text,
+                        StringComparison.OrdinalIgnoreCase) >= 0;
             };
 
             //SearchBox Label
@@ -300,34 +345,17 @@ namespace WPFModelViewer
             //Save Settings on exit
             SettingsForm.saveSettingsStatic();
 
-            //Stop request timer
-            requestHandler.Stop();
-            statsTimer?.Stop();
+            //Detach WPF collection views before the render thread disposes the scene graph.
+            ObjectInfoBox.Content = null;
+            SceneTreeView.Items.Clear();
 
             //Stop rendering first, then free the GL resources (a queued terminate request would only run on the
             //next frame, after the resources were already gone)
             glControl.shutdown();
         }
 
-        private void updateStatsOverlay(object sender, EventArgs e)
-        {
-            bool show = RenderState.renderViewSettings?.RenderInfo ?? false;
-            StatsOverlay.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-            if (!show)
-                return;
-
-            float fps = RenderStats.fpsCount;
-            StatsText.Text = $"FPS: {fps:0.0} ({(fps > 0.0f ? 1000.0f / fps : 0.0f):0.00} ms)\n" +
-                             $"Occluded: {RenderStats.occludedNum}\n" +
-                             $"Vertices: {RenderStats.vertNum:N0}\n" +
-                             $"Triangles: {RenderStats.trisNum:N0}\n" +
-                             $"Textures: {RenderStats.texturesNum}\n" +
-                             $"Controller: {RenderState.activeGamepad?.getName() ?? "None"}";
-        }
-
         private void MainWindow_OnClosed(object sender, EventArgs e)
         {
-            statsTimer?.Stop();
             CallBacks.Log("Window Closed");
             Util.closeLog();
         }
@@ -346,21 +374,8 @@ namespace WPFModelViewer
             //Bind default camera to the controls
             CameraOptionsView.Content = RenderState.activeCam.settings;
 
-            //Populate GLControl
-            Scene scene = new Scene();
-            scene.type = TYPES.MODEL;
-            scene.name = "DEFAULT SCENE";
-
-            //Add default scene to the resource manager
-            RenderState.activeResMgr.GLScenes["DEFAULT_SCENE"] = scene;
-
-            //Force rootobject
-            RenderState.rootObject = scene;
-            glControl.modelUpdateQueue.Enqueue(scene);
-            glControl.engine.renderMgr.populate(scene);
-
             SceneTreeView.Items.Clear();
-            SceneTreeView.Items.Add(scene);
+            SceneTreeView.Items.Add(RenderState.rootObject);
 
 
             //Check if Temp folder exists
@@ -369,20 +384,16 @@ namespace WPFModelViewer
 #endif
             //Set active Components
             Util.activeStatusStrip = StatusLabel;
-            Util.activeControl = glControl;
             Util.activeWindow = this;
 
             //Bind Settings
             RenderViewOptionsControl.Content = RenderState.renderViewSettings;
+            //Loading the settings replaces the renderViewSettings instance, so bind to the current one here
+            ActionEmulationBox.DataContext = RenderState.renderViewSettings;
+            SystemsPanel.Attach(glControl.engine);
+            SystemsPanel.OwnerSelected += selectSceneNode;
             RenderOptionsControl.Content = RenderState.renderSettings;
-
-            //Add event handlers to GUI elements
-            //sliderFOV.ValueChanged += Sliders_OnValueChanged;
-            //sliderMovementSpeed.ValueChanged += Sliders_OnValueChanged;
-            //sliderMovementFactor.ValueChanged += Sliders_OnValueChanged;
-
-            //Invoke the method in order to setup the control at startup
-            Sliders_OnValueChanged(null, new RoutedPropertyChangedEventArgs<double>(0.0f, 0.0f));
+            DefaultLightOptionsControl.DataContext = RenderState.activeResMgr.GLlights[0];
 
             TestOptions.Visibility = Visibility.Hidden; //Hide the test options by default
 
@@ -413,86 +424,16 @@ namespace WPFModelViewer
 
 #if (DEBUG)
 
-        void addToGrid(Control c, int row_id, int col_id)
-        {
-            if (row_id > 0)
-                c.SetValue(Grid.RowProperty, row_id);
-            if (col_id > 0)
-                c.SetValue(Grid.ColumnProperty, col_id);
-        }
-
-        void addToGrid(TextBlock c, int row_id, int col_id)
-        {
-            if (row_id > 0)
-                c.SetValue(Grid.RowProperty, row_id);
-            if (col_id > 0)
-                c.SetValue(Grid.ColumnProperty, col_id);
-        }
-
         void setTestComponents()
         {
-            //Add Components programmatically
-            Grid g = new Grid();
-            for (int i = 0; i < 4; i++)
+            //The debug test sliders had no connected behavior; retain the functional scene button only.
+            Button bt = new Button { Content = "Test Scene 1" };
+            bt.Click += new RoutedEventHandler(async delegate (object s, RoutedEventArgs ee)
             {
-                RowDefinition rd = new RowDefinition();
-                rd.Height = new GridLength(20.0);
-                g.RowDefinitions.Add(rd);
-            }
-
-            for (int i = 0; i < 2; i++)
-            {
-                ColumnDefinition cd = new ColumnDefinition();
-                cd.Width = new GridLength(50.0);
-                g.ColumnDefinitions.Add(cd);
-            }
-
-            //Add Options
-            //Test Option 1
-            TextBlock tb = new TextBlock();
-            addToGrid(tb, 0, 0);
-            Slider sr = new Slider();
-            addToGrid(sr, 0, 1);
-            sr.Minimum = 0.0;
-            sr.Maximum = 1.0;
-            sr.ValueChanged += TestOpts_ValueChanged;
-            g.Children.Add(tb);
-            g.Children.Add(sr);
-
-            //Test Option 2
-            tb = new TextBlock();
-            addToGrid(tb, 1, 0);
-            sr = new Slider();
-            addToGrid(sr, 1, 1);
-            sr.Minimum = 0.0;
-            sr.Maximum = 1.0;
-            sr.ValueChanged += TestOpts_ValueChanged;
-            g.Children.Add(tb);
-            g.Children.Add(sr);
-
-            //Test Option 3
-            tb = new TextBlock();
-            addToGrid(tb, 2, 0);
-            sr = new Slider();
-            addToGrid(sr, 2, 1);
-            sr.Minimum = 0.0;
-            sr.Maximum = 1000.0;
-            sr.ValueChanged += TestOpts_ValueChanged;
-            g.Children.Add(tb);
-            g.Children.Add(sr);
-
-            //Test Scene Button 1
-            Button bt = new Button();
-            bt.Content = "Test Scene 1";
-            bt.SetValue(Grid.ColumnSpanProperty, 2);
-            addToGrid(bt, 3, 0);
-            bt.Click += new RoutedEventHandler(delegate (object s, RoutedEventArgs ee)
-            {
-                OpenFile("", true, 0);
+                await OpenFileAsync("", true, 0);
             });
-            g.Children.Add(bt);
-            
-            TestOptions.Content = g;
+
+            TestOptions.Content = bt;
         }
 #endif
 
@@ -504,16 +445,16 @@ namespace WPFModelViewer
         private void SelectLOD_OnClick(object sender, RoutedEventArgs e)
         {
             //The first entry is Auto, which picks the level by camera distance
-            RenderState.forcedLOD = Math.Max(tb_LODLevel.SelectedIndex, 0) - 1;
+            int selected = Math.Max(tb_LODLevel.SelectedIndex, 0) - 1;
+            RenderState.forcedLOD = selected;
             RenderState.instancesDirty = true;
+            CallBacks.Log("[LODSelection] UI requested " + (selected < 0 ? "Auto" : $"LOD{selected}"));
         }
 
-        private void RegenTextures_Click(object sender, RoutedEventArgs e)
+        private async void RegenTextures_Click(object sender, RoutedEventArgs e)
         {
             //Mixing needs the GL context, so it runs on the next frame
-            ThreadRequest req = new ThreadRequest();
-            req.type = THREAD_REQUEST_TYPE.REGEN_PROC_TEXTURES_REQUEST;
-            glControl.engine.issueRenderingRequest(ref req);
+            await glControl.engine.RegenerateProceduralTexturesAsync();
         }
 
         private void RegenPose_Click(object sender, RoutedEventArgs e)
@@ -533,11 +474,9 @@ namespace WPFModelViewer
 
         //Event Handlers
 
-        private void Sliders_OnValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        private void RestartActions_Click(object sender, RoutedEventArgs e)
         {
-            //glControl.engine.updateActiveCam(newSettings, RenderState.activeCam.Position, RenderState.activeCam.Direction);
-            //glControl.engine.light_distance = (float) Math.Pow(1.25f, sliderlightDistance.Value) - 1.0f;
-            //glControl.engine.light_intensity = (float) sliderLightIntensity.Value;
+            glControl.engine.actionSys.RequestRestart();
         }
 
         private void CameraResetPos(object sender, RoutedEventArgs e)
@@ -546,7 +485,7 @@ namespace WPFModelViewer
             if (RenderState.rootObject != null)
                 RenderState.activeCam.frameScene(RenderState.rootObject, true);
             else
-                Camera.SetCameraPosition(ref RenderState.activeCam, new Vector3(0.0f));
+                RenderState.activeCam.Position = Vector3.Zero;
         }
 
         private void SceneResetRotation(object sender, RoutedEventArgs e)
@@ -558,24 +497,68 @@ namespace WPFModelViewer
         {
             Model node = (Model)SceneTreeView.SelectedItem;
             if (node != null)
-            {
-                //Swap activeModels
-                Model prev_activeModel = glControl.activeModel;
-                glControl.activeModel = node;
+                setActiveModel(node);
+        }
 
-                //Set binding to objectinfo box
-                ObjectInfoBox.Content = node;
-
-                //Set Selected
-                glControl.activeModel.selected = 1;
-
-                //Deselect Previews model
-                if (prev_activeModel != null)
-                    prev_activeModel.selected = 0;
-                RenderState.instancesDirty = true;
-
+        private void GizmoToolbarModeChanged(object sender, RoutedEventArgs e)
+        {
+            if (glControl == null || sender is not RadioButton button)
                 return;
+            GIZMO_MODE mode = button.Tag?.ToString() switch
+            {
+                "Rotate" => GIZMO_MODE.ROTATE,
+                "Scale" => GIZMO_MODE.SCALE,
+                _ => GIZMO_MODE.TRANSLATE
+            };
+            glControl.SetGizmoMode(mode);
+        }
+
+        private void setActiveModel(Model node)
+        {
+            //Swap activeModels
+            Model prev_activeModel = RenderState.activeModel;
+            glControl.SetActiveModel(node);
+
+            //Set binding to objectinfo box
+            ObjectInfoBox.Content = node;
+
+            //Set Selected
+            RenderState.activeModel.selected = 1;
+
+            //Deselect Previews model
+            if (prev_activeModel != null && prev_activeModel != node)
+                prev_activeModel.selected = 0;
+            RenderState.instancesDirty = true;
+        }
+
+        //Selects a node in the scene tree, expanding its parents. Used by the Systems panel
+        private void selectSceneNode(Model node)
+        {
+            List<Model> path = new List<Model>();
+            for (Model n = node; n != null; n = n.parent)
+                path.Insert(0, n);
+
+            ItemsControl container = SceneTreeView;
+            TreeViewItem item = null;
+            foreach (Model n in path)
+            {
+                container.UpdateLayout();
+                TreeViewItem next = container.ItemContainerGenerator.ContainerFromItem(n) as TreeViewItem;
+                if (next == null)
+                    continue; //Ancestors above the tree's root
+                item = next;
+                if (n != node)
+                    item.IsExpanded = true;
+                container = item;
             }
+
+            if (item != null && item.DataContext == node)
+            {
+                item.IsSelected = true; //Updates the active model through SelectedItemChanged
+                item.BringIntoView();
+            }
+            else
+                setActiveModel(node);
         }
 
         private void showAboutDialog(object sender, RoutedEventArgs e)
@@ -681,64 +664,28 @@ namespace WPFModelViewer
             }
         }
 
-        private void SceneTreeView_Drop(object sender, DragEventArgs e)
+        private async void SceneTreeView_Drop(object sender, DragEventArgs e)
         {
             //Only nodes dragged from this tree can be dropped. The target is the node under the cursor now
             Model source = init_drag;
             Model target = (SceneTreeView.InputHitTest(e.GetPosition(SceneTreeView)) as FrameworkElement)?.DataContext as Model;
 
-            if (source == null || target == null || !canReparent(source, target))
+            if (source == null || target == null || source == target || source.parent == target)
                 return;
 
+            //Moves happen in the scene file too, so they stay inside the node's own file
+            if (!SceneEdit.canReparent(source, target, out string reason))
             {
-                //Remove child from parent model node
-                ThreadRequest req = new ThreadRequest();
-                req.type = THREAD_REQUEST_TYPE.CHANGE_MODEL_PARENT_REQUEST;
-                req.arguments.Add(source);
-                req.arguments.Add(target);
-                glControl.engine.issueRenderingRequest(ref req);
-
-                /*
-                lock (init_drag)
-                {
-                    if (init_drag.parent != null)
-                    {
-                        lock (init_drag.parent.Children)
-                        {
-                            init_drag.parent.Children.Remove(init_drag);
-                        }
-                    }
-                    
-                    //Add to target node
-                    init_drag.parent = target_drag;
-                }
-
-                lock (target_drag.Children)
-                {
-                    target_drag.Children.Add(init_drag);
-                }
-                */
-
-                init_drag = null;
-                target_drag = null;
-                e.Handled = true;
+                CallBacks.Log("Cannot move " + source.Name + ": " + reason);
+                Util.setStatus("Cannot move " + source.Name + ": " + reason);
+                return;
             }
 
-        }
+            await glControl.engine.ReparentAsync(source, target);
+            init_drag = null;
+            target_drag = null;
+            e.Handled = true;
 
-        //A node can't move under itself or one of its own children, and scene roots stay where they are
-        private static bool canReparent(Model source, Model target)
-        {
-            if (source == target || source.parent == null || source.parent == target)
-                return false;
-
-            for (Model m = target; m != null; m = m.parent)
-            {
-                if (m == source)
-                    return false;
-            }
-
-            return true;
         }
 
         private void SceneTreeView_GiveFeedback(object sender, GiveFeedbackEventArgs e)
@@ -809,22 +756,323 @@ namespace WPFModelViewer
 
         private void SceneTreeView_Ctx_ExportTemplate(object sender, RoutedEventArgs e)
         {
-            Model root_node = (e.Source as Control).DataContext as Model;
+            Model node = (e.Source as Control).DataContext as Model;
+            if (node == null)
+                return;
+            //A file root saves as its file, any other node as a scene of its own
+            string name = (node.SourceFile != "") ? node.SourceFile : node.EditableName + ".SCENE.MBIN";
+            Util.saveNode(node, name);
+        }
+
+        private void SceneTreeView_Ctx_ExportGeometry(object sender, RoutedEventArgs e)
+        {
+            Model node = (sender as Control)?.DataContext as Model;
+            if (node == null)
+                return;
+
             try
             {
-                TkSceneNodeData exported_node = root_node.ExportTemplate();
-                exported_node.WriteToMxml("export.mxml", false, true);
-                CallBacks.Log("Node Exported Successfully!", root_node.Name);
+                if (!node.IsRenderable)
+                {
+                    Util.showError("The selected node is unchecked. Check it before exporting its geometry.",
+                        "Export Geometry");
+                    return;
+                }
+
+                using Assimp.AssimpContext context = new Assimp.AssimpContext();
+                Assimp.ExportFormatDescription[] formats = context.GetSupportedExportFormats();
+                if (formats.Length == 0)
+                {
+                    Util.showError("Assimp did not report any supported export formats.", "Export Geometry");
+                    return;
+                }
+
+                AssimpExportDialog dialog = new AssimpExportDialog(formats, makeSafeFileName(node.Name))
+                {
+                    Owner = this
+                };
+                if (dialog.ShowDialog() != true)
+                    return;
+
+                Assimp.ExportFormatDescription format = dialog.SelectedFormat;
+                string outputFile = dialog.DestinationFile;
+                CallBacks.Log($"Preparing Assimp export from {node.Name}; animations requested: " +
+                    dialog.IncludeAnimations);
+                Assimp.Scene scene = new AssimpGeometryExporter().Export(node, dialog.IncludeAnimations);
+
+                int skippedProceduralTextures = 0;
+                Dictionary<(Material Material, Vector3 Color), int> materialIndices =
+                    new Dictionary<(Material, Vector3), int>();
+                addAssimpMaterials(node, scene.RootNode, scene, materialIndices, outputFile,
+                    ref skippedProceduralTextures);
+
+                if (scene.MeshCount == 0)
+                {
+                    Util.showError("The selected node and its descendants do not contain exportable geometry.",
+                        "Export Geometry");
+                    return;
+                }
+
+                CallBacks.Log($"Starting Assimp {format.FormatId} export: {scene.MeshCount} mesh(es), " +
+                    $"{scene.MaterialCount} material(s), {scene.AnimationCount} animation(s), " +
+                    $"{scene.Meshes.Sum(mesh => mesh.BoneCount)} bones, " +
+                    $"{scene.Meshes.Sum(mesh => mesh.VertexCount)} vertices, " +
+                    $"{scene.Meshes.Sum(mesh => mesh.FaceCount)} faces");
+                //The native exporter can terminate the process, so force this diagnostic checkpoint to disk.
+                Util.closeLog();
+                if (!context.ExportFile(scene, outputFile, format.FormatId))
+                    throw new InvalidOperationException("Assimp could not export the scene in the selected format.");
+                if (format.FormatId == "collada")
+                    AssimpGeometryExporter.AddColladaAnimationClips(outputFile, scene);
+                string message = $"Exported {scene.MeshCount} mesh(es), {scene.MaterialCount} material(s), " +
+                    $"and {scene.AnimationCount} animation clip(s) " +
+                    $"from {node.Name} to {outputFile}";
+                if (skippedProceduralTextures > 0)
+                    message += $". Skipped {skippedProceduralTextures} procedural texture reference(s)";
+                CallBacks.Log(message);
             }
             catch (Exception ex)
             {
-                CallBacks.Log("Error during template export");
-                CallBacks.Log(ex.Message);
+                CallBacks.Log("Geometry export failed: " + ex);
+                Util.showError("Geometry export failed: " + ex.Message, "Export Geometry");
             }
-
         }
 
-        private void SceneTreeView_Ctx_LoadReference(object sender, RoutedEventArgs e)
+        private static string makeSafeFileName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return "geometry";
+            foreach (char invalid in Path.GetInvalidFileNameChars())
+                name = name.Replace(invalid, '_');
+            return name;
+        }
+
+        private static void addAssimpMaterials(Model model, Assimp.Node assimpNode, Assimp.Scene scene,
+            Dictionary<(Material Material, Vector3 Color), int> materialIndices, string outputFile,
+            ref int skippedProceduralTextures)
+        {
+            if (!model.IsRenderable)
+                return;
+
+            if (model is Mesh mesh && assimpNode.MeshCount > 0)
+            {
+                Material material = mesh.material;
+                var materialKey = (material, mesh.color);
+                if (!materialIndices.TryGetValue(materialKey, out int materialIndex))
+                {
+                    materialIndex = scene.MaterialCount;
+                    scene.Materials.Add(createAssimpMaterial(material, mesh.color, outputFile,
+                        ref skippedProceduralTextures));
+                    materialIndices.Add(materialKey, materialIndex);
+                }
+
+                foreach (int meshIndex in assimpNode.MeshIndices)
+                    scene.Meshes[meshIndex].MaterialIndex = materialIndex;
+            }
+
+            int exportedChild = 0;
+            foreach (Model child in model.Children)
+            {
+                if (!child.IsRenderable)
+                    continue;
+                if (exportedChild >= assimpNode.ChildCount)
+                    break;
+                addAssimpMaterials(child, assimpNode.Children[exportedChild++], scene, materialIndices,
+                    outputFile, ref skippedProceduralTextures);
+            }
+        }
+
+        private static Assimp.Material createAssimpMaterial(Material source, Vector3 fallbackColor,
+            string outputFile, ref int skippedProceduralTextures)
+        {
+            Assimp.Material result = new Assimp.Material
+            {
+                Name = source?.Name ?? "Default material",
+                ColorDiffuse = new System.Numerics.Vector4(fallbackColor.X, fallbackColor.Y, fallbackColor.Z, 1.0f)
+            };
+
+            if (source == null)
+                return result;
+
+            if (source.CustomPerMaterialUniforms.TryGetValue(
+                "mpCustomPerMaterial.gMaterialColourVec4", out Uniform colour))
+            {
+                Vector4 value = colour.Vec.Vec;
+                result.ColorDiffuse = new System.Numerics.Vector4(value.X, value.Y, value.Z, value.W);
+                result.Opacity = value.W;
+            }
+            result.IsTwoSided = source.DoubleSided;
+
+            bool hasProceduralSet = source.PSamplers.Values.Any(sampler => sampler.isProcGen);
+            foreach (Sampler sampler in source.PSamplers.Values)
+            {
+                if (string.IsNullOrWhiteSpace(sampler.Map))
+                    continue;
+
+                bool procedural = sampler.isProcGen ||
+                    sampler.Map.IndexOf(".MIXED.", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    (hasProceduralSet && (sampler.Name.EndsWith("gDiffuseMap") ||
+                        sampler.Name.EndsWith("gMasksMap") || sampler.Name.EndsWith("gNormalMap")));
+                if (procedural)
+                {
+                    skippedProceduralTextures++;
+                    continue;
+                }
+
+                Assimp.TextureType textureType;
+                switch (sampler.Name)
+                {
+                    case "mpCustomPerMaterial.gDiffuseMap":
+                    case "mpCustomPerMaterial.gDiffuse2Map":
+                        textureType = Assimp.TextureType.Diffuse;
+                        break;
+                    case "mpCustomPerMaterial.gNormalMap":
+                        textureType = Assimp.TextureType.Normals;
+                        break;
+                    case "mpCustomPerMaterial.gOcclusionMap":
+                        textureType = Assimp.TextureType.Lightmap;
+                        break;
+                    default:
+                        continue; //Packed masks and NMS-specific samplers have no standard Assimp meaning.
+                }
+
+                string relativePath = copyExportTexture(sampler.Map, outputFile);
+                if (relativePath == null)
+                    continue;
+
+                int textureIndex = sampler.Name == "mpCustomPerMaterial.gDiffuse2Map" ? 1 : 0;
+                Assimp.TextureSlot slot = new Assimp.TextureSlot(relativePath, textureType, textureIndex,
+                    Assimp.TextureMapping.FromUV, 0, 1.0f, Assimp.TextureOperation.Multiply,
+                    Assimp.TextureWrapMode.Wrap, Assimp.TextureWrapMode.Wrap, 0);
+                result.AddMaterialTexture(in slot);
+            }
+            return result;
+        }
+
+        private static string copyExportTexture(string sourcePath, string outputFile)
+        {
+            try
+            {
+                string textureFolderName = Path.GetFileNameWithoutExtension(outputFile) + "_textures";
+                string textureFolder = Path.Combine(Path.GetDirectoryName(outputFile), textureFolderName);
+                Directory.CreateDirectory(textureFolder);
+
+                string fileName = makeSafeFileName(sourcePath.Replace('/', '_').Replace('\\', '_'));
+                string destination = Path.Combine(textureFolder, fileName);
+                if (!File.Exists(destination))
+                {
+                    using Stream input = NMSUtils.LoadNMSFileStream(sourcePath,
+                        ref RenderState.activeResMgr, false);
+                    using FileStream output = File.Create(destination);
+                    input.CopyTo(output);
+                }
+                return textureFolderName + "/" + fileName;
+            }
+            catch (Exception ex)
+            {
+                CallBacks.Log("Could not export texture " + sourcePath + ": " + ex.Message);
+                return null;
+            }
+        }
+
+        private async Task addNodeAsync(object sender, SceneEdit.NODE_KIND kind, string scenePath)
+        {
+            Model parent = (sender as Control)?.DataContext as Model;
+            if (parent == null || !SceneEdit.canAdd(parent))
+                return;
+
+            await glControl.engine.AddNodeAsync(parent, kind, scenePath);
+        }
+
+        private async void SceneTreeView_Ctx_AddLocator(object sender, RoutedEventArgs e)
+        {
+            await addNodeAsync(sender, SceneEdit.NODE_KIND.LOCATOR, "");
+        }
+
+        private async void SceneTreeView_Ctx_AddLight(object sender, RoutedEventArgs e)
+        {
+            await addNodeAsync(sender, SceneEdit.NODE_KIND.LIGHT, "");
+        }
+
+        private void SceneTreeView_Ctx_AddReference(object sender, RoutedEventArgs e)
+        {
+            if (activateIfOpen(sceneListWindow))
+                return;
+            showSceneList("Select the referenced SCENE file",
+                path => addNodeAsync(sender, SceneEdit.NODE_KIND.REFERENCE, path));
+        }
+
+        private async void SceneTreeView_Ctx_ImportGeometry(object sender, RoutedEventArgs e)
+        {
+            Model parent = (sender as Control)?.DataContext as Model;
+            if (parent?.CanImportGeometry != true)
+                return;
+
+            OpenFileDialog dialog = new OpenFileDialog
+            {
+                Title = "Import Geometry",
+                InitialDirectory = @"C:\Users\Greg\Downloads\glTF-Sample-Models-master\2.0\Duck\glTF-Binary\",
+                Filter = AssimpGeometryImporter.BuildFileFilter(),
+                CheckFileExists = true,
+                Multiselect = false
+            };
+            if (dialog.ShowDialog(this) != true)
+                return;
+
+            try
+            {
+                CallBacks.Log("[Import] Reading geometry hierarchy from {0}", dialog.FileName);
+                AssimpGeometryImportResult imported = AssimpGeometryImporter.Import(dialog.FileName);
+                await glControl.engine.AddImportedGeometryAsync(parent, imported.Root);
+                CallBacks.Log("[Import] Prepared {0} node(s), {1} mesh(es), {2} vertices and {3} triangles from {4}",
+                    imported.NodeCount, imported.MeshCount, imported.VertexCount, imported.TriangleCount,
+                    Path.GetFileName(dialog.FileName));
+            }
+            catch (Exception ex)
+            {
+                CallBacks.Log("Geometry import failed: " + ex);
+                Util.showError("Geometry import failed\n" + ex.Message, "Geometry Import");
+            }
+        }
+
+        private async void SceneTreeView_Ctx_Remove(object sender, RoutedEventArgs e)
+        {
+            Model node = (sender as Control)?.DataContext as Model;
+            if (node == null)
+                return;
+            if (!SceneEdit.canRemove(node, out string reason))
+            {
+                Util.showError("Cannot remove " + node.Name + ": " + reason, "Remove");
+                return;
+            }
+            if (MessageBox.Show(this, "Remove " + node.Name + " and everything under it?", "Remove",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+                return;
+
+            await glControl.engine.RemoveNodeAsync(node);
+        }
+
+        private void SceneTreeView_Ctx_ExportEntity(object sender, RoutedEventArgs e)
+        {
+            Model node = (e.Source as Control).DataContext as Model;
+            if (node == null)
+                return;
+            Util.saveTemplate(node.ExportAttachmentTemplate(), Path.GetFileName(node.AttachmentPath));
+        }
+
+        private void SceneTreeView_Ctx_ExportMaterial(object sender, RoutedEventArgs e)
+        {
+            Mesh node = (e.Source as Control).DataContext as Mesh;
+            Material mat = node?.meshVao?.material;
+            if (mat == null || !mat.fromFile)
+            {
+                Util.showError("The material of this mesh was not loaded from a file", "Export");
+                return;
+            }
+            Util.saveTemplate(mat.ExportTemplate(), Path.GetFileName(mat.name_key));
+        }
+
+        private async void SceneTreeView_Ctx_LoadReference(object sender, RoutedEventArgs e)
         {
             Reference root_node = (e.Source as Control).DataContext as Reference;
             //Try to load the reference model and add it as a child to the reference
@@ -836,37 +1084,7 @@ namespace WPFModelViewer
             }
 
             CallBacks.Log("Loading Reference " + root_node.ref_scene_filepath);
-            ThreadRequest req;
-
-            //Pause renderer
-            req = new ThreadRequest();
-            req.type = THREAD_REQUEST_TYPE.GL_PAUSE_RENDER_REQUEST;
-            req.arguments.Clear();
-
-            //Send request
-            glControl.issueRenderingRequest(ref req);
-            glControl.engine.handleRequests();
-
-            //Send request for loading reference to the scene
-            req = new ThreadRequest();
-            req.type = THREAD_REQUEST_TYPE.LOAD_REFERENCE_REQUEST;
-            req.arguments.Add(root_node.ref_scene_filepath);
-
-            glControl.issueRenderingRequest(ref req);
-            glControl.engine.handleRequests();
-
-            //Animated or action-driven parts of the reference join the systems
-            glControl.findAnimScenes(RenderState.rootObject);
-            glControl.findActionScenes(RenderState.rootObject);
-
-            //Generate Request for resuming rendering
-            ThreadRequest req2 = new ThreadRequest();
-            req2.type = THREAD_REQUEST_TYPE.GL_RESUME_RENDER_REQUEST;
-            req2.arguments.Clear();
-
-            glControl.issueRenderingRequest(ref req2);
-            glControl.engine.handleRequests();
-            //glControl.waitForRenderingRequest(ref req2);
+            await glControl.engine.LoadReferenceAsync(root_node.ref_scene_filepath);
 
             //Bind new camera to the controls
             CameraOptionsView.Content = RenderState.activeCam.settings;
@@ -874,27 +1092,6 @@ namespace WPFModelViewer
         }
 
 
-#if (DEBUG)
-        private void TestOpts_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            Slider s = (Slider) sender;
-            string name = s.Name;
-            
-            switch (name)
-            {
-                case "TestOpt1":
-                    RenderState.renderSettings.testOpt1 = (float) s.Value;
-                    break;
-                case "TestOpt2":
-                    RenderState.renderSettings.testOpt2 = (float)s.Value;
-                    break;
-                case "TestOpt3":
-                    RenderState.renderSettings.testOpt3 = (float)s.Value;
-                    break;
-            }
-        }
-#endif
-    
         private void camSpeed_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
@@ -960,43 +1157,6 @@ namespace WPFModelViewer
                                     object? parameter, CultureInfo culture)
         {
             return Binding.DoNothing;
-        }
-    }
-
-    public sealed class IsReferenceLoadedConverter : IValueConverter
-    {
-        public object Convert(object? value, Type targetType,
-                              object? parameter, CultureInfo culture)
-        {
-            Type ref_type = typeof(Reference);
-            var prop = ref_type.GetProperty("isRefLoaded");
-            if (prop == null) return false;
-            var propValue = prop.GetValue(value);
-            if ((bool)propValue == true)
-                Console.WriteLine("Something");
-                
-            return (bool) propValue;
-        }
-
-        public object ConvertBack(object? value, Type targetType,
-                                    object? parameter, CultureInfo culture)
-        {
-            return Binding.DoNothing;
-        }
-    }
-
-    public class SceneNodeTemplateSelector : DataTemplateSelector
-    {
-        public DataTemplate? DefaultTemplate { get; set; }
-        public DataTemplate? ReferenceTemplate { get; set; }
-        
-        public override DataTemplate? SelectTemplate(object item, DependencyObject container)
-        {
-            return item switch
-            {
-                Reference => ReferenceTemplate,
-                _ => DefaultTemplate
-            };
         }
     }
 

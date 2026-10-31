@@ -179,9 +179,6 @@ namespace MVCore.GMDL
 
     public class GLMeshVao : IDisposable
     {
-        //Class static properties
-        public const int MAX_INSTANCES = 512;
-
         public GLVao vao;
         public GLVao bHullVao;
         public MeshMetaData metaData;
@@ -194,10 +191,36 @@ namespace MVCore.GMDL
         //Instance Data
         public int UBO_aligned_size = 0; //Actual size of the data for the UBO, multiple to 256
         public int UBO_offset = 0; //Offset 
+        public int visibleIds_aligned_size = 0;
+        public int visibleIds_offset = 0;
 
-        public int instance_count = 0;
-        public int visible_instances = 0;
+        //Persistent instance records have stable indices. The draw count and the compact list below
+        //change with visibility/LOD, but transforms, selection and skinning data do not move.
+        public int stable_instance_count = 0;
+        public int instance_count = 0; //Visible instances drawn this frame
         public List<Model> instanceRefs = new List<Model>();
+        public Dictionary<Model, int> stableInstanceIds = new Dictionary<Model, int>();
+        public int[] visibleInstanceIds = new int[4];
+        //Each persistent ring slot remembers the last version of every stable instance it contains.
+        //A moving instance therefore updates only its own record, never the whole mesh batch.
+        public long instanceVersionCounter = 1;
+        public long[] instanceVersions = new long[1];
+        public long[][] uploadedInstanceVersions =
+        {
+            new long[1], new long[1], new long[1], new long[1]
+        };
+        public int[] stableUploadOffsets = { -1, -1, -1, -1 };
+        public int[] stableUploadGenerations = new int[4];
+        public int[] stableUploadCounts = new int[4];
+
+        //The compact visible list is versioned independently. A stationary camera reuses the copy already
+        //resident in each ring slot instead of uploading the same integer IDs every frame.
+        public int visibleListVersion = 1;
+        public int[] visibleListSnapshot = new int[4];
+        public int visibleListSnapshotCount = -1;
+        public int[] uploadedVisibleListVersions = new int[4];
+        public int[] uploadedVisibleOffsets = { -1, -1, -1, -1 };
+        public int[] uploadedVisibleGenerations = new int[4];
         public float[] instanceBoneMatrices;
         private int instanceBoneMatricesTex;
         private int instanceBoneMatricesTexTBO;
@@ -293,138 +316,6 @@ namespace MVCore.GMDL
         }
 
 
-        //Geometry Setup
-        //BSphere calculator
-        public GLVao setupBSphere(int instance_id)
-        {
-            float radius = 0.5f * (metaData.AABBMIN - metaData.AABBMAX).Length;
-            Vector4 bsh_center = new Vector4(metaData.AABBMIN + 0.5f * (metaData.AABBMAX - metaData.AABBMIN), 1.0f);
-
-            Matrix4 t_mat = GLMeshBufferManager.getInstanceWorldMat(this, instance_id);
-            bsh_center = bsh_center * t_mat;
-
-            //Create Sphere vbo
-            return new Primitives.Sphere(bsh_center.Xyz, radius).getVAO();
-        }
-
-
-        //Rendering Methods
-
-        public void renderBBoxes(int pass)
-        {
-            for (int i = 0; i > instance_count; i++)
-                renderBbox(pass, i);
-        }
-
-
-        public void renderBbox(int pass, int instance_id)
-        {
-            if (GLMeshBufferManager.getInstanceOccludedStatus(this, instance_id))
-                return;
-
-            Matrix4 worldMat = GLMeshBufferManager.getInstanceWorldMat(this, instance_id);
-            //worldMat = worldMat.ClearRotation();
-
-            Vector4[] tr_AABB = new Vector4[2];
-            //tr_AABB[0] = new Vector4(metaData.AABBMIN, 1.0f) * worldMat;
-            //tr_AABB[1] = new Vector4(metaData.AABBMAX, 1.0f) * worldMat;
-
-            tr_AABB[0] = new Vector4(instanceRefs[instance_id].AABBMIN, 1.0f);
-            tr_AABB[1] = new Vector4(instanceRefs[instance_id].AABBMAX, 1.0f);
-
-            //tr_AABB[0] = new Vector4(metaData.AABBMIN, 0.0f);
-            //tr_AABB[1] = new Vector4(metaData.AABBMAX, 0.0f);
-
-            //Generate all 8 points from the AABB
-            float[] verts1 = new float[] {  tr_AABB[0].X, tr_AABB[0].Y, tr_AABB[0].Z,
-                                           tr_AABB[1].X, tr_AABB[0].Y, tr_AABB[0].Z,
-                                           tr_AABB[0].X, tr_AABB[1].Y, tr_AABB[0].Z,
-                                           tr_AABB[1].X, tr_AABB[1].Y, tr_AABB[0].Z,
-
-                                           tr_AABB[0].X, tr_AABB[0].Y, tr_AABB[1].Z,
-                                           tr_AABB[1].X, tr_AABB[0].Y, tr_AABB[1].Z,
-                                           tr_AABB[0].X, tr_AABB[1].Y, tr_AABB[1].Z,
-                                           tr_AABB[1].X, tr_AABB[1].Y, tr_AABB[1].Z };
-
-            //Indices
-            Int32[] indices = new Int32[] { 0,1,2,
-                                            2,1,3,
-                                            1,5,3,
-                                            5,7,3,
-                                            5,4,6,
-                                            5,6,7,
-                                            0,2,4,
-                                            2,6,4,
-                                            3,6,2,
-                                            7,6,3,
-                                            0,4,5,
-                                            1,0,5};
-            //Generate OpenGL buffers
-            int arraysize = sizeof(float) * verts1.Length;
-            int vb_bbox, eb_bbox;
-            GL.GenBuffers(1, out vb_bbox);
-            GL.GenBuffers(1, out eb_bbox);
-
-            //Upload vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vb_bbox);
-            //Allocate to NULL
-            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr)(2 * arraysize), (IntPtr)null, BufferUsageHint.StaticDraw);
-            //Add verts data
-            GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts1);
-
-            ////Upload index buffer
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, eb_bbox);
-            GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr)(sizeof(Int32) * indices.Length), indices, BufferUsageHint.StaticDraw);
-
-
-            //Render
-
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vb_bbox);
-            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, 0);
-            GL.EnableVertexAttribArray(0);
-
-            //InverseBind Matrices
-            //loc = GL.GetUniformLocation(shader_program, "invBMs");
-            //GL.UniformMatrix4(loc, this.vbo.jointData.Count, false, this.vbo.invBMats);
-
-            //Render Elements
-            GL.PointSize(5.0f);
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, eb_bbox);
-
-            GL.DrawRangeElements(PrimitiveType.Triangles, 0, verts1.Length,
-                indices.Length, DrawElementsType.UnsignedInt, IntPtr.Zero);
-
-            GL.DisableVertexAttribArray(0);
-
-            GL.DeleteBuffer(vb_bbox);
-            GL.DeleteBuffer(eb_bbox);
-
-        }
-
-
-        public void renderBSphere(GLSLHelper.GLSLShaderConfig shader)
-        {
-            for (int i = 0; i < instance_count; i++)
-            {
-                GLVao bsh_Vao = setupBSphere(i);
-
-                //Rendering
-
-                GL.UseProgram(shader.program_id);
-
-                //Step 2 Bind & Render Vao
-                //Render Bounding Sphere
-                GL.BindVertexArray(bsh_Vao.vao_id);
-                GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Line);
-                GL.DrawElements(PrimitiveType.Triangles, 600, DrawElementsType.UnsignedInt, (IntPtr)0);
-
-                GL.BindVertexArray(0);
-                bsh_Vao.Dispose();
-            }
-
-
-        }
-
         private void renderMesh()
         {
             GL.BindVertexArray(vao.vao_id);
@@ -503,7 +394,7 @@ namespace MVCore.GMDL
             //GL.BindVertexArray(0);
         }
 
-        public virtual void renderMain(GLSLShaderConfig shader)
+        public void renderMain(GLSLShaderConfig shader)
         {
             //Upload Material Information
 
@@ -517,7 +408,7 @@ namespace MVCore.GMDL
             for (int i = 0; i < binding.samplers.Length; i++)
             {
                 Sampler s = binding.samplers[i];
-                if (s.Map.Value != "")
+                if (s.Map != "")
                     TextureBindCache.bind(binding.samplerUnits[i], s.tex.target, s.tex.texID);
             }
 
@@ -570,38 +461,6 @@ namespace MVCore.GMDL
             GL.BindVertexArray(0);
         }
 
-        public virtual void renderDebug(int pass)
-        {
-            GL.UseProgram(pass);
-            //Step 1: Upload Uniforms
-            int loc;
-            //Upload Material Flags here
-            //Reset
-            loc = GL.GetUniformLocation(pass, "matflags");
-
-            for (int i = 0; i < 64; i++)
-                GL.Uniform1(loc + i, 0.0f);
-
-            for (int i = 0; i < material.Flags.Count; i++)
-                GL.Uniform1(loc + (int)material.Flags[i].MaterialFlag, 1.0f);
-
-            //Upload joint transform data
-            //Multiply matrices before sending them
-            //Check if scene has the jointModel
-            /*
-            Util.mulMatArrays(ref skinMats, gobject.invBMats, scene.JMArray, 256);
-            loc = GL.GetUniformLocation(pass, "skinMats");
-            GL.UniformMatrix4(loc, 256, false, skinMats);
-            */
-
-            //Step 2: Render VAO
-            GL.BindVertexArray(vao.vao_id);
-            GL.DrawElements(PrimitiveType.Triangles, metaData.batchcount, DrawElementsType.UnsignedShort, (IntPtr)0);
-            GL.BindVertexArray(0);
-        }
-
-
-
         //Default render method
         public bool render(GLSLShaderConfig shader, RENDERPASS pass)
         {
@@ -614,19 +473,8 @@ namespace MVCore.GMDL
                 case RENDERPASS.DECAL:
                     renderMain(shader);
                     break;
-                case RENDERPASS.BBOX:
                 case RENDERPASS.BHULL:
-                    //renderBbox(shader.program_id, 0);
-                    //renderBSphere(shader);
                     renderBHull(shader);
-                    break;
-                //Render Debug
-                case RENDERPASS.DEBUG:
-                    //renderDebug(shader.program_id);
-                    break;
-                //Render for Picking
-                case RENDERPASS.PICK:
-                    //renderDebug(shader.program_id);
                     break;
                 default:
                     //Do nothing in any other case
@@ -723,7 +571,7 @@ namespace MVCore.GMDL
                 return;
 
             //Identity matrices for the instances known so far, more are added on demand
-            ensureSkinCapacity(Math.Max(instance_count, 1));
+            ensureSkinCapacity(Math.Max(stable_instance_count, 1));
 
             //Setup the TBO once, later calls reuse it
             if (instanceBoneMatricesTex == 0)
@@ -748,7 +596,7 @@ namespace MVCore.GMDL
             if (instanceBoneMatrices == null || BoneRemapIndicesCount == 0 || instanceBoneMatricesTexTBO == 0)
                 return;
 
-            int instances = Math.Min(instance_count, instanceBoneMatrices.Length / skinMatsStride);
+            int instances = Math.Min(stable_instance_count, instanceBoneMatrices.Length / skinMatsStride);
 
             GL.BindBuffer(BufferTarget.TextureBuffer, instanceBoneMatricesTexTBO);
 
@@ -820,6 +668,9 @@ namespace MVCore.GMDL
 
     public class Mesh : Model
     {
+        //The mesh material was read from a material file, so it can be exported
+        public bool HasMaterialFile => meshVao?.material?.fromFile == true;
+
         public int LodLevel
         {
             get
@@ -840,6 +691,10 @@ namespace MVCore.GMDL
         public MeshMetaData metaData = new MeshMetaData();
         public Vector3 color = new Vector3(); //Per instance
         public bool hasLOD = false;
+        //Meshes named as members of the same FooLOD0/FooLOD1/... object share this key and mask.
+        //A scene may contain many independent objects with different available LOD ranges.
+        public string lodGroupKey = null;
+        public uint availableLODMask = 0;
         public bool Skinned
         {
             get
@@ -889,26 +744,13 @@ namespace MVCore.GMDL
             }
         }
 
-        public Mesh(Mesh input) : base(input)
-        {
-            //Copy attributes
-            this.metaData = new MeshMetaData(input.metaData);
-
-            //Copy Vao Refs
-            this.meshVao = input.meshVao;
-
-            //Material Stuff
-            this.color = input.color;
-
-            this.palette = input.palette;
-            this.gobject = input.gobject; //Leave geometry file intact, no need to copy anything here
-        }
-
-        public void copyFrom(Mesh input)
+        private void copyFrom(Mesh input)
         {
             //Copy attributes
             metaData = new MeshMetaData(input.metaData);
             hasLOD = input.hasLOD;
+            lodGroupKey = input.lodGroupKey;
+            availableLODMask = input.availableLODMask;
 
             //Copy Vao Refs
             meshVao = input.meshVao;
@@ -952,7 +794,12 @@ namespace MVCore.GMDL
 
         }
 
-        public override void updateMeshInfo(bool lod_filter = false)
+        protected override bool hideDescendants(bool lod_filter)
+        {
+            return lod_filter || !active || !renderable;
+        }
+
+        public override void updateOwnMeshInfo(bool lod_filter = false)
         {
 
 #if(DEBUG)
@@ -960,12 +807,19 @@ namespace MVCore.GMDL
                 Common.CallBacks.Log("test");
 #endif
 
-            bool otherLOD = parentScene != null && parentScene.activeLOD != LodLevel;
-            if (lod_filter || !active || !renderable || otherLOD)
+            if (lod_filter || !active || !renderable)
+                return;
+
+            long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+            RenderStats.meshCount++;
+
+            //Each logical object selects the closest level it actually contains. Non-LOD meshes remain
+            //visible at every scene LOD; a FooLOD0-only object therefore does not disappear at LOD1/2.
+            int effectiveLOD = closestAvailableLOD(parentScene?.activeLOD ?? 0);
+            if (hasLOD && LodLevel != effectiveLOD)
             {
-                base.updateMeshInfo(true);
-                if (otherLOD)
-                    RenderStats.occludedNum += 1;
+                RenderStats.lodFilteredNum += 1;
+                RenderStats.meshTicks += System.Diagnostics.Stopwatch.GetTimestamp() - t0;
                 return;
             }
 
@@ -993,6 +847,14 @@ namespace MVCore.GMDL
                 GLMeshBufferManager.setInstanceUniform4(meshVao, instanceId,
                     "gUserDataVec4", CommonPerMeshUniforms["gUserDataVec4"].Vec.Vec);
 
+                if (colouriseColours != null && colouriseColours.Length >= 4)
+                {
+                    GLMeshBufferManager.setInstanceUniform4(meshVao, instanceId, "gColourisePrimary", colouriseColours[0]);
+                    GLMeshBufferManager.setInstanceUniform4(meshVao, instanceId, "gColouriseSecondary", colouriseColours[1]);
+                    GLMeshBufferManager.setInstanceUniform4(meshVao, instanceId, "gColouriseTernary", colouriseColours[2]);
+                    GLMeshBufferManager.setInstanceUniform4(meshVao, instanceId, "gColouriseQuaternary", colouriseColours[3]);
+                }
+
                 //Selected in the scene tree: the shaders tint it green
                 GLMeshBufferManager.setInstanceSelectedStatus(meshVao, instanceId, selected > 0);
 
@@ -1010,490 +872,30 @@ namespace MVCore.GMDL
                 //TODO: Check if we need to return at this point, because the children meshes might be occluded as well
             }
 
-            //meshVao.setInstanceOccludedStatus(instanceId, occluded_status);
-            base.updateMeshInfo();
+            RenderStats.meshTicks += System.Diagnostics.Stopwatch.GetTimestamp() - t0;
         }
 
-        public override Assimp.Node assimpExport(ref Assimp.Scene scn, ref Dictionary<int, int> meshImportStatus)
+        private int closestAvailableLOD(int requested)
         {
-            Assimp.Mesh amesh = new Assimp.Mesh();
-            Assimp.Node node;
-            amesh.Name = name;
+            uint available = availableLODMask;
+            if (available == 0)
+                return LodLevel;
+            requested = Math.Clamp(requested, 0, 31);
+            if ((available & (1u << requested)) != 0)
+                return requested;
 
-            int meshHash = meshVao.GetHashCode();
-
-            //TESTING
-            if (scn.MeshCount > 20)
+            //On an equal-distance tie, retain the more detailed (lower-numbered) level.
+            for (int delta = 1; delta < 32; delta++)
             {
-                node = base.assimpExport(ref scn, ref meshImportStatus);
-                return node;
+                int detailed = requested - delta;
+                if (detailed >= 0 && (available & (1u << detailed)) != 0)
+                    return detailed;
+                int coarser = requested + delta;
+                if (coarser < 32 && (available & (1u << coarser)) != 0)
+                    return coarser;
             }
-
-            if (!meshImportStatus.ContainsKey(meshHash))
-            //if (false)
-            {
-                meshImportStatus[meshHash] = scn.MeshCount;
-
-                int vertcount = metaData.vertrend_graphics - metaData.vertrstart_graphics + 1;
-                MemoryStream vms = new MemoryStream(gobject.meshDataDict[metaData.Hash].vs_buffer);
-                MemoryStream ims = new MemoryStream(gobject.meshDataDict[metaData.Hash].is_buffer);
-                BinaryReader vbr = new BinaryReader(vms);
-                BinaryReader ibr = new BinaryReader(ims);
-
-
-                //Initialize Texture Component Channels
-                if (gobject.bufInfo[1] != null)
-                {
-                    List<Assimp.Vector3D> textureChannel = new List<Assimp.Vector3D>();
-                    amesh.TextureCoordinateChannels.Append(textureChannel);
-                    amesh.UVComponentCount[0] = 2;
-                }
-
-                //Generate bones only for the joints related to the mesh
-                Dictionary<int, Assimp.Bone> localJointDict = new Dictionary<int, Assimp.Bone>();
-
-                //Export Bone Structure
-                if (Skinned)
-                //if (false)
-                {
-                    for (int i = 0; i < meshVao.BoneRemapIndicesCount; i++)
-                    {
-                        int joint_id = meshVao.BoneRemapIndices[i];
-                        //Fetch name
-                        Joint relJoint = null;
-
-                        foreach (Joint jnt in parentScene.jointDict.Values)
-                        {
-                            if (jnt.jointIndex == joint_id)
-                            {
-                                relJoint = jnt;
-                                break;
-                            }
-
-                        }
-
-                        //Generate bone
-                        Assimp.Bone b = new Assimp.Bone();
-                        if (relJoint != null)
-                        {
-                            b.Name = relJoint.name;
-                            b.OffsetMatrix = MathUtils.convertMatrix(relJoint.invBMat);
-                        }
-
-
-                        localJointDict[i] = b;
-                        amesh.Bones.Add(b);
-                    }
-                }
-
-
-
-                //Write geometry info
-
-                vbr.BaseStream.Seek(0, SeekOrigin.Begin);
-                for (int i = 0; i < vertcount; i++)
-                {
-                    Assimp.Vector3D v, vN;
-                    v = new Assimp.Vector3D();
-
-                    for (int j = 0; j < gobject.bufInfo.Count; j++)
-                    {
-                        bufInfo buf = gobject.bufInfo[j];
-                        if (buf is null)
-                            continue;
-
-                        switch (buf.semantic)
-                        {
-                            case 0: //vPosition
-                                {
-                                    switch (buf.type)
-                                    {
-                                        case VertexAttribPointerType.HalfFloat:
-                                            uint v1 = vbr.ReadUInt16();
-                                            uint v2 = vbr.ReadUInt16();
-                                            uint v3 = vbr.ReadUInt16();
-                                            uint v4 = vbr.ReadUInt16();
-
-                                            //Transform vector with worldMatrix
-                                            v = new Assimp.Vector3D(Utils.Half.decompress(v1), Utils.Half.decompress(v2), Utils.Half.decompress(v3));
-                                            break;
-                                        case VertexAttribPointerType.Float: //This is used in my custom vbos
-                                            float f1 = vbr.ReadSingle();
-                                            float f2 = vbr.ReadSingle();
-                                            float f3 = vbr.ReadSingle();
-                                            //Transform vector with worldMatrix
-                                            v = new Assimp.Vector3D(f1, f2, f3);
-                                            break;
-                                        default:
-                                            throw new Exception("Unimplemented Vertex Type");
-                                    }
-                                    amesh.Vertices.Add(v);
-                                    break;
-                                }
-
-                            case 1: //uvPosition
-                                {
-                                    Assimp.Vector3D uv;
-                                    uint v1 = vbr.ReadUInt16();
-                                    uint v2 = vbr.ReadUInt16();
-                                    uint v3 = vbr.ReadUInt16();
-                                    uint v4 = vbr.ReadUInt16();
-                                    //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
-                                    uv = new Assimp.Vector3D(Utils.Half.decompress(v1), Utils.Half.decompress(v2), 0.0f);
-
-                                    amesh.TextureCoordinateChannels[0].Add(uv); //Add directly to the first channel
-                                    break;
-                                }
-                            case 2: //nPosition
-                            case 3: //tPosition
-                                {
-                                    switch (buf.type)
-                                    {
-                                        case (VertexAttribPointerType.Float):
-                                            float f1, f2, f3;
-                                            f1 = vbr.ReadSingle();
-                                            f2 = vbr.ReadSingle();
-                                            f3 = vbr.ReadSingle();
-                                            vN = new Assimp.Vector3D(f1, f2, f3);
-                                            break;
-                                        case (VertexAttribPointerType.HalfFloat):
-                                            uint v1, v2, v3;
-                                            v1 = vbr.ReadUInt16();
-                                            v2 = vbr.ReadUInt16();
-                                            v3 = vbr.ReadUInt16();
-                                            vN = new Assimp.Vector3D(Utils.Half.decompress(v1), Utils.Half.decompress(v2), Utils.Half.decompress(v3));
-                                            break;
-                                        case (VertexAttribPointerType.Int2101010Rev):
-                                            int i1, i2, i3;
-                                            uint value;
-                                            byte[] a32 = new byte[4];
-                                            a32 = vbr.ReadBytes(4);
-
-                                            value = BitConverter.ToUInt32(a32, 0);
-                                            //Convert Values
-                                            i1 = _2sComplement.toInt((value >> 00) & 0x3FF, 10);
-                                            i2 = _2sComplement.toInt((value >> 10) & 0x3FF, 10);
-                                            i3 = _2sComplement.toInt((value >> 20) & 0x3FF, 10);
-                                            //int i4 = _2sComplement.toInt((value >> 30) & 0x003, 10);
-                                            float norm = (float)Math.Sqrt(i1 * i1 + i2 * i2 + i3 * i3);
-
-                                            vN = new Assimp.Vector3D(Convert.ToSingle(i1) / norm,
-                                                             Convert.ToSingle(i2) / norm,
-                                                             Convert.ToSingle(i3) / norm);
-
-                                            //Debug.WriteLine(vN);
-                                            break;
-                                        default:
-                                            throw new Exception("UNIMPLEMENTED NORMAL TYPE. PLEASE REPORT");
-                                    }
-
-                                    if (j == 2)
-                                        amesh.Normals.Add(vN);
-                                    else if (j == 3)
-                                    {
-                                        amesh.Tangents.Add(vN);
-                                        amesh.BiTangents.Add(new Assimp.Vector3D(0.0f, 0.0f, 1.0f));
-                                    }
-                                    break;
-                                }
-                            case 4: //bPosition
-                                vbr.ReadBytes(4); // skip
-                                break;
-                            case 5: //BlendIndices + BlendWeights
-                                {
-                                    int[] joint_ids = new int[4];
-                                    float[] weights = new float[4];
-
-                                    for (int k = 0; k < 4; k++)
-                                    {
-                                        joint_ids[k] = vbr.ReadByte();
-                                    }
-
-
-                                    for (int k = 0; k < 4; k++)
-                                        weights[k] = Utils.Half.decompress(vbr.ReadUInt16());
-
-                                    if (Skinned)
-                                    //if (false)
-                                    {
-                                        for (int k = 0; k < 4; k++)
-                                        {
-                                            int joint_id = joint_ids[k];
-
-                                            Assimp.VertexWeight vw = new Assimp.VertexWeight();
-                                            vw.VertexID = i;
-                                            vw.Weight = weights[k];
-                                            localJointDict[joint_id].VertexWeights.Add(vw);
-
-                                        }
-
-
-                                    }
-
-
-                                    break;
-                                }
-                            case 6:
-                                break; //Handled by 5
-                            default:
-                                {
-                                    throw new Exception("UNIMPLEMENTED BUF Info. PLEASE REPORT");
-                                    break;
-                                }
-
-                        }
-                    }
-
-                }
-
-                //Export Faces
-                //Get indices
-                ibr.BaseStream.Seek(0, SeekOrigin.Begin);
-                bool start = false;
-                int fstart = 0;
-                for (int i = 0; i < metaData.batchcount / 3; i++)
-                {
-                    int f1, f2, f3;
-                    //NEXT models assume that all gstream meshes have uint16 indices
-                    f1 = ibr.ReadUInt16();
-                    f2 = ibr.ReadUInt16();
-                    f3 = ibr.ReadUInt16();
-
-                    if (!start && this.type != TYPES.COLLISION)
-                    { fstart = f1; start = true; }
-                    else if (!start && this.type == TYPES.COLLISION)
-                    {
-                        fstart = 0; start = true;
-                    }
-
-                    int f11, f22, f33;
-                    f11 = f1 - fstart;
-                    f22 = f2 - fstart;
-                    f33 = f3 - fstart;
-
-
-                    Assimp.Face face = new Assimp.Face();
-                    face.Indices.Add(f11);
-                    face.Indices.Add(f22);
-                    face.Indices.Add(f33);
-
-
-                    amesh.Faces.Add(face);
-                }
-
-                scn.Meshes.Add(amesh);
-
-            }
-
-            node = base.assimpExport(ref scn, ref meshImportStatus);
-            node.MeshIndices.Add(meshImportStatus[meshHash]);
-
-            return node;
+            return LodLevel;
         }
-
-        public void writeGeomToStream(StreamWriter s, ref uint index)
-        {
-            int vertcount = metaData.vertrend_graphics - metaData.vertrstart_graphics + 1;
-            MemoryStream vxms = new MemoryStream(gobject.meshDataDict[metaData.Hash].vs_buffer);
-            MemoryStream vpms = new MemoryStream(gobject.meshDataDict[metaData.Hash].vp_buffer);
-            MemoryStream ims = new MemoryStream(gobject.meshDataDict[metaData.Hash].is_buffer);
-            BinaryReader vxbr = new BinaryReader(vxms);
-            BinaryReader vpbr = new BinaryReader(vpms);
-            BinaryReader ibr = new BinaryReader(ims);
-            //Start Writing
-            //Object name
-            s.WriteLine("o " + name);
-            //Get Verts
-
-            //Preset Matrices for faster export
-            Matrix4 wMat = this.worldMat;
-            Matrix4 nMat = Matrix4.Invert(Matrix4.Transpose(wMat));
-
-            vpbr.BaseStream.Seek(0, SeekOrigin.Begin);
-            for (int i = 0; i < vertcount; i++)
-            {
-                Vector4 v = new Vector4(0.0f);
-                VertexAttribPointerType ntype = gobject.bufInfo[0].type;
-                int v_section_bytes = 0;
-
-                switch (ntype)
-                {
-                    case VertexAttribPointerType.HalfFloat:
-                        uint v1 = vpbr.ReadUInt16();
-                        uint v2 = vpbr.ReadUInt16();
-                        uint v3 = vpbr.ReadUInt16();
-                        //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
-
-                        //Transform vector with worldMatrix
-                        v = new Vector4(Utils.Half.decompress(v1), Utils.Half.decompress(v2), Utils.Half.decompress(v3), 1.0f);
-                        v_section_bytes = 6;
-                        break;
-                    case VertexAttribPointerType.Float: //This is used in my custom vbos
-                        float f1 = vpbr.ReadSingle();
-                        float f2 = vpbr.ReadSingle();
-                        float f3 = vpbr.ReadSingle();
-                        //Transform vector with worldMatrix
-                        v = new Vector4(f1, f2, f3, 1.0f);
-                        v_section_bytes = 12;
-                        break;
-                    default:
-                        ErrorUtils.throwException("Unimplemented Vertex Type");
-                        break;
-                }
-
-
-                v = v * worldMat;
-                //v = Vector4.Transform(v, this.worldMat);
-
-                //s.WriteLine("v " + Half.decompress(v1).ToString() + " "+ Half.decompress(v2).ToString() + " " + Half.decompress(v3).ToString());
-                s.WriteLine(string.Format($"v {v.X} {v.Y} {v.Z}", CultureInfo.InvariantCulture));
-                vpbr.BaseStream.Seek(gobject.vp_size - v_section_bytes, SeekOrigin.Current);
-            }
-            //Get Normals
-
-            vxbr.BaseStream.Seek(gobject.offsets[2] + 0, SeekOrigin.Begin);
-            for (int i = 0; i < vertcount; i++)
-            {
-                Vector4 vN = new Vector4();
-                VertexAttribPointerType ntype = gobject.bufInfo[2].type;
-                int n_section_bytes = 0;
-
-                switch (ntype)
-                {
-                    case (VertexAttribPointerType.Float):
-                        float f1, f2, f3;
-                        f1 = vxbr.ReadSingle();
-                        f2 = vxbr.ReadSingle();
-                        f3 = vxbr.ReadSingle();
-                        vN = new Vector4(f1, f2, f3, 1.0f);
-                        n_section_bytes = 12;
-                        break;
-                    case (VertexAttribPointerType.HalfFloat):
-                        uint v1, v2, v3;
-                        v1 = vxbr.ReadUInt16();
-                        v2 = vxbr.ReadUInt16();
-                        v3 = vxbr.ReadUInt16();
-                        vN = new Vector4(Utils.Half.decompress(v1), Utils.Half.decompress(v2), Utils.Half.decompress(v3), 1.0f);
-                        n_section_bytes = 6;
-                        break;
-                    case (VertexAttribPointerType.Int2101010Rev):
-                        int i1, i2, i3;
-                        uint value;
-                        byte[] a32 = new byte[4];
-                        a32 = vxbr.ReadBytes(4);
-
-                        value = BitConverter.ToUInt32(a32, 0);
-                        //Convert Values
-                        i1 = _2sComplement.toInt((value >> 00) & 0x3FF, 10);
-                        i2 = _2sComplement.toInt((value >> 10) & 0x3FF, 10);
-                        i3 = _2sComplement.toInt((value >> 20) & 0x3FF, 10);
-                        //int i4 = _2sComplement.toInt((value >> 30) & 0x003, 10);
-                        float norm = (float)Math.Sqrt(i1 * i1 + i2 * i2 + i3 * i3);
-
-                        vN = new Vector4(Convert.ToSingle(i1) / norm,
-                                         Convert.ToSingle(i2) / norm,
-                                         Convert.ToSingle(i3) / norm,
-                                         1.0f);
-
-                        n_section_bytes = 4;
-                        //Debug.WriteLine(vN);
-                        break;
-                    default:
-                        ErrorUtils.throwException("UNIMPLEMENTED NORMAL TYPE. PLEASE REPORT");
-                        break;
-                }
-
-                //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
-                //Transform normal with normalMatrix
-
-
-                vN = vN * nMat;
-
-                s.WriteLine(string.Format($"vn {vN.X} {vN.Y} {vN.Z}", CultureInfo.InvariantCulture));
-                vxbr.BaseStream.Seek(gobject.vx_size - n_section_bytes, SeekOrigin.Current);
-            }
-            //Get UVs, only for mesh objects
-            
-            vxbr.BaseStream.Seek(Math.Max(gobject.offsets[1], 0) + gobject.vx_size * metaData.vertrstart_graphics, SeekOrigin.Begin);
-            for (int i = 0; i < vertcount; i++)
-            {
-                Vector2 uv;
-                int uv_section_bytes = 0;
-                if (gobject.offsets[1] != -1) //Check if uvs exist
-                {
-                    uint v1 = vxbr.ReadUInt16();
-                    uint v2 = vxbr.ReadUInt16();
-                    uint v3 = vxbr.ReadUInt16();
-                    //uint v4 = Convert.ToUInt16(vbr.ReadUInt16());
-                    uv = new Vector2(Utils.Half.decompress(v1), Utils.Half.decompress(v2));
-                    uv_section_bytes = 0x6;
-                }
-                else
-                {
-                    uv = new Vector2(0.0f, 0.0f);
-                    uv_section_bytes = gobject.vx_size;
-                }
-
-                s.WriteLine(string.Format($"vt {uv.X} {1.0 - uv.Y}", CultureInfo.InvariantCulture));
-                vxbr.BaseStream.Seek(gobject.vx_size - uv_section_bytes, SeekOrigin.Current);
-            }
-
-            //Some Options
-            s.WriteLine("usemtl(null)");
-            s.WriteLine("s off");
-
-            //Get indices
-            ibr.BaseStream.Seek(0, SeekOrigin.Begin);
-            bool start = false;
-            uint fstart = 0;
-            for (int i = 0; i < metaData.batchcount / 3; i++)
-            {
-                uint f1, f2, f3;
-                //NEXT models assume that all gstream meshes have uint16 indices
-                f1 = ibr.ReadUInt16();
-                f2 = ibr.ReadUInt16();
-                f3 = ibr.ReadUInt16();
-
-                if (!start && this.type != TYPES.COLLISION)
-                { fstart = f1; start = true; }
-                else if (!start && this.type == TYPES.COLLISION)
-                {
-                    fstart = 0; start = true;
-                }
-
-                uint f11, f22, f33;
-                f11 = f1 - fstart + index;
-                f22 = f2 - fstart + index;
-                f33 = f3 - fstart + index;
-
-
-                s.WriteLine("f " + f11.ToString() + "/" + f11.ToString() + "/" + f11.ToString() + " "
-                                + f22.ToString() + "/" + f22.ToString() + "/" + f22.ToString() + " "
-                                + f33.ToString() + "/" + f33.ToString() + "/" + f33.ToString() + " ");
-            }
-            index += (uint)vertcount;
-        }
-
-
-
-        #region IDisposable Support
-
-        protected override void Dispose(bool disposing)
-        {
-            if (!disposed)
-            {
-                if (disposing)
-                {
-
-                    // TODO: dispose managed state (managed objects).
-                    //if (material != null) material.Dispose();
-                    //NOTE: No need to dispose material, because the materials reside in the resource manager
-                    base.Dispose(disposing);
-                }
-            }
-        }
-
-        #endregion
 
     }
 

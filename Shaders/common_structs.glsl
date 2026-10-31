@@ -6,6 +6,8 @@ struct Light //locations:5
     vec4 direction; //w is fov
     float falloff;
     float type; //Uploaded as a float by the engine (0: point, 1: spot)
+    float range; //Distance where the light fades out, set for the clustered scene lights (0 in the UBO)
+    float lodAttenuationScale; //1 for ordinary lights; boundary-continuity gain for LOD-controlled lights
 };
 
 struct MeshInstance
@@ -21,6 +23,10 @@ struct MeshInstance
     float isSelected;
     float color;
     float lod;
+    vec4 colourisePrimary;
+    vec4 colouriseSecondary;
+    vec4 colouriseTernary;
+    vec4 colouriseQuaternary;
 };
 
 //Common Per Mesh Struct
@@ -39,7 +45,6 @@ struct CommonPerFrameUniforms
     float diffuseFlag; //Enable Textures //floats align to 16 bytes
     float use_lighting; //Enable lighting
     float gfTime; //Time
-    float MSAA_SAMPLES; //MSAA Samples
     vec2 frameDim; //Dimensions of the render frame
     float cameraNearPlane;
     float cameraFarPlane;
@@ -71,6 +76,7 @@ struct CustomPerMaterialUniforms  //locations:73
     sampler2DArray gOcclusionMap;
     sampler2DArray gDetailNormalMap;
     samplerBuffer skinMatsTex;
+    sampler2DArray gColouriseMaskMap;
     int skinMatsStride; //Bone matrices per instance in skinMatsTex
 
     vec4 gMaterialColourVec4;

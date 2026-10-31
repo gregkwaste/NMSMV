@@ -4,11 +4,9 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:WPFModelViewer"
-        xmlns:opentk_wpf ="clr-namespace:OpenTK.Wpf;assembly=GLWpfControl"
-        xmlns:mvcore="clr-namespace:MVCore;assembly="
+        xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
         xmlns:gmdl="clr-namespace:MVCore.GMDL;assembly="
         xmlns:mvcore_common="clr-namespace:MVCore.Common;assembly="
-        xmlns:sys="clr-namespace:System;assembly=mscorlib"
         mc:Ignorable="d"
         Title="No Man's Sky Model Viewer" Height="720" Width="1280"
         MinHeight="400" MinWidth="800"
@@ -20,7 +18,6 @@
     <Window.Resources>
         <ResourceDictionary>
             <local:IsInstanceOfConverter x:Key="IsInstanceOf"/>
-            <local:IsReferenceLoadedConverter x:Key="IsReferenceLoaded"/>
 
             <DataTemplate DataType="{x:Type gmdl:CameraSettings}">
                 <GroupBox Header="Camera Options">
@@ -30,13 +27,10 @@
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
-                            <RowDefinition Height="20"/>
-                            <RowDefinition Height="20"/>
-                            <RowDefinition Height="20"/>
                         </Grid.RowDefinitions>
                         <DockPanel Grid.Row="0" HorizontalAlignment="Stretch">
                             <TextBlock Width="100">FOV</TextBlock>
-                            <Slider x:Name="sliderFOV" Value="{Binding FOV}" Minimum="1" Maximum="100" SmallChange="1"></Slider>
+                            <Slider Value="{Binding FOV}" Minimum="1" Maximum="100" SmallChange="1"></Slider>
                         </DockPanel>
                         <DockPanel Grid.Row="1" HorizontalAlignment="Stretch"
                                    ToolTip="Scene radii per second. Mouse wheel while dragging in the viewport also changes it. Double-click the slider to reset.">
@@ -51,15 +45,7 @@
                             <TextBlock Width="100">Cam Sensitivity</TextBlock>
                             <Slider Value="{Binding Sensitivity}" Minimum="0" Maximum="2" SmallChange="0.01"></Slider>
                         </DockPanel>
-                        <DockPanel Grid.Row="3" HorizontalAlignment="Stretch">
-                            <TextBlock Width="100">Light Distance</TextBlock>
-                            <Slider x:Name="sliderlightDistance" Value="2.0" Minimum="0" Maximum="20" SmallChange="0.2"></Slider>
-                        </DockPanel>
-                        <DockPanel Grid.Row="4" HorizontalAlignment="Stretch">
-                            <TextBlock Width="100">Light Intensity</TextBlock>
-                            <Slider x:Name="sliderLightIntensity"  Value="3.0" Minimum="0.0" Maximum="20.0" SmallChange="0.1"></Slider>
-                        </DockPanel>
-                        <Grid Grid.Row="6">
+                        <Grid Grid.Row="3">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="50*"/>
                                 <ColumnDefinition Width="50*"/>
@@ -71,217 +57,241 @@
                 </GroupBox>
             </DataTemplate>
             
-            <DataTemplate x:Key="basemodel" DataType="{x:Type gmdl:Model}">
-                <Grid VerticalAlignment="Stretch">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <GroupBox Grid.Row="0" Header="Object Information">
-                        <Grid VerticalAlignment="Stretch">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Height="20">
-                                <TextBlock Text="Name"></TextBlock >
-                                <TextBlock HorizontalAlignment="Right" Text="{Binding Name}"></TextBlock>
-                            </DockPanel>
-                            <DockPanel Grid.Row="1" HorizontalAlignment="Stretch" Height="20">
-                                <TextBlock Text="Type"></TextBlock>
-                                <TextBlock HorizontalAlignment="Right"  Text="{Binding Type}"></TextBlock>
-                            </DockPanel>
-                            <DockPanel Grid.Row="2" HorizontalAlignment="Stretch" Height="20">
-                                <TextBlock Text="LOD Number"></TextBlock>
-                                <TextBlock HorizontalAlignment="Right"  Text="{Binding LODNumber}"></TextBlock>
-                            </DockPanel>
-                            <DockPanel Grid.Row="3" HorizontalAlignment="Stretch" Height="60">
-                                <TextBlock Text="LOD Distances"></TextBlock>
-                                <ListBox ItemsSource="{Binding LODDistances}" HorizontalContentAlignment="Left"></ListBox>
-                            </DockPanel>
-                            <local:ModelTransform Grid.Row="4" Model="{Binding}"/>
-                        </Grid>
-                    </GroupBox>
-                    <GroupBox Grid.Row="1" Header="Components">
-                        <ItemsControl ItemsSource="{Binding Components}" IsTextSearchEnabled="False"/>
-                    </GroupBox>
-                </Grid>
+            <!-- Object Info. A node is shown as: header (name, type), its components, the sections of its type,
+                 then Transform and LOD. modelHeader and modelGeneral are shared by every node type -->
+            <DataTemplate x:Key="modelHeader" DataType="{x:Type gmdl:Model}">
+                <StackPanel>
+                    <Border Padding="2,2,2,6" Margin="0,0,0,2" BorderThickness="0,0,0,1"
+                            BorderBrush="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Right" VerticalAlignment="Center" Padding="6,1" CornerRadius="3"
+                                    Background="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}">
+                                <TextBlock Text="{Binding Type}" FontSize="11"/>
+                            </Border>
+                            <TextBox Style="{StaticResource ValueText}"
+                                     Text="{Binding EditableName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                     FontSize="14" FontWeight="SemiBold"/>
+                        </DockPanel>
+                    </Border>
+                    <Expander>
+                        <Expander.Style>
+                            <Style TargetType="Expander" BasedOn="{StaticResource SectionExpander}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Components.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Expander.Style>
+                        <Expander.Header>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontWeight="SemiBold" Text="Components"/>
+                                <TextBlock Margin="6,0,0,0" Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" Text="{Binding Components.Count}"/>
+                            </StackPanel>
+                        </Expander.Header>
+                        <ItemsControl Margin="16,2,0,4" ItemsSource="{Binding Components}" IsTextSearchEnabled="False"/>
+                    </Expander>
+                </StackPanel>
+            </DataTemplate>
 
+            <DataTemplate x:Key="modelGeneral" DataType="{x:Type gmdl:Model}">
+                <StackPanel>
+                    <Expander Style="{StaticResource SectionExpander}">
+                        <Expander.Header>
+                            <TextBlock FontWeight="SemiBold" Text="Transform"/>
+                        </Expander.Header>
+                        <local:ModelTransform Margin="16,2,0,4" Model="{Binding}"/>
+                    </Expander>
+                    <Expander Style="{StaticResource SectionExpander}">
+                        <Expander.Header>
+                            <TextBlock FontWeight="SemiBold" Text="LOD"/>
+                        </Expander.Header>
+                        <StackPanel Margin="16,2,0,4">
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="LOD Number">
+                                <TextBlock Text="{Binding LODNumber}"/>
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="LOD Distances">
+                                <ItemsControl Style="{StaticResource TagList}" ItemsSource="{Binding LODDistances}"/>
+                            </HeaderedContentControl>
+                        </StackPanel>
+                    </Expander>
+                </StackPanel>
+            </DataTemplate>
+
+            <DataTemplate x:Key="basemodel" DataType="{x:Type gmdl:Model}">
+                <StackPanel>
+                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource modelHeader}"/>
+                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource modelGeneral}"/>
+                </StackPanel>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:Sampler}">
-                <DockPanel>
-                    <TextBlock Text="{Binding PName}"/>
-                    <TextBlock Text="{Binding PMap}" HorizontalAlignment="Right"/>
-                </DockPanel>
+                <HeaderedContentControl Style="{StaticResource PropRow}" Header="{Binding PName}">
+                    <TextBox Style="{StaticResource ValueText}" Text="{Binding PMap, Mode=OneWay}"/>
+                </HeaderedContentControl>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:Uniform}">
-                <DockPanel>
-                    <TextBlock Text="{Binding PName}"/>
-                    <ContentControl Content="{Binding Vec}" HorizontalAlignment="Right"/>
-                </DockPanel>
+                <HeaderedContentControl Style="{StaticResource PropRow}" Header="{Binding PName}" Content="{Binding Vec}"/>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:MVector4}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="40"/>
-                        <ColumnDefinition Width="40"/>
-                        <ColumnDefinition Width="40"/>
-                        <ColumnDefinition Width="40"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBox Text="{Binding X}" Grid.Column="0" />
-                    <TextBox Text="{Binding Y}" Grid.Column="1" />
-                    <TextBox Text="{Binding Z}" Grid.Column="2" />
-                    <TextBox Text="{Binding W}" Grid.Column="3" />
-                </Grid>
+                <UniformGrid Rows="1">
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource AxisLabel}" Text="X"/>
+                        <TextBox Style="{StaticResource NumberBox}" Text="{Binding X}"/>
+                    </DockPanel>
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource AxisLabel}" Text="Y"/>
+                        <TextBox Style="{StaticResource NumberBox}" Text="{Binding Y}"/>
+                    </DockPanel>
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource AxisLabel}" Text="Z"/>
+                        <TextBox Style="{StaticResource NumberBox}" Text="{Binding Z}"/>
+                    </DockPanel>
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource AxisLabel}" Text="W"/>
+                        <TextBox Style="{StaticResource NumberBox}" Text="{Binding W}"/>
+                    </DockPanel>
+                </UniformGrid>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:Light}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}" Grid.Row="0"/>
-                    <GroupBox Header= "Light Information" Grid.Row="1">
-                        <StackPanel>
-                            <DockPanel Grid.Row="1">
-                                <TextBlock Text="Light Color"/>
-                                <ContentControl Content="{Binding Color}" Width="160" HorizontalAlignment="Right"/>
-                            </DockPanel>
-                            <DockPanel Grid.Row="2">
-                                <TextBlock Text="Light Intensity"/>
-                                <TextBox Text="{Binding Intensity}" Width="160" TextAlignment="Right" HorizontalAlignment="Right"/>
-                            </DockPanel>
-                            <DockPanel Grid.Row="3">
-                                <TextBlock Text="Light FOV"/>
-                                <TextBox Text="{Binding FOV}" Width="160" TextAlignment="Right" HorizontalAlignment="Right"/>
-                            </DockPanel>
-                            <DockPanel Grid.Row="4">
-                                <TextBlock Text="Light Attenuation"/>
-                                <TextBox Text="{Binding Attenuation}" Width="160" TextAlignment="Right" HorizontalAlignment="Right"/>
-                            </DockPanel>
+                <StackPanel>
+                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource modelHeader}"/>
+                    <Expander Style="{StaticResource SectionExpander}">
+                        <Expander.Header>
+                            <TextBlock FontWeight="SemiBold" Text="Light"/>
+                        </Expander.Header>
+                        <StackPanel Margin="16,2,0,4">
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="Color" Content="{Binding Color}"/>
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="Intensity">
+                                <TextBox Style="{StaticResource NumberBox}" Text="{Binding Intensity}"/>
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="FOV">
+                                <TextBox Style="{StaticResource NumberBox}" Text="{Binding FOV}"/>
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="Attenuation">
+                                <TextBox Style="{StaticResource NumberBox}" Text="{Binding Attenuation}"/>
+                            </HeaderedContentControl>
                         </StackPanel>
-                    </GroupBox>
-                </Grid>
+                    </Expander>
+                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource modelGeneral}"/>
+                </StackPanel>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:AnimPoseData}">
-                <DockPanel>
-                    <TextBlock Text="{Binding PAnim}"/>
-                    <Slider Minimum="{Binding PFrameStart}" Maximum="{Binding PFrameEnd}" Value="{Binding PActivePoseFrame}" ></Slider>
-                </DockPanel>
+                <HeaderedContentControl Style="{StaticResource PropRow}" Header="{Binding PAnim}">
+                    <Slider Minimum="{Binding PFrameStart}" Maximum="{Binding PFrameEnd}" Value="{Binding PActivePoseFrame}"/>
+                </HeaderedContentControl>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:LODModelResource}">
-                <DockPanel>
-                    <TextBlock Text="{Binding Filename}"/>
-                </DockPanel>
+                <TextBox Style="{StaticResource ValueText}" Text="{Binding Filename, Mode=OneWay}"/>
             </DataTemplate>
 
+            <!-- One clip: play/stop, name, type and speed, then the frame scrubber -->
             <DataTemplate DataType="{x:Type gmdl:AnimData}">
-                <Expander>
-                    <Expander.Header>
-                        <TextBlock Text="{Binding PName}"/>
-                    </Expander.Header>
-                    <Grid Margin="20 0 0 0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="8*"/>
-                            <ColumnDefinition Width="2*"/>
-                        </Grid.ColumnDefinitions>
-                        <DockPanel Grid.Row="0"  Grid.Column="0"  HorizontalAlignment="Stretch" Height="20">
-                            <TextBlock Text="AnimType"></TextBlock >
-                            <TextBlock HorizontalAlignment="Right" Text="{Binding PAnimType}"></TextBlock>
-                        </DockPanel>
-                        <DockPanel Grid.Row="1"  Grid.Column="0" HorizontalAlignment="Stretch" Height="20">
-                            <TextBlock Text="Speed"></TextBlock >
-                            <TextBlock HorizontalAlignment="Right" Text="{Binding PSpeed}"></TextBlock>
-                        </DockPanel>
-                        <DockPanel Grid.Row="2"  Grid.Column="0" HorizontalAlignment="Stretch" Height="20">
-                            <TextBlock Text="Additive"></TextBlock >
-                            <TextBlock HorizontalAlignment="Right" Text="{Binding PAdditive}"></TextBlock>
-                        </DockPanel>
-                        <DockPanel Grid.Row="3"  Grid.Column="0" HorizontalAlignment="Stretch" Height="20">
-                            <TextBlock Text="Frame "></TextBlock >
-                            <CheckBox VerticalAlignment="Center" IsChecked="{Binding Override}" HorizontalAlignment="Left"/>
-                            <Slider HorizontalAlignment="Stretch" Value="{Binding ActiveFrame, Mode=TwoWay}" IsEnabled="{Binding Override}" Maximum="{Binding FrameCount}" Minimum="0"></Slider>
-                        </DockPanel>
-                        <ToggleButton Grid.Column="1" Grid.RowSpan="4" IsEnabled="{Binding isValid, Mode=OneWay}" IsChecked="{Binding IsPlaying, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                <Border Padding="0,2,0,3" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}">
+                    <DockPanel>
+                        <ToggleButton DockPanel.Dock="Left" Width="24" Height="20" Margin="0,0,6,0" VerticalAlignment="Top"
+                                      IsEnabled="{Binding isValid, Mode=OneWay}"
+                                      IsChecked="{Binding IsPlaying, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
                             <ToggleButton.Style>
                                 <Style TargetType="{x:Type ToggleButton}">
+                                    <Setter Property="Content" Value="▶"/>
+                                    <Setter Property="ToolTip" Value="Play"/>
                                     <Style.Triggers>
                                         <Trigger Property="IsChecked" Value="True">
-                                            <Setter Property="Content" Value="Stop" />
-                                        </Trigger>
-                                        <Trigger Property="IsChecked" Value="False">
-                                            <Setter Property="Content" Value="Play" />
+                                            <Setter Property="Content" Value="■"/>
+                                            <Setter Property="ToolTip" Value="Stop"/>
                                         </Trigger>
                                     </Style.Triggers>
                                 </Style>
                             </ToggleButton.Style>
                         </ToggleButton>
-                    </Grid>
-                </Expander>
-
+                        <StackPanel>
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" FontSize="11" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}">
+                                    <TextBlock.Text>
+                                        <MultiBinding StringFormat="{}{0}  ×{1}">
+                                            <Binding Path="PAnimType" Mode="OneWay"/>
+                                            <Binding Path="PSpeed" Mode="OneWay"/>
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                                <Border DockPanel.Dock="Right" Margin="0,0,6,0" Padding="4,0" CornerRadius="3" VerticalAlignment="Center"
+                                        Background="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding PAdditive}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Text="additive" FontSize="10"/>
+                                </Border>
+                                <TextBlock Text="{Binding PName}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            </DockPanel>
+                            <DockPanel>
+                                <CheckBox DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,4,0" IsChecked="{Binding Override}"
+                                          ToolTip="Scrub the frame by hand"/>
+                                <TextBlock DockPanel.Dock="Right" MinWidth="52" TextAlignment="Right" FontSize="11" VerticalAlignment="Center">
+                                    <TextBlock.Text>
+                                        <MultiBinding StringFormat="{}{0} / {1}">
+                                            <Binding Path="ActiveFrame" Mode="OneWay"/>
+                                            <Binding Path="FrameCount" Mode="OneWay"/>
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                                <Slider VerticalAlignment="Center" Value="{Binding ActiveFrame, Mode=TwoWay}" IsEnabled="{Binding Override}"
+                                        Maximum="{Binding FrameCount}" Minimum="0"/>
+                            </DockPanel>
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:Material}">
-                <GroupBox Header="Material Properties">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-                        <DockPanel HorizontalAlignment="Stretch" Grid.Row="0">
-                            <TextBlock Text="Name"></TextBlock >
-                            <TextBlock HorizontalAlignment="Right" Text="{Binding PName}"></TextBlock>
-                        </DockPanel>
-                        <DockPanel HorizontalAlignment="Stretch" Grid.Row="1">
-                            <TextBlock Text="Class"></TextBlock >
-                            <TextBlock HorizontalAlignment="Right" Text="{Binding PClass}"></TextBlock>
-                        </DockPanel>
-                        <StackPanel Grid.Row="2">
-                            <TextBlock Text="Material Flags"></TextBlock>
-                            <ListBox ItemsSource="{Binding MaterialFlags}" HorizontalContentAlignment="Left"></ListBox>
+                <Expander Style="{StaticResource SectionExpander}">
+                    <Expander.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontWeight="SemiBold" Text="Material"/>
+                            <TextBlock Margin="6,0,0,0" Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" Text="{Binding PName}"/>
                         </StackPanel>
-                        <StackPanel Grid.Row="3">
-                            <TextBlock Text="CustomPerMaterialUniforms"></TextBlock>
-                            <ListBox ItemsSource="{Binding CustomPerMaterialUniforms}" HorizontalContentAlignment="Stretch">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <ContentControl Content="{Binding Path=Value}"/>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                        </StackPanel>
-                        <StackPanel Grid.Row="4">
-                            <TextBlock Text="Samplers"></TextBlock>
-                            <ListBox ItemsSource="{Binding PSamplers}" HorizontalContentAlignment="Stretch">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <ContentControl Content="{Binding Path=Value}"/>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                        </StackPanel>
-                    </Grid>
-                </GroupBox>
+                    </Expander.Header>
+                    <StackPanel Margin="16,2,0,4">
+                        <HeaderedContentControl Style="{StaticResource PropRow}" Header="Name">
+                            <TextBox Style="{StaticResource ValueText}" Text="{Binding PName, Mode=OneWay}"/>
+                        </HeaderedContentControl>
+                        <HeaderedContentControl Style="{StaticResource PropRow}" Header="Class">
+                            <TextBlock Text="{Binding PClass}"/>
+                        </HeaderedContentControl>
+                        <HeaderedContentControl Style="{StaticResource PropRow}" Header="Flags">
+                            <ItemsControl Style="{StaticResource TagList}" ItemsSource="{Binding MaterialFlags}"/>
+                        </HeaderedContentControl>
+                        <TextBlock Style="{StaticResource SubHeader}" Text="Uniforms"/>
+                        <ItemsControl ItemsSource="{Binding CustomPerMaterialUniforms}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <ContentControl Content="{Binding Path=Value}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Style="{StaticResource SubHeader}" Text="Samplers"/>
+                        <ItemsControl ItemsSource="{Binding PSamplers}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <ContentControl Content="{Binding Path=Value}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Expander>
             </DataTemplate>
 
 
@@ -290,189 +300,273 @@
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:AnimComponent}">
-                <Expander>
+                <Expander Style="{StaticResource SectionExpander}">
                     <Expander.Header>
-                        <TextBlock Text="TkAnimationComponentData"/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontWeight="SemiBold" Text="Animation"/>
+                            <TextBlock Margin="6,0,0,0" Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" Text="TkAnimationComponentData"/>
+                        </StackPanel>
                     </Expander.Header>
-                    <StackPanel Grid.Row="2">
-                        <TextBlock Text="Animations"></TextBlock>
-                        <ListView ItemsSource="{Binding Animations}" HorizontalContentAlignment="Stretch" IsTextSearchEnabled="False">
-                            <ListView.ItemTemplate>
-                                <DataTemplate>
-                                    <ContentControl Content="{Binding}" Margin="0 0 0 0"/>
-                                </DataTemplate>
-                            </ListView.ItemTemplate>
-                        </ListView>
-                    </StackPanel>
+                    <ItemsControl Margin="16,2,0,4" ItemsSource="{Binding Animations}" IsTextSearchEnabled="False"/>
                 </Expander>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:LODModelComponent}">
-                <Expander>
+                <Expander Style="{StaticResource SectionExpander}">
                     <Expander.Header>
-                        <TextBlock Text="TkLODComponentData"/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontWeight="SemiBold" Text="LOD Models"/>
+                            <TextBlock Margin="6,0,0,0" Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" Text="TkLODComponentData"/>
+                        </StackPanel>
                     </Expander.Header>
-                    <StackPanel Grid.Row="2">
-                        <TextBlock Text="LODModels"></TextBlock>
-                        <ListBox ItemsSource="{Binding Resources}" HorizontalContentAlignment="Stretch">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <ContentControl Content="{Binding}"/>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </StackPanel>
+                    <ItemsControl Margin="16,2,0,4" ItemsSource="{Binding Resources}"/>
                 </Expander>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:AnimPoseComponent}">
-                <Expander>
+                <Expander Style="{StaticResource SectionExpander}">
                     <Expander.Header>
-                        <TextBlock Text="TkAnimPoseComponentData"/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontWeight="SemiBold" Text="Pose"/>
+                            <TextBlock Margin="6,0,0,0" Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" Text="TkAnimPoseComponentData"/>
+                        </StackPanel>
                     </Expander.Header>
-                    <StackPanel>
-                        <TextBlock Text="Model Pose"></TextBlock>
-                        <ListBox ItemsSource="{Binding poseData}" Height="200" HorizontalContentAlignment="Stretch" VerticalAlignment="Stretch">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <ContentControl Content="{Binding}"/>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="5*"/>
-                                <ColumnDefinition Width="5*"/>
-                            </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Command="{Binding Path=ApplyPose}" CommandParameter="{Binding}">Apply Pose</Button>
-                            <Button Grid.Column="1" Command="{Binding Path=ResetPose}" CommandParameter="{Binding}">Reset Pose</Button>
-                        </Grid>
+                    <StackPanel Margin="16,2,0,4">
+                        <ItemsControl ItemsSource="{Binding poseData}"/>
+                        <UniformGrid Columns="2" Margin="0,4,0,0">
+                            <Button Margin="0,0,2,0" Command="{Binding Path=ApplyPose}" CommandParameter="{Binding}">Apply Pose</Button>
+                            <Button Margin="2,0,0,0" Command="{Binding Path=ResetPose}" CommandParameter="{Binding}">Reset Pose</Button>
+                        </UniformGrid>
                     </StackPanel>
                 </Expander>
             </DataTemplate>
 
-            <DataTemplate DataType="{x:Type gmdl:PhysicsData}">
-                <Expander>
+            <DataTemplate DataType="{x:Type gmdl:TriggerActionComponent}">
+                <Expander Style="{StaticResource SectionExpander}">
                     <Expander.Header>
-                        <TextBlock Text="TkPhysicsData"/>
-                    </Expander.Header>
-                    <GroupBox>
-                        <StackPanel>
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Height="20">
-                                    <TextBlock Text="Mass"/>
-                                    <TextBlock HorizontalAlignment="Right" Text="{Binding PMass}"/>
-                                </DockPanel>
-                                <DockPanel Grid.Row="1" HorizontalAlignment="Stretch" Height="20">
-                                    <TextBlock Text="Friction"/>
-                                    <TextBlock HorizontalAlignment="Right" Text="{Binding PFriction}"/>
-                                </DockPanel>
-                                <DockPanel Grid.Row="2" HorizontalAlignment="Stretch" Height="20">
-                                    <TextBlock Text="RollingFriction"/>
-                                    <TextBlock HorizontalAlignment="Right" Text="{Binding PRollingFriction}"/>
-                                </DockPanel>
-                                <DockPanel Grid.Row="3" HorizontalAlignment="Stretch" Height="20">
-                                    <TextBlock Text="AngularDamping"/>
-                                    <TextBlock HorizontalAlignment="Right" Text="{Binding PAngularDamping}"/>
-                                </DockPanel>
-                                <DockPanel Grid.Row="4" HorizontalAlignment="Stretch" Height="20">
-                                    <TextBlock Text="LinearDamping"/>
-                                    <TextBlock HorizontalAlignment="Right" Text="{Binding PLinearDamping}"/>
-                                </DockPanel>
-                                <DockPanel Grid.Row="5" HorizontalAlignment="Stretch" Height="20">
-                                    <TextBlock Text="Gravity"/>
-                                    <TextBlock HorizontalAlignment="Right" Text="{Binding PGravity}"/>
-                                </DockPanel>
-                            </Grid>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontWeight="SemiBold" Text="Trigger Actions"/>
+                            <TextBlock Margin="6,0,0,0" Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" Text="GcTriggerActionComponentData"/>
                         </StackPanel>
-                    </GroupBox>
+                    </Expander.Header>
+                    <StackPanel Margin="16,2,0,4">
+                        <HeaderedContentControl Style="{StaticResource PropRow}" Header="Current State">
+                            <TextBlock FontWeight="Bold" Text="{Binding CurrentStateID}"/>
+                        </HeaderedContentControl>
+                        <HeaderedContentControl Style="{StaticResource PropRow}" Header="HideModel">
+                            <TextBlock Text="{Binding HideModel, Mode=OneWay}"/>
+                        </HeaderedContentControl>
+                        <HeaderedContentControl Style="{StaticResource PropRow}" Header="StartInactive">
+                            <TextBlock Text="{Binding StartInactive, Mode=OneWay}"/>
+                        </HeaderedContentControl>
+                        <TextBlock Style="{StaticResource SubHeader}" Text="States"/>
+                        <ItemsControl ItemsSource="{Binding States}"/>
+                    </StackPanel>
                 </Expander>
             </DataTemplate>
 
-
-            <DataTemplate DataType="{x:Type gmdl:PhysicsComponent}">
-                <Expander>
+            <DataTemplate DataType="{x:Type gmdl:InteractionComponent}">
+                <Expander Style="{StaticResource SectionExpander}">
                     <Expander.Header>
-                        <TextBlock Text="TkPhysicsComponentData"/>
-                    </Expander.Header>
-                    <GroupBox>
-                        <StackPanel>
-                            <ContentControl Content="{Binding Data}"/>
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Height="20">
-                                    <TextBlock Text="TriggerVolume"/>
-                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding TriggerVolume, Mode=OneWay}"/>
-                                </DockPanel>
-                                <DockPanel Grid.Row="1" HorizontalAlignment="Stretch" Height="20">
-                                    <TextBlock Text="Climbable"/>
-                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding Climbable, Mode=OneWay}"/>
-                                </DockPanel>
-                                <DockPanel Grid.Row="2" HorizontalAlignment="Stretch" Height="20">
-                                    <TextBlock Text="Floor"/>
-                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding Floor, Mode=OneWay}"/>
-                                </DockPanel>
-                                <DockPanel Grid.Row="3" HorizontalAlignment="Stretch" Height="20">
-                                    <TextBlock Text="IgnoreModelOwner"/>
-                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding IgnoreModelOwner, Mode=OneWay}"/>
-                                </DockPanel>
-                                <DockPanel Grid.Row="4" HorizontalAlignment="Stretch" Height="20">
-                                    <TextBlock Text="NoVehicleCollide"/>
-                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding NoVehicleCollide, Mode=OneWay}"/>
-                                </DockPanel>
-                                <DockPanel Grid.Row="5" HorizontalAlignment="Stretch" Height="20">
-                                    <TextBlock Text="NoVehicleCollide"/>
-                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding NoVehicleCollide, Mode=OneWay}"/>
-                                </DockPanel>
-                                <DockPanel Grid.Row="6" HorizontalAlignment="Stretch" Height="20">
-                                    <TextBlock Text="NoPlayerCollide"/>
-                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding NoPlayerCollide, Mode=OneWay}"/>
-                                </DockPanel>
-                                <DockPanel Grid.Row="7" HorizontalAlignment="Stretch" Height="20">
-                                    <TextBlock Text="CameraInvisible"/>
-                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding CameraInvisible, Mode=OneWay}"/>
-                                </DockPanel>
-                                <DockPanel Grid.Row="8" HorizontalAlignment="Stretch" Height="20">
-                                    <TextBlock Text="InvisibleForInteraction"/>
-                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding InvisibleForInteraction, Mode=OneWay}"/>
-                                </DockPanel>
-                                <DockPanel Grid.Row="9" HorizontalAlignment="Stretch" Height="20">
-                                    <TextBlock Text="AllowTeleporter"/>
-                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding AllowTeleporter, Mode=OneWay}"/>
-                                </DockPanel>
-                                <DockPanel Grid.Row="10" HorizontalAlignment="Stretch" Height="20">
-                                    <TextBlock Text="BlockTeleporter"/>
-                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding BlockTeleporter, Mode=OneWay}"/>
-                                </DockPanel>
-                                <DockPanel Grid.Row="11" HorizontalAlignment="Stretch" Height="20">
-                                    <TextBlock Text="DisableGravity"/>
-                                    <CheckBox HorizontalAlignment="Right" IsEnabled="False"  IsChecked="{Binding DisableGravity, Mode=OneWay}"/>
-                                </DockPanel>
-                            </Grid>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontWeight="SemiBold" Text="Interaction"/>
+                            <TextBlock Margin="6,0,0,0" Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" Text="{Binding TypeName, Mode=OneWay}"/>
                         </StackPanel>
-                    </GroupBox>
+                    </Expander.Header>
+                    <StackPanel Margin="16,2,0,4">
+                        <HeaderedContentControl Style="{StaticResource PropRow}" Header="Type">
+                            <TextBlock Text="{Binding InteractionKind, Mode=OneWay}"/>
+                        </HeaderedContentControl>
+                        <HeaderedContentControl Style="{StaticResource PropRow}" Header="TriggerAction">
+                            <TextBlock FontWeight="Bold" Text="{Binding TriggerAction, Mode=OneWay}"/>
+                        </HeaderedContentControl>
+                        <HeaderedContentControl Style="{StaticResource PropRow}" Header="Broadcast">
+                            <TextBlock Text="{Binding BroadcastTriggerAction, Mode=OneWay}"/>
+                        </HeaderedContentControl>
+                        <HeaderedContentControl Style="{StaticResource PropRow}" Header="InteractDistance">
+                            <TextBlock Text="{Binding InteractDistance, Mode=OneWay}"/>
+                        </HeaderedContentControl>
+                    </StackPanel>
                 </Expander>
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type gmdl:RotationComponent}">
+                <Expander Style="{StaticResource SectionExpander}">
+                    <Expander.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontWeight="SemiBold" Text="Rotation"/>
+                            <TextBlock Margin="6,0,0,0" Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" Text="TkRotationComponentData"/>
+                        </StackPanel>
+                    </Expander.Header>
+                    <StackPanel Margin="16,2,0,4">
+                        <HeaderedContentControl Style="{StaticResource PropRow}" Header="Axis">
+                            <TextBlock Text="{Binding AxisText, Mode=OneWay}"/>
+                        </HeaderedContentControl>
+                        <HeaderedContentControl Style="{StaticResource PropRow}" Header="Speed">
+                            <TextBlock Text="{Binding Speed, Mode=OneWay}"/>
+                        </HeaderedContentControl>
+                        <HeaderedContentControl Style="{StaticResource PropRow}" Header="AlwaysUpdate">
+                            <TextBlock Text="{Binding AlwaysUpdate, Mode=OneWay}"/>
+                        </HeaderedContentControl>
+                    </StackPanel>
+                </Expander>
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type gmdl:ActionTriggerState}">
+                <Expander Margin="0,1,0,1">
+                    <Expander.Header>
+                        <TextBlock Text="{Binding StateID}" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                            <Setter Property="FontWeight" Value="Bold"/>
+                                            <Setter Property="TextDecorations" Value="Underline"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Expander.Header>
+                    <ItemsControl ItemsSource="{Binding Triggers}" Margin="18,0,0,0"/>
+                </Expander>
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type gmdl:ActionTrigger}">
+                <StackPanel Margin="0 2 0 2">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Text="fired">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Fired}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock FontWeight="SemiBold" Text="{Binding Description}"/>
+                    </DockPanel>
+                    <ItemsControl ItemsSource="{Binding Actions}" Margin="15 0 0 0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Description}"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type gmdl:PhysicsData}">
+                <StackPanel>
+                    <HeaderedContentControl Style="{StaticResource PropRow}" Header="Mass">
+                        <TextBlock Text="{Binding PMass}"/>
+                    </HeaderedContentControl>
+                    <HeaderedContentControl Style="{StaticResource PropRow}" Header="Friction">
+                        <TextBlock Text="{Binding PFriction}"/>
+                    </HeaderedContentControl>
+                    <HeaderedContentControl Style="{StaticResource PropRow}" Header="Rolling Friction">
+                        <TextBlock Text="{Binding PRollingFriction}"/>
+                    </HeaderedContentControl>
+                    <HeaderedContentControl Style="{StaticResource PropRow}" Header="Angular Damping">
+                        <TextBlock Text="{Binding PAngularDamping}"/>
+                    </HeaderedContentControl>
+                    <HeaderedContentControl Style="{StaticResource PropRow}" Header="Linear Damping">
+                        <TextBlock Text="{Binding PLinearDamping}"/>
+                    </HeaderedContentControl>
+                    <HeaderedContentControl Style="{StaticResource PropRow}" Header="Gravity">
+                        <TextBlock Text="{Binding PGravity}"/>
+                    </HeaderedContentControl>
+                </StackPanel>
+            </DataTemplate>
+
+
+            <!-- Read-only: the flags are shown as checkboxes that don't take clicks -->
+            <DataTemplate DataType="{x:Type gmdl:PhysicsComponent}">
+                <Expander Style="{StaticResource SectionExpander}">
+                    <Expander.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontWeight="SemiBold" Text="Physics"/>
+                            <TextBlock Margin="6,0,0,0" Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" Text="TkPhysicsComponentData"/>
+                        </StackPanel>
+                    </Expander.Header>
+                    <StackPanel Margin="16,2,0,4">
+                        <ContentControl Content="{Binding Data}"/>
+                        <TextBlock Style="{StaticResource SubHeader}" Text="Flags"/>
+                        <UniformGrid Columns="2" IsHitTestVisible="False" Focusable="False">
+                            <CheckBox Content="TriggerVolume" IsChecked="{Binding TriggerVolume, Mode=OneWay}"/>
+                            <CheckBox Content="Climbable" IsChecked="{Binding Climbable, Mode=OneWay}"/>
+                            <CheckBox Content="Floor" IsChecked="{Binding Floor, Mode=OneWay}"/>
+                            <CheckBox Content="IgnoreModelOwner" IsChecked="{Binding IgnoreModelOwner, Mode=OneWay}"/>
+                            <CheckBox Content="NoVehicleCollide" IsChecked="{Binding NoVehicleCollide, Mode=OneWay}"/>
+                            <CheckBox Content="NoPlayerCollide" IsChecked="{Binding NoPlayerCollide, Mode=OneWay}"/>
+                            <CheckBox Content="CameraInvisible" IsChecked="{Binding CameraInvisible, Mode=OneWay}"/>
+                            <CheckBox Content="InvisibleForInteraction" IsChecked="{Binding InvisibleForInteraction, Mode=OneWay}"/>
+                            <CheckBox Content="AllowTeleporter" IsChecked="{Binding AllowTeleporter, Mode=OneWay}"/>
+                            <CheckBox Content="BlockTeleporter" IsChecked="{Binding BlockTeleporter, Mode=OneWay}"/>
+                            <CheckBox Content="DisableGravity" IsChecked="{Binding DisableGravity, Mode=OneWay}"/>
+                        </UniformGrid>
+                    </StackPanel>
+                </Expander>
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type gmdl:ParticleEmitter}">
+                <StackPanel>
+                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource modelHeader}"/>
+                    <Expander Style="{StaticResource SectionExpander}">
+                        <Expander.Header>
+                            <TextBlock FontWeight="SemiBold" Text="Particle Emitter"/>
+                        </Expander.Header>
+                        <StackPanel Margin="16,2,0,4">
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="Material">
+                                <TextBox Style="{StaticResource ValueText}" Text="{Binding MaterialPath, Mode=OneWay}"/>
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="Data">
+                                <TextBox Style="{StaticResource ValueText}" Text="{Binding DataPath, Mode=OneWay}"/>
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="Class">
+                                <TextBlock Text="{Binding MaterialClass, Mode=OneWay}"/>
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="Profile">
+                                <TextBlock Text="{Binding ProfileName, Mode=OneWay}"/>
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="Enabled">
+                                <CheckBox IsChecked="{Binding IsRenderable, Mode=TwoWay}"/>
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="Rate / s">
+                                <TextBox Style="{StaticResource NumberBox}" Text="{Binding EmissionRate, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="Lifetime (s)">
+                                <TextBox Style="{StaticResource NumberBox}" Text="{Binding ParticleLifetime, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="Speed">
+                                <TextBox Style="{StaticResource NumberBox}" Text="{Binding Speed, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="Spread">
+                                <TextBox Style="{StaticResource NumberBox}" Text="{Binding Spread, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="Gravity">
+                                <TextBox Style="{StaticResource NumberBox}" Text="{Binding Gravity, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="Start size">
+                                <TextBox Style="{StaticResource NumberBox}" Text="{Binding StartSize, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="End size">
+                                <TextBox Style="{StaticResource NumberBox}" Text="{Binding EndSize, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="Additive">
+                                <CheckBox IsChecked="{Binding Additive, Mode=TwoWay}"/>
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="Max particles">
+                                <TextBox Style="{StaticResource NumberBox}" Text="{Binding ParticleLimit, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                            </HeaderedContentControl>
+                        </StackPanel>
+                    </Expander>
+                    <ContentControl Content="{Binding ParticleMaterial}"/>
+                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource modelGeneral}"/>
+                </StackPanel>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:Locator}">
@@ -480,12 +574,7 @@
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:Joint}">
-                <Expander>
-                    <Expander.Header>
-                        <TextBlock Text="JointData"/>
-                    </Expander.Header>
-                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}" Grid.Row="0"/>
-                </Expander>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}"/>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:Collision}">
@@ -493,41 +582,32 @@
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gmdl:Mesh}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource basemodel}" Grid.Row="0"/>
-                    <GroupBox Header="Mesh Properties" Grid.Row="1">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <DockPanel Grid.Row="0" HorizontalAlignment="Stretch" Height="20">
-                                <TextBlock Text="LOD Level"></TextBlock >
-                                <TextBlock HorizontalAlignment="Right" Text="{Binding LodLevel}"></TextBlock>
-                            </DockPanel>
-                            <DockPanel Grid.Row="1" HorizontalAlignment="Stretch" Height="20">
-                                <TextBlock Text="Hash"></TextBlock >
-                                <TextBlock HorizontalAlignment="Right" Text="{Binding Hash}"></TextBlock>
-                            </DockPanel>
-                        </Grid>
-                    </GroupBox>
-                    <GroupBox Header="CommonPerMeshUniforms" Grid.Row="2">
-                        <ListBox Grid.Row="2" ItemsSource="{Binding CommonPerMeshUniforms}" HorizontalContentAlignment="Stretch">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <ContentControl Content="{Binding Path=Value}"/>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </GroupBox>
-                    <ContentControl Content="{Binding material}" Grid.Row="3"></ContentControl>
-                </Grid>
+                <StackPanel>
+                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource modelHeader}"/>
+                    <Expander Style="{StaticResource SectionExpander}">
+                        <Expander.Header>
+                            <TextBlock FontWeight="SemiBold" Text="Mesh"/>
+                        </Expander.Header>
+                        <StackPanel Margin="16,2,0,4">
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="LOD Level">
+                                <TextBlock Text="{Binding LodLevel}"/>
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource PropRow}" Header="Hash">
+                                <TextBox Style="{StaticResource ValueText}" Text="{Binding Hash, Mode=OneWay}"/>
+                            </HeaderedContentControl>
+                            <TextBlock Style="{StaticResource SubHeader}" Text="Per-mesh uniforms"/>
+                            <ItemsControl ItemsSource="{Binding CommonPerMeshUniforms}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <ContentControl Content="{Binding Path=Value}"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Expander>
+                    <ContentControl Content="{Binding material}"/>
+                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource modelGeneral}"/>
+                </StackPanel>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type mvcore_common:RenderSettings}">
@@ -538,6 +618,7 @@
                             <ColumnDefinition Width="148*"/>
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
@@ -586,26 +667,30 @@
                             <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding UseBLOOM}"></CheckBox>
                         </DockPanel>
                         <DockPanel Grid.Row="8" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                            <TextBlock HorizontalAlignment="Left">Use Shadows</TextBlock>
+                            <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding UseShadows}"></CheckBox>
+                        </DockPanel>
+                        <DockPanel Grid.Row="9" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                             <TextBlock Width="100" HorizontalAlignment="Left">Animation FPS</TextBlock>
                             <Slider ToolTip="{Binding AnimFPS}" HorizontalAlignment="Stretch" Value="{Binding AnimFPS, Mode=TwoWay}" Minimum="30" Maximum="400" SmallChange="1"/>
                         </DockPanel>
-                        <DockPanel Grid.Row="9" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                        <DockPanel Grid.Row="10" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                             <TextBlock Width="100" HorizontalAlignment="Left">HDR Exposure</TextBlock>
                             <Slider ToolTip="{Binding HDRExposure}" Value="{Binding HDRExposure, Mode=TwoWay}" Minimum="-4.0" Maximum="4.0" SmallChange="0.1"/>
                         </DockPanel>
-                        <DockPanel Grid.Row="10" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                        <DockPanel Grid.Row="11" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                             <TextBlock Width="100" HorizontalAlignment="Left">Bloom Intensity</TextBlock>
                             <Slider ToolTip="{Binding BloomIntensity}" Value="{Binding BloomIntensity, Mode=TwoWay}" Minimum="0.0" Maximum="0.5" SmallChange="0.005"/>
                         </DockPanel>
-                        <DockPanel Grid.Row="11" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                        <DockPanel Grid.Row="12" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                             <TextBlock Width="100" HorizontalAlignment="Left">Bloom Threshold</TextBlock>
                             <Slider ToolTip="{Binding BloomThreshold}" Value="{Binding BloomThreshold, Mode=TwoWay}" Minimum="0.0" Maximum="5.0" SmallChange="0.05"/>
                         </DockPanel>
-                        <DockPanel Grid.Row="12" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                        <DockPanel Grid.Row="13" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                             <TextBlock Width="100" HorizontalAlignment="Left">Bloom Knee</TextBlock>
                             <Slider ToolTip="{Binding BloomKnee}" Value="{Binding BloomKnee, Mode=TwoWay}" Minimum="0.0" Maximum="1.0" SmallChange="0.01"/>
                         </DockPanel>
-                        <DockPanel Grid.Row="13" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
+                        <DockPanel Grid.Row="14" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
                             <TextBlock Width="100" HorizontalAlignment="Left">Bloom Radius</TextBlock>
                             <Slider ToolTip="{Binding BloomRadius}" Value="{Binding BloomRadius, Mode=TwoWay}" Minimum="0.5" Maximum="3.0" SmallChange="0.05"/>
                         </DockPanel>
@@ -621,7 +706,6 @@
                             <ColumnDefinition Width="148*"/>
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="20"/>
@@ -656,12 +740,12 @@
                             <CheckBox Width="20" HorizontalAlignment="Right" IsEnabled="False" IsChecked="{Binding RenderBoundHulls}"></CheckBox>
                         </DockPanel>
                         <DockPanel Grid.Row="6" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                            <TextBlock HorizontalAlignment="Left">Show Gizmo</TextBlock>
-                            <CheckBox Width="20" HorizontalAlignment="Right" IsEnabled="False" IsChecked="{Binding RenderGizmos}"></CheckBox>
+                            <TextBlock HorizontalAlignment="Left" ToolTip="Meshes with the ShadowOnly material class. The game uses them only to cast shadows">Show Shadow Meshes</TextBlock>
+                            <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding RenderShadowMeshes}"></CheckBox>
                         </DockPanel>
                         <DockPanel Grid.Row="7" HorizontalAlignment="Stretch" Grid.ColumnSpan="2">
-                            <TextBlock HorizontalAlignment="Left">Emulate Actions</TextBlock>
-                            <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding EmulateActions}"></CheckBox>
+                            <TextBlock HorizontalAlignment="Left">Show Gizmo</TextBlock>
+                            <CheckBox Width="20" HorizontalAlignment="Right" IsChecked="{Binding RenderGizmos}"></CheckBox>
                         </DockPanel>
                     </Grid>
                 </GroupBox>
@@ -714,7 +798,19 @@
                     </ContentPresenter>
                     <StackPanel.ContextMenu>
                         <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                            <MenuItem Header="Export Template (Experimental)" Click="SceneTreeView_Ctx_ExportTemplate"></MenuItem>
+                            <MenuItem Header="Export Node..." Click="SceneTreeView_Ctx_ExportTemplate" IsEnabled="{Binding HasTemplate, FallbackValue=False}"></MenuItem>
+                            <MenuItem Header="Export Geometry..." Click="SceneTreeView_Ctx_ExportGeometry"></MenuItem>
+                            <MenuItem Header="Export Entity..." Click="SceneTreeView_Ctx_ExportEntity" IsEnabled="{Binding HasEntity, FallbackValue=False}"></MenuItem>
+                            <MenuItem Header="Export Material..." Click="SceneTreeView_Ctx_ExportMaterial" IsEnabled="{Binding HasMaterialFile, FallbackValue=False}"></MenuItem>
+                            <Separator/>
+                            <MenuItem Header="Add Child" IsEnabled="{Binding CanAddChildren, FallbackValue=False}">
+                                <MenuItem Header="Locator" Click="SceneTreeView_Ctx_AddLocator"></MenuItem>
+                                <MenuItem Header="Light" Click="SceneTreeView_Ctx_AddLight"></MenuItem>
+                                <MenuItem Header="Reference..." Click="SceneTreeView_Ctx_AddReference"></MenuItem>
+                            </MenuItem>
+                            <MenuItem Header="Import Geometry..." Click="SceneTreeView_Ctx_ImportGeometry" IsEnabled="{Binding CanImportGeometry, FallbackValue=False}"></MenuItem>
+                            <MenuItem Header="Remove" Click="SceneTreeView_Ctx_Remove" IsEnabled="{Binding CanRemove, FallbackValue=False}"></MenuItem>
+                            <Separator/>
                             <MenuItem Header="Load Reference" Click="SceneTreeView_Ctx_LoadReference">
                                 <MenuItem.Style>
                                     <Style TargetType="MenuItem">
@@ -740,12 +836,6 @@
                     </StackPanel.ContextMenu>
                 </StackPanel>
             </HierarchicalDataTemplate>
-            <ObjectDataProvider x:Key="dataFromEnum" MethodName="GetValues"
-                        ObjectType="{x:Type sys:Enum}">
-                <ObjectDataProvider.MethodParameters>
-                    <x:Type TypeName="mvcore:TYPES"/>
-                </ObjectDataProvider.MethodParameters>
-            </ObjectDataProvider>
         </ResourceDictionary>
         
     </Window.Resources>
@@ -775,13 +865,9 @@
                 <ColumnDefinition Width="2*"/>
             </Grid.ColumnDefinitions>
 
-            <opentk_wpf:GLWpfControl x:Name="Host" Grid.Column="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
-            <!-- Render stats drawn by WPF on top of the viewport: crisp, anti-aliased text at any DPI. Not hit-testable so the viewport keeps the mouse -->
-            <Border x:Name="StatsOverlay" Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8"
-                    Padding="6,3" CornerRadius="3" Background="#66000000" IsHitTestVisible="False">
-                <TextBlock x:Name="StatsText" Foreground="#FFFFFF80" FontFamily="Segoe UI" FontSize="12"
-                           TextOptions.TextFormattingMode="Display"/>
-            </Border>
+            <Grid Grid.Column="0">
+                <wfi:WindowsFormsHost x:Name="NativeHost" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+            </Grid>
             <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" />
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
@@ -789,8 +875,62 @@
                     <RowDefinition Height="5"/>
                     <RowDefinition Height="50*"/>
                 </Grid.RowDefinitions>
-                <GroupBox Grid.Row="0" Header="SceneGraph" BorderThickness="2" VerticalAlignment="Stretch">
-                    <TreeView x:Name="SceneTreeView"
+                <Grid Grid.Row="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="42"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Height="40" Margin="3,1" VerticalAlignment="Top"
+                                Orientation="Horizontal">
+                            <StackPanel.Resources>
+                                <Style TargetType="RadioButton">
+                                    <Setter Property="Width" Value="30"/>
+                                    <!-- 18px icon + 5px template padding on both sides needs 28px minimum. -->
+                                    <Setter Property="Height" Value="32"/>
+                                    <Setter Property="Margin" Value="1,0"/>
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="RadioButton">
+                                                <Border x:Name="ToolBorder" CornerRadius="3" Padding="5"
+                                                        Background="{TemplateBinding Background}">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="ToolBorder" Property="Background"
+                                                                Value="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsChecked" Value="True">
+                                                        <Setter TargetName="ToolBorder" Property="Background"
+                                                                Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"/>
+                                                        <Setter Property="Foreground"
+                                                                Value="{DynamicResource {x:Static SystemColors.HighlightTextBrushKey}}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </StackPanel.Resources>
+                            <RadioButton GroupName="GizmoTools" Tag="Translate" IsChecked="True"
+                                         ToolTip="Move selected node" Checked="GizmoToolbarModeChanged">
+                                <Path Width="18" Height="18" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                      StrokeThickness="1.7" Data="M8,0 L8,16 M8,0 L5,3 M8,0 L11,3 M8,16 L5,13 M8,16 L11,13 M0,8 L16,8 M0,8 L3,5 M0,8 L3,11 M16,8 L13,5 M16,8 L13,11"/>
+                            </RadioButton>
+                            <RadioButton GroupName="GizmoTools" Tag="Rotate"
+                                         ToolTip="Rotate selected node" Checked="GizmoToolbarModeChanged">
+                                <Path Width="18" Height="18" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                      StrokeThickness="1.7" Data="M14,5 C12,1 6,0 2.5,4 C-1,8 2,14 7,15 C11,16 15,13 16,9 M14,5 L10,4 M14,5 L14,1"/>
+                            </RadioButton>
+                            <RadioButton GroupName="GizmoTools" Tag="Scale"
+                                         ToolTip="Scale selected node" Checked="GizmoToolbarModeChanged">
+                                <Path Width="18" Height="18" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                      StrokeThickness="1.7" Data="M2,14 L14,2 M14,2 L9,2 M14,2 L14,7 M2,14 L7,14 M2,14 L2,9"/>
+                            </RadioButton>
+                    </StackPanel>
+                    <GroupBox Grid.Row="1" Header="SceneGraph" BorderThickness="2" VerticalAlignment="Stretch">
+                        <TreeView x:Name="SceneTreeView"
                                 ItemContainerStyle="{StaticResource TreeViewItemStyle}"
                                 ItemsSource="{Binding Mode=OneTime}"
                                 ItemTemplate="{StaticResource CheckBoxItemTemplate}"
@@ -803,8 +943,9 @@
                                 ScrollViewer.CanContentScroll="True" 
                                 AllowDrop="True" 
                                 GiveFeedback="SceneTreeView_GiveFeedback">
-                    </TreeView>
-                </GroupBox>
+                        </TreeView>
+                    </GroupBox>
+                </Grid>
                 <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch"/>
                 <TabControl Grid.Row="2">
                     <TabItem Header="Camera">
@@ -842,19 +983,100 @@
                         </GroupBox>
                         </Grid>
                     </TabItem>
-                    <TabItem Header="View Options" x:Name="ViewInfoOptions">
+                    <TabItem Header="View Options">
                         <ContentControl x:Name="RenderViewOptionsControl"/>
                     </TabItem>
                     <TabItem Header="Τest Options" x:Name="TestOptions"/>
-                    <TabItem Header="Render Options" x:Name="RenderInfoOptions">
-                        <ContentControl x:Name="RenderOptionsControl"/>
+                    <TabItem Header="Render Options">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <ContentControl x:Name="RenderOptionsControl"/>
+                                <GroupBox Header="Default Lighting" Margin="0,4,0,0"
+                                          x:Name="DefaultLightOptionsControl">
+                                    <Grid Margin="4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="90"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Direction" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Row="0" Grid.Column="1" Margin="2" ToolTip="Direction X"
+                                                 Text="{Binding KeyDirectionX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBox Grid.Row="0" Grid.Column="2" Margin="2" ToolTip="Direction Y"
+                                                 Text="{Binding KeyDirectionY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBox Grid.Row="0" Grid.Column="3" Margin="2" ToolTip="Direction Z"
+                                                 Text="{Binding KeyDirectionZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Color (RGB)" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Row="1" Grid.Column="1" Margin="2" ToolTip="Red"
+                                                 Text="{Binding Color.X, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBox Grid.Row="1" Grid.Column="2" Margin="2" ToolTip="Green"
+                                                 Text="{Binding Color.Y, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBox Grid.Row="1" Grid.Column="3" Margin="2" ToolTip="Blue"
+                                                 Text="{Binding Color.Z, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Intensity" VerticalAlignment="Center"/>
+                                        <Slider Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="2"
+                                                Minimum="0" Maximum="10" SmallChange="0.1"
+                                                Value="{Binding Intensity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBox Grid.Row="2" Grid.Column="3" Margin="2"
+                                                 Text="{Binding Intensity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </Grid>
+                                </GroupBox>
+                            </StackPanel>
+                        </ScrollViewer>
                     </TabItem>
                     <TabItem Header="Tools">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="5*" MinHeight="50"/>
                                 <RowDefinition Height="1*" MinHeight="50"/>
+                                <RowDefinition Height="1*" MinHeight="50"/>
                             </Grid.RowDefinitions>
+                            <GroupBox Grid.Row="2" MinHeight="50" Header="Action Emulation" BorderThickness="2" x:Name="ActionEmulationBox"
+                                      ToolTip="Runs the TriggerAction components of every loaded entity together">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="40*"/>
+                                        <ColumnDefinition Width="25*"/>
+                                        <ColumnDefinition Width="35*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ToggleButton Grid.Column="0" FontSize="12"
+                                                  IsChecked="{Binding EmulateActions, Mode=TwoWay}">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton">
+                                                <Setter Property="Content" Value="Emulate Actions: OFF"/>
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsChecked" Value="True">
+                                                        <Setter Property="Content" Value="Emulate Actions: ON"/>
+                                                        <Setter Property="FontWeight" Value="Bold"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
+                                    <Button Grid.Column="1" FontSize="12" Click="RestartActions_Click"
+                                            IsEnabled="{Binding EmulateActions}">Restart</Button>
+                                    <ToggleButton Grid.Column="2" FontSize="12" IsChecked="{Binding PlayAudio, Mode=TwoWay}"
+                                                  ToolTip="Plays the entities' ambient, emitter and anim trigger sounds, and the PlayAudio actions">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton">
+                                                <Setter Property="Content" Value="Audio: OFF"/>
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsChecked" Value="True">
+                                                        <Setter Property="Content" Value="Audio: ON"/>
+                                                        <Setter Property="FontWeight" Value="Bold"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
+                                </Grid>
+                            </GroupBox>
                             <GroupBox Grid.Row="1" MinHeight="50" Header="Viewport Tools" BorderThickness="2">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -888,9 +1110,12 @@
 
 
                     </TabItem>
+                    <TabItem Header="Systems" ToolTip="Every TriggerAction and animation component of the scene, with their live state">
+                        <local:SceneSystemsPanel x:Name="SystemsPanel"/>
+                    </TabItem>
                     <TabItem Header="Object Info">
                         <ScrollViewer>
-                            <ContentControl Grid.Row="2"  x:Name="ObjectInfoBox"></ContentControl>
+                            <ContentControl x:Name="ObjectInfoBox" Margin="4" Grid.IsSharedSizeScope="True"/>
                         </ScrollViewer>
                     </TabItem>
                 </TabControl>

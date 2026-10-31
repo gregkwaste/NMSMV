@@ -1,28 +1,12 @@
 ﻿using System;
-using System.Diagnostics;
-using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using MVCore;
 using MVCore.Utils;
-using MathNet.Numerics;
-using MathNet.Numerics.LinearAlgebra.Complex;
 using System.ComponentModel;
 using System.Drawing.Design;
 
 namespace MVCore.GMDL
 {
-    public struct CameraPos
-    {
-        public Vector3 PosImpulse;
-        public Vector3 Rotation;
-
-        public void Reset()
-        {
-            PosImpulse = new Vector3(0.0f);
-            Rotation = new Vector3(0.0f);
-        }
-    }
-
     public class CameraJSONSettings
     {
         public CameraSettings settings { get; set; }
@@ -205,19 +189,11 @@ namespace MVCore.GMDL
 
         //Camera Frustum Planes
         private Frustum extFrustum = new Frustum();
-        public Vector4[] frPlanes = new Vector4[6];
 
-        //Rendering Stuff
-        public GLMeshVao vao;
-        public int program;
-
-        public Camera(int angle, int prgrm, int mode, bool cull)
+        public Camera(int angle, int mode, bool cull)
         {
             //Set fov on init
             settings.FOV = angle;
-            vao = new GLMeshVao();
-            vao.vao = (new Primitives.Box(1.0f, 1.0f, 1.0f, new Vector3(1.0f), true)).getVAO();
-            program = prgrm;
             type = mode;
             culling = cull;
 
@@ -354,54 +330,11 @@ namespace MVCore.GMDL
             };
         }
 
-        public static void SetCameraPosition(ref Camera cam, Vector3 pos)
-        {
-            //Position
-            cam.Position = pos;
-        }
-
-        public static void SetCameraDirection(ref Camera cam, Quaternion quat)
-        {
-            //TODO Convert Quaternion to yaw pitch
-        }
-
-        public static void SetCameraSettings(ref Camera cam, CameraSettings settings)
-        {
-            cam.settings = settings;
-        }    
-
         public void updateFrustumPlanes()
         {
             //projMat.Transpose();
             //extFrustum.CalculateFrustum(projMat, lookMat); //Old Method
             extFrustum.CalculateFrustum(viewMat); // New Method
-            return;
-            Matrix4 mat = viewMat;
-            mat.Transpose();
-            //Matrix4 mat = proj;
-            //Left
-            frPlanes[0] = mat.Row0 + mat.Row3;
-            //Right
-            frPlanes[1] = mat.Row3 - mat.Row0;
-            //Bottom
-            frPlanes[2] = mat.Row3 + mat.Row1;
-            //Top
-            frPlanes[3] = mat.Row3 - mat.Row1;
-            //Near
-            frPlanes[4] = mat.Row3 + mat.Row2;
-            //Far
-            frPlanes[5] = mat.Row3 - mat.Row2;
-            //Normalize them
-            for (int i = 0; i < 6; i++)
-            { 
-                float l = frPlanes[i].Xyz.Length;
-                //Normalize
-                frPlanes[i].X /= l;
-                frPlanes[i].Y /= l;
-                frPlanes[i].Z /= l;
-                frPlanes[i].W /= l;
-            }
-
         }
 
         public bool frustum_occlude(Vector3 AABBMIN, Vector3 AABBMAX, Matrix4 transform)
@@ -418,10 +351,6 @@ namespace MVCore.GMDL
             //Move sphere to object's root position
             bsh_center = (new Vector4(bsh_center, 1.0f) * transform).Xyz;
 
-            //This is not accurate for some fucking reason
-            //return extFrustum.AABBVsFrustum(cand.Bbox, cand.worldMat * transform);
-
-            //In the future I should add the original AABB as well, spheres look to work like a charm for now   
             return extFrustum.SphereVsFrustum(bsh_center, radius);
         }
 
@@ -438,88 +367,11 @@ namespace MVCore.GMDL
             return frustum_occlude(v1.Xyz, v2.Xyz, transform);
         }
 
-        public void render()
-        {
-            GL.UseProgram(program);
-
-            //Keep manual rendering for the camera because it needs vertex updates
-            //Init Arrays
-
-            Int32[] indices = new Int32[] { 0,1,2,
-                                            2,1,3,
-                                            1,5,3,
-                                            5,7,3,
-                                            5,4,6,
-                                            5,6,7,
-                                            0,2,4,
-                                            2,6,4,
-                                            3,6,2,
-                                            7,6,3,
-                                            0,4,5,
-                                            1,0,5 };
-
-            int b_size = extFrustum._frustum_points.Length * sizeof(float);
-            byte[] verts_b = new byte[b_size];
-
-            int i_size = indices.Length * sizeof(Int32);
-            byte[] indices_b = new byte[i_size];
-
-            System.Buffer.BlockCopy(extFrustum._frustum_points, 0, verts_b, 0, b_size);
-            System.Buffer.BlockCopy(indices, 0, indices_b, 0, i_size);
-
-            //Generate OpenGL buffers
-            int vertex_buffer_object;
-            int element_buffer_object;
-
-            GL.GenBuffers(1, out vertex_buffer_object);
-            GL.GenBuffers(1, out element_buffer_object);
-
-            //Upload vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vertex_buffer_object);
-            GL.BufferData(BufferTarget.ArrayBuffer, (IntPtr) b_size, verts_b, BufferUsageHint.StaticDraw);
-            
-            ////Upload index buffer
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, element_buffer_object);
-            GL.BufferData(BufferTarget.ElementArrayBuffer, (IntPtr) i_size, indices_b, BufferUsageHint.StaticDraw);
-
-            //Render Elements
-            //Bind vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vertex_buffer_object);
-            int vpos = GL.GetAttribLocation(program, "vPosition");
-            GL.VertexAttribPointer(vpos, 3, VertexAttribPointerType.Float, false, 0, 0);
-            GL.EnableVertexAttribArray(vpos);
-
-            //Render Elements
-            //Bind elem buffer
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, element_buffer_object);
-            GL.PointSize(10.0f);
-            GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Line);
-
-            //GL.DrawElements(PrimitiveType.Triangles, 36, DrawElementsType.UnsignedShort, indices_b);
-            GL.DrawRangeElements(PrimitiveType.Triangles, 0, 36,
-                36, DrawElementsType.UnsignedInt, (IntPtr) 0);
-            //GL.DrawArrays(PrimitiveType.Points, 0, 8); //Works - renders points
-            
-            //Debug.WriteLine("Locator Object {2} vpos {0} cpos {1} prog {3}", vpos, cpos, this.name, this.shader_program);
-            //Debug.WriteLine("Buffer IDs vpos {0} vcol {1}", this.vertex_buffer_object,this.color_buffer_object);
-
-            GL.DisableVertexAttribArray(vpos);
-            indices = null;
-            verts_b = null;
-            indices_b = null;
-        }
     }
 
     public class Frustum
     {
-        private float[] _clipMatrix = new float[16];
         private Vector4[] _frustum = new Vector4[6];
-        public float[,] _frustum_points = new float[8, 3];
-        
-        public const int A = 0;
-        public const int B = 1;
-        public const int C = 2;
-        public const int D = 3;
 
         public enum ClippingPlane : int
         {
@@ -530,73 +382,6 @@ namespace MVCore.GMDL
             Back = 4,
             Front = 5
         }
-
-        private void NormalizePlane(float[,] frustum, int side)
-        {
-            float magnitude = 1.0f / (float)Math.Sqrt((frustum[side, 0] * frustum[side, 0]) + (frustum[side, 1] * frustum[side, 1])
-                                                + (frustum[side, 2] * frustum[side, 2]));
-            frustum[side, 0] *= magnitude;
-            frustum[side, 1] *= magnitude;
-            frustum[side, 2] *= magnitude;
-            frustum[side, 3] *= magnitude;
-        }
-
-        public bool PointVsFrustum(Vector4 point)
-        {
-            for (int i = 0; i < 6; i++)
-            {
-                if (Vector4.Dot(_frustum[i],point) <= 0.0f)
-                {
-                    //Common.CallBacks.Log("Point vs Frustum, Plane {0} Failed. Failed Vector {1} {2} {3}", (ClippingPlane)p, x, y, z);
-                    return false;
-                }
-                    
-            }
-            return true;
-        }
-
-        public bool PointVsFrustum(Vector3 location)
-        {
-            return PointVsFrustum(new Vector4(location, 1.0f));
-        }
-
-
-        public bool AABBVsFrustum(Vector3[] AABB)
-        {
-            //Transform points from local to model space
-            Vector4[] tr_AABB = new Vector4[2];
-
-            tr_AABB[0] = new Vector4(AABB[0], 1.0f);
-            tr_AABB[1] = new Vector4(AABB[1], 1.0f);
-
-
-            Vector4[] verts = new Vector4[8];
-            verts[0] = new Vector4(tr_AABB[0].X, tr_AABB[0].Y, tr_AABB[0].Z, 1.0f);
-            verts[1] = new Vector4(tr_AABB[1].X, tr_AABB[0].Y, tr_AABB[0].Z, 1.0f);
-            verts[2] = new Vector4(tr_AABB[0].X, tr_AABB[1].Y, tr_AABB[0].Z, 1.0f);
-            verts[3] = new Vector4(tr_AABB[1].X, tr_AABB[1].Y, tr_AABB[0].Z, 1.0f);
-            verts[4] = new Vector4(tr_AABB[0].X, tr_AABB[0].Y, tr_AABB[1].Z, 1.0f);
-            verts[5] = new Vector4(tr_AABB[1].X, tr_AABB[0].Y, tr_AABB[1].Z, 1.0f);
-            verts[6] = new Vector4(tr_AABB[0].X, tr_AABB[1].Y, tr_AABB[1].Z, 1.0f);
-            verts[7] = new Vector4(tr_AABB[1].X, tr_AABB[1].Y, tr_AABB[1].Z, 1.0f);
-
-            
-            //Check if all points are outside one of the planes
-            for (int p = 0; p < 6; p++)
-            {
-                //Check all 8 points
-                int i;
-                for (i = 0; i < 8; i++)
-                {
-                    if (Vector4.Dot(_frustum[p], verts[i]) > 0.0f)
-                        return true;
-                }
-
-            }
-
-            return false;
-        }
-
 
         public bool SphereVsFrustum(Vector4 center, float radius)
         {
@@ -618,71 +403,6 @@ namespace MVCore.GMDL
         {
             return SphereVsFrustum(new Vector4(location, 1.0f), radius);
         }
-
-        public bool VolumeVsFrustum(float x, float y, float z, float width, float height, float length)
-        {
-            /* TO BE REPAIRED
-            for (int i = 0; i < 6; i++)
-            {
-                if (_frustum[i, A] * (x - width) + _frustum[i, B] * (y - height) + _frustum[i, C] * (z - length) + _frustum[i, D] > 0)
-                    continue;
-                if (_frustum[i, A] * (x + width) + _frustum[i, B] * (y - height) + _frustum[i, C] * (z - length) + _frustum[i, D] > 0)
-                    continue;
-                if (_frustum[i, A] * (x - width) + _frustum[i, B] * (y + height) + _frustum[i, C] * (z - length) + _frustum[i, D] > 0)
-                    continue;
-                if (_frustum[i, A] * (x + width) + _frustum[i, B] * (y + height) + _frustum[i, C] * (z - length) + _frustum[i, D] > 0)
-                    continue;
-                if (_frustum[i, A] * (x - width) + _frustum[i, B] * (y - height) + _frustum[i, C] * (z + length) + _frustum[i, D] > 0)
-                    continue;
-                if (_frustum[i, A] * (x + width) + _frustum[i, B] * (y - height) + _frustum[i, C] * (z + length) + _frustum[i, D] > 0)
-                    continue;
-                if (_frustum[i, A] * (x - width) + _frustum[i, B] * (y + height) + _frustum[i, C] * (z + length) + _frustum[i, D] > 0)
-                    continue;
-                if (_frustum[i, A] * (x + width) + _frustum[i, B] * (y + height) + _frustum[i, C] * (z + length) + _frustum[i, D] > 0)
-                    continue;
-                return false;
-            }
-            */
-            return true;
-        }
-
-        public bool VolumeVsFrustum(Vector3 location, float width, float height, float length)
-        {
-            return VolumeVsFrustum(location.X, location.Y, location.Z, width, height, length);
-        }
-
-        public bool CubeVsFrustum(float x, float y, float z, float size)
-        {
-            /*
-            for (int i = 0; i < 6; i++)
-            {
-                if (_frustum[i, A] * (x - size) + _frustum[i, B] * (y - size) + _frustum[i, C] * (z - size) + _frustum[i, D] > 0)
-                    continue;
-                if (_frustum[i, A] * (x + size) + _frustum[i, B] * (y - size) + _frustum[i, C] * (z - size) + _frustum[i, D] > 0)
-                    continue;
-                if (_frustum[i, A] * (x - size) + _frustum[i, B] * (y + size) + _frustum[i, C] * (z - size) + _frustum[i, D] > 0)
-                    continue;
-                if (_frustum[i, A] * (x + size) + _frustum[i, B] * (y + size) + _frustum[i, C] * (z - size) + _frustum[i, D] > 0)
-                    continue;
-                if (_frustum[i, A] * (x - size) + _frustum[i, B] * (y - size) + _frustum[i, C] * (z + size) + _frustum[i, D] > 0)
-                    continue;
-                if (_frustum[i, A] * (x + size) + _frustum[i, B] * (y - size) + _frustum[i, C] * (z + size) + _frustum[i, D] > 0)
-                    continue;
-                if (_frustum[i, A] * (x - size) + _frustum[i, B] * (y + size) + _frustum[i, C] * (z + size) + _frustum[i, D] > 0)
-                    continue;
-                if (_frustum[i, A] * (x + size) + _frustum[i, B] * (y + size) + _frustum[i, C] * (z + size) + _frustum[i, D] > 0)
-                    continue;
-                return false;
-            }
-            */
-            return true;
-        }
-
-        public float distanceFromPlane(int id, Vector4 point)
-        {
-            return Vector4.Dot(_frustum[id], point) / _frustum[id].Length;
-        }
-
 
         public void CalculateFrustum(Matrix4 mvp)
         {
@@ -724,55 +444,6 @@ namespace MVCore.GMDL
             //The sphere test compares it against the radius, so normalizing all 4 components is wrong.
             for (int i = 0; i < 6; i++)
                 _frustum[i] /= _frustum[i].Xyz.Length;
-
-            /*
-
-            //Find Frustum Points by solving all the systems
-            float[] p;
-            p = solvePlaneSystem((int)ClippingPlane.Back, (int)ClippingPlane.Left, (int)ClippingPlane.Bottom);
-            _frustum_points[0, 0] = p[0]; _frustum_points[0, 1] = p[1]; _frustum_points[0, 2] = p[2];
-            p = solvePlaneSystem((int)ClippingPlane.Back, (int)ClippingPlane.Left, (int)ClippingPlane.Top);
-            _frustum_points[1, 0] = p[0]; _frustum_points[1, 1] = p[1]; _frustum_points[1, 2] = p[2];
-            p = solvePlaneSystem((int)ClippingPlane.Back, (int)ClippingPlane.Right, (int)ClippingPlane.Bottom);
-            _frustum_points[2, 0] = p[0]; _frustum_points[2, 1] = p[1]; _frustum_points[2, 2] = p[2];
-            p = solvePlaneSystem((int)ClippingPlane.Back, (int)ClippingPlane.Right, (int)ClippingPlane.Top);
-            _frustum_points[3, 0] = p[0]; _frustum_points[3, 1] = p[1]; _frustum_points[3, 2] = p[2];
-            p = solvePlaneSystem((int)ClippingPlane.Front, (int)ClippingPlane.Left, (int)ClippingPlane.Bottom);
-            _frustum_points[4, 0] = p[0]; _frustum_points[4, 1] = p[1]; _frustum_points[4, 2] = p[2];
-            p = solvePlaneSystem((int)ClippingPlane.Front, (int)ClippingPlane.Left, (int)ClippingPlane.Top);
-            _frustum_points[5, 0] = p[0]; _frustum_points[5, 1] = p[1]; _frustum_points[5, 2] = p[2];
-            p = solvePlaneSystem((int)ClippingPlane.Front, (int)ClippingPlane.Right, (int)ClippingPlane.Bottom);
-            _frustum_points[6, 0] = p[0]; _frustum_points[6, 1] = p[1]; _frustum_points[6, 2] = p[2];
-            p = solvePlaneSystem((int)ClippingPlane.Front, (int)ClippingPlane.Right, (int)ClippingPlane.Top);
-            _frustum_points[7, 0] = p[0]; _frustum_points[7, 1] = p[1]; _frustum_points[7, 2] = p[2];
-
-            */
-            
-        }
-
-
-        float[] solvePlaneSystem(int p1, int p2, int p3)
-        {
-            //Setup Matrix
-            var A = MathNet.Numerics.LinearAlgebra.Matrix<float>.Build.DenseOfArray(new float[,]
-            {
-                { _frustum[p1].X, _frustum[p1].Y, _frustum[p1].Z },
-                { _frustum[p2].X, _frustum[p2].Y, _frustum[p2].Z },
-                { _frustum[p3].X, _frustum[p3].Y, _frustum[p3].Z }
-            });
-
-            //Setup Right Hand Side
-            var b = MathNet.Numerics.LinearAlgebra.Vector<float>.Build.Dense(new float[]
-            { _frustum[p1].W, _frustum[p2].W, _frustum[p3].W });
-
-            var x = A.Solve(b);
-
-            float[] ret_x = new float[3];
-            ret_x[0] = x[0];
-            ret_x[1] = x[1];
-            ret_x[2] = x[2];
-
-            return ret_x;
 
         }
 

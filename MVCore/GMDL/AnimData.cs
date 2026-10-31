@@ -36,8 +36,13 @@ namespace MVCore.GMDL
 
 
 
-    public class AnimData : TkAnimationData, INotifyPropertyChanged
+    public class AnimData : INotifyPropertyChanged
     {
+        //The animation entry of the entity file
+        public TkAnimationData Template;
+        //The animation file the viewer plays. Usually the template's file, the Idle animation of entities
+        //that name none plays the scene's default .ANIM.MBIN
+        public string Filename = "";
         public AnimMetadata animMeta;
         private int prevFrameIndex = 0; //Keyframe indices into the whole anim file (FrameStart included)
         private int nextFrameIndex = 0;
@@ -46,95 +51,70 @@ namespace MVCore.GMDL
         private float LERP_coeff = 0.0f;
         public bool loaded = false;
         private bool _playing = false;
+        public int CompletedCount = 0; //Times a one-shot ran to its end, AnimFrame triggers use it
+        public string StartedBy = null; //The action that last started the clip, shown in the Scene Systems panel
 
         public event PropertyChangedEventHandler PropertyChanged;
 
         //Constructors
         public AnimData(TkAnimationData ad)
         {
-            Anim = ad.Anim;
-            Filename = ad.Filename;
-            FrameStart = ad.FrameStart;
-            FrameEnd = ad.FrameEnd;
-            StartNode = ad.StartNode;
-            AnimType = ad.AnimType;
-            Speed = ad.Speed;
-            Additive = ad.Additive;
+            Template = ad;
+            Filename = ad.Filename?.Value ?? "";
         }
 
         public AnimData()
         {
-
+            Template = new TkAnimationData();
         }
 
-        public Assimp.Animation assimpExport(ref Assimp.Scene scn)
+        //Template data
+        public string Anim
         {
-            Assimp.Animation asAnim = new Assimp.Animation();
-            asAnim.Name = Anim;
-
-
-            //Make sure keyframe data is loaded from the files
-            if (!loaded)
-            {
-                fetchAnimMetaData();
-                loaded = true;
-            }
-
-
-
-            asAnim.TicksPerSecond = 60;
-            asAnim.DurationInTicks = animMeta.FrameCount;
-            float time_interval = 1.0f / (float)asAnim.TicksPerSecond;
-
-
-            //Add Node-Bone Channels
-            for (int i = 0; i < animMeta.NodeCount; i++)
-            {
-                string name = animMeta.NodeData[i].Node;
-                Assimp.NodeAnimationChannel mChannel = new Assimp.NodeAnimationChannel();
-                mChannel.NodeName = name;
-
-                //mChannel.PostState = Assimp.AnimationBehaviour.Linear;
-                //mChannel.PreState = Assimp.AnimationBehaviour.Linear;
-
-
-                //Export Keyframe Data
-                for (int j = 0; j < animMeta.FrameCount; j++)
-                {
-
-                    //Position
-                    Assimp.VectorKey vk = new Assimp.VectorKey(j * time_interval, MathUtils.convertVector(animMeta.anim_positions[name][j]));
-                    mChannel.PositionKeys.Add(vk);
-                    //Rotation
-                    Assimp.QuaternionKey qk = new Assimp.QuaternionKey(j * time_interval, MathUtils.convertQuaternion(animMeta.anim_rotations[name][j]));
-                    mChannel.RotationKeys.Add(qk);
-                    //Scale
-                    Assimp.VectorKey sk = new Assimp.VectorKey(j * time_interval, MathUtils.convertVector(animMeta.anim_scales[name][j]));
-                    mChannel.ScalingKeys.Add(sk);
-
-                }
-
-                asAnim.NodeAnimationChannels.Add(mChannel);
-
-            }
-
-            return asAnim;
-
+            get { return Template.Anim; }
+            set { Template.Anim = value; }
         }
+        public int FrameStart => Template.FrameStart;
+        public int FrameEnd => Template.FrameEnd;
+        public TkAnimationData.AnimTypeEnum AnimType => Template.AnimType;
+        public float Speed
+        {
+            get { return Template.Speed; }
+            set { Template.Speed = value; }
+        }
+        public bool Additive
+        {
+            get { return Template.Additive; }
+            set { Template.Additive = value; }
+        }
+        public bool Active
+        {
+            get { return Template.Active; }
+            set { Template.Active = value; }
+        }
+
+        //OneShotBlendable clips play once like OneShot ones, they only differ in how the game blends them
+        public bool IsOneShot => AnimType == TkAnimationData.AnimTypeEnum.OneShot ||
+                                 AnimType == TkAnimationData.AnimTypeEnum.OneShotBlendable;
+
+        //Rest pose of an additive clip: frame AdditiveBaseFrame (within the clip) of the AdditiveBaseAnim
+        //clip, set by the AnimComponent. Null measures from this clip
+        public AnimData AdditiveBase;
+        public string AdditiveBaseAnim => Template.AdditiveBaseAnim?.Value ?? "";
+        public float AdditiveBaseFrame => Template.AdditiveBaseFrame;
+
+        //Joints the clip drives, null when it drives the whole skeleton. Clips that name a StartNode only
+        //animate that joint's subtree, plus the subtrees of their ExtraStartNodes
+        private HashSet<string> nodeFilter;
+        private Dictionary<string, Model> nodeFilterScene; //The nodeDict the filter was built for
 
         public AnimData Clone()
         {
-            AnimData ad = new AnimData();
-
-            ad.Anim = Anim;
+            //Copies share the entity data. The AnimComponent links the copy's AdditiveBase
+            AnimData ad = new AnimData(Template);
             ad.Filename = Filename;
-            ad.FrameStart = FrameStart;
-            ad.FrameEnd = FrameEnd;
-            ad.StartNode = StartNode;
-            ad.AnimType = AnimType;
-            ad.Speed = Speed;
-            ad.Additive = Additive;
             ad.animMeta = animMeta;
+            ad.loaded = loaded;
 
             return ad;
         }
@@ -153,6 +133,8 @@ namespace MVCore.GMDL
             set
             {
                 _playing = value;
+                if (value)
+                    StartedBy = null; //The ActionSystem sets it again after starting the clip
                 //Restart the clip from its first frame
                 animationTime = 0.0f;
                 prevFrameIndex = clipStart;
@@ -230,7 +212,7 @@ namespace MVCore.GMDL
             get
             {
                 int count = clipFrameCount;
-                return (AnimType == AnimTypeEnum.OneShot ? count - 1 : count) * frameInterval;
+                return (IsOneShot ? count - 1 : count) * frameInterval;
             }
         }
 
@@ -295,14 +277,19 @@ namespace MVCore.GMDL
         }
 
 
-        public void update(float dt) //time in milliseconds
+        public void ensureLoaded()
         {
             if (!loaded)
             {
                 fetchAnimMetaData();
                 loaded = true;
             }
-            
+        }
+
+        public void update(float dt) //time in milliseconds
+        {
+            ensureLoaded();
+
             if (Speed > 0.0f)
                 dt *= Speed;
 
@@ -329,13 +316,14 @@ namespace MVCore.GMDL
                 return;
             }
 
-            bool oneShot = AnimType == AnimTypeEnum.OneShot;
+            bool oneShot = IsOneShot;
             float duration = clipDuration;
 
             if (animationTime >= duration)
             {
                 if (oneShot)
                 {
+                    CompletedCount++;
                     IsPlaying = false;
                     return;
                 }
@@ -357,7 +345,7 @@ namespace MVCore.GMDL
         //Weight of the clip in the blend. One-shots fade in and out so they don't pop over the loops
         public float getBlendWeight()
         {
-            if (AnimType != AnimTypeEnum.OneShot)
+            if (!IsOneShot)
                 return 1.0f;
 
             float duration = clipDuration;
@@ -386,20 +374,85 @@ namespace MVCore.GMDL
             s = next_s * LERP_coeff + prev_s * (1.0f - LERP_coeff);
         }
 
-        //Turns a sampled transform into the change from the clip's first frame, which additive clips
+        //Transform of a node at a frame within the clip, blending between the keyframes around it
+        private void getClipFrameTransform(float frame, string node, out Vector3 p, out Vector3 s, out Quaternion q)
+        {
+            frame = Math.Clamp(frame, 0.0f, clipFrameCount - 1);
+            int prev = clipStart + (int) frame;
+            int next = clipStart + Math.Min((int) frame + 1, clipFrameCount - 1);
+            float x = frame - (int) frame;
+
+            q = Quaternion.Slerp(animMeta.anim_rotations[node][prev], animMeta.anim_rotations[node][next], x);
+            p = Vector3.Lerp(animMeta.anim_positions[node][prev], animMeta.anim_positions[node][next], x);
+            s = Vector3.Lerp(animMeta.anim_scales[node][prev], animMeta.anim_scales[node][next], x);
+        }
+
+        //Turns a sampled transform into the change from the additive rest pose, which additive clips
         //apply on top of the blended pose
         public void toAdditiveDelta(ref Vector3 p, ref Vector3 s, ref Quaternion q, string node)
         {
-            int r = clipStart;
-            Quaternion ref_q = animMeta.anim_rotations[node][r];
-            Vector3 ref_p = animMeta.anim_positions[node][r];
-            Vector3 ref_s = animMeta.anim_scales[node][r];
+            AnimData baseClip = AdditiveBase ?? this;
+            baseClip.ensureLoaded();
+            if (baseClip.animMeta == null || !baseClip.animMeta.anim_rotations.ContainsKey(node))
+                baseClip = this; //The base clip doesn't animate this joint, measure from this clip
+
+            baseClip.getClipFrameTransform(AdditiveBaseFrame, node, out Vector3 ref_p, out Vector3 ref_s, out Quaternion ref_q);
 
             p -= ref_p;
             s = new Vector3(ref_s.X != 0.0f ? s.X / ref_s.X : 1.0f,
                             ref_s.Y != 0.0f ? s.Y / ref_s.Y : 1.0f,
                             ref_s.Z != 0.0f ? s.Z / ref_s.Z : 1.0f);
             q = Quaternion.Invert(ref_q) * q;
+        }
+
+        public bool drivesNode(string node, Dictionary<string, Model> nodeDict)
+        {
+            if (nodeFilterScene != nodeDict)
+            {
+                buildNodeFilter(nodeDict);
+                nodeFilterScene = nodeDict;
+            }
+            return nodeFilter == null || nodeFilter.Contains(node);
+        }
+
+        private void buildNodeFilter(Dictionary<string, Model> nodeDict)
+        {
+            List<string> roots = new List<string>();
+            string start = Template.StartNode?.Value ?? "";
+            if (start != "")
+                roots.Add(start);
+            if (Template.ExtraStartNodes != null)
+            {
+                foreach (var n in Template.ExtraStartNodes)
+                    if (!string.IsNullOrEmpty(n?.Value))
+                        roots.Add(n.Value);
+            }
+
+            if (!string.IsNullOrEmpty(Template.Mask?.Value) || Template.AdditionalMasks?.Count > 0)
+                Common.CallBacks.Log("Animation " + Anim + " uses bone masks, which are not applied");
+
+            nodeFilter = null;
+            if (roots.Count == 0)
+                return;
+
+            nodeFilter = new HashSet<string>();
+            foreach (string r in roots)
+            {
+                if (nodeDict.TryGetValue(r, out Model root))
+                    addSubtree(root);
+                else
+                    Common.CallBacks.Log("Start node " + r + " of animation " + Anim + " not found");
+            }
+
+            if (nodeFilter.Count == 0)
+                nodeFilter = null; //None of the start nodes exist, drive the whole skeleton rather than nothing
+        }
+
+        private void addSubtree(Model m)
+        {
+            nodeFilter.Add(m.Name);
+            foreach (Model child in m.Children)
+                addSubtree(child);
         }
 
     }

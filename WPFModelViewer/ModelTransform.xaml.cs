@@ -18,6 +18,10 @@ namespace WPFModelViewer
         private Vector3 oldtranslation;
         private Matrix4 oldrotation;
         private Vector3 oldscale;
+        private Vector3 oldrestposition;
+        private Matrix4 oldrestrotation;
+        private Vector3 oldrestscale;
+        private Vector3 oldangles;
 
         private Model _mdl;
 
@@ -41,8 +45,13 @@ namespace WPFModelViewer
          DependencyPropertyChangedEventArgs e)
         {
             ModelTransform mt = d as ModelTransform;
+            if (e.OldValue is Model oldModel)
+                oldModel.PropertyChanged -= mt.ModelPropertyChanged;
             if (e.NewValue != null)
+            {
+                ((Model)e.NewValue).PropertyChanged += mt.ModelPropertyChanged;
                 mt.loadModel((Model)e.NewValue);
+            }
         }
 
         public ModelTransform()
@@ -60,13 +69,29 @@ namespace WPFModelViewer
             oldtranslation = _mdl.localPosition;
             oldrotation = _mdl.localRotation;
             oldscale = _mdl.localScale;
+            oldrestposition = _mdl.__localPosition;
+            oldrestrotation = _mdl.__localRotation;
+            oldrestscale = _mdl.__localScale;
+            oldangles = _mdl._localRotationAngles;
 
-            //Setup Values to the control
+            refreshTransformValues();
+        }
+
+        private void ModelPropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != "Transform")
+                return;
+            Dispatcher.BeginInvoke(new System.Action(refreshTransformValues));
+        }
+
+        private void refreshTransformValues()
+        {
+            if (_mdl == null)
+                return;
             translationX.Text = _mdl.localPosition.X.ToString();
             translationY.Text = _mdl.localPosition.Y.ToString();
             translationZ.Text = _mdl.localPosition.Z.ToString();
 
-            //Vector3 q_euler = quaternionToEuler(m.localRotationQuaternion);
             Vector3 q_euler = matrixToEuler(_mdl.localRotation, "ZXY");
             //For some reason results are inverted
             rotationX.Text = (-q_euler.X).ToString();
@@ -96,33 +121,26 @@ namespace WPFModelViewer
         private void applyTransform()
         {
             float lX, lY, lZ;
-            //Apply translation
+            //Translation
             float.TryParse(translationX.Text, out lX);
             float.TryParse(translationY.Text, out lY);
             float.TryParse(translationZ.Text, out lZ);
-            _mdl.localPosition = new Vector3(lX, lY, lZ);
+            Vector3 position = new Vector3(lX, lY, lZ);
 
-            //Apply rotation
+            //Rotation in degrees, the way the scene file stores it
             float.TryParse(rotationX.Text, out lX);
             float.TryParse(rotationY.Text, out lY);
             float.TryParse(rotationZ.Text, out lZ);
-            Matrix4 rotx, roty, rotz;
-            Matrix4.CreateRotationX(MathUtils.radians(lX), out rotx);
-            Matrix4.CreateRotationY(MathUtils.radians(lY), out roty);
-            Matrix4.CreateRotationZ(MathUtils.radians(lZ), out rotz);
+            Vector3 angles = new Vector3(lX, lY, lZ);
 
-            //Quaternion q_euler = Quaternion.FromEulerAngles(MathUtils.radians((float)rotationX.Value),
-            //                                            MathUtils.radians((float)rotationY.Value),
-            //                                            MathUtils.radians((float)rotationZ.Value));
-
-            _mdl._localRotationAngles = new Vector3(lX, lY, lZ);
-            _mdl.localRotation = rotz * rotx * roty;
-
-            //Apply scale
+            //Scale
             float.TryParse(scaleX.Text, out lX);
             float.TryParse(scaleY.Text, out lY);
             float.TryParse(scaleZ.Text, out lZ);
-            _mdl.localScale = new Vector3(lX, lY, lZ);
+            Vector3 scale = new Vector3(lX, lY, lZ);
+
+            //The new values become the rest transform of the node, which the export writes
+            _mdl.setUserTransform(position, angles, scale);
             _mdl.update(); //Trigger model update
         
         }
@@ -130,6 +148,10 @@ namespace WPFModelViewer
         //Reset transform
         private void resetTransform(object sender, RoutedEventArgs e)
         {
+            _mdl.__localPosition = oldrestposition;
+            _mdl.__localRotation = oldrestrotation;
+            _mdl.__localScale = oldrestscale;
+            _mdl._localRotationAngles = oldangles;
             _mdl.localPosition = oldtranslation;
             _mdl.localRotation = oldrotation;
             _mdl.localScale = oldscale;
@@ -139,25 +161,25 @@ namespace WPFModelViewer
             
         }
 
-        //Export to EXML
-        private void exportToEXML(object sender, RoutedEventArgs e)
+        //Export to MXML
+        private void exportToMXML(object sender, RoutedEventArgs e)
         {
-            throw new NotImplementedException("Functionality not yet supported");
+            exportNode(false);
         }
 
         //Export to MBIN
         private void exportToMBIN(object sender, RoutedEventArgs e)
         {
-            throw new NotImplementedException("Functionality not yet supported");
+            exportNode(true);
         }
 
-        private Vector3 quaternionToEuler(Quaternion q)
+        private void exportNode(bool mbin)
         {
-            Matrix4 rotMat = Matrix4.CreateFromQuaternion(q);
-            rotMat.Transpose();
-            Vector3 test;
-            test = matrixToEuler(rotMat, "YZX");
-            return test;
+            if (_mdl == null)
+                return;
+            //A file root saves as its file, any other node as a scene of its own
+            string name = (_mdl.SourceFile != "") ? _mdl.SourceFile : _mdl.EditableName + ".SCENE.MBIN";
+            Util.saveNode(_mdl, name, mbin);
         }
 
         private Vector3 matrixToEuler(Matrix4 rotMat, string order)

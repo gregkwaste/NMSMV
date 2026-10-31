@@ -35,6 +35,11 @@ layout (std430, binding=1) buffer _COMMON_PER_MESH
     MeshInstance instanceData[]; //Instance world matrices, normal matrices, occlusion and selection status
 };
 
+layout (std430, binding=5) readonly buffer _VISIBLE_INSTANCE_IDS
+{
+    uint visibleInstanceIds[];
+};
+
 //Outputs
 out vec4 fragPos;
 out vec4 screenPos;
@@ -91,20 +96,22 @@ void decodeFrame(uint p, out vec3 N, out vec4 T)
 
 void main()
 {
+    int stableInstanceId = int(visibleInstanceIds[gl_InstanceID]);
+
     //Pass uv to fragment shader
     uv = uvPosition0;
     vertColor = bPosition;
 
-    #ifdef __F14_UVEFFECT
+    #ifdef __F13_UV_EFFECT
+        //Scroll both uv sets: xy feeds the diffuse, normal and masks maps, zw the diffuse2 map
         vec4 lFlippedScrollingUVVec4 = mpCustomPerMaterial.gUVScrollStepVec4;
-        //TODO: Convert uvs to vec4 for diffuse2maps
-        uv.xy += lFlippedScrollingUVVec4.xy * mpCommonPerFrame.gfTime;
+        uv += lFlippedScrollingUVVec4 * mpCommonPerFrame.gfTime;
     #endif
     
     //Load Per Instance data
-    instanceId = gl_InstanceID;
-    isOccluded = instanceData[gl_InstanceID].isOccluded;
-    isSelected = instanceData[gl_InstanceID].isSelected;
+    instanceId = stableInstanceId;
+    isOccluded = instanceData[stableInstanceId].isOccluded;
+    isSelected = instanceData[stableInstanceId].isSelected;
     
     mat4 lWorldMat;
     
@@ -118,13 +125,13 @@ void main()
         index.w = int(blendIndices.w);
 
         //Assemble matrices from 
-        int instanceMatOffset = gl_InstanceID * mpCustomPerMaterial.skinMatsStride * 4; //Stride in bones
+        int instanceMatOffset = stableInstanceId * mpCustomPerMaterial.skinMatsStride * 4; //Stride in bones
         lWorldMat =  blendWeights.x * get_skin_matrix(instanceMatOffset + 4 * index.x);
         lWorldMat += blendWeights.y * get_skin_matrix(instanceMatOffset + 4 * index.y);
         lWorldMat += blendWeights.z * get_skin_matrix(instanceMatOffset + 4 * index.z);
         lWorldMat += blendWeights.w * get_skin_matrix(instanceMatOffset + 4 * index.w);
     #else
-        lWorldMat = instanceData[gl_InstanceID].worldMat;
+        lWorldMat = instanceData[stableInstanceId].worldMat;
     #endif
     
     //lWorldMat = instanceData[gl_InstanceID].worldMat;
@@ -163,7 +170,7 @@ void main()
     #if defined(__F02_SKINNED)
         mat3 nMat = mat3(mpCommonPerFrame.rotMat) * mat3(lWorldMat);
     #else
-        mat3 nMat = mat3(mpCommonPerFrame.rotMat) * mat3(instanceData[gl_InstanceID].normalMat);
+        mat3 nMat = mat3(mpCommonPerFrame.rotMat) * mat3(instanceData[stableInstanceId].normalMat);
     #endif
 
     vec3 lWorldNormalVec3 = normalize(nMat * lLocalNormalVec4.xyz);

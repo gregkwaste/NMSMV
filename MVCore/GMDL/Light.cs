@@ -53,6 +53,18 @@ namespace MVCore.GMDL
 
         public float intensity = 1.0f;
         public Vector3 direction = new Vector3();
+        public float radius = 4.472136f;
+        public int cookieIndex = -1;
+        public float volumetric = 0.0f;
+        public int lightLayers = 3;
+
+        //Only populated for lights inheriting a named LOD branch. The scale is kept separate from the
+        //authored intensity so it cannot change cluster ranges or ordinary lights.
+        public bool lodAttenuationControlled = false;
+        public float lodEntryAttenuationScale = 1.0f;
+        public float lodExitAttenuationScale = 1.0f;
+        public int lodAttenuationLevel = -1;
+        public Scene lodAttenuationScene;
 
         public bool update_changes = false; //Used to prevent unecessary uploads to the UBO
 
@@ -60,6 +72,36 @@ namespace MVCore.GMDL
         public Matrix4[] lightSpaceMatrices;
         public Matrix4 lightProjectionMatrix;
         public GLLight strct;
+
+        public float getLodAttenuationScale()
+        {
+            if (!lodAttenuationControlled || lodAttenuationLevel < 0 || lodAttenuationScene == null ||
+                RenderState.activeCam == null)
+                return 1.0f;
+
+            float[] distances = lodAttenuationScene._LODDistances;
+            int entryIndex = lodAttenuationLevel - 1;
+            float start = entryIndex >= 0 && entryIndex < distances.Length
+                ? distances[entryIndex]
+                : 0.0f;
+            float end = 0.0f;
+            if (lodAttenuationLevel < distances.Length && distances[lodAttenuationLevel] > start)
+                end = distances[lodAttenuationLevel];
+            else
+            {
+                float previous = entryIndex > 0 && entryIndex - 1 < distances.Length
+                    ? distances[entryIndex - 1]
+                    : 0.0f;
+                float span = previous > 0.0f ? start - previous : start;
+                end = start + Math.Max(span, 1.0f);
+            }
+
+            Vector3 scenePosition = (new Vector4(lodAttenuationScene.worldPosition, 1.0f) * RenderState.rotMat).Xyz;
+            float cameraDistance = (scenePosition - RenderState.activeCam.Position).Length;
+            float t = Math.Clamp((cameraDistance - start) / Math.Max(end - start, 1e-4f), 0.0f, 1.0f);
+            t = t * t * (3.0f - 2.0f * t); //Smoothstep over this LOD's distance interval
+            return lodEntryAttenuationScale + (lodExitAttenuationScale - lodEntryAttenuationScale) * t;
+        }
 
         //Properties
         public MVector4 Color
@@ -103,6 +145,37 @@ namespace MVCore.GMDL
                 strct.color.W = value;
                 update_changes = true;
             }
+        }
+
+        //The first resource light is the environment key light. Its position vector is interpreted as
+        //a direction by the lighting and shadow shaders, so expose the three components explicitly to WPF.
+        public float KeyDirectionX
+        {
+            get => localPosition.X;
+            set => setKeyDirection(new Vector3(value, localPosition.Y, localPosition.Z));
+        }
+
+        public float KeyDirectionY
+        {
+            get => localPosition.Y;
+            set => setKeyDirection(new Vector3(localPosition.X, value, localPosition.Z));
+        }
+
+        public float KeyDirectionZ
+        {
+            get => localPosition.Z;
+            set => setKeyDirection(new Vector3(localPosition.X, localPosition.Y, value));
+        }
+
+        private void setKeyDirection(Vector3 value)
+        {
+            localPosition = value;
+            worldPosition = value;
+            strct.position.Xyz = value;
+            update_changes = true;
+            NotifyPropertyChanged(nameof(KeyDirectionX));
+            NotifyPropertyChanged(nameof(KeyDirectionY));
+            NotifyPropertyChanged(nameof(KeyDirectionZ));
         }
 
         public string Attenuation
@@ -181,14 +254,27 @@ namespace MVCore.GMDL
             color.PropertyChanged += catchPropertyChanged;
         }
 
-        protected Light(Light input) : base(input)
+        private Light(Light input) : base(input)
         {
-            Color = input.Color;
+            //The Color setter does not copy, the components are set one by one
+            color.X = input.color.X;
+            color.Y = input.color.Y;
+            color.Z = input.color.Z;
+            color.W = input.color.W;
             intensity = input.intensity;
             falloff = input.falloff;
+            radius = input.radius;
+            cookieIndex = input.cookieIndex;
+            volumetric = input.volumetric;
+            lightLayers = input.lightLayers;
             fov = input.fov;
             light_type = input.light_type;
             strct = input.strct;
+            lodAttenuationControlled = input.lodAttenuationControlled;
+            lodEntryAttenuationScale = input.lodEntryAttenuationScale;
+            lodExitAttenuationScale = input.lodExitAttenuationScale;
+            lodAttenuationLevel = input.lodAttenuationLevel;
+            lodAttenuationScene = input.lodAttenuationScene;
 
             //Initialize new MeshVao
             meshVao = new GLMeshVao();
@@ -210,14 +296,24 @@ namespace MVCore.GMDL
             RenderState.activeResMgr.GLlights.Add(this);
         }
 
-        public override void updateMeshInfo(bool lod_filter = false)
+        //Helper line (position and direction end point) in the vertex buffer of this light, so that the
+        //upload only happens when it changed
+        private readonly float[] helperVerts = new float[6];
+        private readonly float[] uploadedVerts = new float[6];
+        private bool helperUploaded = false;
+
+        public override void updateOwnMeshInfo(bool lod_filter = false)
         {
-            if (lod_filter)
+            long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+            if (lod_filter || !renderable)
             {
+                if (strct.position.W != 0.0f)
+                    update_changes = true;
                 strct.position.W = 0.0f; //Force not renderable
-                base.updateMeshInfo();
-                RenderStats.occludedNum += 1;
-            } else if (RenderState.renderViewSettings.RenderLights && renderable)
+                if (lod_filter)
+                    RenderStats.occludedNum += 1;
+            }
+            else
             {
                 //End Point
                 Vector4 ep;
@@ -237,36 +333,47 @@ namespace MVCore.GMDL
                 direction = ep.Xyz; //Set spotlight direction
                 update_struct();
 
-                //Update Vertex Buffer based on the new data
-                float[] verts = new float[6];
-                int arraysize = 6 * sizeof(float);
+                //The light remains active independently of whether its yellow helper marker is displayed.
+                if (RenderState.renderViewSettings.RenderLights)
+                {
+                    //Update Vertex Buffer based on the new data
+                    float[] verts = helperVerts;
+                    int arraysize = 6 * sizeof(float);
 
-                //Origin Point
-                verts[0] = worldPosition.X;
-                verts[1] = worldPosition.Y;
-                verts[2] = worldPosition.Z;
+                    //Origin Point
+                    verts[0] = worldPosition.X;
+                    verts[1] = worldPosition.Y;
+                    verts[2] = worldPosition.Z;
 
-                ep.X += worldPosition.X;
-                ep.Y += worldPosition.Y;
-                ep.Z += worldPosition.Z;
+                    ep.X += worldPosition.X;
+                    ep.Y += worldPosition.Y;
+                    ep.Z += worldPosition.Z;
 
-                verts[3] = ep.X;
-                verts[4] = ep.Y;
-                verts[5] = ep.Z;
+                    verts[3] = ep.X;
+                    verts[4] = ep.Y;
+                    verts[5] = ep.Z;
 
-                GL.BindVertexArray(meshVao.vao.vao_id);
-                GL.BindBuffer(BufferTarget.ArrayBuffer, meshVao.vao.vertex_buffer_object);
-                //Add verts data, color data should stay the same
-                GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
+                    //The instances are rebuilt for every camera move, but the light only moves with its parents
+                    if (!helperUploaded || !verts.AsSpan().SequenceEqual(uploadedVerts))
+                    {
+                        GL.BindVertexArray(meshVao.vao.vao_id);
+                        GL.BindBuffer(BufferTarget.ArrayBuffer, meshVao.vao.vertex_buffer_object);
+                        //Add verts data, color data should stay the same
+                        GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
+                        Array.Copy(verts, uploadedVerts, 6);
+                        helperUploaded = true;
+                        RenderStats.lightUploads++;
+                    }
 
-                //Uplod worldMat to the meshVao
-                instanceId = GLMeshBufferManager.addInstance(meshVao, this, Matrix4.Identity, Matrix4.Identity, Matrix4.Identity); //Add instance
-            } else
-            {
-                base.updateMeshInfo();
-                updated = false; //All done
+                    //Upload worldMat to the meshVao
+                    instanceId = GLMeshBufferManager.addInstance(meshVao, this, Matrix4.Identity, Matrix4.Identity, Matrix4.Identity); //Add instance
+                }
+                else
+                    updated = false; //All done
             }
 
+            RenderStats.lightTicks += System.Diagnostics.Stopwatch.GetTimestamp() - t0;
+            RenderStats.lightCount++;
         }
 
         public override void update()

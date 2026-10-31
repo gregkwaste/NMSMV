@@ -32,31 +32,26 @@ namespace MVCore.GMDL
             type = TYPES.JOINT;
         }
 
-        protected Joint(Joint input) : base(input)
-        {
-            this.jointIndex = input.jointIndex;
-            this.BindMat = input.BindMat;
-            this.invBMat = input.invBMat;
-            this.color = input.color;
+        //Lines to the children as last uploaded. Joints are rebuilt for every camera move but only move
+        //with the skeleton, so the upload only happens when a line changed
+        private float[] verts;
+        private float[] uploadedVerts;
 
-            meshVao = new GLMeshVao();
-            instanceId = GLMeshBufferManager.addInstance(ref meshVao, this);
-            GLMeshBufferManager.setInstanceWorldMat(meshVao, instanceId, Matrix4.Identity);
-            meshVao.type = TYPES.JOINT;
-            meshVao.metaData = new MeshMetaData();
-            //TODO: Find a place to keep references from the joint GLMeshVAOs
-            meshVao.vao = new Primitives.LineSegment(Children.Count, new Vector3(1.0f, 0.0f, 0.0f)).getVAO();
-            meshVao.material = Common.RenderState.activeResMgr.GLmaterials["jointMat"];
-        }
-
-        public override void updateMeshInfo(bool lod_filter=false)
+        public override void updateOwnMeshInfo(bool lod_filter=false)
         {
+            long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+
             //We do not apply frustum occlusion on joint objects
-            if (!lod_filter && renderable && (Children.Count > 0))
+            if (Common.RenderState.renderViewSettings.RenderJoints && !lod_filter && renderable && (Children.Count > 0))
             {
                 //Update Vertex Buffer based on the new positions
-                float[] verts = new float[2 * Children.Count * 3];
-                int arraysize = 2 * Children.Count * 3 * sizeof(float);
+                int floats = 2 * Children.Count * 3;
+                int arraysize = floats * sizeof(float);
+                if (verts == null || verts.Length != floats)
+                {
+                    verts = new float[floats];
+                    uploadedVerts = null;
+                }
 
                 for (int i = 0; i < Children.Count; i++)
                 {
@@ -70,14 +65,20 @@ namespace MVCore.GMDL
 
                 meshVao.metaData.batchcount = 2 * Children.Count;
 
-                GL.BindVertexArray(meshVao.vao.vao_id);
-                GL.BindBuffer(BufferTarget.ArrayBuffer, meshVao.vao.vertex_buffer_object);
-                //Add verts data, color data should stay the same
-                GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
+                if (uploadedVerts == null || !verts.AsSpan().SequenceEqual(uploadedVerts))
+                {
+                    GL.BindVertexArray(meshVao.vao.vao_id);
+                    GL.BindBuffer(BufferTarget.ArrayBuffer, meshVao.vao.vertex_buffer_object);
+                    //Add verts data, color data should stay the same
+                    GL.BufferSubData(BufferTarget.ArrayBuffer, (IntPtr)0, (IntPtr)arraysize, verts);
+                    uploadedVerts = (float[]) verts.Clone();
+                    Common.RenderStats.jointUploads++;
+                }
                 instanceId = GLMeshBufferManager.addInstance(meshVao, this, Matrix4.Identity, Matrix4.Identity, Matrix4.Identity);
             }
 
-            base.updateMeshInfo();
+            Common.RenderStats.jointTicks += System.Diagnostics.Stopwatch.GetTimestamp() - t0;
+            Common.RenderStats.jointCount++;
         }
 
         public override Model Clone()

@@ -23,79 +23,141 @@ using MVCore.Utils;
 
 namespace MVCore.GMDL
 {
+    //Lossless viewer-owned representation of the geometry template. Keeping primitive values here
+    //lets export construct a fresh libMBIN object without retaining or mutating the imported template.
+    public class NativeGeometryVertexElement
+    {
+        public int Instancing, Type;
+        public byte Normalise, Offset, SemanticID, Size;
+    }
+
+    public class NativeGeometryVertexLayout
+    {
+        public long PlatformData;
+        public int ElementCount, Stride;
+        public List<NativeGeometryVertexElement> Elements = new();
+    }
+
+    public class NativeGeometryJointBinding
+    {
+        public float[] InvBindMatrix, BindRotate, BindScale, BindTranslate;
+    }
+
+    public class NativeGeometryJointExtent
+    {
+        public float[] Center, Max, Min, StdDev;
+    }
+
+    public class NativeGeometryJointMirrorAxis
+    {
+        public int Mode;
+        public float RotAdjustW, RotAdjustX, RotAdjustY, RotAdjustZ;
+        public float RotAxisX, RotAxisY, RotAxisZ;
+        public float TransAxisX, TransAxisY, TransAxisZ;
+    }
+
+    public class NativeGeometryStreamMetadata
+    {
+        public string Id = "";
+        public ulong Hash;
+        public int IndexOffset, IndexSize, VertexOffset, VertexSize, PositionOffset, PositionSize;
+        public bool DoubleBuffered;
+    }
+
+    public class NativeGeometryData
+    {
+        public NativeGeometryVertexLayout PositionLayout, MainLayout;
+        public List<int> BoundHullEnds = new(), BoundHullStarts = new(), IndexBuffer = new();
+        public List<Vector4> BoundHullVertices = new(), MeshAABBMax = new(), MeshAABBMin = new();
+        public List<NativeGeometryJointBinding> JointBindings = new();
+        public List<NativeGeometryJointExtent> JointExtents = new();
+        public List<NativeGeometryJointMirrorAxis> JointMirrorAxes = new();
+        public List<int> JointMirrorPairs = new(), MeshBaseSkinMat = new(), MeshVertEnds = new(), MeshVertStarts = new();
+        public List<string> ProcGenNodeNames = new();
+        public List<int> ProcGenParentIds = new(), SkinMatrixLayout = new();
+        public List<NativeGeometryStreamMetadata> Streams = new();
+        public int CollisionIndexCount, IndexCount, Indices16Bit, VertexCount;
+
+        public NativeGeometryData Clone()
+        {
+            NativeGeometryData result = new NativeGeometryData
+            {
+                PositionLayout = cloneLayout(PositionLayout),
+                MainLayout = cloneLayout(MainLayout),
+                BoundHullEnds = new(BoundHullEnds),
+                BoundHullStarts = new(BoundHullStarts),
+                IndexBuffer = new(IndexBuffer),
+                BoundHullVertices = new(BoundHullVertices),
+                MeshAABBMax = new(MeshAABBMax),
+                MeshAABBMin = new(MeshAABBMin),
+                JointBindings = JointBindings.Select(value => new NativeGeometryJointBinding
+                {
+                    InvBindMatrix = clone(value.InvBindMatrix),
+                    BindRotate = clone(value.BindRotate),
+                    BindScale = clone(value.BindScale),
+                    BindTranslate = clone(value.BindTranslate)
+                }).ToList(),
+                JointExtents = JointExtents.Select(value => new NativeGeometryJointExtent
+                {
+                    Center = clone(value.Center), Max = clone(value.Max),
+                    Min = clone(value.Min), StdDev = clone(value.StdDev)
+                }).ToList(),
+                JointMirrorAxes = JointMirrorAxes.Select(value => new NativeGeometryJointMirrorAxis
+                {
+                    Mode = value.Mode,
+                    RotAdjustW = value.RotAdjustW, RotAdjustX = value.RotAdjustX,
+                    RotAdjustY = value.RotAdjustY, RotAdjustZ = value.RotAdjustZ,
+                    RotAxisX = value.RotAxisX, RotAxisY = value.RotAxisY, RotAxisZ = value.RotAxisZ,
+                    TransAxisX = value.TransAxisX, TransAxisY = value.TransAxisY, TransAxisZ = value.TransAxisZ
+                }).ToList(),
+                JointMirrorPairs = new(JointMirrorPairs),
+                MeshBaseSkinMat = new(MeshBaseSkinMat),
+                MeshVertEnds = new(MeshVertEnds),
+                MeshVertStarts = new(MeshVertStarts),
+                ProcGenNodeNames = new(ProcGenNodeNames),
+                ProcGenParentIds = new(ProcGenParentIds),
+                SkinMatrixLayout = new(SkinMatrixLayout),
+                Streams = Streams.Select(value => new NativeGeometryStreamMetadata
+                {
+                    Id = value.Id, Hash = value.Hash,
+                    IndexOffset = value.IndexOffset, IndexSize = value.IndexSize,
+                    VertexOffset = value.VertexOffset, VertexSize = value.VertexSize,
+                    PositionOffset = value.PositionOffset, PositionSize = value.PositionSize,
+                    DoubleBuffered = value.DoubleBuffered
+                }).ToList(),
+                CollisionIndexCount = CollisionIndexCount,
+                IndexCount = IndexCount,
+                Indices16Bit = Indices16Bit,
+                VertexCount = VertexCount
+            };
+            return result;
+        }
+
+        private static NativeGeometryVertexLayout cloneLayout(NativeGeometryVertexLayout source) =>
+            source == null ? null : new NativeGeometryVertexLayout
+            {
+                PlatformData = source.PlatformData,
+                ElementCount = source.ElementCount,
+                Stride = source.Stride,
+                Elements = source.Elements.Select(value => new NativeGeometryVertexElement
+                {
+                    Instancing = value.Instancing, Type = value.Type,
+                    Normalise = value.Normalise, Offset = value.Offset,
+                    SemanticID = value.SemanticID, Size = value.Size
+                }).ToList()
+            };
+
+        private static float[] clone(float[] source) =>
+            source == null ? Array.Empty<float>() : (float[])source.Clone();
+    }
+
     public enum RENDERPASS
     {
         DEFERRED = 0x0,
         FORWARD,
         DECAL,
-        BHULL,
-        BBOX,
-        DEBUG,
-        PICK,
-        COUNT
+        BHULL
     }
-
-    public class SimpleSampler
-    {
-        public string PName { get; set; }
-        SimpleSampler()
-        {
-
-        }
-
-        public event PropertyChangedEventHandler PropertyChanged;
-    }
-
-    
-    
-
-    
-    public class gizmo: Model
-    {
-        public gizmo()
-        {
-            type = TYPES.GIZMO;
-            
-            //Assemble geometry in the constructor
-            meshVao = Common.RenderState.activeResMgr.GLPrimitiveMeshVaos["default_translation_gizmo"];
-            instanceId = GLMeshBufferManager.addInstance(ref meshVao, this);
-        }
-
-        public override GMDL.Model Clone()
-        {
-            return new gizmo();
-        }
-    }
-
-    
-
-    
-    [StructLayout(LayoutKind.Explicit)]
-    struct CustomPerMaterialUniforms
-    {
-        [FieldOffset(0)] //256 Bytes
-        public unsafe fixed int matflags[64];
-        [FieldOffset(256)] //64 Bytes
-        public int diffuseTex;
-        [FieldOffset(260)] //4 bytes
-        public int maskTex;
-        [FieldOffset(264)] //4 bytes
-        public int normalTex;
-        [FieldOffset(276)] //16 bytes
-        public Vector4 gMaterialColourVec4;
-        [FieldOffset(292)] //16 bytes
-        public Vector4 gMaterialParamsVec4;
-        [FieldOffset(308)] //16 bytes
-        public Vector4 gMaterialSFXVec4;
-        [FieldOffset(324)] //16 bytes
-        public Vector4 gMaterialSFXColVec4;
-        [FieldOffset(340)] //16 bytes
-        public Vector4 gDissolveDataVec4;
-        [FieldOffset(356)] //16 bytes
-        public Vector4 gCustomParams01Vec4;
-        
-        public static readonly int SizeInBytes = 360;
-    };
 
     public class Collision : Model
     {
@@ -103,12 +165,6 @@ namespace MVCore.GMDL
         public GeomObject gobject;
         public MeshMetaData metaData = new MeshMetaData();
         
-        //Custom constructor
-        public Collision()
-        {
-            
-        }
-
         public override Model Clone()
         {
             Collision new_m = new Collision();
@@ -122,34 +178,17 @@ namespace MVCore.GMDL
             foreach (Model child in Children)
             {
                 Model new_child = child.Clone();
-                AddChild(new_child);
+                new_m.AddChild(new_child);
             }
 
             return new_m;
         }
         
         
-        protected Collision(Collision input) : base(input)
+        public override void updateOwnMeshInfo(bool lod_filter=false)
         {
-            collisionType = input.collisionType;
-        }
-
-        public override void update()
-        {
-            base.update();
-
-        }
-
-        public override void updateMeshInfo(bool lod_filter=false)
-        {
-            if (renderable && !lod_filter)
-            {
+            if (Common.RenderState.renderViewSettings.RenderCollisions && renderable && !lod_filter)
                 instanceId = GLMeshBufferManager.addInstance(ref meshVao, this);
-                base.updateMeshInfo(lod_filter);
-                return;
-            }
-
-            base.updateMeshInfo(lod_filter);
         }
 
     }
@@ -157,6 +196,12 @@ namespace MVCore.GMDL
 
     public class GeomObject : IDisposable
     {
+        //The complete native geometry asset as loaded. Rendering uses the decoded per-mesh slices
+        //below, but an unchanged NMS scene can export these verbatim and retain the game's packed
+        //half/10:10:10 layouts, padding, stream offsets and otherwise-unused metadata.
+        public NativeGeometryData sourceGeometry;
+        public byte[] sourceGeometryStream;
+
         public string mesh_descr;
         public string small_mesh_descr;
 
@@ -195,7 +240,6 @@ namespace MVCore.GMDL
         public List<Vector3> bhullverts = new List<Vector3>();
         public List<int> bhullstarts = new List<int>();
         public List<int> bhullends = new List<int>();
-        public List<int[]> bhullindices = new List<int[]>();
         public List<int> vstarts = new List<int>();
         public Dictionary<ulong, geomMeshMetaData> meshMetaDataDict = new Dictionary<ulong, geomMeshMetaData>();
         public Dictionary<ulong, geomMeshData> meshDataDict = new Dictionary<ulong, geomMeshData>();
@@ -268,7 +312,7 @@ namespace MVCore.GMDL
             {
                 if (GLMeshVaos[hash].ContainsKey(matname))
                 {
-                    Common.CallBacks.Log("MeshVao already in the dictionary, nothing to do...");
+                    Common.CallBacks.Verbose("MeshVao already in the dictionary, nothing to do...");
                     return false;
                 }
             }
@@ -287,7 +331,7 @@ namespace MVCore.GMDL
             //Double check tha the VAO is not already in the dictinary
             if (GLVaos.ContainsKey(hash))
             {
-                Common.CallBacks.Log("Vao already in the dictinary, nothing to do...");
+                Common.CallBacks.Verbose("Vao already in the dictionary, nothing to do...");
                 return false;
             }
                 
@@ -459,7 +503,7 @@ namespace MVCore.GMDL
 
             ErrorCode err = GL.GetError();
             if (err != ErrorCode.NoError)
-                CallBacks.Log(GL.GetError().ToString());
+                CallBacks.Log("OpenGL error while creating a VAO: " + err);
             
             //Bind vertex buffer
             int size;
@@ -585,8 +629,13 @@ namespace MVCore.GMDL
     }
 
 
-    public class Sampler : TkMaterialSampler, IDisposable
+    public class Sampler : IDisposable
     {
+        //The sampler entry of the material file. Name and Map below are the viewer's copies: the name gets
+        //the uniform prefix and procedural textures point the map at the mixed result
+        public TkMaterialSampler Template;
+        public string Name = "";
+        public string Map = "";
         public MyTextureUnit texUnit;
         public Texture tex;
         public textureManager texMgr; //For now it should be inherited from the scene. In the future I can use a delegate
@@ -619,31 +668,27 @@ namespace MVCore.GMDL
 
         public Sampler()
         {
-            Map = new libMBIN.NMS.GcFilename("");
+            Template = new TkMaterialSampler();
+            Template.Map = "";
         }
 
         public Sampler(TkMaterialSampler ms)
         {
-            //Pass everything here because there is no base copy constructor in the NMS template
-            this.Name = "mpCustomPerMaterial." + ms.Name;
-            this.Map = ms.Map;
-            this.IsCube = ms.IsCube;
-            this.IsSRGB = ms.IsSRGB;
-            this.UseCompression = ms.UseCompression;
-            this.UseMipMaps = ms.UseMipMaps;
+            Template = ms;
+            Name = "mpCustomPerMaterial." + ms.Name;
+            Map = ms.Map?.Value ?? "";
         }
 
         public Sampler Clone()
         {
             Sampler newsampler = new Sampler();
 
+            newsampler.Template = Template;
             newsampler.PName = PName;
             newsampler.PMap = PMap;
             newsampler.texMgr = texMgr;
             newsampler.tex = tex;
             newsampler.texUnit = texUnit;
-            newsampler.TextureAddressMode = TextureAddressMode;
-            newsampler.TextureFilterMode = TextureFilterMode;
 
             return newsampler;
         }
@@ -661,6 +706,7 @@ namespace MVCore.GMDL
                 case "mpCustomPerMaterial.gMasksMap":
                 case "mpCustomPerMaterial.gNormalMap":
                 case "mpCustomPerMaterial.gOcclusionMap":
+                case "mpCustomPerMaterial.gColouriseMaskMap":
                     texUnit = new MyTextureUnit(Name);
                     prepTextures();
                     break;
@@ -673,7 +719,7 @@ namespace MVCore.GMDL
 
         public void prepTextures()
         {
-            string[] split = Map.Value.Split('.');
+            string[] split = Map.Split('.');
 
             string temp = "";
             if (Name == "mpCustomPerMaterial.gDiffuseMap")
@@ -708,6 +754,7 @@ namespace MVCore.GMDL
                 case "mpCustomPerMaterial.gMasksMap":
                 case "mpCustomPerMaterial.gNormalMap":
                 case "mpCustomPerMaterial.gOcclusionMap":
+                case "mpCustomPerMaterial.gColouriseMaskMap":
                     return false;
                 default:
                     return true;
@@ -726,7 +773,10 @@ namespace MVCore.GMDL
             }
             else
             {
-                tex = new Texture(Map, false, isColorSampler(Name));
+                //Imported geometry samplers may point at ordinary files outside the NMS virtual
+                //filesystem. A rooted path is an explicit custom asset path and must not be looked up
+                //in the game archives.
+                tex = new Texture(Map, Path.IsPathFullyQualified(Map), isColorSampler(Name));
                 tex.palOpt = new PaletteOpt(false);
                 tex.procColor = new Vector4(1.0f, 1.0f, 1.0f, 0.0f);
                 //At this point this should be a common texture. Store it to the master texture manager
@@ -802,7 +852,7 @@ namespace MVCore.GMDL
             //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 4.0f);
 
             //Use anisotropic filtering
-            af_amount = Math.Max(af_amount, GL.GetFloat((GetPName)All.MaxTextureMaxAnisotropy));
+            af_amount = Math.Min(af_amount, GL.GetFloat((GetPName)All.MaxTextureMaxAnisotropy));
             GL.TexParameter(texTarget, (TextureParameterName)0x84FE, af_amount);
         }
 
@@ -973,16 +1023,6 @@ namespace MVCore.GMDL
         
     }
 
-    public class MatOpts
-    {
-        public int transparency;
-        public bool castshadow;
-        public bool disableTestz;
-        public string link;
-        public string shadername;
-    }
-
-
     public class MyTextureUnit
     {
         public TextureUnit texUnit;
@@ -994,7 +1034,8 @@ namespace MVCore.GMDL
             { "mpCustomPerMaterial.gDiffuse2Map" , TextureUnit.Texture3 },
             { "mpCustomPerMaterial.gOcclusionMap", TextureUnit.Texture4},
             { "mpCustomPerMaterial.gDetailNormalMap", TextureUnit.Texture5},
-            { "mpCustomPerMaterial.skinMatsTex", TextureUnit.Texture6}
+            { "mpCustomPerMaterial.skinMatsTex", TextureUnit.Texture6},
+            { "mpCustomPerMaterial.gColouriseMaskMap", TextureUnit.Texture7}
         };
         
 
@@ -1004,7 +1045,8 @@ namespace MVCore.GMDL
             { "mpCustomPerMaterial.gMasksMap" ,   2 },
             { "mpCustomPerMaterial.gNormalMap" ,  3 },
             { "mpCustomPerMaterial.gOcclusionMap", 4},
-            { "mpCustomPerMaterial.gDetailNormalMap", 5}
+            { "mpCustomPerMaterial.gDetailNormalMap", 5},
+            { "mpCustomPerMaterial.gColouriseMaskMap", 7}
         };
 
         public MyTextureUnit(string sampler_name)
@@ -1080,7 +1122,71 @@ namespace MVCore.GMDL
                 image_data = (byte[]) CallBacks.getResource("_default");
             }
 
-            textureInit(image_data, path, srgb);
+            bool dds = image_data.Length >= 4 && image_data[0] == (byte)'D' &&
+                       image_data[1] == (byte)'D' && image_data[2] == (byte)'S' && image_data[3] == (byte)' ';
+            if (dds)
+                textureInit(image_data, path, srgb);
+            else
+                textureInitImage(image_data, path, srgb);
+        }
+
+        //Assimp assets commonly reference PNG/JPEG images rather than the DDS files used by NMS. Upload
+        //them as a one-layer 2D array so the existing material shaders and sampler bindings stay unchanged.
+        private void textureInitImage(byte[] imageData, string textureName, bool srgb)
+        {
+            using MemoryStream stream = new MemoryStream(imageData, false);
+            using System.Drawing.Image source = System.Drawing.Image.FromStream(stream);
+            using Bitmap bitmap = new Bitmap(source.Width, source.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            using (Graphics graphics = Graphics.FromImage(bitmap))
+                graphics.DrawImageUnscaled(source, 0, 0);
+
+            width = bitmap.Width;
+            height = bitmap.Height;
+            name = textureName;
+            pif = srgb ? InternalFormat.Srgb8Alpha8 : InternalFormat.Rgba8;
+            RenderStats.texturesNum += 1;
+
+            Rectangle rectangle = new Rectangle(0, 0, width, height);
+            BitmapData data = bitmap.LockBits(rectangle, ImageLockMode.ReadOnly,
+                System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            byte[] pixels = new byte[width * height * 4];
+            try
+            {
+                int rowBytes = width * 4;
+                for (int y = 0; y < height; y++)
+                {
+                    int sourceRow = data.Stride >= 0 ? y : height - 1 - y;
+                    Marshal.Copy(IntPtr.Add(data.Scan0, sourceRow * data.Stride), pixels, y * rowBytes, rowBytes);
+                }
+            }
+            finally
+            {
+                bitmap.UnlockBits(data);
+            }
+
+            pboID = GL.GenBuffer();
+            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, pboID);
+            GL.BufferData(BufferTarget.PixelUnpackBuffer, pixels.Length, pixels, BufferUsageHint.StaticDraw);
+
+            texID = GL.GenTexture();
+            target = TextureTarget.Texture2DArray;
+            GL.BindTexture(target, texID);
+            GL.TexImage3D(target, 0,
+                srgb ? PixelInternalFormat.Srgb8Alpha8 : PixelInternalFormat.Rgba8,
+                width, height, 1, 0, PixelFormat.Bgra, PixelType.UnsignedByte, IntPtr.Zero);
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2DArray);
+            GL.TexParameter(target, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+            GL.TexParameter(target, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+            GL.TexParameter(target, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexParameter(target, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
+            float anisotropy = GL.GetFloat((GetPName)All.MaxTextureMaxAnisotropy);
+            GL.TexParameter(target, (TextureParameterName)0x84FE,
+                Math.Min(Math.Max(anisotropy, 1.0f), 8.0f));
+
+            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
+            GL.DeleteBuffer(pboID);
+            pboID = -1;
+            Common.CallBacks.Verbose("Imported texture {0} Width {1} Height {2}", name, width, height);
         }
 
         private static InternalFormat toLinearFormat(InternalFormat format)
@@ -1106,7 +1212,7 @@ namespace MVCore.GMDL
             ddsImage = new DDSImage(imageData);
             RenderStats.texturesNum += 1; //Accumulate settings
 
-            Common.CallBacks.Log("Sampler Name Path " + name + " Width {0} Height {1}", ddsImage.header.dwWidth, ddsImage.header.dwHeight);
+            Common.CallBacks.Verbose("Sampler Name Path " + name + " Width {0} Height {1}", ddsImage.header.dwWidth, ddsImage.header.dwHeight);
             width = ddsImage.header.dwWidth;
             height = ddsImage.header.dwHeight;
             bool compressed = true;
@@ -1225,8 +1331,8 @@ namespace MVCore.GMDL
 
             //Use anisotropic filtering
             float af_amount = GL.GetFloat((GetPName)All.MaxTextureMaxAnisotropy);
-            af_amount = (float) Math.Max(af_amount, 4.0f);
-            //GL.TexParameter(TextureTarget.Texture2D,  (TextureParameterName) 0x84FE, af_amount);
+            af_amount = Math.Min(Math.Max(af_amount, 1.0f), 8.0f);
+            GL.TexParameter(target, (TextureParameterName)0x84FE, af_amount);
             int max_level = 0;
             GL.GetTexParameter(target, GetTextureParameter.TextureMaxLevel, out max_level);
             int base_level = 0;
@@ -1352,18 +1458,35 @@ namespace MVCore.GMDL
 
     
 
-    public class AnimPoseData: TkAnimPoseData, System.ComponentModel.INotifyPropertyChanged
+    public class AnimPoseData: System.ComponentModel.INotifyPropertyChanged
     {
+        //The pose entry of the entity file
+        public TkAnimPoseData Template;
         private int activePoseFrame;
         public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
         public System.Action changed; //Lets the component re-apply the pose when the slider moves
 
         public AnimPoseData(TkAnimPoseData apd)
         {
-            Anim = apd.Anim;
-            FrameStart = apd.FrameStart;
-            FrameEnd = apd.FrameEnd;
+            Template = apd;
             PActivePoseFrame = (int) ((apd.FrameEnd - apd.FrameStart) / 2 + apd.FrameStart);
+        }
+
+        //Copies share the entity data
+        public AnimPoseData(AnimPoseData apd) : this(apd.Template)
+        {
+        }
+
+        public string Anim => Template.Anim;
+        public int FrameStart
+        {
+            get { return Template.FrameStart; }
+            set { Template.FrameStart = value; }
+        }
+        public int FrameEnd
+        {
+            get { return Template.FrameEnd; }
+            set { Template.FrameEnd = value; }
         }
 
         public string PAnim
@@ -1416,8 +1539,10 @@ namespace MVCore.GMDL
     }
 
     
-    public class AnimMetadata: TkAnimMetadata
+    public class AnimMetadata
     {
+        //The animation file
+        public TkAnimMetadata Template;
         public float duration;
         public Dictionary<string, Quaternion[]> anim_rotations;
         public Dictionary<string, Vector3[]> anim_positions;
@@ -1425,20 +1550,21 @@ namespace MVCore.GMDL
 
         public AnimMetadata(TkAnimMetadata amd)
         {
-            //Copy struct info
-            FrameCount = amd.FrameCount;
-            NodeCount = amd.NodeCount;
-            NodeData = amd.NodeData;
-            AnimFrameData = amd.AnimFrameData;
-            StillFrameData = amd.StillFrameData;
-
+            Template = amd;
             duration = FrameCount * 1000.0f;
         }
 
         public AnimMetadata()
         {
+            Template = new TkAnimMetadata();
             duration = 0.0f;
         }
+
+        public int FrameCount => Template.FrameCount;
+        public int NodeCount => Template.NodeCount;
+        public List<TkAnimNodeData> NodeData => Template.NodeData;
+        public List<TkAnimNodeFrameData> AnimFrameData => Template.AnimFrameData;
+        public TkAnimNodeFrameData StillFrameData => Template.StillFrameData;
 
         public void load()
         {
@@ -1463,9 +1589,9 @@ namespace MVCore.GMDL
 
                 for (int i = 0; i < FrameCount; i++)
                 {
-                    NMSUtils.fetchRotQuaternion(node, this, i, ref anim_rotations[node.Node][i]); //use Ref
-                    NMSUtils.fetchTransVector(node, this, i, ref anim_positions[node.Node][i]); //use Ref
-                    NMSUtils.fetchScaleVector(node, this, i, ref anim_scales[node.Node][i]); //use Ref
+                    NMSUtils.fetchRotQuaternion(node, Template, i, ref anim_rotations[node.Node][i]); //use Ref
+                    NMSUtils.fetchTransVector(node, Template, i, ref anim_positions[node.Node][i]); //use Ref
+                    NMSUtils.fetchScaleVector(node, Template, i, ref anim_scales[node.Node][i]); //use Ref
                 }
             }
         }

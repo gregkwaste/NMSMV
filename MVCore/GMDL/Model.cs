@@ -25,7 +25,21 @@ namespace MVCore.GMDL
         //public List<Model> children = new List<Model>();
         public Dictionary<string, Dictionary<string, Vector3>> palette;
         public bool procFlag; //This is used to define procgen usage
-        //public TkSceneNodeData nms_template;
+
+        //True for nodes that belong to an exported scene file. Source attributes which the viewer does
+        //not interpret are retained independently; the original TkSceneNodeData is not runtime state.
+        public bool IsSceneNode;
+        public Dictionary<string, string> SourceAttributes { get; } =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        //The entity file of the node (ATTACHMENT attribute)
+        public TkAttachmentData AttachmentTemplate;
+        public string AttachmentPath = "";
+        //GcColouriseComponentData applies to the node and its descendants. The four entries correspond
+        //to the RGBA channels of gColouriseMaskMap; null means there is no local override.
+        public Vector4[] colouriseColours;
+        //Path of the scene file on the root node of a loaded scene. Scenes that are files of their own
+        //(references, LOD models) are not part of their parent's file
+        public string SourceFile = "";
         public GLMeshVao meshVao;
         public int instanceId = -1;
             
@@ -66,7 +80,7 @@ namespace MVCore.GMDL
 
         //Components
         public Scene parentScene;
-        public List<Component> _components = new List<Component>();
+        public List<IComponent> _components = new List<IComponent>();
         public int animComponentID;
         public int animPoseComponentID;
         public int actionComponentID;
@@ -77,26 +91,25 @@ namespace MVCore.GMDL
         public int lodModelCount = 0; //LOD model scenes of a TkLODComponentData under this node, one is shown at a time
         public int lodModelIndex = -1; //This node's position among its parent's LOD models
         public int activeLODModel = 0;
+        //Some scene files express whole LOD branches through sibling container names (FooLOD0,
+        //FooLOD1, ...), rather than TkLODComponentData. These fields are rebuilt from the hierarchy
+        //and allow every descendant type, including lights and VFX, to inherit that selection.
+        public int namedLodLevel = -1;
+        public uint namedLodAvailableMask = 0;
+        public uint namedLodLightAvailableMask = 0;
+        public Scene namedLodScene;
+        public string namedLodGroupKey;
 
         //Bounding Volume
         public Vector3 AABBMIN = new Vector3();
         public Vector3 AABBMAX = new Vector3();
-
-        //Blending Queues
-        public List<Vector3> PositionQueue = new();
-        public List<Vector3> ScaleQueue = new();
-        public List<Quaternion> RotationQueue = new();
-        public List<float> WeightQueue = new();
-        public List<bool> AdditiveQueue = new();
 
         //Offsets from the AnimPoseComponent, kept on top of the animated transforms
         public Vector3 posePosition = Vector3.Zero;
         public Vector3 poseScale = Vector3.One;
         public Quaternion poseRotation = Quaternion.Identity;
 
-        //Disposable Stuff
         public bool disposed = false;
-        public Microsoft.Win32.SafeHandles.SafeFileHandle handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(IntPtr.Zero, true);
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -142,45 +155,30 @@ namespace MVCore.GMDL
             }
         }
 
-        public void updateRotationFromAngles(float x, float y, float z)
-        {
-
-        }
-
-        public virtual Assimp.Node assimpExport(ref Assimp.Scene scn, ref Dictionary<int, int> meshImportStatus)
-        {
-
-            //Default shit
-            //Create assimp node
-            Assimp.Node node = new Assimp.Node(Name);
-            node.Transform = MathUtils.convertMatrix(localMat);
-
-            //Handle animations maybe?
-            int animComponentId = hasComponent(typeof(AnimComponent));
-            if (animComponentId > -1)
-            {
-                AnimComponent cmp = (AnimComponent)_components[animComponentId];
-                cmp.assimpExport(ref scn);
-
-            }
-
-            foreach (Model child in Children)
-            {
-                Assimp.Node c = child.assimpExport(ref scn, ref meshImportStatus);
-                node.Children.Add(c);
-            }
-
-
-            return node;
-        }
-
         public string ProcGenName { get; set; } = "";
         public int ProcGenId { get; set; } = -1;
 
-        public string Name
+        public virtual string Name
         {
             get { return name; }
-            set { name = value; }
+            set
+            {
+                string newName = value ?? "";
+                if (name == newName)
+                    return;
+
+                name = newName;
+                nameHash = nameHashOf(name);
+                NotifyPropertyChanged(nameof(Name));
+                NotifyPropertyChanged(nameof(EditableName));
+            }
+        }
+
+        //Raw node name for editors. Reference.Name adds load-state text for display, which must not be saved.
+        public string EditableName
+        {
+            get { return name; }
+            set { Name = value; }
         }
         public string Type
         {
@@ -200,16 +198,29 @@ namespace MVCore.GMDL
                 Common.RenderState.instancesDirty = true;
                 foreach (var child in Children)
                     child.IsRenderable = value;
-                //meshVao?.setInstanceOccludedStatus(instanceId, !renderable);
                 NotifyPropertyChanged("IsRenderable"); //Make sure to update the UI because of the subsequent changes
             }
         }
 
-        public List<Component> Components
+        public List<IComponent> Components
         {
             get
             {
                 return _components;
+            }
+        }
+
+        //Only these children are serialized as part of this node's scene file. A loaded reference
+        //scene has its own SourceFile and is exported separately.
+        public IEnumerable<Model> EmbeddedSceneChildren
+        {
+            get
+            {
+                foreach (Model child in Children)
+                {
+                    if (child.SourceFile == "" && child.IsSceneNode)
+                        yield return child;
+                }
             }
         }
 
@@ -258,44 +269,6 @@ namespace MVCore.GMDL
             }
         }
 
-        public bool intersects(Vector3 ray_start, Vector3 ray, ref float distance)
-        {
-            //Calculate bound box center
-            float radius = 0.5f * (AABBMIN - AABBMAX).Length;
-            Vector3 bsh_center = AABBMIN + 0.5f * (AABBMAX - AABBMIN);
-
-            //Move sphere to object's root position
-            bsh_center = (new Vector4(bsh_center, 1.0f)).Xyz;
-
-            //Calculate factors of the point equation
-            float a = ray.LengthSquared;
-            float b = 2.0f * Vector3.Dot(ray, ray_start - bsh_center);
-            float c = (ray_start - bsh_center).LengthSquared - radius * radius;
-
-            float D = b * b - 4 * a * c;
-
-            if (D >= 0.0f)
-            {
-                //Make sure that the calculated l is positive so that intersections are
-                //checked only forward
-                float l2 = (-b + (float)Math.Sqrt(D)) / (2.0f * a);
-                float l1 = (-b - (float)Math.Sqrt(D)) / (2.0f * a);
-
-                if (l2 > 0.0f || l1 > 0.0f)
-                {
-                    float d = (float)Math.Min((ray * l1).Length, (ray * l2).Length);
-
-                    if (d < distance)
-                    {
-                        distance = d;
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        }
-
         public abstract Model Clone();
 
         public virtual void updateLODDistances()
@@ -332,18 +305,72 @@ namespace MVCore.GMDL
             return count - 1;
         }
 
+        private bool isNamedLodLevelActive(uint availableMask)
+        {
+            if (namedLodLevel < 0 || namedLodLevel >= 32 || availableMask == 0)
+                return true;
+
+            int requested = Common.RenderState.forcedLOD >= 0
+                ? Math.Clamp(Common.RenderState.forcedLOD, 0, 31)
+                : Math.Clamp(namedLodScene?.activeLOD ?? 0, 0, 31);
+            int selected = requested;
+            if ((availableMask & (1u << selected)) == 0)
+            {
+                selected = -1;
+                for (int delta = 1; delta < 32; delta++)
+                {
+                    int detailed = requested - delta;
+                    if (detailed >= 0 && (availableMask & (1u << detailed)) != 0)
+                    {
+                        selected = detailed;
+                        break;
+                    }
+
+                    int coarser = requested + delta;
+                    if (coarser < 32 && (availableMask & (1u << coarser)) != 0)
+                    {
+                        selected = coarser;
+                        break;
+                    }
+                }
+            }
+
+            return selected < 0 || namedLodLevel == selected;
+        }
+
+        public bool isNamedLodBranchActive()
+        {
+            return isNamedLodLevelActive(namedLodAvailableMask);
+        }
+
         public virtual void setupSkinMatrixArrays()
         {
             foreach (Model s in Children)
                 s.setupSkinMatrixArrays();
         }
 
-        public virtual void updateMeshInfo(bool lod_filter = false)
+        //Updates only this node's render data. Derived renderable node types implement this; the recursive
+        //method below remains the authoritative hierarchy path for full scene rebuilds.
+        public virtual void updateOwnMeshInfo(bool lod_filter = false)
         {
+        }
+
+        //A hidden mesh hides its attached children as before. Other nodes retain only the inherited LOD state.
+        protected virtual bool hideDescendants(bool lod_filter)
+        {
+            return lod_filter;
+        }
+
+        public void updateMeshInfo(bool lod_filter = false)
+        {
+            updateOwnMeshInfo(lod_filter);
+            bool descendantsHidden = hideDescendants(lod_filter);
             foreach (Model child in Children)
             {
                 //The LOD models that are not active are hidden with everything under them
-                bool hidden = lod_filter || (child.lodModelIndex >= 0 && child.lodModelIndex != activeLODModel);
+                bool hidden = descendantsHidden ||
+                              (child.lodModelIndex >= 0 && child.lodModelIndex != activeLODModel) ||
+                              !child.isNamedLodBranchActive();
                 child.updateMeshInfo(hidden);
             }
         }
@@ -490,21 +517,33 @@ namespace MVCore.GMDL
             cIndex = 0;
 
             //Component Init
-            _components = new List<Component>();
+            _components = new List<IComponent>();
             animComponentID = -1;
             animPoseComponentID = -1;
             actionComponentID = -1;
         }
 
 
-        public virtual void copyFrom(Model input)
+        protected void copyFrom(Model input)
         {
             this.renderable = input.renderable; //Override Renderability
             this.debuggable = input.debuggable;
             this.selected = 0;
             this.type = input.type;
             this.name = input.name;
+            this.nameHash = input.nameHash;
             this.ID = input.ID;
+
+            //Copies are instances of the same file data
+            this.IsSceneNode = input.IsSceneNode;
+            foreach (KeyValuePair<string, string> attribute in input.SourceAttributes)
+                this.SourceAttributes[attribute.Key] = attribute.Value;
+            this.AttachmentTemplate = input.AttachmentTemplate;
+            this.AttachmentPath = input.AttachmentPath;
+            this.SourceFile = input.SourceFile;
+            __localPosition = input.__localPosition;
+            __localRotation = input.__localRotation;
+            __localScale = input.__localScale;
             this.updated = input.updated;
             this.cIndex = input.cIndex;
             //MESHVAO AND INSTANCE IDS SHOULD BE HANDLED EXPLICITLY
@@ -535,11 +574,15 @@ namespace MVCore.GMDL
             //Component Stuff
             this.animComponentID = input.animComponentID;
             this.animPoseComponentID = input.animPoseComponentID;
+            this.actionComponentID = input.actionComponentID;
+            this.colouriseColours = input.colouriseColours == null
+                ? null
+                : (Vector4[])input.colouriseColours.Clone();
 
             //Clone components
             for (int i = 0; i < input.Components.Count; i++)
             {
-                Component c = input.Components[i].Clone();
+                IComponent c = input.Components[i].Clone();
                 if (c is AnimPoseComponent apc)
                     apc.ref_object = this;
                 this.Components.Add(c);
@@ -547,7 +590,7 @@ namespace MVCore.GMDL
         }
 
         //Copy Constructor
-        public Model(Model input)
+        protected Model(Model input)
         {
             this.copyFrom(input);
             foreach (GMDL.Model child in input.Children)
@@ -558,37 +601,99 @@ namespace MVCore.GMDL
             }
         }
 
-        //NMSTEmplate Export
+        //NMSTemplate Export
 
-        public virtual TkSceneNodeData ExportTemplate()
+        //Sets the rest transform of the node (rotation in degrees, as in the scene file). The animation
+        //system returns to it and the export writes it
+        public void setUserTransform(Vector3 position, Vector3 rotationAngles, Vector3 scale)
         {
+            Matrix4 rotx = Matrix4.CreateRotationX(MathUtils.radians(rotationAngles.X));
+            Matrix4 roty = Matrix4.CreateRotationY(MathUtils.radians(rotationAngles.Y));
+            Matrix4 rotz = Matrix4.CreateRotationZ(MathUtils.radians(rotationAngles.Z));
 
-            TkSceneNodeData node = new TkSceneNodeData();
-            node.Name = Name;
-            node.Type = new libMBIN.NMS.NMSString0x10(Type);
-            node.Transform.TransX = localPosition.X;
-            node.Transform.TransY = localPosition.Y;
-            node.Transform.TransZ = localPosition.Z;
-            node.Transform.ScaleX = localScale.X;
-            node.Transform.ScaleY = localScale.Y;
-            node.Transform.ScaleZ = localScale.Z;
-            node.Transform.RotX = _localRotationAngles.X;
-            node.Transform.RotY = _localRotationAngles.Y;
-            node.Transform.RotZ = _localRotationAngles.Z;
-            
-            if (Children.Count > 0)
-                node.Children = new();
-            
-            foreach (Model child in Children)
+            __localPosition = position;
+            __localRotation = rotz * rotx * roty;
+            __localScale = scale;
+            _localRotationAngles = rotationAngles;
+            localPosition = __localPosition;
+            localRotation = __localRotation;
+            localScale = __localScale;
+            NotifyPropertyChanged("Transform");
+        }
+
+        //Viewport tools work with rotation matrices to avoid accumulating Euler-angle error while dragging.
+        //The scene format stores Z-X-Y Euler angles in degrees, so convert once at this persistence boundary.
+        //invalidateInstances is false during a drag because CGLControl updates the affected stable instance
+        //records directly; mouse-up requests one full culling/LOD refresh.
+        public void SetUserTransformFromMatrix(Vector3 position, Matrix4 rotation, Vector3 scale,
+                                               bool invalidateInstances = true)
+        {
+            __localPosition = position;
+            __localRotation = Matrix4.CreateFromQuaternion(Quaternion.Normalize(rotation.ExtractRotation()));
+            __localScale = scale;
+            _localRotationAngles = RotationMatrixToSceneAngles(__localRotation);
+            if (invalidateInstances)
             {
-                if (child.IsRenderable)
-                {
-                    TkSceneNodeData child_node = child.ExportTemplate();
-                    node.Children.Add(child_node);
-                }
+                localPosition = __localPosition;
+                localRotation = __localRotation;
+                localScale = __localScale;
             }
-            
-            return node;
+            else
+            {
+                _localPosition = __localPosition;
+                _localRotation = __localRotation;
+                _localScale = __localScale;
+                updated = true;
+            }
+            NotifyPropertyChanged("Transform");
+        }
+
+        private static Vector3 RotationMatrixToSceneAngles(Matrix4 m)
+        {
+            //Inverse of the ZXY display conversion used by ModelTransform.
+            float x = (float)Math.Asin(MathUtils.clamp(m.M32, -1.0f, 1.0f));
+            float y, z;
+            if (Math.Abs(m.M32) < 0.99999f)
+            {
+                y = (float)Math.Atan2(-m.M31, m.M33);
+                z = (float)Math.Atan2(-m.M12, m.M22);
+            }
+            else
+            {
+                y = 0.0f;
+                z = (float)Math.Atan2(m.M21, m.M11);
+            }
+            return new Vector3(-MathUtils.degrees(x), -MathUtils.degrees(y), -MathUtils.degrees(z));
+        }
+
+        //NameHash of scene nodes: Jenkins one-at-a-time over the upper case name
+        public static uint nameHashOf(string nodeName)
+        {
+            uint h = 0;
+            foreach (byte c in System.Text.Encoding.UTF8.GetBytes(nodeName.ToUpperInvariant()))
+            {
+                h += c;
+                h += h << 10;
+                h ^= h >> 6;
+            }
+            h += h << 3;
+            h ^= h >> 11;
+            h += h << 15;
+            return h;
+        }
+
+        public bool CanExportScene => IsSceneNode;
+        public bool HasEntity => AttachmentTemplate != null;
+        public bool CanAddChildren => SceneEdit.canAdd(this);
+        //Geometry import is currently offered on scene roots; imported nodes use the normal editable
+        //scene-node classes and templates.
+        public bool CanImportGeometry => this is Scene;
+        public bool CanRemove => SceneEdit.canRemove(this, out _);
+
+        //The entity file of the node with the viewer's edits
+        public TkAttachmentData ExportAttachmentTemplate()
+        {
+            return AttachmentTemplate;
         }
 
         #region ComponentQueries
@@ -596,7 +701,7 @@ namespace MVCore.GMDL
         {
             for (int i = 0; i < _components.Count; i++)
             {
-                Component temp = _components[i];
+                IComponent temp = _components[i];
                 if (temp.GetType() == ComponentType)
                     return i;
             }
@@ -611,7 +716,17 @@ namespace MVCore.GMDL
         {
             Children.Add(child);
             child.parent = this;
+            child.inheritColourise(colouriseColours);
             NotifyPropertyChanged("Children");
+        }
+
+        private void inheritColourise(Vector4[] inherited)
+        {
+            Vector4[] active = colouriseColours ?? inherited;
+            if (colouriseColours == null && inherited != null)
+                colouriseColours = inherited;
+            foreach (Model child in Children)
+                child.inheritColourise(active);
         }
 
 
@@ -645,12 +760,12 @@ namespace MVCore.GMDL
 
             if (disposing)
             {
-                handle.Dispose();
-
                 //Free other resources here
                 if (Children != null)
                     foreach (Model c in Children) c.Dispose();
-                Children.Clear();
+                //Do not clear the observable collection during disposal. Scene teardown now runs on
+                //the GL thread; notifying a WPF CollectionView from that thread is illegal. Once the
+                //disposed root is removed from the resource manager, the whole graph is collectible.
 
                 //Free textureManager
             }

@@ -48,7 +48,6 @@ namespace KUtility {
 		public DDS_HEADER_DXT10 header10 = null;//If the DDS_PIXELFORMAT dwFlags is set to DDPF_FOURCC and dwFourCC is set to "DX10"
 		public byte[] bdata;//pointer to an array of bytes that contains all mipmap data. 
 		public byte[] bdata2;//pointer to an array of bytes that contains the remaining surfaces such as; mipmap levels, faces in a cube map, depths in a volume texture.
-	    public List<byte[]> mipMaps = new List<byte[]>(); //TODO load and upload them separately.
 
 	    public DDSImage(byte[] rawdata) {
 			using (MemoryStream ms = new MemoryStream(rawdata)) {

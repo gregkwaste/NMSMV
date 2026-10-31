@@ -6,85 +6,71 @@ using MVCore.Engine.Systems;
 using MVCore.GMDL;
 using MVCore.Input;
 using MVCore.Utils;
-using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
-using OpenTK.Platform;
-using OpenTK.Windowing.GraphicsLibraryFramework;
-using OpenTK.Wpf;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Reflection.Metadata;
-using System.Text;
-using System.Threading;
-using System.Timers;
+using System.Threading.Tasks;
 
 namespace MVCore.Engine
 {
     public enum EngineRenderingState
     {
         ACTIVE=0x0,
-        REQUEST_HANDLING,
-        PAUSED,
         EXIT
     }
 
-    public class Engine
+    public sealed class Engine : IDisposable
     {
-        //Window References
-        private GLWpfControl Control;
-        
-        public ResourceManager resMgr;
+        public ResourceManager resMgr { get; private set; }
 
         //Init Systems
-        public ActionSystem actionSys;
-        public AnimationSystem animationSys;
-        private RequestHandler reqHandler;
+        public readonly ActionSystem actionSys;
+        public readonly AnimationSystem animationSys;
+        public readonly AudioSystem audioSys;
+        public readonly RotationSystem rotationSys;
+        public readonly ParticleSystem particleSys;
+        private sealed class RenderCommand
+        {
+            public readonly System.Action Work;
+            public readonly TaskCompletionSource Completion =
+                new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            public RenderCommand(System.Action work)
+            {
+                Work = work;
+            }
+        }
+
+        private readonly ConcurrentQueue<RenderCommand> renderCommands = new ConcurrentQueue<RenderCommand>();
+        private bool disposed;
         
         //Rendering 
-        public renderManager renderMgr; //TODO: Try to make it private. Noone should have a reason to access it
+        public readonly renderManager renderMgr;
         public EngineRenderingState rt_State;
 
         //Input
-        public BaseGamepadHandler gpHandler;
-        public MVKeyboardState kbHandler;
-        public MVMouseState msHandler;
-        
-        //Camera Stuff
-        public System.Timers.Timer cameraMovementTimer;
-        public CameraPos targetCameraPos;
-        //public int movement_speed = 1;
-
-        //Use public variables for now because getters/setters are so not worth it for our purpose
-        public float light_angle_y = 0.0f;
-        public float light_angle_x = 0.0f;
-        public float light_distance = 5.0f;
-        public float light_intensity = 1.0f;
-        public float scale = 1.0f;
+        public readonly BaseGamepadHandler gpHandler;
+        public readonly MVKeyboardState kbHandler;
+        public readonly MVMouseState msHandler;
 
         
-        //Palette
-        Dictionary<string, Dictionary<string, Vector4>> palette;
-
         public Engine()
         {
             kbHandler = new MVKeyboardState();
             msHandler = new MVMouseState();
-            //gpHandler = new PS4GamePadHandler(0); //TODO: Add support for PS4 controller
-            reqHandler = new RequestHandler();
-
+            gpHandler = new XBOXGamePadHandler(0); //Takes any pad GLFW knows, PlayStation ones included
             RenderState.activeGamepad = gpHandler;
-
-            //Assign new palette to GLControl
-            //palette = Palettes.createPalettefromBasePalettes(); //There is no usage for that for now
 
             renderMgr = new renderManager(); //Init renderManager of the engine
 
             //Systems Init
-            actionSys = new ActionSystem();
             animationSys = new AnimationSystem();
-            actionSys.SetEngine(this);
-            animationSys.SetEngine(this);
+            audioSys = new AudioSystem();
+            rotationSys = new RotationSystem();
+            actionSys = new ActionSystem(animationSys, audioSys);
+            particleSys = new ParticleSystem();
 
         }
 
@@ -98,8 +84,8 @@ namespace MVCore.Engine
             if (!resMgr.initialized)
                 resMgr.Init();
 
-            //Initialize the render manager
-            renderMgr.init(resMgr);
+            particleSys.Init(resMgr);
+            renderMgr.init(resMgr, particleSys);
             renderMgr.setupGBuffer(800, 600);
         }
 
@@ -107,158 +93,123 @@ namespace MVCore.Engine
         public void stop()
         {
             rt_State = EngineRenderingState.EXIT;
-            while (reqHandler.hasOpenRequests())
-            {
-                ThreadRequest req = reqHandler.Fetch();
-                lock (req)
-                    req.status = THREAD_REQUEST_STATUS.FINISHED; //Release anyone waiting on it
-            }
+            while (renderCommands.TryDequeue(out RenderCommand command))
+                command.Completion.TrySetCanceled();
         }
 
-        public void handleRequests()
+        public Task InvokeOnRenderThreadAsync(System.Action work)
         {
-            //Handle everything queued so far, not one request per frame. Requests issued while these run
-            //wait for the next call, so a request that queues another can't loop forever
-            int count = reqHandler.Count;
-            for (int i = 0; i < count && reqHandler.hasOpenRequests(); i++)
+            if (work == null)
+                throw new ArgumentNullException(nameof(work));
+            if (rt_State == EngineRenderingState.EXIT)
+                return Task.FromException(new ObjectDisposedException(nameof(Engine)));
+
+            RenderCommand command = new RenderCommand(work);
+            renderCommands.Enqueue(command);
+            return command.Completion.Task;
+        }
+
+        public void executeRenderCommands()
+        {
+            //Only commands present at the frame boundary are executed. A command queued by another command
+            //waits for the next frame, preventing an accidental infinite producer loop.
+            int count = renderCommands.Count;
+            for (int i = 0; i < count; i++)
             {
                 if (rt_State == EngineRenderingState.EXIT)
-                    break; //Resources are gone after a terminate request
+                    break;
 
-                ThreadRequest req = reqHandler.Fetch();
-                lock (req)
+                if (!renderCommands.TryDequeue(out RenderCommand command))
+                    break;
+                try
                 {
-                    switch (req.type)
-                    {
-                        case THREAD_REQUEST_TYPE.QUERY_GLCONTROL_STATUS_REQUEST:
-                            //At this point the renderer is up and running
-                            req.status = THREAD_REQUEST_STATUS.FINISHED;
-                            break;
-                        case THREAD_REQUEST_TYPE.INIT_RESOURCE_MANAGER:
-                            resMgr.Init();
-                            req.status = THREAD_REQUEST_STATUS.FINISHED;
-                            break;
-                        case THREAD_REQUEST_TYPE.NEW_SCENE_REQUEST:
-                            rt_addRootScene((string)req.arguments[0]);
-                            req.status = THREAD_REQUEST_STATUS.FINISHED;
-                            break;
-                        case THREAD_REQUEST_TYPE.LOAD_REFERENCE_REQUEST:
-                            rt_addRefScene((string) req.arguments[0]);
-                            req.status = THREAD_REQUEST_STATUS.FINISHED;
-                            break;
-#if DEBUG
-                        case THREAD_REQUEST_TYPE.NEW_TEST_SCENE_REQUEST:
-                            rt_addTestScene((int)req.arguments[0]);
-                            req.status = THREAD_REQUEST_STATUS.FINISHED;
-                            break;
-#endif
-                        case THREAD_REQUEST_TYPE.CHANGE_MODEL_PARENT_REQUEST:
-                            Model source = (Model) req.arguments[0];
-                            Model target = (Model) req.arguments[1];
-
-                            System.Windows.Application.Current.Dispatcher.Invoke((System.Action)(() =>
-                            {
-                                if (source.parent != null)
-                                    source.parent.Children.Remove(source);
-
-                                //Add to target node
-                                source.parent = target;
-                                target.Children.Add(source);
-                            }));
-
-                            //Move the node's world transforms under the new parent
-                            source.update();
-                            RenderState.instancesDirty = true;
-
-                            req.status = THREAD_REQUEST_STATUS.FINISHED;
-                            break;
-                        case THREAD_REQUEST_TYPE.UPDATE_SCENE_REQUEST:
-                            Scene req_scn = (Scene)req.arguments[0];
-                            req_scn.update();
-                            req.status = THREAD_REQUEST_STATUS.FINISHED;
-                            break;
-                        case THREAD_REQUEST_TYPE.GL_COMPILE_ALL_SHADERS_REQUEST:
-                            resMgr.compileMainShaders();
-                            req.status = THREAD_REQUEST_STATUS.FINISHED;
-                            break;
-                        case THREAD_REQUEST_TYPE.MOUSEPOSITION_INFO_REQUEST:
-                            Vector4[] t = (Vector4[])req.arguments[2];
-                            renderMgr.getMousePosInfo((int)req.arguments[0], (int)req.arguments[1],
-                                ref t);
-                            req.status = THREAD_REQUEST_STATUS.FINISHED;
-                            break;
-                        case THREAD_REQUEST_TYPE.GL_MODIFY_SHADER_REQUEST:
-                            GLShaderHelper.modifyShader((GLSLShaderConfig)req.arguments[0],
-                                         (GLSLShaderText)req.arguments[1]);
-                            req.status = THREAD_REQUEST_STATUS.FINISHED;
-                            break;
-                        case THREAD_REQUEST_TYPE.GIZMO_PICKING_REQUEST:
-                            //TODO: Send the nessessary arguments to the render manager and mark the active gizmoparts
-                            Gizmo g = req.arguments[0] as Gizmo;
-                            if (g != null && req.arguments[1] is Vector2 mousePos)
-                                renderMgr.gizmoPick(ref g, mousePos);
-                            req.status = THREAD_REQUEST_STATUS.FINISHED;
-                            break;
-                        case THREAD_REQUEST_TYPE.REGEN_PROC_TEXTURES_REQUEST:
-                            rt_regenProcTextures();
-                            req.status = THREAD_REQUEST_STATUS.FINISHED;
-                            break;
-                        case THREAD_REQUEST_TYPE.TERMINATE_REQUEST:
-                            rt_State = EngineRenderingState.EXIT;
-                            req.status = THREAD_REQUEST_STATUS.FINISHED;
-                            break;
-                        case THREAD_REQUEST_TYPE.GL_PAUSE_RENDER_REQUEST:
-                            rt_State = EngineRenderingState.PAUSED;
-                            req.status = THREAD_REQUEST_STATUS.FINISHED;
-                            break;
-                        case THREAD_REQUEST_TYPE.GL_RESUME_RENDER_REQUEST:
-                            rt_State = EngineRenderingState.ACTIVE;
-                            req.status = THREAD_REQUEST_STATUS.FINISHED;
-                            break;
-                        case THREAD_REQUEST_TYPE.NULL:
-                            break;
-                    }
+                    command.Work();
+                    command.Completion.TrySetResult();
+                }
+                catch (Exception ex)
+                {
+                    command.Completion.TrySetException(ex);
                 }
             }
         }
 
+        public void updateSystems(float dt)
+        {
+            actionSys.SetRunning(RenderState.renderViewSettings.EmulateActions);
+            actionSys.update(dt);
+
+            if (RenderState.renderSettings.ToggleAnimations)
+            {
+                animationSys.update(dt);
+                rotationSys.update(dt);
+            }
+
+            //Audio animation triggers observe the animation frames reached above.
+            audioSys.SetRunning(RenderState.renderViewSettings.PlayAudio);
+            audioSys.update(dt);
+        }
+
         //Main Rendering Routines
 
-        private void rt_ResizeViewport(int w, int h)
+        private bool resetSceneForLoad()
         {
-            renderMgr.resize(w, h);
+            bool animationsEnabled = RenderState.renderSettings.ToggleAnimations;
+            RenderState.renderSettings.ToggleAnimations = false;
+
+            actionSys.CleanUp();
+            animationSys.CleanUp();
+            audioSys.CleanUp();
+            rotationSys.CleanUp();
+            particleSys.CleanUp();
+
+            resMgr.Cleanup();
+            resMgr.Init();
+            RenderState.activeResMgr = resMgr;
+            RenderState.rootObject = null;
+            RenderState.activeModel = null;
+            RenderState.activeGizmo = null;
+            RenderStats.ClearStats();
+            return animationsEnabled;
+        }
+
+        private void refreshSceneRuntime(Model root)
+        {
+            if (root == null)
+                return;
+
+            root.updateLODDistances();
+            root.update();
+            root.setupSkinMatrixArrays();
+            particleSys.Rebuild(root);
+
+            //The frame update owns instance rebuilding. Rebuilding here as well copied every instance twice.
+            RenderState.instancesDirty = true;
+        }
+
+        private void discoverSceneSystems(Model node)
+        {
+            if (node == null)
+                return;
+            if (node.animComponentID >= 0)
+                animationSys.Add(node);
+            if (node.hasComponent(typeof(RotationComponent)) >= 0)
+                rotationSys.Add(node);
+            if (node.actionComponentID >= 0 || node.hasComponent(typeof(InteractionComponent)) >= 0)
+                actionSys.Add(node);
+            audioSys.Add(node);
+            foreach (Model child in node.Children)
+                discoverSceneSystems(child);
         }
 
 #if DEBUG
 
         private void rt_SpecularTestScene()
         {
-            //Once the new scene has been loaded, 
+            //Once the new scene has been loaded,
             //Initialize Palettes
             Palettes.set_palleteColors();
 
-            //Clear Systems
-            actionSys.CleanUp();
-            animationSys.CleanUp();
-
-            //Clear Resources
-            resMgr.Cleanup();
-            resMgr.Init();
-            RenderState.activeResMgr = resMgr;
-            ModelProcGen.procDecisions.Clear();
-
-            RenderState.rootObject = null;
-            RenderState.activeModel = null;
-            //Clear Gizmos
-            RenderState.activeGizmo = null;
-
-            //Clear RenderStats
-            RenderStats.ClearStats();
-
-
-            //Stop animation if on
-            bool animToggleStatus = RenderState.renderSettings.ToggleAnimations;
-            RenderState.renderSettings.ToggleAnimations = false;
+            bool animToggleStatus = resetSceneForLoad();
 
             //Setup new object
             Scene scene = new Scene();
@@ -272,7 +223,7 @@ namespace MVCore.Engine
             l.Color = new MVector4(1.0f, 1.0f, 1.0f, 1.0f);
             l.Intensity = 100.0f;
             l.falloff = ATTENUATION_TYPE.QUADRATIC;
-            Common.RenderState.activeResMgr.GLlights.Add(l);
+            resMgr.GLlights.Add(l);
             scene.AddChild(l);
             
 
@@ -282,14 +233,14 @@ namespace MVCore.Engine
             l1.Color = new MVector4(1.0f, 1.0f, 1.0f, 1.0f);
             l1.Intensity = 100.0f;
             l1.falloff = ATTENUATION_TYPE.QUADRATIC;
-            Common.RenderState.activeResMgr.GLlights.Add(l1);
+            resMgr.GLlights.Add(l1);
             scene.AddChild(l1);
 
             Light l2 = new Light();
             l2.Name = "Light 3";
             l2.localPosition = new Vector3(-0.2f, 0.2f, -2.0f);
             l2.Color = new MVector4(1.0f, 1.0f, 1.0f, 1.0f);
-            Common.RenderState.activeResMgr.GLlights.Add(l2);
+            resMgr.GLlights.Add(l2);
             l2.Intensity = 100.0f;
             l2.falloff = ATTENUATION_TYPE.QUADRATIC;
             scene.AddChild(l2);
@@ -298,7 +249,7 @@ namespace MVCore.Engine
             l3.Name = "Light 4";
             l3.localPosition = new Vector3(-0.2f, -0.2f, -2.0f);
             l3.Color = new MVector4(1.0f, 1.0f, 1.0f, 1.0f);
-            Common.RenderState.activeResMgr.GLlights.Add(l3);
+            resMgr.GLlights.Add(l3);
             l3.Intensity = 100.0f;
             l3.falloff = ATTENUATION_TYPE.QUADRATIC;
             scene.AddChild(l3);
@@ -353,31 +304,24 @@ namespace MVCore.Engine
             //Explicitly add default light to the rootObject
             scene.AddChild(resMgr.GLlights[0]);
             
-            scene.updateLODDistances();
-            scene.update(); //Refresh all transforms
-            scene.setupSkinMatrixArrays();
+            refreshSceneRuntime(scene);
 
             //Save scene path to resourcemanager
-            RenderState.activeResMgr.GLScenes["TEST_SCENE_1"] = scene; //Use input path
+            resMgr.GLScenes["TEST_SCENE_1"] = scene; //Use input path
 
             //Populate RenderManager
-            renderMgr.populate(scene);
-
-            //Clear Instances
-            renderMgr.clearInstances();
-            RenderState.instancesDirty = true; //Rebuild with culling on the next frame
-            scene.updateMeshInfo(); //Update all mesh info
+            renderMgr.populate();
 
             scene.selected = 1;
             RenderState.rootObject = scene;
-            //RenderState.activeModel = root; //Set the new scene as the new activeModel
 
 
             //Reinitialize gizmos
-            RenderState.activeGizmo = new TranslationGizmo();
+            RenderState.activeGizmo = new TransformGizmo();
 
             //Restart anim worker if it was active
             RenderState.renderSettings.ToggleAnimations = animToggleStatus;
+            discoverSceneSystems(RenderState.rootObject);
 
         }
 
@@ -404,27 +348,7 @@ namespace MVCore.Engine
             //Initialize Palettes
             Palettes.set_palleteColors();
 
-            //Clear Systems
-            actionSys.CleanUp();
-            animationSys.CleanUp();
-
-            //Clear Resources
-            resMgr.Cleanup();
-            resMgr.Init();
-            RenderState.activeResMgr = resMgr;
-            ModelProcGen.procDecisions.Clear();
-            
-            RenderState.rootObject = null;
-            RenderState.activeModel = null;
-            //Clear Gizmos
-            RenderState.activeGizmo = null;
-
-            //Clear RenderStats
-            RenderStats.ClearStats();
-
-            //Stop animation if on
-            bool animToggleStatus = RenderState.renderSettings.ToggleAnimations;
-            RenderState.renderSettings.ToggleAnimations = false;
+            bool animToggleStatus = resetSceneForLoad();
             
             //Setup new object
             Model root;
@@ -452,31 +376,24 @@ namespace MVCore.Engine
             //Explicitly add default light to the rootObject
             root.AddChild(resMgr.GLlights[0]);
             
-            root.updateLODDistances();
-            root.update(); //Refresh all transforms
-            root.setupSkinMatrixArrays();
+            refreshSceneRuntime(root);
 
             //Populate RenderManager
-            renderMgr.populate(root);
-
-            //Clear Instances
-            renderMgr.clearInstances();
-            RenderState.instancesDirty = true; //Rebuild with culling on the next frame
-            root.updateMeshInfo(); //Update all mesh info
+            renderMgr.populate();
 
             root.selected = 1;
             RenderState.rootObject = root;
-            //RenderState.activeModel = root; //Set the new scene as the new activeModel
 
             //Frame the new model and fit the clip planes and move speed to its size
             RenderState.activeCam?.frameScene(root, true);
             
 
             //Reinitialize gizmos
-            RenderState.activeGizmo = new TranslationGizmo();
+            RenderState.activeGizmo = new TransformGizmo();
 
             //Restart anim worker if it was active
             RenderState.renderSettings.ToggleAnimations = animToggleStatus;
+            discoverSceneSystems(RenderState.rootObject);
         
         }
 
@@ -498,6 +415,102 @@ namespace MVCore.Engine
                 NMSUtils.DisposeArchives(); //Layer textures may have been read from the PAKs
             }
             CallBacks.Log("Regenerated {0} procedural textures", mixed.Count);
+        }
+
+        //Scene edits (SceneEdit). The node lists of the renderer are rebuilt like after loading a reference
+        private void rt_addNode(Model parent, SceneEdit.NODE_KIND kind, string scenePath)
+        {
+            bool animToggleStatus = RenderState.renderSettings.ToggleAnimations;
+            RenderState.renderSettings.ToggleAnimations = false;
+            try
+            {
+                Model m = SceneEdit.add(parent, kind, scenePath);
+                if (m != null)
+                {
+                    renderMgr.process_models(m);
+                    renderMgr.identifyActiveShaders();
+                }
+            }
+            catch (Exception ex)
+            {
+                Common.CallBacks.Log("Failed to add node: " + ex);
+                CallBacks.showError("Failed to add node\n" + ex.Message, "Scene Edit");
+            }
+            rt_refreshScene();
+            discoverSceneSystems(RenderState.rootObject);
+            RenderState.renderSettings.ToggleAnimations = animToggleStatus;
+        }
+
+        private void rt_addImportedGeometry(Model parent, Model importedRoot)
+        {
+            bool animToggleStatus = RenderState.renderSettings.ToggleAnimations;
+            RenderState.renderSettings.ToggleAnimations = false;
+            try
+            {
+                HashSet<Material> initializedMaterials = new HashSet<Material>();
+                prepareImportedGeometry(importedRoot, initializedMaterials);
+                if (!SceneEdit.addImportedGeometry(parent, importedRoot))
+                    return;
+                renderMgr.process_models(importedRoot);
+                renderMgr.identifyActiveShaders();
+                rt_refreshScene();
+                discoverSceneSystems(RenderState.rootObject);
+                RenderState.activeCam?.frameScene(RenderState.rootObject, false);
+                CallBacks.Log("[Import] Added runtime geometry hierarchy {0}", importedRoot.Name);
+            }
+            catch (Exception ex)
+            {
+                importedRoot?.Dispose();
+                Common.CallBacks.Log("Failed to add imported geometry: " + ex);
+                CallBacks.showError("Failed to add imported geometry\n" + ex.Message, "Geometry Import");
+            }
+            finally
+            {
+                RenderState.renderSettings.ToggleAnimations = animToggleStatus;
+            }
+        }
+
+        private void prepareImportedGeometry(Model node, HashSet<Material> initializedMaterials)
+        {
+            if (node is Mesh mesh)
+            {
+                if (mesh.gobject == null || mesh.meshVao == null)
+                    throw new InvalidOperationException("Imported mesh " + mesh.Name + " has no geometry buffers");
+                if (mesh.meshVao.material == null)
+                    throw new InvalidOperationException("Imported mesh " + mesh.Name + " has no material");
+                if (initializedMaterials.Add(mesh.meshVao.material))
+                {
+                    mesh.meshVao.material.texMgr ??= resMgr.texMgr;
+                    mesh.meshVao.material.init();
+                }
+                mesh.meshVao.vao = mesh.gobject.generateVAO();
+                mesh.instanceId = GLMeshBufferManager.addInstance(ref mesh.meshVao, mesh);
+            }
+
+            foreach (Model child in node.Children)
+                prepareImportedGeometry(child, initializedMaterials);
+        }
+
+        private void rt_removeNode(Model m)
+        {
+            SceneEdit.remove(m, resMgr.GLlights, n =>
+            {
+                actionSys.Remove(n);
+                animationSys.Remove(n);
+                audioSys.Remove(n);
+                rotationSys.Remove(n);
+                if (RenderState.activeModel == n)
+                {
+                    RenderState.activeModel = null;
+                    RenderState.activeGizmo?.ClearReference();
+                }
+            });
+            rt_refreshScene();
+        }
+
+        private void rt_refreshScene()
+        {
+            refreshSceneRuntime(RenderState.rootObject);
         }
 
         private void rt_addRefScene(string scene_name)
@@ -543,22 +556,15 @@ namespace MVCore.Engine
 
             if (referers.Count == 0)
             {
-                RenderState.activeResMgr.GLScenes.Remove(scene_name);
+                resMgr.GLScenes.Remove(scene_name);
                 new_scene.Dispose();
             }
                 
             Model root = RenderState.rootObject;
-            root.updateLODDistances();
-            root.update(); //Refresh all transforms
-            root.setupSkinMatrixArrays();
+            refreshSceneRuntime(root);
 
             //Add Scene to RenderManager
             renderMgr.identifyActiveShaders(); //Re-update active shaders
-
-            //Clear Instances
-            renderMgr.clearInstances();
-            RenderState.instancesDirty = true; //Rebuild with culling on the next frame
-            root.updateMeshInfo(); //Update all mesh info
 
             //The references can grow the scene, refresh the bounds without moving the camera
             RenderState.activeCam?.frameScene(root, false);
@@ -567,6 +573,7 @@ namespace MVCore.Engine
             
             //Restart anim worker if it was active
             RenderState.renderSettings.ToggleAnimations = animToggleStatus;
+            discoverSceneSystems(RenderState.rootObject);
 
         }
 
@@ -583,94 +590,48 @@ namespace MVCore.Engine
                 GetReferersToScene(c, referers, scene_path);
         }
 
-        public void issueRenderingRequest(ref ThreadRequest r)
+        public Task LoadSceneAsync(string filename) =>
+            InvokeOnRenderThreadAsync(() => rt_addRootScene(filename));
+
+        public Task LoadReferenceAsync(string sceneName) =>
+            InvokeOnRenderThreadAsync(() => rt_addRefScene(sceneName));
+
+#if DEBUG
+        public Task LoadTestSceneAsync(int sceneId) =>
+            InvokeOnRenderThreadAsync(() => rt_addTestScene(sceneId));
+#endif
+
+        public Task ReparentAsync(Model source, Model target) =>
+            InvokeOnRenderThreadAsync(() =>
+            {
+                SceneEdit.reparent(source, target);
+                rt_refreshScene();
+            });
+
+        public Task AddNodeAsync(Model parent, SceneEdit.NODE_KIND kind, string scenePath) =>
+            InvokeOnRenderThreadAsync(() => rt_addNode(parent, kind, scenePath));
+
+        public Task AddImportedGeometryAsync(Model parent, Model importedRoot) =>
+            InvokeOnRenderThreadAsync(() => rt_addImportedGeometry(parent, importedRoot));
+
+        public Task RemoveNodeAsync(Model node) =>
+            InvokeOnRenderThreadAsync(() => rt_removeNode(node));
+
+        public Task RegenerateProceduralTexturesAsync() =>
+            InvokeOnRenderThreadAsync(rt_regenProcTextures);
+
+        public void Dispose()
         {
-            reqHandler.issueRequest(ref r);
+            if (disposed)
+                return;
+            disposed = true;
+
+            stop();
+            audioSys.Dispose();
+            particleSys.Dispose();
+            renderMgr.Dispose();
+            resMgr?.Cleanup();
         }
-
-#region Camera Update Functions
-
-        public void updateActiveCam(CameraSettings settings, Vector3 pos, Quaternion direction)
-        {
-            Camera cam = RenderState.activeCam;
-            Camera.SetCameraSettings(ref cam, settings);
-        }
-
-#endregion
-
-        public void updateLightPosition(int light_id)
-        {
-            Light light = resMgr.GLlights[light_id];
-            light.updatePosition(new Vector3((float)(light_distance * Math.Cos(MathUtils.radians(light_angle_x)) *
-                                                            Math.Sin(MathUtils.radians(light_angle_y))),
-                                                (float)(light_distance * Math.Sin(MathUtils.radians(light_angle_x))),
-                                                (float)(light_distance * Math.Cos(MathUtils.radians(light_angle_x)) *
-                                                            Math.Cos(MathUtils.radians(light_angle_y)))));
-        }
-
-       
-
-#region INPUT_HANDLERS
-
-        //Gamepad handler
-        private void gamepadController()
-        {
-            if (gpHandler == null) return;
-            if (!gpHandler.isConnected()) return;
-
-            //Camera Movement
-            float cameraSensitivity = 2.0f;
-            float x, y, z, rotx, roty;
-
-            x = gpHandler.getAction(ControllerActions.MOVE_X);
-            y = gpHandler.getAction(ControllerActions.ACCELERATE) - gpHandler.getAction(ControllerActions.DECELERATE);
-            z = gpHandler.getAction(ControllerActions.MOVE_Y_NEG) - gpHandler.getAction(ControllerActions.MOVE_Y_POS);
-            rotx = -cameraSensitivity * gpHandler.getAction(ControllerActions.CAMERA_MOVE_H);
-            roty = cameraSensitivity * gpHandler.getAction(ControllerActions.CAMERA_MOVE_V);
-
-            targetCameraPos.PosImpulse.X = x;
-            targetCameraPos.PosImpulse.Y = y;
-            targetCameraPos.PosImpulse.Z = z;
-            targetCameraPos.Rotation.X = rotx;
-            targetCameraPos.Rotation.Y = roty;
-        }
-
-        //Keyboard handler
-        private void keyboardController()
-        {
-            if (kbHandler == null) return;
-
-            //Camera Movement
-            float step = 0.002f;
-            float x, y, z;
-
-            x = kbHandler.getKeyStatus(System.Windows.Input.Key.D) - kbHandler.getKeyStatus(System.Windows.Input.Key.A);
-            y = kbHandler.getKeyStatus(System.Windows.Input.Key.W) - kbHandler.getKeyStatus(System.Windows.Input.Key.S);
-            z = kbHandler.getKeyStatus(System.Windows.Input.Key.R) - kbHandler.getKeyStatus(System.Windows.Input.Key.F);
-
-            //Camera rotation is done exclusively using the mouse
-            //rotx = 50 * step * (kbHandler.getKeyStatus(OpenTK.Input.Key.E) - kbHandler.getKeyStatus(OpenTK.Input.Key.Q));
-            //float roty = (kbHandler.getKeyStatus(Key.C) - kbHandler.getKeyStatus(Key.Z));
-
-            RenderState.rotAngles.Y += 100 * step * (kbHandler.getKeyStatus(System.Windows.Input.Key.E) - kbHandler.getKeyStatus(System.Windows.Input.Key.Q));
-            RenderState.rotAngles.Y %= 360;
-
-            //Move Camera
-            targetCameraPos.PosImpulse.X = x;
-            targetCameraPos.PosImpulse.Y = y;
-            targetCameraPos.PosImpulse.Z = z;
-        }
-
-
-        public void CaptureInput(bool status)
-        {
-            //if (status && !inputPollTimer.Enabled)
-            //    inputPollTimer.Start();
-            //else if (!status)
-            //    inputPollTimer.Stop();
-        }
-
-#endregion
 
 
 

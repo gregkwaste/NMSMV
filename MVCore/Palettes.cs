@@ -19,17 +19,6 @@ namespace Model_Viewer
 {
     public static class Palettes
     {
-        //Palette
-        //public static Dictionary<string, int> palette_NameToID = new Dictionary<string, int>();
-        //public static Dictionary<int, string> palette_IDToName = new Dictionary<int, string>();
-
-        //ColourAlt
-        //public static Dictionary<string, int> colourAlt_NameToID = new Dictionary<string, int>();
-        //public static Dictionary<int, string> colourAlt_IDToName = new Dictionary<int, string>();
-
-        public static int activeID = -1;
-        public static readonly float rbgFloat = 0.003921f;
-        
         //Palette Selection
         public static Dictionary<string, Dictionary<string, Vector4>> paletteSel;
         //All 64 colours of each palette, for descriptors that ask for a fixed colour index
@@ -49,24 +38,6 @@ namespace Model_Viewer
 
             colour = Vector4.Zero;
             return false;
-        }
-
-        //Methods
-        public static List<Vector3> getPalette(string name)
-        {
-            Type t = typeof(Palettes);
-            FieldInfo[] fields = t.GetFields(System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
-            foreach (FieldInfo f in fields)
-            {
-                if (f.Name == name)
-                {
-                    object ob = f.GetValue(null);
-                    return (List<Vector3>)ob;
-                }
-
-            }
-            ErrorUtils.throwException("Missing Pallete" + name);
-            return null;
         }
 
         public static Dictionary<string, Dictionary<string, Vector4>> createPalette()
@@ -142,7 +113,7 @@ namespace Model_Viewer
             for (int i = 0; i < template.Palettes.Length; i++)
             {
                 string pal_name = ((TkPaletteTexture.PaletteEnum) i).ToString();
-                CallBacks.Log(string.Format("Palette {0} NumColors {1}", pal_name, template.Palettes[i].NumColours));
+                CallBacks.Verbose(string.Format("Palette {0} NumColors {1}", pal_name, template.Palettes[i].NumColours));
                 newPal[pal_name] = new Dictionary<string, Vector4>();
                 paletteColours[pal_name] = template.Palettes[i].Colours.Select(colour_to_vec4).ToArray();
 

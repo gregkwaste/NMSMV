@@ -69,7 +69,6 @@
             <RowDefinition/>
         </Grid.RowDefinitions>
         <ContentControl Grid.Row="0" x:Name="SettingsContainer"/>
-        <!-- ContentControl Grid.Row="1" x:Name="RenderSettingsContainer"/-->
         <Button Grid.Row="2" Click="saveSettings">Save Settings</Button>
     </Grid>
 

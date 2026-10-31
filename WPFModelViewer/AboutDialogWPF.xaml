@@ -31,7 +31,7 @@
             <TextBlock 
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"
-                           x:Name="Title" FontSize="40">No Man's Sky Model Viewer</TextBlock>
+                           FontSize="40">No Man's Sky Model Viewer</TextBlock>
             <TextBlock  Grid.ColumnSpan="4"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"

@@ -1,0 +1,129 @@
+<UserControl x:Class="WPFModelViewer.SceneSystemsPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:WPFModelViewer">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="3*" MinHeight="60"/>
+            <RowDefinition Height="5"/>
+            <RowDefinition Height="2*" MinHeight="40"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Global controls -->
+        <DockPanel Grid.Row="0" Margin="2" LastChildFill="False">
+            <ToggleButton x:Name="EmulationToggle" Padding="6,1" Click="EmulationToggle_Click"
+                          ToolTip="Runs the TriggerAction components of every loaded entity together. Same switch as Tools → Action Emulation"
+                          Content="Actions: OFF"/>
+            <Button Margin="4,0,0,0" Padding="6,1" Click="Restart_Click" ToolTip="Sends every entity back to its initial state">Restart</Button>
+            <Button Margin="4,0,0,0" Padding="6,1" Click="StopClips_Click" ToolTip="Stops every playing clip">Stop clips</Button>
+            <Button Margin="4,0,0,0" Padding="6,1" Click="PlayerInteract_Click"
+                    ToolTip="Interact like the player: uses every interaction within its InteractDistance of the camera. Key I in the viewport">Interact (I)</Button>
+        </DockPanel>
+
+        <!-- Filters -->
+        <DockPanel Grid.Row="1" Margin="2">
+            <ComboBox x:Name="GroupByBox" DockPanel.Dock="Right" Width="90" SelectedIndex="0" SelectionChanged="Filter_Changed">
+                <ComboBoxItem>By system</ComboBoxItem>
+                <ComboBoxItem>By owner</ComboBoxItem>
+            </ComboBox>
+            <CheckBox x:Name="OnlyRunningBox" DockPanel.Dock="Right" Margin="6,0" VerticalAlignment="Center" Content="Only running"
+                      ToolTip="Hides stopped clips and entities whose actions aren't running"
+                      Checked="Filter_Changed" Unchecked="Filter_Changed"/>
+            <TextBox x:Name="SearchBox" VerticalContentAlignment="Center" TextChanged="Filter_Changed"
+                     ToolTip="Filter by entity, state or clip name"/>
+        </DockPanel>
+
+        <TextBlock x:Name="WarningText" Grid.Row="2" Margin="4,0,4,2" Foreground="DarkOrange" TextWrapping="Wrap" Visibility="Collapsed"
+                   Text="Animations are toggled off in Render Options, so clips won't move"/>
+
+        <!-- Components grouped by system or by owner -->
+        <TreeView x:Name="SystemsTree" Grid.Row="3" SelectedItemChanged="SystemsTree_SelectedItemChanged">
+            <TreeView.ItemContainerStyle>
+                <Style TargetType="TreeViewItem">
+                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                    <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+                </Style>
+            </TreeView.ItemContainerStyle>
+            <TreeView.ItemTemplate>
+                <HierarchicalDataTemplate DataType="{x:Type local:SystemsNode}" ItemsSource="{Binding Children}">
+                    <StackPanel Orientation="Horizontal" ToolTip="{Binding ToolTip}">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Highlight}" Value="True">
+                                        <Setter Property="Background" Value="#55FFD700"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <Button Margin="0,0,4,0" Padding="4,0" FontSize="11" Click="GoState_Click"
+                                Visibility="{Binding HasGo, Converter={StaticResource BoolToVis}}"
+                                ToolTip="Put the entity in this state, like a GoToState from the game. Turns action emulation on">Go</Button>
+                        <Button Margin="0,0,4,0" Padding="4,0" FontSize="11" Click="Fire_Click"
+                                Visibility="{Binding HasFire, Converter={StaticResource BoolToVis}}"
+                                ToolTip="Run this trigger's actions now, as if its event happened. Turns action emulation on">Fire</Button>
+                        <Button Margin="0,0,4,0" Padding="4,0" FontSize="11" Click="Interact_Click"
+                                Visibility="{Binding HasInteract, Converter={StaticResource BoolToVis}}"
+                                ToolTip="Interact like the player would: sends the TriggerAction state to the entity, or to the scene when it broadcasts. Turns action emulation on">Interact</Button>
+                        <ToggleButton Margin="0,0,4,0" Padding="4,0" FontSize="11" MinWidth="20"
+                                      Visibility="{Binding HasPlay, Converter={StaticResource BoolToVis}}"
+                                      IsChecked="{Binding Clip.IsPlaying, Mode=TwoWay}">
+                            <ToggleButton.Style>
+                                <Style TargetType="ToggleButton">
+                                    <Setter Property="Content" Value="▶"/>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter Property="Content" Value="■"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ToggleButton.Style>
+                        </ToggleButton>
+                        <TextBlock Text="{Binding Title}" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Strong}" Value="True">
+                                            <Setter Property="FontWeight" Value="Bold"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Text="{Binding Status}" Margin="8,0,0,0" VerticalAlignment="Center" Foreground="SteelBlue"/>
+                        <TextBlock Text="{Binding Detail}" Margin="8,0,0,0" VerticalAlignment="Center" Foreground="Gray" FontStyle="Italic"/>
+                    </StackPanel>
+                </HierarchicalDataTemplate>
+            </TreeView.ItemTemplate>
+        </TreeView>
+
+        <GridSplitter Grid.Row="4" Height="5" HorizontalAlignment="Stretch"/>
+
+        <!-- The selected component, with the same templates as Object Info -->
+        <ScrollViewer Grid.Row="5">
+            <ContentControl x:Name="DetailsBox" Margin="4" Grid.IsSharedSizeScope="True">
+                <ContentControl.Resources>
+                    <Style TargetType="Expander">
+                        <Setter Property="IsExpanded" Value="True"/>
+                    </Style>
+                </ContentControl.Resources>
+            </ContentControl>
+        </ScrollViewer>
+
+        <Expander Grid.Row="6" Header="Event log" IsExpanded="True">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" VerticalAlignment="Top" Margin="2" Padding="4,0" Click="ClearLog_Click">Clear</Button>
+                <ListBox x:Name="EventLogList" Height="110" FontFamily="Consolas" FontSize="11"
+                         MouseDoubleClick="EventLogList_MouseDoubleClick"
+                         ToolTip="Double-click a line to filter the list by its entity"/>
+            </DockPanel>
+        </Expander>
+    </Grid>
+</UserControl>

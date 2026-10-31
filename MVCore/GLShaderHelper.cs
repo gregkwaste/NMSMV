@@ -17,19 +17,9 @@ namespace GLSLHelper {
     public enum SHADER_TYPE
     {
         NULL_SHADER = 0x0,
-        MESH_FORWARD_SHADER,
-        MESH_DEFERRED_SHADER,
-        DECAL_SHADER,
-        DEBUG_MESH_SHADER,
         GIZMO_SHADER,
-        PICKING_SHADER,
-        BBOX_SHADER,
-        LOCATOR_SHADER,
-        JOINT_SHADER,
-        CAMERA_SHADER,
         TEXTURE_MIX_SHADER,
         PASSTHROUGH_SHADER,
-        LIGHT_SHADER,
         MATERIAL_SHADER,
         GBUFFER_LIT_SHADER,
         GBUFFER_UNLIT_SHADER,
@@ -38,7 +28,9 @@ namespace GLSLHelper {
         FXAA_SHADER,
         TONE_MAPPING,
         INV_TONE_MAPPING,
-        BWOIT_COMPOSITE_SHADER
+        BWOIT_COMPOSITE_SHADER,
+        TEXT_SHADER,
+        PARTICLE_SHADER
     }
 
     public class GLSLShaderText
@@ -126,12 +118,6 @@ namespace GLSLHelper {
                 
         }
 
-        public void resolve()
-        {
-            //Here we should retrieve the full text of the shader
-            
-        }
-
         private void file_changed(object sender, FileSystemEventArgs e)
         {
             FileSystemWatcher fw = (FileSystemWatcher) sender;
@@ -185,9 +171,8 @@ namespace GLSLHelper {
             if (path.EndsWith(".glsl"))
             {
                 string execPath = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
-                //string execPath = "G:\\Projects\\Model Viewer C#\\Model Viewer\\Viewer_Unit_Tests\\bin\\Debug";
                 path = Path.Combine(execPath, path);
-                CallBacks.Log("Parsing shader: ", path);
+                CallBacks.Verbose("Parsing shader: {0}", path);
                 //Check if file exists
                 if (!File.Exists(path))
                 {
@@ -344,16 +329,18 @@ namespace GLSLHelper {
 
         //Shader Compilation
 
-        public static void issuemodifyShaderRequest(GLSLShaderConfig config, GLSLShaderText shaderText)
+        public static async void issuemodifyShaderRequest(GLSLShaderConfig config, GLSLShaderText shaderText)
         {
             CallBacks.Log("Sending Shader Modification Request");
-            ThreadRequest req = new ThreadRequest();
-            req.type = THREAD_REQUEST_TYPE.GL_MODIFY_SHADER_REQUEST;
-            req.arguments.Add(config);
-            req.arguments.Add(shaderText);
-
-            //Send request
-            CallBacks.issueRequestToGLControl(ref req);
+            try
+            {
+                if (CallBacks.enqueueRenderCommand != null)
+                    await CallBacks.enqueueRenderCommand(() => modifyShader(config, shaderText));
+            }
+            catch (Exception ex)
+            {
+                CallBacks.Log("Shader modification failed: " + ex);
+            }
         }
 
         //GLPreparation
@@ -557,7 +544,7 @@ namespace GLSLHelper {
             GL.AttachShader(config.program_id, config.fs_text.shader_object_id);
 
 #if DEBUG
-            CallBacks.Log("Compiling: ", config.program_id.ToString(), "VX", config.vs_text.shader_object_id, "FX", config.fs_text.shader_object_id);
+            CallBacks.Verbose("Compiling program {0}: VX {1}, FX {2}", config.program_id, config.vs_text.shader_object_id, config.fs_text.shader_object_id);
 #endif
 
             if (gsflag)

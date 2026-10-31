@@ -22,6 +22,12 @@ out vec4 fragColor;
 
 uniform CommonPerFrameSamplers mpCommonPerFrameSamplers;
 
+//Key light shadow map
+uniform sampler2DShadow shadowMap;
+uniform mat4 shadowMat; //Rotated scene space to light clip space
+uniform float shadowsEnabled;
+uniform float shadowTexelSize; //World size of a shadow map texel
+
 //Uniform Blocks
 layout (std140, binding=0) uniform _COMMON_PER_FRAME
 {
@@ -47,6 +53,27 @@ vec4 worldfromDepth(in vec2 screen, in float depth)
 	//world /= world.w;
 
 	return world;
+}
+
+//Visibility of the key light at a world position: 1 lit, 0 shadowed
+float calcKeyShadow(vec3 pos, vec3 N)
+{
+	if (shadowsEnabled < 0.5)
+		return 1.0;
+
+	//Normal offset: move the lookup off the surface so it does not shadow itself
+	vec4 lightClip = shadowMat * vec4(pos + N * (1.5 * shadowTexelSize), 1.0);
+	vec3 p = lightClip.xyz / lightClip.w * 0.5 + 0.5;
+	if (any(lessThan(p, vec3(0.0))) || any(greaterThan(p, vec3(1.0))))
+		return 1.0;
+
+	//3x3 PCF, every tap is already a bilinear 2x2 comparison
+	vec2 texel = 1.0 / vec2(textureSize(shadowMap, 0));
+	float lit = 0.0;
+	for (int y = -1; y <= 1; ++y)
+		for (int x = -1; x <= 1; ++x)
+			lit += texture(shadowMap, vec3(p.xy + vec2(x, y) * texel, p.z));
+	return lit / 9.0;
 }
 
 // Converts post-projection z/w to linear z
@@ -123,20 +150,13 @@ void main()
 
 		//Viewport environment lighting. Light 0 is the default light and acts as the key light direction
 		finalColor.rgb = calcEnvironmentLighting(mpCommonPerFrame.lights[0], fragPos, lNormal,
-			mpCommonPerFrame.cameraPosition.xyz, albedoColor.rgb, lfMetallic, lfRoughness, ao);
+			mpCommonPerFrame.cameraPosition.xyz, albedoColor.rgb, lfMetallic, lfRoughness, ao,
+			calcKeyShadow(fragPos.xyz, lNormal));
 
-		//Scene lights
-		for(int i = 1; i < mpCommonPerFrame.light_count; ++i) 
-		{
-	    	// calculate per-light radiance
-	        Light light = mpCommonPerFrame.lights[i]; 
-
-			if (light.position.w < 1.0)
-	        	continue;
-
-        	finalColor.rgb += calcLighting(light, fragPos, lNormal, 
-			mpCommonPerFrame.cameraPosition.xyz, mpCommonPerFrame.cameraDirection.xyz, albedoColor.rgb, lfMetallic, lfRoughness, ao);
-		}
+		//Scene lights, from the light clusters
+		finalColor.rgb += calcSceneLighting(gl_FragCoord.xy, viewDepthFromWindowZ(depthColor.r, mpCommonPerFrame.projMatInv),
+			fragPos, lNormal, mpCommonPerFrame.cameraPosition.xyz, mpCommonPerFrame.cameraDirection.xyz,
+			albedoColor.rgb, lfMetallic, lfRoughness, ao);
 
 		//Emissive, added before bloom so bright glow blooms
 		finalColor.rgb += albedoColor.rgb * lfGlow;

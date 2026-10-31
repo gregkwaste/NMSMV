@@ -85,8 +85,8 @@ namespace MVCore.Utils
             }
         }
 
-        //Convert Path to EXML
-        public static string getExmlPath(string path)
+        //Convert Path to MXML
+        public static string getMxmlPath(string path)
         {
             //Fix Path incase of reference
             path = path.Replace('/', '\\');
@@ -96,12 +96,12 @@ namespace MVCore.Utils
             //    newpath += split[i]+ "." ;
             //Get main name
             string[] pathsplit = split[0].Split('\\');
-            newpath = pathsplit[pathsplit.Length - 1] + "." + split[split.Length - 2] + ".exml";
+            newpath = pathsplit[pathsplit.Length - 1] + "." + split[split.Length - 2] + ".mxml";
 
             return "Temp\\" + newpath;
         }
 
-        public static string getFullExmlPath(string dirpath, string path)
+        public static string getFullMxmlPath(string dirpath, string path)
         {
             //Get Relative path again
             string tpath = path.Replace(dirpath, "").TrimStart('\\');
@@ -118,7 +118,7 @@ namespace MVCore.Utils
             {
                 newfilename += f_name_split[i] + ".";
             }
-            newfilename += "exml";
+            newfilename += "mxml";
 
             string newpath = "";
             //Get main name
@@ -130,7 +130,7 @@ namespace MVCore.Utils
             return "Temp\\" + newpath;
         }
         //MbinCompiler Caller
-        public static void MbinToExml(string path, string output)
+        public static void MbinToMxml(string path, string output)
         {
             Process proc = new System.Diagnostics.Process();
             proc.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;

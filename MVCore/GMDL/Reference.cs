@@ -14,7 +14,7 @@ namespace MVCore.GMDL
         public String ref_scene_filepath { get;} //holds the referenced scene file path
         private bool _isRefLoaded = false;
 
-        public new string Name
+        public override string Name
         {
             get
             {
@@ -25,7 +25,7 @@ namespace MVCore.GMDL
             }
             set
             {
-                name = value;
+                base.Name = value;
             }
         }
         
@@ -50,17 +50,12 @@ namespace MVCore.GMDL
             ref_scene_filepath = path;
         }
 
-        public Reference(Reference input)
+        private Reference(Reference input)
         {
             //Copy info
             base.copyFrom(input);
             ref_scene_filepath = input.ref_scene_filepath;
             isRefLoaded = input.isRefLoaded;
-        }
-
-        public void copyFrom(Reference input)
-        {
-            //Use the constructor
         }
 
         public override Model Clone()
@@ -72,32 +67,10 @@ namespace MVCore.GMDL
             return r;
         }
 
-        public override TkSceneNodeData ExportTemplate()
-        {
-            return new TkSceneNodeData();
-        }
-
         public override void setParentScene(Scene animscene)
         {
             //DO NOTHING
         }
 
-        //Deconstructor
-        protected override void Dispose(bool disposing)
-        {
-            if (disposed)
-                return;
-
-            if (disposing)
-            {
-                handle.Dispose();
-
-                //Free other resources here
-                base.Dispose(disposing);
-            }
-
-            //Free unmanaged resources
-            disposed = true;
-        }
     }
 }

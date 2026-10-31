@@ -5,7 +5,7 @@ using MVCore.Common;
 
 namespace MVCore
 {
-    public class textureManager : baseResourceManager
+    public class textureManager
     {
         public Dictionary<string, GMDL.Texture> GLtextures = new Dictionary<string, GMDL.Texture>();
         private textureManager masterTexManager;
@@ -54,18 +54,6 @@ namespace MVCore
                 return masterTexManager.getTexture(name);
             else
                 return GLtextures[name];
-        }
-
-        public void deleteTexture(string name)
-        {
-            if (GLtextures.ContainsKey(name))
-            {
-                GMDL.Texture t = GLtextures[name];
-                t.Dispose();
-                GLtextures.Remove(name);
-            }
-            else
-                CallBacks.Log("Texture not found\n");
         }
 
         public void setMasterTexManager(textureManager mtMgr)

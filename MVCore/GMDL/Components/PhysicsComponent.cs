@@ -3,105 +3,88 @@ using libMBIN.NMS.Toolkit;
 
 namespace MVCore.GMDL
 {
-    public class PhysicsData : TkPhysicsData
+    public class PhysicsData
     {
-        public PhysicsData() : base()
-        {
+        //The physics data of the entity file
+        public TkPhysicsData Template;
 
+        public PhysicsData()
+        {
+            Template = new TkPhysicsData();
         }
 
         public PhysicsData(TkPhysicsData pd)
         {
-            AngularDamping = pd.AngularDamping;
-            Friction = pd.Friction;
-            RollingFriction = pd.RollingFriction;
-            Gravity = pd.Gravity;
-            LinearDamping = pd.LinearDamping;
-            Mass = pd.Mass;
+            Template = pd;
         }
 
         //Properties
 
         public float PMass
         {
-            get { return Mass; }
-            set { Mass = value; }
+            get { return Template.Mass; }
+            set { Template.Mass = value; }
         }
 
         public float PGravity
         {
-            get { return Gravity; }
-            set { Gravity = value; }
+            get { return Template.Gravity; }
+            set { Template.Gravity = value; }
         }
 
         public float PAngularDamping
         {
-            get { return AngularDamping; }
-            set { AngularDamping = value; }
+            get { return Template.AngularDamping; }
+            set { Template.AngularDamping = value; }
         }
 
         public float PFriction
         {
-            get { return Friction; }
-            set { Friction = value; }
+            get { return Template.Friction; }
+            set { Template.Friction = value; }
         }
 
         public float PRollingFriction
         {
-            get { return RollingFriction; }
-            set { RollingFriction = value; }
+            get { return Template.RollingFriction; }
+            set { Template.RollingFriction = value; }
         }
 
         public float PLinearDamping
         {
-            get { return LinearDamping; }
-            set { LinearDamping = value; }
+            get { return Template.LinearDamping; }
+            set { Template.LinearDamping = value; }
         }
 
     }
 
     
-    public class PhysicsComponent : Component
+    public class PhysicsComponent : IComponent
     {
-        private TkPhysicsComponentData _template;
+        //The component entry of the entity file
+        public TkPhysicsComponentData Template;
         public PhysicsData data;
 
         //Default Constructor
         public PhysicsComponent()
         {
-            _template = new TkPhysicsComponentData();
-            data = new PhysicsData();
+            Template = new TkPhysicsComponentData();
+            Template.Data = new TkPhysicsData();
+            data = new PhysicsData(Template.Data);
         }
 
-        public PhysicsComponent(PhysicsComponent pc)
+        //Copies share the entity data
+        public PhysicsComponent(PhysicsComponent pc) : this(pc.Template)
         {
-            _template = new TkPhysicsComponentData()
-            {
-                AllowTeleporter = pc._template.AllowTeleporter,
-                BlockTeleporter = pc._template.BlockTeleporter,
-                Data = pc._template.Data,
-                SpinOnCreate = pc._template.SpinOnCreate,
-                DisableGravity = pc._template.DisableGravity,
-                InvisibleForInteraction = pc._template.InvisibleForInteraction,
-                CameraInvisible = pc._template.CameraInvisible,
-                NoPlayerCollide = pc._template.NoPlayerCollide,
-                NoVehicleCollide = pc._template.NoVehicleCollide,
-                IgnoreModelOwner = pc._template.IgnoreModelOwner,
-                Floor = pc._template.Floor,
-                Climbable = pc._template.Climbable,
-                TriggerVolume = pc._template.TriggerVolume,
-                SurfaceProperties = pc._template.SurfaceProperties,
-            };
-            data = new PhysicsData(pc.data);
         }
 
         public PhysicsComponent(TkPhysicsComponentData pcd)
         {
-            _template = pcd;
+            Template = pcd;
             data = new PhysicsData(pcd.Data);
         }
 
-        public override Component Clone()
+        public IComponent Clone()
         {
             return new PhysicsComponent(this);
         }
@@ -114,62 +97,62 @@ namespace MVCore.GMDL
 
         public bool Climbable
         {
-            get { return _template.Climbable; }
+            get { return Template.Climbable; }
         }
 
         public bool Floor
         {
-            get { return _template.Floor; }
+            get { return Template.Floor; }
         }
 
         public bool IgnoreModelOwner
         {
-            get { return _template.IgnoreModelOwner; }
+            get { return Template.IgnoreModelOwner; }
         }
 
         public bool TriggerVolume
         {
-            get { return _template.TriggerVolume; }
+            get { return Template.TriggerVolume; }
         }
 
         public bool NoVehicleCollide
         {
-            get { return _template.NoVehicleCollide; }
+            get { return Template.NoVehicleCollide; }
         }
 
         public bool NoPlayerCollide
         {
-            get { return _template.NoPlayerCollide; }
+            get { return Template.NoPlayerCollide; }
         }
 
         public bool CameraInvisible
         {
-            get { return _template.CameraInvisible; }
+            get { return Template.CameraInvisible; }
         }
 
         public bool InvisibleForInteraction
         {
-            get { return _template.InvisibleForInteraction; }
+            get { return Template.InvisibleForInteraction; }
         }
 
         public bool AllowTeleporter
         {
-            get { return _template.AllowTeleporter; }
+            get { return Template.AllowTeleporter; }
         }
 
         public bool BlockTeleporter
         {
-            get { return _template.BlockTeleporter; }
+            get { return Template.BlockTeleporter; }
         }
 
         public bool DisableGravity
         {
-            get { return _template.DisableGravity; }
+            get { return Template.DisableGravity; }
         }
 
         public float SpinOnCreate
         {
-            get { return _template.SpinOnCreate; }
+            get { return Template.SpinOnCreate; }
         }
 
         

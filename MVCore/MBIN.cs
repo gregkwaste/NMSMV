@@ -82,13 +82,22 @@ namespace MVCore
         //Only the vertex/index streams are read as raw bytes from the .DATA file.
         public static GeomObject Parse(TkGeometryData data, Stream gfs)
         {
-            Common.CallBacks.Log("Parsing Geometry MBIN");
-            Common.CallBacks.Log("Model Vertices: " + data.VertexCount);
-            Common.CallBacks.Log("Model Indices: " + data.IndexCount);
-            Common.CallBacks.Log("Indices 16Bit: " + data.Indices16Bit);
-            Common.CallBacks.Log("Collision Index Count: " + data.CollisionIndexCount);
+            Common.CallBacks.Verbose("Parsing Geometry MBIN");
+            Common.CallBacks.Verbose("Model Vertices: " + data.VertexCount);
+            Common.CallBacks.Verbose("Model Indices: " + data.IndexCount);
+            Common.CallBacks.Verbose("Indices 16Bit: " + data.Indices16Bit);
+            Common.CallBacks.Verbose("Collision Index Count: " + data.CollisionIndexCount);
 
             GeomObject geom = new GeomObject();
+
+            geom.sourceGeometry = captureNativeGeometry(data);
+            if (gfs.Length > Int32.MaxValue)
+                throw new InvalidDataException("Geometry stream is too large to retain for export");
+            long sourcePosition = gfs.Position;
+            gfs.Seek(0, SeekOrigin.Begin);
+            geom.sourceGeometryStream = new byte[(int)gfs.Length];
+            gfs.ReadExactly(geom.sourceGeometryStream, 0, geom.sourceGeometryStream.Length);
+            gfs.Seek(sourcePosition, SeekOrigin.Begin);
 
             //Counts
             geom.vertCount = data.VertexCount;
@@ -170,7 +179,7 @@ namespace MVCore
             addVertexLayout(geom, data.VertexLayout, 1, "Main");
 
             geom.mesh_descr = getDescr(geom.offsets);
-            Common.CallBacks.Log("Mesh Description: " + geom.mesh_descr);
+            Common.CallBacks.Verbose("Mesh Description: " + geom.mesh_descr);
             geom.interleaved = true;
 
             //Mesh stream metadata
@@ -189,7 +198,7 @@ namespace MVCore
 
                 if (!geom.meshMetaDataDict.ContainsKey(mmd.hash))
                     geom.meshMetaDataDict[mmd.hash] = mmd;
-                Common.CallBacks.Log(mmd.name);
+                Common.CallBacks.Verbose(mmd.name);
             }
 
             //Load the streams from the geometry stream file
@@ -211,6 +220,98 @@ namespace MVCore
             return geom;
         }
 
+        private static NativeGeometryData captureNativeGeometry(TkGeometryData data)
+        {
+            NativeGeometryData result = new NativeGeometryData
+            {
+                PositionLayout = captureLayout(data.PositionVertexLayout),
+                MainLayout = captureLayout(data.VertexLayout),
+                BoundHullEnds = new List<int>(data.BoundHullVertEd ?? new List<int>()),
+                BoundHullStarts = new List<int>(data.BoundHullVertSt ?? new List<int>()),
+                IndexBuffer = new List<int>(data.IndexBuffer ?? new List<int>()),
+                JointMirrorPairs = new List<int>(data.JointMirrorPairs ?? new List<int>()),
+                MeshBaseSkinMat = new List<int>(data.MeshBaseSkinMat ?? new List<int>()),
+                MeshVertEnds = new List<int>(data.MeshVertREnd ?? new List<int>()),
+                MeshVertStarts = new List<int>(data.MeshVertRStart ?? new List<int>()),
+                ProcGenParentIds = new List<int>(data.ProcGenParentId ?? new List<int>()),
+                SkinMatrixLayout = new List<int>(data.SkinMatrixLayout ?? new List<int>()),
+                CollisionIndexCount = data.CollisionIndexCount,
+                IndexCount = data.IndexCount,
+                Indices16Bit = data.Indices16Bit,
+                VertexCount = data.VertexCount
+            };
+
+            result.BoundHullVertices.AddRange((data.BoundHullVerts ?? new List<Vector4f>())
+                .Select(value => new Vector4(value.X, value.Y, value.Z, value.W)));
+            result.MeshAABBMin.AddRange((data.MeshAABBMin ?? new List<Vector4f>())
+                .Select(value => new Vector4(value.X, value.Y, value.Z, value.W)));
+            result.MeshAABBMax.AddRange((data.MeshAABBMax ?? new List<Vector4f>())
+                .Select(value => new Vector4(value.X, value.Y, value.Z, value.W)));
+            result.ProcGenNodeNames.AddRange((data.ProcGenNodeNames ?? new List<VariableSizeString>())
+                .Select(value => value?.Value ?? ""));
+
+            foreach (TkJointBindingData binding in data.JointBindings ?? new List<TkJointBindingData>())
+                result.JointBindings.Add(new NativeGeometryJointBinding
+                {
+                    InvBindMatrix = cloneArray(binding.InvBindMatrix),
+                    BindRotate = cloneArray(binding.BindRotate),
+                    BindScale = cloneArray(binding.BindScale),
+                    BindTranslate = cloneArray(binding.BindTranslate)
+                });
+            foreach (TkJointExtentData extent in data.JointExtents ?? new List<TkJointExtentData>())
+                result.JointExtents.Add(new NativeGeometryJointExtent
+                {
+                    Center = cloneArray(extent.JointExtentCenter),
+                    Max = cloneArray(extent.JointExtentMax),
+                    Min = cloneArray(extent.JointExtentMin),
+                    StdDev = cloneArray(extent.JointExtentStdDev)
+                });
+            foreach (TkJointMirrorAxis axis in data.JointMirrorAxes ?? new List<TkJointMirrorAxis>())
+                result.JointMirrorAxes.Add(new NativeGeometryJointMirrorAxis
+                {
+                    Mode = axis.MirrorAxisMode,
+                    RotAdjustW = axis.RotAdjustW, RotAdjustX = axis.RotAdjustX,
+                    RotAdjustY = axis.RotAdjustY, RotAdjustZ = axis.RotAdjustZ,
+                    RotAxisX = axis.RotMirrorAxisX, RotAxisY = axis.RotMirrorAxisY,
+                    RotAxisZ = axis.RotMirrorAxisZ, TransAxisX = axis.TransMirrorAxisX,
+                    TransAxisY = axis.TransMirrorAxisY, TransAxisZ = axis.TransMirrorAxisZ
+                });
+            foreach (TkMeshMetaData metadata in data.StreamMetaDataArray ?? new List<TkMeshMetaData>())
+                result.Streams.Add(new NativeGeometryStreamMetadata
+                {
+                    Id = metadata.IdString?.Value ?? "", Hash = metadata.Hash,
+                    IndexOffset = metadata.IndexDataOffset, IndexSize = metadata.IndexDataSize,
+                    VertexOffset = metadata.VertexDataOffset, VertexSize = metadata.VertexDataSize,
+                    PositionOffset = metadata.VertexPositionDataOffset,
+                    PositionSize = metadata.VertexPositionDataSize,
+                    DoubleBuffered = metadata.DoubleBufferGeometry
+                });
+            return result;
+        }
+
+        private static NativeGeometryVertexLayout captureLayout(TkVertexLayout layout)
+        {
+            if (layout == null)
+                return null;
+            NativeGeometryVertexLayout result = new NativeGeometryVertexLayout
+            {
+                PlatformData = layout.PlatformData,
+                ElementCount = layout.ElementCount,
+                Stride = layout.Stride
+            };
+            foreach (TkVertexElement element in layout.VertexElements ?? new List<TkVertexElement>())
+                result.Elements.Add(new NativeGeometryVertexElement
+                {
+                    Instancing = (int)element.Instancing, Type = element.Type,
+                    Normalise = element.Normalise, Offset = element.Offset,
+                    SemanticID = element.SemanticID, Size = element.Size
+                });
+            return result;
+        }
+
+        private static float[] cloneArray(float[] values) =>
+            values == null ? Array.Empty<float>() : (float[])values.Clone();
+
         //Shader attribute locations 0-6: position, uv, normal, tangent, color, blend indices, blend weights
         private const int MaxSupportedSemantic = 6;
         //One 32 bit value holding the normal, tangent and bitangent sign (replaces semantics 2 and 3).
@@ -231,7 +332,7 @@ namespace MVCore
                 {
                     geom.packedFrameOffset = elem.Offset;
                     geom.packedFrameStream = stream;
-                    Common.CallBacks.Log("Packed normal/tangent frame, decoded in the shader. " + desc);
+                    Common.CallBacks.Verbose("Packed normal/tangent frame, decoded in the shader. " + desc);
                     continue;
                 }
 
@@ -257,7 +358,7 @@ namespace MVCore
                 buf.stream = stream;
                 geom.bufInfo[semantic] = buf;
                 geom.offsets[semantic] = elem.Offset;
-                Common.CallBacks.Log("Vertex attribute. " + desc);
+                Common.CallBacks.Verbose("Vertex attribute. " + desc);
             }
         }
 
@@ -392,7 +493,11 @@ namespace MVCore
             {typeof(TkLODComponentData), 2},
             {typeof(TkPhysicsComponentData), 3},
             {typeof(GcTriggerActionComponentData), 4},
-            {typeof(EmptyNode), 5}
+            {typeof(EmptyNode), 5},
+            {typeof(GcInteractionComponentData), 6},
+            {typeof(GcSimpleInteractionComponentData), 7},
+            {typeof(TkRotationComponentData), 8},
+            {typeof(GcColouriseComponentData), 9}
         };
 
         private static GeomObject ParseGeometryFile(string path)
@@ -416,9 +521,9 @@ namespace MVCore
                     throw new InvalidDataException("Geometry file could not be loaded: " + path + ".PC");
 
 #if DEBUG
-                //Save NMSTemplate to exml
+                //Save NMSTemplate to mxml
                 string xmlstring = MXmlFile.WriteTemplate(geomdata);
-                File.WriteAllText("Temp\\temp_geom.exml", xmlstring);
+                File.WriteAllText("Temp\\temp_geom.mxml", xmlstring);
 #endif
                 //The geometry stream file holds the raw vertex and index data
                 string gstreamfile = "";
@@ -433,7 +538,7 @@ namespace MVCore
                 }
 
                 Common.RenderState.activeResMgr.GLgeoms[path] = gobject;
-                Common.CallBacks.Log(string.Format("Geometry file {0} successfully parsed",
+                Common.CallBacks.Verbose(string.Format("Geometry file {0} successfully parsed",
                     path + ".PC"));
             }
 
@@ -472,14 +577,13 @@ namespace MVCore
             if (template is null)
                 throw new FileNotFoundException("Scene file could not be loaded: " + path);
             activeFilePath = path;
-            Common.CallBacks.Log("Loading Objects from MBINFile");
+            Common.CallBacks.Verbose("Loading Objects from MBINFile");
 
             string sceneName = template.Name;
-            Common.CallBacks.Log(string.Format("Trying to load Scene {0}", sceneName));
+            Common.CallBacks.Verbose(string.Format("Trying to load Scene {0}", sceneName));
             string[] split = sceneName.Split('\\');
             string scnName = split[split.Length - 1];
-            Common.CallBacks.updateStatus("Importing Scene: " + scnName);
-            Common.CallBacks.Log(string.Format("Importing Scene: {0}", scnName));
+            Common.CallBacks.Log("[Import] Loading scene {0}", scnName);
             
             //Get Geometry File
             //Parse geometry once
@@ -494,6 +598,8 @@ namespace MVCore
 
             //Parse root scene
             Scene root = (Scene) parseNode(template, gobject, null, null);
+            root.SourceFile = path;
+            Common.CallBacks.Log("[Import] Loaded scene {0}", scnName);
 
             //Save scene path to resourcemanager
             Common.RenderState.activeResMgr.GLScenes[path] = root; //Use input path
@@ -514,14 +620,17 @@ namespace MVCore
 
         //Many nodes name an entity file that the game does not ship. The node loads without components
         //and the import goes on, so this is a log line, not an error dialog
-        private static TkAttachmentData loadAttachment(string attachment)
+        //The entity is kept on the node for the export
+        private static TkAttachmentData loadAttachment(Model node, string attachment)
         {
+            node.AttachmentPath = attachment;
             if (!NMSUtils.NMSFileExists(attachment, Common.RenderState.activeResMgr))
             {
                 Common.CallBacks.Log("Entity file " + attachment + " not found, the node is loaded without components");
                 return null;
             }
-            return NMSUtils.LoadNMSTemplate(attachment, ref Common.RenderState.activeResMgr) as TkAttachmentData;
+            node.AttachmentTemplate = NMSUtils.LoadNMSTemplate(attachment, ref Common.RenderState.activeResMgr) as TkAttachmentData;
+            return node.AttachmentTemplate;
         }
 
         private static int hasComponent(TkAttachmentData node, Type ComponentType)
@@ -564,16 +673,21 @@ namespace MVCore
             node.Components.Add(tac);
         }
 
+        private static Vector4 colourToVector(Colour colour)
+        {
+            return new Vector4(colour.R, colour.G, colour.B, colour.A);
+        }
+
         private static void ProcessLODComponent(Model node, TkLODComponentData component)
         {
             //Load all LOD models as children to the node
-            LODModelComponent lodmdlcomp = new LODModelComponent();
+            LODModelComponent lodmdlcomp = new LODModelComponent(component);
             int count = 0;
             
             for (int i = 0; i < component.LODModels.Count; i++)
             {
                 string filepath = component.LODModels[i].LODModel.Filename;
-                Common.CallBacks.Log("Loading LOD " + filepath);
+                Common.CallBacks.Verbose("Loading LOD " + filepath);
                 Scene so;
                 try
                 {
@@ -612,6 +726,13 @@ namespace MVCore
                     
                 Type comp_type = comp.Template.GetType();
                 
+                //TkAudioComponentData is matched by name and its fields are read by name, so any libMBIN version builds
+                if (comp_type.Name == "TkAudioComponentData")
+                {
+                    node.Components.Add(new AudioComponent(comp.Template));
+                    continue;
+                }
+
                 if (!SupportedComponents.ContainsKey(comp_type))
                 {
                     Common.CallBacks.Log("Unsupported Component Type " + comp_type);
@@ -637,9 +758,32 @@ namespace MVCore
                         break;
                     case 5: //Empty Node do nothing
                         break;
+                    case 6:
+                        node.Components.Add(new InteractionComponent(comp.Template as GcInteractionComponentData));
+                        break;
+                    case 7:
+                        node.Components.Add(new InteractionComponent(comp.Template as GcSimpleInteractionComponentData));
+                        break;
+                    case 8:
+                        node.Components.Add(new RotationComponent(comp.Template as TkRotationComponentData));
+                        break;
+                    case 9:
+                    {
+                        GcColouriseComponentData colourise = comp.Template as GcColouriseComponentData;
+                        node.colouriseColours = new Vector4[]
+                        {
+                            colourToVector(colourise.PrimaryColour),
+                            colourToVector(colourise.SecondaryColour),
+                            colourToVector(colourise.TernaryColour),
+                            colourToVector(colourise.QuaternaryColour)
+                        };
+                        break;
+                    }
                 }   
             
             }
+
+            node.actionComponentID = node.hasComponent(typeof(TriggerActionComponent));
 
 
             //Setup LOD distances
@@ -673,7 +817,7 @@ namespace MVCore
         {
             Material mat;
 
-            Common.CallBacks.Log(string.Format("Trying to load Material {0}", matname));
+            Common.CallBacks.Verbose(string.Format("Trying to load Material {0}", matname));
             string matkey = matname; //Use the entire path
 
 
@@ -702,6 +846,53 @@ namespace MVCore
                                    //Store the material to the Resources
 
             return mat;
+        }
+
+        private static string decalNodePath(Model node)
+        {
+            Stack<string> parts = new Stack<string>();
+            for (Model current = node; current != null; current = current.parent)
+                parts.Push(current.name ?? "<unnamed>");
+            return string.Join("/", parts);
+        }
+
+        private static string formatMatrix(Matrix4 m)
+        {
+            return string.Format(CultureInfo.InvariantCulture,
+                "[{0:0.######},{1:0.######},{2:0.######},{3:0.######};" +
+                "{4:0.######},{5:0.######},{6:0.######},{7:0.######};" +
+                "{8:0.######},{9:0.######},{10:0.######},{11:0.######};" +
+                "{12:0.######},{13:0.######},{14:0.######},{15:0.######}]",
+                m.M11, m.M12, m.M13, m.M14, m.M21, m.M22, m.M23, m.M24,
+                m.M31, m.M32, m.M33, m.M34, m.M41, m.M42, m.M43, m.M44);
+        }
+
+        private static void logDecalImport(Mesh mesh, TkSceneNodeData node, string materialPath, Material material)
+        {
+            if (material == null || (!material.ShaderFlags.Contains("_F51_DECAL_DIFFUSE") &&
+                                     !material.ShaderFlags.Contains("_F52_DECAL_NORMAL")))
+                return;
+
+            string attributes = string.Join(", ", (node.Attributes ?? new List<TkSceneNodeAttributeData>())
+                .Select(a => a.Name + "=" + a.Value));
+            string samplers = string.Join(", ", material.PSamplers.Values
+                .OrderBy(s => s.PName).Select(s => s.PName + "=" + s.PMap));
+            string uniforms = string.Join(", ", material.CustomPerMaterialUniforms.Values
+                .OrderBy(u => u.PName).Select(u => string.Format(CultureInfo.InvariantCulture,
+                    "{0}=({1:0.######},{2:0.######},{3:0.######},{4:0.######})",
+                    u.PName, u.vec.X, u.vec.Y, u.vec.Z, u.vec.W)));
+
+            CallBacks.Log("[DecalImport] scene={0}; node={1}; path={2}; material={3}; class={4}; flags={5}",
+                mesh.parentScene?.name ?? "<none>", mesh.name, decalNodePath(mesh), materialPath,
+                material.PClass, string.Join(",", material.ShaderFlags));
+            CallBacks.Log("[DecalImport] transform local={0}; world={1}; lod={2}; hash={3}; batch={4}+{5}; vertices={6}..{7}; aabb=({8})..({9})",
+                formatMatrix(mesh.localMat), formatMatrix(mesh.worldMat), mesh.metaData.LODLevel,
+                mesh.metaData.Hash, mesh.metaData.batchstart_graphics, mesh.metaData.batchcount,
+                mesh.metaData.vertrstart_graphics, mesh.metaData.vertrend_graphics,
+                mesh.metaData.AABBMIN, mesh.metaData.AABBMAX);
+            CallBacks.Log("[DecalImport] samplers: {0}", samplers);
+            CallBacks.Log("[DecalImport] uniforms: {0}", uniforms);
+            CallBacks.Log("[DecalImport] node attributes: {0}", attributes);
         }
 
 
@@ -754,7 +945,7 @@ namespace MVCore
             so.metaData.AABBMIN = new Vector3();
             so.metaData.AABBMAX = new Vector3();
 
-            CallBacks.Log(string.Format("Randomized Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]));
+            CallBacks.Verbose(string.Format("Randomized Object Color {0}, {1}, {2}", so.color[0], so.color[1], so.color[2]));
             //Get Options
             so.metaData.batchstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "BATCHSTARTPHYSI"));
             so.metaData.vertrstart_physics = int.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VERTRSTARTPHYSI"));
@@ -776,7 +967,7 @@ namespace MVCore
             so.metaData.AABBMAX.Z = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "AABBMAXZ"));
             so.metaData.Hash = ulong.Parse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HASH"));
 
-            Common.CallBacks.Log(string.Format("Batch Physics Start {0} Count {1} Vertex Physics {2} - {3} Vertex Graphics {4} - {5} SkinMats {6}-{7}",
+            Common.CallBacks.Verbose(string.Format("Batch Physics Start {0} Count {1} Vertex Physics {2} - {3} Vertex Graphics {4} - {5} SkinMats {6}-{7}",
                 so.metaData.batchstart_physics, so.metaData.batchcount, so.metaData.vertrstart_physics,
                 so.metaData.vertrend_physics, so.metaData.vertrstart_graphics, so.metaData.vertrend_graphics,
                 so.metaData.firstskinmat, so.metaData.lastskinmat));
@@ -786,7 +977,7 @@ namespace MVCore
             TkAttachmentData attachment_data = null;
             if (attachment != "")
             {
-                attachment_data = loadAttachment(attachment);
+                attachment_data = loadAttachment(so, attachment);
             }
 
             //so.Bbox = gobject.bboxes[iid]; //Use scene parameters
@@ -799,21 +990,15 @@ namespace MVCore
             so.AABBMIN = so.metaData.AABBMIN;
             so.AABBMAX = so.metaData.AABBMAX;
 
-            //Check if the model should be subjected to LOD filtering
-            if (so.name.Contains("LOD"))
+            //Only names with an actual LOD number participate in a replacement group. Ordinary LOD0
+            //metadata is common on meshes that must remain visible at every scene LOD.
+            int lodMarker = so.name.IndexOf("LOD", StringComparison.OrdinalIgnoreCase);
+            if (lodMarker >= 0 && lodMarker + 3 < so.name.Length && char.IsDigit(so.name[lodMarker + 3]))
             {
                 so.hasLOD = true;
-                //Override LOD level using the name
-                try
-                {
-                    so.metaData.LODLevel = (int)Char.GetNumericValue(so.name[so.name.IndexOf("LOD") + 3]);
-                }
-                catch (IndexOutOfRangeException ex)
-                {
-                    Common.CallBacks.Log("Unable to fetch lod level from mesh name");
-                    so.metaData.LODLevel = 0;
-                }
-
+                so.metaData.LODLevel = so.name[lodMarker + 3] - '0';
+                so.lodGroupKey = so.name.Substring(0, lodMarker + 3) + "#" +
+                                 so.name.Substring(lodMarker + 4);
             }
 
             //Process Attachments
@@ -922,7 +1107,9 @@ namespace MVCore
             so.meshVao = meshVao;
             so.instanceId = GLMeshBufferManager.addInstance(ref meshVao, so); //Add instance
 
-            Common.CallBacks.Log("Object {0}, Number of skinmatrices required: {1}", so.name, so.metaData.lastskinmat - so.metaData.firstskinmat);
+            logDecalImport(so, node, matname, mat);
+
+            Common.CallBacks.Verbose("Object {0}, Number of skinmatrices required: {1}", so.name, so.metaData.lastskinmat - so.metaData.firstskinmat);
 
             //Common.CallBacks.Log("Children Count {0}", childs.ChildNodes.Count);
             foreach (TkSceneNodeData child in children)
@@ -1022,7 +1209,7 @@ namespace MVCore
             {
                 try
                 {
-                    attachment_data = loadAttachment(attachment);
+                    attachment_data = loadAttachment(so, attachment);
                 }
                 catch (Exception e)
                 {
@@ -1096,7 +1283,7 @@ namespace MVCore
             {
                 try
                 {
-                    attachment_data = loadAttachment(attachment);
+                    attachment_data = loadAttachment(so, attachment);
                 }
                 catch (Exception e)
                 {
@@ -1189,7 +1376,7 @@ namespace MVCore
             //string collisionType = ((XmlElement)attribs.ChildNodes[0].SelectSingleNode("Property[@name='Value']")).GetAttribute("value").ToUpper();
             string collisionType = node.Attributes.FirstOrDefault(item => item.Name == "TYPE").Value.Value.ToUpper();
 
-            Common.CallBacks.Log(string.Format("Collision Detected {0} {1}", node.Name, collisionType));
+            Common.CallBacks.Verbose(string.Format("Collision Detected {0} {1}", node.Name, collisionType));
 
             //Get Material for all types
             string matkey = node.Name; //I will index the collision materials by their name, it shouldn't hurt anywhere
@@ -1248,7 +1435,7 @@ namespace MVCore
 
                 float radius = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "RADIUS"));
                 float height = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HEIGHT"));
-                Common.CallBacks.Log(string.Format("Cylinder Collision r:{0} h:{1}", radius, height));
+                Common.CallBacks.Verbose(string.Format("Cylinder Collision r:{0} h:{1}", radius, height));
 
                 metaData.batchstart_graphics = 0;
                 metaData.batchcount = 120;
@@ -1268,7 +1455,7 @@ namespace MVCore
                 float width = MathUtils.FloatParse(node.Attributes.FirstOrDefault(item => item.Name == "WIDTH").Value);
                 float height = MathUtils.FloatParse(node.Attributes.FirstOrDefault(item => item.Name == "HEIGHT").Value);
                 float depth = MathUtils.FloatParse(node.Attributes.FirstOrDefault(item => item.Name == "DEPTH").Value);
-                Common.CallBacks.Log(string.Format("Sphere Collision w:{0} h:{0} d:{0}", width, height, depth));
+                Common.CallBacks.Verbose(string.Format("Sphere Collision w:{0} h:{0} d:{0}", width, height, depth));
                 //Set general vao properties
                 metaData.batchstart_graphics = 0;
                 metaData.batchcount = 36;
@@ -1288,7 +1475,7 @@ namespace MVCore
                 //Set cvbo
                 float radius = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "RADIUS"));
                 float height = MathUtils.FloatParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "HEIGHT"));
-                Common.CallBacks.Log(string.Format("Capsule Collision r:{0} h:{1}", radius, height));
+                Common.CallBacks.Verbose(string.Format("Capsule Collision r:{0} h:{1}", radius, height));
                 metaData.batchstart_graphics = 0;
                 metaData.batchcount = 726;
                 metaData.vertrstart_graphics = 0;
@@ -1304,7 +1491,7 @@ namespace MVCore
             {
                 //Set cvbo
                 float radius = MathUtils.FloatParse(node.Attributes.FirstOrDefault(item => item.Name == "RADIUS").Value);
-                Common.CallBacks.Log(string.Format("Sphere Collision r:{0}", radius));
+                Common.CallBacks.Verbose(string.Format("Sphere Collision r:{0}", radius));
                 metaData.batchstart_graphics = 0;
                 metaData.batchcount = 600;
                 metaData.vertrstart_graphics = 0;
@@ -1325,7 +1512,7 @@ namespace MVCore
             so.meshVao.type = TYPES.COLLISION;
             so.meshVao.collisionType = so.collisionType;
 
-            Common.CallBacks.Log(string.Format("Batch Start {0} Count {1} ",
+            Common.CallBacks.Verbose(string.Format("Batch Start {0} Count {1} ",
                 metaData.batchstart_physics, metaData.batchcount));
 
             so.parent = parent;
@@ -1378,6 +1565,16 @@ namespace MVCore
 
             string attenuation = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "FALLOFF");
             so.falloff = parseLightFalloff(attenuation, so.Name);
+            if (float.TryParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "RADIUS"),
+                System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float radius))
+                so.radius = radius;
+            if (int.TryParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "COOKIE_IDX"), out int cookie))
+                so.cookieIndex = cookie;
+            if (float.TryParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "VOLUMETRIC"),
+                System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float volumetric))
+                so.volumetric = volumetric;
+            if (int.TryParse(parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "LIGHTLAYERS"), out int layers))
+                so.lightLayers = layers;
             
             //Add Light to the resource Manager
             so.update_struct();
@@ -1435,13 +1632,13 @@ namespace MVCore
                 transform.ScaleZ};
 
             //Another Scene file referenced
-            Common.CallBacks.Log("Reference Detected");
+            Common.CallBacks.Verbose("Reference Detected");
 
             string scene_ref = node.Attributes.FirstOrDefault(item => item.Name == "SCENEGRAPH").Value;
-            Common.CallBacks.Log(string.Format("Loading Reference {0}", scene_ref));
+            Common.CallBacks.Verbose(string.Format("Loading Reference {0}", scene_ref));
 
             //Getting Scene MBIN file
-            //string exmlPath = Path.GetFullPath(Util.getFullExmlPath(path));
+            //string mxmlPath = Path.GetFullPath(Util.getFullMxmlPath(path));
             //Common.CallBacks.Log("Loading Scene " + path);
             //Parse MBIN to xml
 
@@ -1502,7 +1699,7 @@ namespace MVCore
 
         }
 
-        private static Locator parseEmitter(TkSceneNodeData node,
+        private static ParticleEmitter parseEmitter(TkSceneNodeData node,
             GeomObject gobject, Model parent, Scene scene)
         {
             TkTransformData transform = node.Transform;
@@ -1520,8 +1717,8 @@ namespace MVCore
                 transform.ScaleX,
                 transform.ScaleY,
                 transform.ScaleZ};
-            Locator so = new Locator();
-            so.type = TYPES.EMITTER;
+            ParticleEmitter so = new ParticleEmitter();
+            so.parentScene = scene;
             //Fetch attributes
 
             //For now fetch only one attachment
@@ -1529,10 +1726,23 @@ namespace MVCore
             TkAttachmentData attachment_data = null;
             if (attachment != "")
             {
-                attachment_data = loadAttachment(attachment);
+                attachment_data = loadAttachment(so, attachment);
             }
 
-            //TODO: Parse Emitter material and Emission data. from the node attributes
+            //The runtime scene keeps the material and an authoring-time particle-data reference. The
+            //.particle.mXml itself is not present in the shipped PAKs, so the particle system infers a
+            //bounded profile while retaining these paths for future exact overrides.
+            so.MaterialPath = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "MATERIAL");
+            so.DataPath = parseNMSTemplateAttrib<TkSceneNodeAttributeData>(node.Attributes, "DATA");
+            if (!string.IsNullOrEmpty(so.MaterialPath))
+            {
+                if (!Common.RenderState.activeResMgr.GLmaterials.TryGetValue(so.MaterialPath, out Material material))
+                {
+                    material = parseMaterial(so.MaterialPath);
+                    Common.RenderState.activeResMgr.addMaterial(material);
+                }
+                so.ParticleMaterial = material;
+            }
 
 
             //Set Properties
@@ -1543,6 +1753,12 @@ namespace MVCore
             //Get Transformation
             so.parent = parent;
             so.init(transforms);
+
+            string samplerSummary = so.ParticleMaterial == null ? "<none>" : string.Join(", ",
+                so.ParticleMaterial.PSamplers.Values.OrderBy(s => s.PName).Select(s => s.PName + "=" + s.PMap));
+            CallBacks.Log("[EmitterImport] scene={0}; node={1}; path={2}; material={3}; data={4}; class={5}; samplers={6}",
+                scene?.name ?? "<none>", so.name, decalNodePath(so), so.MaterialPath, so.DataPath,
+                so.ParticleMaterial?.PClass ?? "<none>", samplerSummary);
 
             //Process Locator Attachments
             ProcessComponents(so, attachment_data, activeFilePath.Replace(".SCENE.MBIN", ".ANIM.MBIN"));
@@ -1559,11 +1775,56 @@ namespace MVCore
             return so;
         }
 
-        private static Model parseNode(TkSceneNodeData node, 
+        private static Model parseNode(TkSceneNodeData node,
             GeomObject gobject, Model parent, Scene scene)
         {
-            Common.CallBacks.Log(string.Format("Importing Scene {0} Node {1}", scene?.name, node.Name));
-            Common.CallBacks.updateStatus("Importing Scene: " + scene?.name + " Part: " + node.Name);
+            Model m = parseNodeType(node, gobject, parent, scene);
+            m.IsSceneNode = true;
+            foreach (TkSceneNodeAttributeData attribute in node.Attributes ?? new List<TkSceneNodeAttributeData>())
+            {
+                string name = attribute.Name?.Value ?? "";
+                if (name != "")
+                    m.SourceAttributes[name] = attribute.Value?.Value ?? "";
+            }
+            removeDerivedSourceAttributes(m);
+            return m;
+        }
+
+        private static void removeDerivedSourceAttributes(Model model)
+        {
+            void remove(params string[] names)
+            {
+                foreach (string name in names)
+                    model.SourceAttributes.Remove(name);
+            }
+
+            remove("ATTACHMENT");
+            if (model is Scene)
+            {
+                remove("GEOMETRY", "NUMLODS", "LODDIST1", "LODDIST2", "LODDIST3", "LODDIST4", "LODDIST5");
+            }
+            if (model is Mesh)
+            {
+                remove("MATERIAL", "BATCHSTARTPHYSI", "VERTRSTARTPHYSI", "VERTRENDPHYSICS",
+                    "BATCHSTARTGRAPH", "BATCHCOUNT", "VERTRSTARTGRAPH", "VERTRENDGRAPHIC",
+                    "FIRSTSKINMAT", "LASTSKINMAT", "LODLEVEL", "BOUNDHULLST", "BOUNDHULLED",
+                    "AABBMINX", "AABBMINY", "AABBMINZ", "AABBMAXX", "AABBMAXY", "AABBMAXZ", "HASH");
+            }
+            if (model is Joint)
+                remove("JOINTINDEX");
+            if (model is Light)
+                remove("COL_R", "COL_G", "COL_B", "FOV", "FALLOFF", "INTENSITY", "RADIUS",
+                    "COOKIE_IDX", "VOLUMETRIC", "LIGHTLAYERS");
+            if (model is Reference)
+                remove("SCENEGRAPH");
+            if (model is ParticleEmitter)
+                remove("DATA", "MATERIAL");
+        }
+
+        private static Model parseNodeType(TkSceneNodeData node, 
+            GeomObject gobject, Model parent, Scene scene)
+        {
+            Common.CallBacks.Verbose(string.Format("Importing Scene {0} Node {1}", scene?.name, node.Name));
 
             TYPES typeEnum;
             if (!Enum.TryParse<TYPES>(node.Type, out typeEnum))
@@ -1571,7 +1832,7 @@ namespace MVCore
             
             if (typeEnum == TYPES.MESH)
             {
-                Common.CallBacks.Log(string.Format("Parsing Mesh {0}", node.Name));
+                Common.CallBacks.Verbose(string.Format("Parsing Mesh {0}", node.Name));
                 return parseMesh(node, gobject, parent, scene);
             }
             else if (typeEnum == TYPES.MODEL)
@@ -1598,7 +1859,7 @@ namespace MVCore
             }
             else if (typeEnum == TYPES.LIGHT)
             {
-                Common.CallBacks.Log(string.Format("Parsing Light, {0}", node.Name));
+                Common.CallBacks.Verbose(string.Format("Parsing Light, {0}", node.Name));
                 return parseLight(node, gobject, parent, scene);
             }
 

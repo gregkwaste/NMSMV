@@ -26,15 +26,15 @@ namespace MVCore.Input
 
         public void SetButtonState(System.Windows.Input.MouseButton btn, bool value)
         {
-            ButtonState[btn] = value;
+            lock (ButtonState)
+                ButtonState[btn] = value;
         }
 
         public void Clear()
         {
-            foreach (System.Windows.Input.MouseButton btn in ButtonState.Keys)
-            {
-                ButtonState[btn] = false;
-            }
+            lock (ButtonState)
+                foreach (System.Windows.Input.MouseButton btn in new List<System.Windows.Input.MouseButton>(ButtonState.Keys))
+                    ButtonState[btn] = false;
         }
 
 
@@ -56,7 +56,8 @@ namespace MVCore.Input
 
         public void SetKeyState(Key key, bool value)
         {
-            KeyState[key] = value;
+            lock (KeyState)
+                KeyState[key] = value;
         }
 
         public void updateState(MVKeyboardState ref_state)
@@ -69,15 +70,15 @@ namespace MVCore.Input
 
         public int getKeyStatus(Key k)
         {
-            return KeyState[k] ? 1 : 0;
+            lock (KeyState)
+                return KeyState[k] ? 1 : 0;
         }
 
         public void Clear()
         {
-            foreach (Key k in KeyState.Keys)
-            {
-                KeyState[k] = false;
-            }
+            lock (KeyState)
+                foreach (Key k in new List<Key>(KeyState.Keys))
+                    KeyState[k] = false;
         }
 
     }

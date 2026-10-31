@@ -3,6 +3,7 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <OutputType>WinExe</OutputType>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <SelfContained>false</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PlatformTarget>x64</PlatformTarget>
@@ -43,11 +44,15 @@
   </ItemGroup>
   <ItemGroup>
     <None Update="changelog.txt" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Wwise Vorbis codebooks (from ww2ogg), needed to decode the game's .WEM audio -->
+    <None Include="..\lib\packed_codebooks_aoTuV_603.bin" Link="packed_codebooks_aoTuV_603.bin" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('..\lib\packed_codebooks_aoTuV_603.bin')" />
     <!-- Shaders live next to the solution and are loaded from the output folder at runtime -->
     <None Include="..\Shaders\**\*" LinkBase="Shaders" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\Resources\droid.fnt" Link="Resources\droid.fnt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\Resources\droid.png" Link="Resources\droid.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="AssimpNet" Version="5.0.0-beta1" />
+    <PackageReference Include="AssimpNetter" Version="6.0.5" />
     <PackageReference Include="Costura.Fody" Version="6.2.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -56,9 +61,10 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+    <PackageReference Include="NAudio.WinMM" Version="2.2.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-    <PackageReference Include="OpenTK.GLWpfControl" Version="4.3.6" />
+    <PackageReference Include="NVorbis" Version="0.10.5" />
+    <PackageReference Include="OpenTK.GLControl" Version="4.0.2" />
     <PackageReference Include="OpenTK" Version="4.9.4" />
   </ItemGroup>
   <Import Project="..\MVCore\MVCore.projitems" Label="Shared" />

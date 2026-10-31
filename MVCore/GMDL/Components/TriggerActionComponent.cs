@@ -1,6 +1,7 @@
 ﻿using libMBIN;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Text;
 using libMBIN.NMS.GameComponents;
 using System.Security.RightsManagement;
@@ -10,13 +11,16 @@ namespace MVCore.GMDL
 {
     public abstract class Trigger
     {
-        public NMSTemplate _template;
+        public NMSTemplate Template;
         public Trigger() { }
 
         public Trigger(NMSTemplate t)
         {
-            _template = t;
+            Template = t;
         }
+
+        //One line summary for the UI and the action log
+        public abstract string Description { get; }
     }
 
     public class StateTimeEventTrigger : Trigger
@@ -28,11 +32,14 @@ namespace MVCore.GMDL
 
         }
 
+        public override string Description =>
+            "StateTime " + Seconds + "s" + (RandomSeconds > 0.0f ? " + rand " + RandomSeconds + "s" : "");
+
         //Exposed Properties
         public float Seconds
         {
             get {
-                return ((GcStateTimeEvent)_template).Seconds;
+                return ((GcStateTimeEvent)Template).Seconds;
                 }
         }
 
@@ -40,7 +47,7 @@ namespace MVCore.GMDL
         {
             get
             {
-                return ((GcStateTimeEvent)_template).RandomSeconds;
+                return ((GcStateTimeEvent)Template).RandomSeconds;
             }
         }
     }
@@ -54,12 +61,15 @@ namespace MVCore.GMDL
 
         }
 
+        public override string Description =>
+            "AnimFrame " + Anim + " @" + (StartFromEnd ? "end-" : "") + FrameStart;
+
         //Exposed Properties
         public string Anim
         {
             get
             {
-                return ((GcAnimFrameEvent)_template).Anim;
+                return ((GcAnimFrameEvent)Template).Anim;
             }
         }
 
@@ -67,7 +77,7 @@ namespace MVCore.GMDL
         {
             get
             {
-                return ((GcAnimFrameEvent)_template).FrameStart;
+                return ((GcAnimFrameEvent)Template).FrameStart;
             }
         }
 
@@ -75,7 +85,7 @@ namespace MVCore.GMDL
         {
             get
             {
-                return ((GcAnimFrameEvent)_template).StartFromEnd;
+                return ((GcAnimFrameEvent)Template).StartFromEnd;
             }
         }
     }
@@ -92,13 +102,15 @@ namespace MVCore.GMDL
             
         }
 
+        public override string Description => "PlayerNearby " + (Inverse ? "> " : "< ") + Distance + "m";
+
         //Exposed Properties
 
         public string RequirePLayerAction
         {
             get
             {
-                return ((GcPlayerNearbyEvent)_template).RequirePlayerAction.ToString();
+                return ((GcPlayerNearbyEvent)Template).RequirePlayerAction.ToString();
             }
         }
 
@@ -106,7 +118,7 @@ namespace MVCore.GMDL
         {
             get
             {
-                return ((GcPlayerNearbyEvent)_template).Angle;
+                return ((GcPlayerNearbyEvent)Template).Angle;
             }
         }
 
@@ -114,7 +126,7 @@ namespace MVCore.GMDL
         {
             get
             {
-                return ((GcPlayerNearbyEvent)_template).AnglePlayerRelative;
+                return ((GcPlayerNearbyEvent)Template).AnglePlayerRelative;
             }
         }
 
@@ -122,7 +134,7 @@ namespace MVCore.GMDL
         {
             get
             {
-                return ((GcPlayerNearbyEvent)_template).AngleOffset;
+                return ((GcPlayerNearbyEvent)Template).AngleOffset;
             }
         }
 
@@ -130,7 +142,7 @@ namespace MVCore.GMDL
         {
             get
             {
-                return ((GcPlayerNearbyEvent)_template).DistanceCheckType.ToString();
+                return ((GcPlayerNearbyEvent)Template).DistanceCheckType.ToString();
             }
         }
 
@@ -138,7 +150,7 @@ namespace MVCore.GMDL
         {
             get
             {
-                return ((GcPlayerNearbyEvent)_template).Inverse;
+                return ((GcPlayerNearbyEvent)Template).Inverse;
             }
         }
 
@@ -146,7 +158,7 @@ namespace MVCore.GMDL
         {
             get
             {
-                return ((GcPlayerNearbyEvent)_template).Distance;
+                return ((GcPlayerNearbyEvent)Template).Distance;
             }
         }
         
@@ -160,13 +172,27 @@ namespace MVCore.GMDL
 
     public abstract class Action
     {
-        public NMSTemplate _template;
+        public NMSTemplate Template;
         public Action() { }
 
         public Action(NMSTemplate t)
         {
-            _template = t;
+            Template = t;
         }
+
+        //One line summary for the UI and the action log
+        public abstract string Description { get; }
+    }
+
+    //An action the viewer doesn't emulate, kept so the UI lists every action of a trigger
+    public class UnsupportedAction : Action
+    {
+        public UnsupportedAction(NMSTemplate t) : base(t)
+        {
+
+        }
+
+        public override string Description => Template.GetType().Name.Replace("Gc", "") + " (not emulated)";
     }
 
     public class NodeActivationAction:Action
@@ -181,12 +207,15 @@ namespace MVCore.GMDL
             
         }
 
+        public override string Description =>
+            "NodeActivation " + NodeActiveState + " " + Name + (UseMasterModel ? " (master)" : "");
+
         //Exposed Properties
         public string Name
         {
             get 
             {
-                return ((GcNodeActivationAction) _template).Name;
+                return ((GcNodeActivationAction) Template).Name;
             }
         }
 
@@ -194,7 +223,7 @@ namespace MVCore.GMDL
         {
             get
             {
-                return ((GcNodeActivationAction)_template).NodeActiveState.ToString();
+                return ((GcNodeActivationAction)Template).NodeActiveState.ToString();
             }
         }
 
@@ -202,7 +231,7 @@ namespace MVCore.GMDL
         {
             get
             {
-                return ((GcNodeActivationAction) _template).UseMasterModel;
+                return ((GcNodeActivationAction) Template).UseMasterModel;
             }
         }
 
@@ -220,11 +249,13 @@ namespace MVCore.GMDL
 
         }
 
+        public override string Description => "PlayAnim " + Anim;
+
         //Expose Properties
         
         public string Anim
         {
-            get { return ((GcPlayAnimAction)_template).Anim; }
+            get { return ((GcPlayAnimAction)Template).Anim; }
         }
     }
 
@@ -240,12 +271,14 @@ namespace MVCore.GMDL
 
         }
 
+        public override string Description => "GoToState " + State + (Broadcast ? " (broadcast)" : "");
+
         //Exposed Properties
         public string State
         {
             get
             {
-                return ((GcGoToStateAction)_template).State;
+                return ((GcGoToStateAction)Template).State;
             }
         }
 
@@ -253,7 +286,7 @@ namespace MVCore.GMDL
         {
             get
             {
-                return ((GcGoToStateAction)_template).Broadcast;
+                return ((GcGoToStateAction)Template).Broadcast;
             }
         }
 
@@ -261,17 +294,47 @@ namespace MVCore.GMDL
         {
             get
             {
-                return ((GcGoToStateAction)_template).BroadcastLevel.ToString();
+                return ((GcGoToStateAction)Template).BroadcastLevel.ToString();
             }
         }
 
     }
 
-    public class ActionTrigger
+    public class ActionTrigger : INotifyPropertyChanged
     {
-        NMSTemplate _template;
-        public List<Action> Actions;
-        public Trigger Trigger;
+        NMSTemplate Template;
+        public List<Action> Actions { get; private set; }
+        public Trigger Trigger { get; private set; }
+        //Set when Trigger is null: triggers without an event fire as soon as their state is entered,
+        //events the viewer doesn't emulate never fire
+        public bool FiresImmediately { get; private set; } = false;
+        public string EventName { get; private set; } = "None";
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        public string Description
+        {
+            get
+            {
+                if (Trigger != null)
+                    return Trigger.Description;
+                return FiresImmediately ? "On enter" : EventName.Replace("Gc", "") + " (not emulated)";
+            }
+        }
+
+        //Fired since its state was last entered, set by the ActionSystem
+        private bool _fired = false;
+        public bool Fired
+        {
+            get { return _fired; }
+            set
+            {
+                if (_fired == value)
+                    return;
+                _fired = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Fired"));
+            }
+        }
         
         public ActionTrigger() {
             Actions = new List<Action>();
@@ -279,7 +342,7 @@ namespace MVCore.GMDL
 
         public ActionTrigger(GcActionTrigger at)
         {
-            _template = at;
+            Template = at;
             
             //Populate Actions
             Actions = new List<Action>();
@@ -291,10 +354,15 @@ namespace MVCore.GMDL
                     Actions.Add(new GoToStateAction(t));
                 else if (t is GcPlayAnimAction)
                     Actions.Add(new PlayAnimAction(t));
+                else if (t.GetType().Name == "GcPlayAudioAction") //By name, like the AudioComponent
+                    Actions.Add(new PlayAudioAction(t));
                 else if (t is EmptyNode)
                     continue;
                 else
-                    Common.CallBacks.Log("Non Implemented Action");
+                {
+                    Actions.Add(new UnsupportedAction(t));
+                    Common.CallBacks.Log("Action " + t.GetType().Name + " is not emulated");
+                }
             }
             
             //Set Trigger
@@ -312,8 +380,11 @@ namespace MVCore.GMDL
             }
             else
             {
-                Common.CallBacks.Log("Non Implemented Trigger");
                 Trigger = null;
+                EventName = at.Event?.GetType().Name ?? "None";
+                FiresImmediately = at.Event == null || at.Event is EmptyNode;
+                if (!FiresImmediately)
+                    Common.CallBacks.Log("Event " + EventName + " is not emulated, its trigger never fires");
             }
             
 
@@ -325,19 +396,36 @@ namespace MVCore.GMDL
 
     }
 
-    public class ActionTriggerState
+    public class ActionTriggerState : INotifyPropertyChanged
     {
-        GcActionTriggerState _template;
-        public List<ActionTrigger> Triggers;
+        GcActionTriggerState Template;
+        public List<ActionTrigger> Triggers { get; private set; }
+        public TriggerActionComponent Owner; //Lets the UI force this state on its component
         public ActionTriggerState() { }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        //The entity is in this state, set by the ActionSystem
+        private bool _isCurrent = false;
+        public bool IsCurrent
+        {
+            get { return _isCurrent; }
+            set
+            {
+                if (_isCurrent == value)
+                    return;
+                _isCurrent = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("IsCurrent"));
+            }
+        }
 
         public ActionTriggerState(GcActionTriggerState ats)
         {
-            _template = ats;
+            Template = ats;
             Triggers = new List<ActionTrigger>();
             
             //Populate Triggers
-            foreach (GcActionTrigger at in _template.Triggers)
+            foreach (GcActionTrigger at in Template.Triggers)
             {
                 Triggers.Add(new ActionTrigger(at));
             }
@@ -348,55 +436,73 @@ namespace MVCore.GMDL
         {
             get
             {
-                return _template.StateID;
+                return Template.StateID;
             }
         }
 
     }
 
 
-   public class TriggerActionComponent : Component
+   public class TriggerActionComponent : IComponent, INotifyPropertyChanged
     {
-        public GcTriggerActionComponentData _template;
-        public List<ActionTriggerState> States;
+        public GcTriggerActionComponentData Template;
+        public List<ActionTriggerState> States { get; private set; }
         public Dictionary<string, ActionTriggerState> StateMap;
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        //Emulation status shown in the UI, set by the ActionSystem
+        private string _currentStateID = "Not running";
+        public string CurrentStateID
+        {
+            get { return _currentStateID; }
+            set
+            {
+                if (_currentStateID == value)
+                    return;
+                _currentStateID = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("CurrentStateID"));
+            }
+        }
 
         public TriggerActionComponent()
         {
+            Template = new GcTriggerActionComponentData();
             States = new List<ActionTriggerState>();
             StateMap = new Dictionary<string, ActionTriggerState>();
         }
 
         public TriggerActionComponent(GcTriggerActionComponentData tacd)
         {
-            _template = tacd;
+            Template = tacd;
             //Populate States
             States = new List<ActionTriggerState>();
             StateMap = new Dictionary<string, ActionTriggerState>();
             foreach (GcActionTriggerState s in tacd.States)
             {
                 ActionTriggerState ats = new ActionTriggerState(s);
+                ats.Owner = this;
                 States.Add(ats);
                 StateMap[ats.StateID] = ats;
             }
         }
 
-        public override Component Clone()
+        public IComponent Clone()
         {
-            //TODO: Make sure to properly populate the new object
-            return new TriggerActionComponent();
+            //Copies share the entity data
+            return new TriggerActionComponent(Template);
         }
 
         //Exposed Properties
 
         public bool HideModel
         {
-            get { return _template.HideModel; }
+            get { return Template.HideModel; }
         }
 
-        public bool StartInteractive
+        public bool StartInactive
         {
-            get { return _template.StartInactive; }
+            get { return Template.StartInactive; }
         }
 
     }

@@ -12,29 +12,19 @@ using OpenTK.Graphics.OpenGL4;
 
 namespace MVCore
 {
-    public interface baseResourceManager
-    {
-        void cleanup();
-    }
-
-
     //Class Which will store all the texture resources for better memory management
     public class ResourceManager
     {
-        //public Dictionary<string, GMDL.Texture> GLtextures = new Dictionary<string, GMDL.Texture>();
         public Dictionary<string, Material> GLmaterials = new Dictionary<string, GMDL.Material>();
         public Dictionary<string, GeomObject> GLgeoms = new Dictionary<string, GMDL.GeomObject>();
         public Dictionary<string, Scene> GLScenes = new Dictionary<string, GMDL.Scene>();
-        public Dictionary<string, Texture> GLTextures = new Dictionary<string, GMDL.Texture>();
         public Dictionary<string, AnimMetadata> Animations = new Dictionary<string, AnimMetadata>();
 
         public Dictionary<string, GLVao> GLPrimitiveVaos = new Dictionary<string, GLVao>();
-        public Dictionary<string, GLVao> GLVaos = new Dictionary<string, GLVao>();
         public Dictionary<string, GLMeshVao> GLPrimitiveMeshVaos = new Dictionary<string, GLMeshVao>();
 
         public List<GMDL.Light> GLlights = new List<GMDL.Light>();
         public List<Camera> GLCameras = new List<Camera>();
-        //public Dictionary<string, int> GLShaders = new Dictionary<string, int>();
         public Dictionary<GLSLHelper.SHADER_TYPE, GLSLHelper.GLSLShaderConfig> GLShaders = new Dictionary<GLSLHelper.SHADER_TYPE, GLSLHelper.GLSLShaderConfig>(); //Generic Shaders
 
         public Dictionary<int, GLSLShaderConfig> GLDeferredLITShaderMap = new Dictionary<int, GLSLShaderConfig>();
@@ -56,17 +46,11 @@ namespace MVCore
         //Global NMS File Archive handles
         public Dictionary<string, string> NMSFileToArchiveMap = new Dictionary<string, string>();
         
-        //public int[] shader_programs;
         //Extra manager
         public textureManager texMgr = new textureManager();
 
         public bool initialized = false;
 
-        //Procedural Generation Options
-        //TODO: This is 99% NOT correct
-        //public Dictionary<string, int> procTextureLayerSelections = new Dictionary<string, int>();
-
-        //public DebugForm DebugWin;
 
         private bool sharedResourcesCreated = false;
 
@@ -113,16 +97,16 @@ namespace MVCore
 
 #if (DEBUG)
             //Query GL Extensions
-            Common.CallBacks.Log("OPENGL AVAILABLE EXTENSIONS:");
+            Common.CallBacks.Verbose("OPENGL AVAILABLE EXTENSIONS:");
             string[] ext = GL.GetString(StringNameIndexed.Extensions, 0).Split(' ');
             foreach (string s in ext)
             {
                 if (s.Contains("explicit"))
-                    Common.CallBacks.Log(s);
+                    Common.CallBacks.Verbose(s);
                 if (s.Contains("texture"))
-                    Common.CallBacks.Log(s);
+                    Common.CallBacks.Verbose(s);
                 if (s.Contains("16"))
-                    Common.CallBacks.Log(s);
+                    Common.CallBacks.Verbose(s);
             }
 
             //Query maximum buffer sizes
@@ -132,19 +116,6 @@ namespace MVCore
             //Populate shader list
             string log = "";
             GLSLHelper.GLSLShaderConfig shader_conf;
-
-            //Geometry Shader
-            //Compile Object Shaders
-            GLSLShaderText geometry_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText geometry_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            GLSLShaderText geometry_shader_gs = new GLSLShaderText(ShaderType.GeometryShader);
-            geometry_shader_vs.addStringFromFile("Shaders/Simple_VSEmpty.glsl");
-            geometry_shader_fs.addStringFromFile("Shaders/Simple_FSEmpty.glsl");
-            geometry_shader_gs.addStringFromFile("Shaders/Simple_GS.glsl");
-
-            GLShaderHelper.compileShader(geometry_shader_vs, geometry_shader_fs, geometry_shader_gs, null, null,
-                            SHADER_TYPE.DEBUG_MESH_SHADER, ref log);
-
 
             //Compile Object Shaders
             GLSLShaderText gizmo_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
@@ -158,23 +129,30 @@ namespace MVCore
             GLShaderHelper.attachUBOToShaderBindingPoint(shader_conf, "_COMMON_PER_FRAME", 0);
             GLShaders[SHADER_TYPE.GIZMO_SHADER] = shader_conf;
 
+            //Viewport text (signed-distance-field bitmap font)
+            GLSLShaderText text_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText text_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            text_shader_vs.addStringFromFile("Shaders/Text_VS.glsl");
+            text_shader_fs.addStringFromFile("Shaders/Text_FS.glsl");
+            shader_conf = GLShaderHelper.compileShader(text_shader_vs, text_shader_fs, null, null, null,
+                            SHADER_TYPE.TEXT_SHADER, ref log);
+            GLShaders[SHADER_TYPE.TEXT_SHADER] = shader_conf;
+
+            //Billboard particles for scene EMITTER nodes.
+            GLSLShaderText particle_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
+            GLSLShaderText particle_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
+            particle_shader_vs.addStringFromFile("Shaders/Particle_VS.glsl");
+            particle_shader_fs.addStringFromFile("Shaders/Particle_FS.glsl");
+            shader_conf = GLShaderHelper.compileShader(particle_shader_vs, particle_shader_fs, null, null, null,
+                            SHADER_TYPE.PARTICLE_SHADER, ref log);
+            GLShaderHelper.attachUBOToShaderBindingPoint(shader_conf, "_COMMON_PER_FRAME", 0);
+            GLShaders[SHADER_TYPE.PARTICLE_SHADER] = shader_conf;
+
 
 #if DEBUG
             //Report UBOs
             GLShaderHelper.reportUBOs(shader_conf);
 #endif
-
-            //Picking Shader
-
-            //Compile Default Shaders
-
-            //BoundBox Shader
-            GLSLShaderText bbox_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
-            GLSLShaderText bbox_shader_fs = new GLSLShaderText(ShaderType.FragmentShader);
-            bbox_shader_vs.addStringFromFile("Shaders/Bound_VS.glsl");
-            bbox_shader_fs.addStringFromFile("Shaders/Bound_FS.glsl");
-            GLShaderHelper.compileShader(bbox_shader_vs, bbox_shader_fs, null, null, null,
-                GLSLHelper.SHADER_TYPE.BBOX_SHADER, ref log);
 
             //Texture Mixing Shader
             GLSLShaderText texture_mixing_shader_vs = new GLSLShaderText(ShaderType.VertexShader);
@@ -263,10 +241,6 @@ namespace MVCore
             GLShaders[SHADER_TYPE.BWOIT_COMPOSITE_SHADER] = shader_conf;
 
 
-            //Camera Shaders
-            //TODO: Add Camera Shaders if required
-            GLShaders[GLSLHelper.SHADER_TYPE.CAMERA_SHADER] = null;
-
             //FILTERS - EFFECTS
 
             //Pass Shader
@@ -282,15 +256,14 @@ namespace MVCore
 
         private void addDefaultCameras()
         {
-            Camera cam = new Camera(90, -1, 0, true);
+            Camera cam = new Camera(90, 0, true);
             cam.isActive = false;
             GLCameras.Add(cam);
 
             if (RenderState.activeCam != null)
             {
                 GLCameras[0].settings = RenderState.activeCam.settings;
-                Camera.SetCameraPosition(ref cam, RenderState.activeCam.Position);
-                //Camera.SetCameraDirection(ref cam, RenderState.activeCam.Direction);
+                cam.Position = RenderState.activeCam.Position;
             }
 
             //Set as active camera the first one by default
@@ -321,9 +294,11 @@ namespace MVCore
             Light light = new Light
             {
                 name = "Default Light",
-                intensity = 200,
-                localPosition = new Vector3(100.0f, 100.0f, 100.0f)
+                Intensity = 2.0f,
+                localPosition = new Vector3(1.0f, 1.0f, 1.0f)
             };
+            light.worldPosition = light.localPosition;
+            light.update_struct();
 
             GLlights.Add(light);
         }
@@ -393,13 +368,18 @@ namespace MVCore
         private void generateGizmoParts()
         {
             //Translation Gizmo
-            GMDL.Primitives.Arrow translation_x_axis = new GMDL.Primitives.Arrow(0.015f, 0.25f, new Vector3(1.0f, 0.0f, 0.0f), false, 20);
+            const int arrowSides = 32;
+            const int ringSegments = 96;
+            const int ringSides = 10;
+            const int scaleShaftSides = 24;
+
+            GMDL.Primitives.Arrow translation_x_axis = new GMDL.Primitives.Arrow(0.015f, 0.25f, new Vector3(1.0f, 0.0f, 0.0f), false, arrowSides);
             //Move arrowhead up in place
-            Matrix4 t = Matrix4.CreateRotationZ(MathUtils.radians(90));
+            Matrix4 t = Matrix4.CreateRotationZ(MathUtils.radians(-90));
             translation_x_axis.applyTransform(t);
 
-            GMDL.Primitives.Arrow translation_y_axis = new GMDL.Primitives.Arrow(0.015f, 0.25f, new Vector3(0.0f, 1.0f, 0.0f), false, 20);
-            GMDL.Primitives.Arrow translation_z_axis = new GMDL.Primitives.Arrow(0.015f, 0.25f, new Vector3(0.0f, 0.0f, 1.0f), false, 20);
+            GMDL.Primitives.Arrow translation_y_axis = new GMDL.Primitives.Arrow(0.015f, 0.25f, new Vector3(0.0f, 1.0f, 0.0f), false, arrowSides);
+            GMDL.Primitives.Arrow translation_z_axis = new GMDL.Primitives.Arrow(0.015f, 0.25f, new Vector3(0.0f, 0.0f, 1.0f), false, arrowSides);
             t = Matrix4.CreateRotationX(MathUtils.radians(90));
             translation_z_axis.applyTransform(t);
 
@@ -445,6 +425,49 @@ namespace MVCore
 
             }
 
+            //Rotation rings (the base torus lies in XZ, with a +Y normal).
+            GMDL.Primitives.GizmoRing rotation_y = new GMDL.Primitives.GizmoRing(
+                0.25f, 0.0075f, new Vector3(0.0f, 1.0f, 0.0f), false, ringSegments, ringSides);
+            GMDL.Primitives.GizmoRing rotation_x = new GMDL.Primitives.GizmoRing(
+                0.25f, 0.0075f, new Vector3(1.0f, 0.0f, 0.0f), false, ringSegments, ringSides);
+            rotation_x.applyTransform(Matrix4.CreateRotationZ(MathUtils.radians(90)));
+            GMDL.Primitives.GizmoRing rotation_z = new GMDL.Primitives.GizmoRing(
+                0.25f, 0.0075f, new Vector3(0.0f, 0.0f, 1.0f), false, ringSegments, ringSides);
+            rotation_z.applyTransform(Matrix4.CreateRotationX(MathUtils.radians(90)));
+            registerGizmoPrimitive("default_rotation_gizmo_x_axis", rotation_x);
+            registerGizmoPrimitive("default_rotation_gizmo_y_axis", rotation_y);
+            registerGizmoPrimitive("default_rotation_gizmo_z_axis", rotation_z);
+
+            //Scale shafts and cube tips.
+            GMDL.Primitives.GizmoScaleHandle scale_y = new GMDL.Primitives.GizmoScaleHandle(
+                0.006f, 0.22f, 0.035f, new Vector3(0.0f, 1.0f, 0.0f), false, scaleShaftSides);
+            GMDL.Primitives.GizmoScaleHandle scale_x = new GMDL.Primitives.GizmoScaleHandle(
+                0.006f, 0.22f, 0.035f, new Vector3(1.0f, 0.0f, 0.0f), false, scaleShaftSides);
+            scale_x.applyTransform(Matrix4.CreateRotationZ(MathUtils.radians(-90)));
+            GMDL.Primitives.GizmoScaleHandle scale_z = new GMDL.Primitives.GizmoScaleHandle(
+                0.006f, 0.22f, 0.035f, new Vector3(0.0f, 0.0f, 1.0f), false, scaleShaftSides);
+            scale_z.applyTransform(Matrix4.CreateRotationX(MathUtils.radians(90)));
+            GMDL.Primitives.GizmoScaleHandle scale_uniform = new GMDL.Primitives.GizmoScaleHandle(
+                0.001f, 0.0f, 0.045f, new Vector3(1.0f, 1.0f, 0.15f));
+            registerGizmoPrimitive("default_scale_gizmo_x_axis", scale_x);
+            registerGizmoPrimitive("default_scale_gizmo_y_axis", scale_y);
+            registerGizmoPrimitive("default_scale_gizmo_z_axis", scale_z);
+            registerGizmoPrimitive("default_scale_gizmo_uniform", scale_uniform);
+
+        }
+
+        private void registerGizmoPrimitive(string name, GMDL.Primitives.Primitive primitive)
+        {
+            primitive.geom = primitive.getGeom();
+            GLPrimitiveVaos[name] = primitive.getVAO();
+            GLMeshVao mesh = new GLMeshVao();
+            mesh.type = TYPES.GIZMOPART;
+            mesh.metaData = new MeshMetaData();
+            mesh.metaData.batchcount = primitive.geom.indicesCount;
+            mesh.metaData.indicesLength = DrawElementsType.UnsignedInt;
+            mesh.vao = GLPrimitiveVaos[name];
+            mesh.material = GLmaterials["crossMat"];
+            GLPrimitiveMeshVaos[name] = mesh;
         }
 
         public void addDefaultPrimitives()
@@ -539,8 +562,6 @@ namespace MVCore
         {
             //Cleanup global texture manager
             texMgr.cleanup();
-            //procTextureLayerSelections.Clear();
-
             foreach (Scene p in GLScenes.Values)
                 p.Dispose();
             GLScenes.Clear();
@@ -550,11 +571,6 @@ namespace MVCore
                 p.Dispose();
             GLgeoms.Clear();
 
-            //Cleanup GLVaos
-            foreach (GLVao p in GLVaos.Values)
-                p.Dispose();
-            GLVaos.Clear();
-            
             //Cleanup Animations
             Animations.Clear();
 

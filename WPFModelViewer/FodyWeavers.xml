@@ -4,11 +4,9 @@
       libHGPAK
       ZstdSharp
 	  OpenTK.*
-	  GLWpfControl
 	  System.Servicemodel.*
-	  MathNet.Numerics
       Newtonsoft.Json
-      AssimpNet
+      AssimpNetter
 	  Microsoft.*
     </IncludeAssemblies>
   </Costura>

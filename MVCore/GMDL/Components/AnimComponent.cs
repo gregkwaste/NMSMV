@@ -6,8 +6,10 @@ using MVCore.Utils;
 
 namespace MVCore.GMDL
 {
-    public class AnimComponent : Component
+    public class AnimComponent : IComponent
     {
+        //The component entry of the entity file
+        public TkAnimationComponentData Template;
         //animations list Contains all the animations bound to the locator through Tkanimationcomponent
         public List<AnimData> _animations = new List<AnimData>();
         public Dictionary<string, AnimData> _animDict = new Dictionary<string, AnimData>();
@@ -23,7 +25,7 @@ namespace MVCore.GMDL
         //Default Constructor
         public AnimComponent()
         {
-
+            Template = new TkAnimationComponentData();
         }
 
         public AnimData getAnimation(string Name)
@@ -47,17 +49,9 @@ namespace MVCore.GMDL
         }
 
 
-        public void assimpExport(ref Assimp.Scene scn)
-        {
-            foreach (AnimData ad in Animations)
-            {
-                Assimp.Animation anim = ad.assimpExport(ref scn);
-                scn.Animations.Add(anim);
-            }
-        }
-
         public AnimComponent(TkAnimationComponentData data, string default_anim_name)
         {
+            Template = data;
             //Load Animations
             if (data.Idle.Anim != "")
             {
@@ -79,20 +73,29 @@ namespace MVCore.GMDL
                 _animDict[my_ad.PName] = my_ad;
             }
 
+            linkAdditiveBases();
         }
 
-        public void copyFrom(AnimComponent input)
+        //Additive clips measure their motion from a frame of a clip of this component
+        private void linkAdditiveBases()
         {
-            //Base class is dummy
-            //base.copyFrom(input); //Copy stuff from base class
-
-            //TODO: Copy Animations
-
+            foreach (AnimData ad in _animations)
+            {
+                string name = ad.AdditiveBaseAnim;
+                ad.AdditiveBase = null;
+                if (name == "")
+                    continue;
+                if (_animDict.TryGetValue(name, out AnimData base_ad))
+                    ad.AdditiveBase = base_ad;
+                else
+                    Common.CallBacks.Log("Additive base animation " + name + " of " + ad.Anim + " not found");
+            }
         }
 
-        public override Component Clone()
+        public IComponent Clone()
         {
             AnimComponent ac = new AnimComponent();
+            ac.Template = Template;
 
             //Copy Animations
             foreach (AnimData ad in _animations)
@@ -101,35 +104,10 @@ namespace MVCore.GMDL
                 ac.Animations.Add(clone);
                 ac._animDict[clone.PName] = clone;
             }
-                
+
+            ac.linkAdditiveBases();
             return ac;
         }
-
-        public void update()
-        {
-
-        }
-
-        protected AnimComponent(AnimComponent input)
-        {
-            this.copyFrom(input);
-        }
-
-        #region IDisposable Support
-        private bool disposed = false; // To detect redundant calls
-        protected override void Dispose(bool disposing)
-        {
-            if (!disposed)
-            {
-                if (disposing)
-                {
-                    base.Dispose(disposing);
-                }
-                disposed = true;
-            }
-        }
-
-        #endregion
 
     }
 }
