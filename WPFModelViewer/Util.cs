@@ -22,7 +22,6 @@ namespace WPFModelViewer
         public static int VersionMinor = 0;
         public static bool Prerelease = true;
         
-        public static string donateLink = "https://www.paypal.com/donate/?hosted_button_id=UMHWZK6BU5MWG";
         public static readonly Random randgen = new Random();
         
         public static Window activeWindow;

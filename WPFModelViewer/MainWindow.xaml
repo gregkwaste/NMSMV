@@ -852,9 +852,9 @@
                 <MenuItem x:Name="OpenFilePAKHandle" Header ="Open File from .pak" Click="OpenFilePAK"/>
                 <MenuItem Header ="Update libMBIN" Click="UpdateLibMBIN_Click"/>
                 <MenuItem Header ="Settings" Click="showSettingsDialog"/>
-                <MenuItem Header ="Close" Click="FormClose"/>
+                <MenuItem Header ="Exit" Click="FormClose"/>
             </MenuItem>
-            <MenuItem Header="About" Click="showAboutDialog"/>
+            <MenuItem Header="About" Click="About_Click"/>
         </Menu>
 
         <!-- Horizontal Splitter -->
@@ -877,10 +877,11 @@
                 </Grid.RowDefinitions>
                 <Grid Grid.Row="0">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="42"/>
+                        <RowDefinition Height="58"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <StackPanel Grid.Row="0" Height="40" Margin="3,1" VerticalAlignment="Top"
+                    <GroupBox Header="Viewport Controls">
+                    <StackPanel Grid.Row="0" Height="auto" Margin="3,1" VerticalAlignment="Top"
                                 Orientation="Horizontal">
                             <StackPanel.Resources>
                                 <Style TargetType="RadioButton">
@@ -929,6 +930,7 @@
                                       StrokeThickness="1.7" Data="M2,14 L14,2 M14,2 L9,2 M14,2 L14,7 M2,14 L7,14 M2,14 L2,9"/>
                             </RadioButton>
                     </StackPanel>
+                    </GroupBox>
                     <GroupBox Grid.Row="1" Header="SceneGraph" BorderThickness="2" VerticalAlignment="Stretch">
                         <TreeView x:Name="SceneTreeView"
                                 ItemContainerStyle="{StaticResource TreeViewItemStyle}"
@@ -1128,7 +1130,7 @@
                 <TextBlock x:Name="StatusLabel" >Ready</TextBlock>
             </StatusBarItem>
             <StatusBarItem HorizontalAlignment="Right" VerticalContentAlignment="Bottom">
-                Created by gregkwaste™
+                Created by gregkwaste
             </StatusBarItem>
         </StatusBar>
 

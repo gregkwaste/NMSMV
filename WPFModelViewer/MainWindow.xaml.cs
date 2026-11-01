@@ -34,6 +34,11 @@ namespace WPFModelViewer
 
     public partial class MainWindow : Window
     {
+        private void About_Click(object sender, RoutedEventArgs e)
+        {
+            new AboutWindow { Owner = this }.ShowDialog();
+        }
+
         private CGLControl glControl;
         private OpenTK.GLControl.GLControl nativeViewportControl;
         private sealed class PakSceneEntry
@@ -170,7 +175,6 @@ namespace WPFModelViewer
 
         //Tool windows open once: asking again brings the open one to the front
         private Window sceneListWindow;
-        private Window aboutWindow;
         private Window settingsWindow;
 
         private bool activateIfOpen(Window w)
@@ -557,17 +561,6 @@ namespace WPFModelViewer
             }
             else
                 setActiveModel(node);
-        }
-
-        private void showAboutDialog(object sender, RoutedEventArgs e)
-        {
-            if (activateIfOpen(aboutWindow))
-                return;
-
-            aboutWindow = new AboutDialog();
-            aboutWindow.Owner = this;
-            aboutWindow.Closed += delegate { aboutWindow = null; };
-            aboutWindow.Show();
         }
 
         private void showSettingsDialog(object sender, RoutedEventArgs e)
@@ -1159,4 +1152,3 @@ namespace WPFModelViewer
     }
 
 }
-

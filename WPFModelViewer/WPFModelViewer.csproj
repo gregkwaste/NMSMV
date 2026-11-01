@@ -12,9 +12,9 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <ApplicationIcon>ianm32logo_border.ico</ApplicationIcon>
-    <ApplicationManifest>Properties\app.manifest</ApplicationManifest>
     <SupportedOSPlatformVersion>7.0</SupportedOSPlatformVersion>
+    <ApplicationIcon>logo.ico</ApplicationIcon>
+    <ApplicationManifest>Properties\app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="libHGPAK">
@@ -38,17 +38,14 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="ianm32logo_border.ico" />
-  </ItemGroup>
-  <ItemGroup>
-    <Resource Include="Resources\ianm32logo_border.png" />
-  </ItemGroup>
-  <ItemGroup>
     <None Update="changelog.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Resources\default.dds" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="Resources\default_mask.dds" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <!-- Wwise Vorbis codebooks (from ww2ogg), needed to decode the game's .WEM audio -->
     <None Include="..\lib\packed_codebooks_aoTuV_603.bin" Link="packed_codebooks_aoTuV_603.bin" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('..\lib\packed_codebooks_aoTuV_603.bin')" />
     <!-- Shaders live next to the solution and are loaded from the output folder at runtime -->
     <None Include="..\Shaders\**\*" LinkBase="Shaders" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Resource Include="logo.ico" />
     <None Include="..\Resources\droid.fnt" Link="Resources\droid.fnt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="..\Resources\droid.png" Link="Resources\droid.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
