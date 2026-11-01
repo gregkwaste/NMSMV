@@ -136,16 +136,22 @@ namespace Model_Viewer
         private int viewportWidth => _nativeControl.ClientSize.Width;
         private int viewportHeight => _nativeControl.ClientSize.Height;
 
-        public void SetActiveModel(Model model)
+        public async void SetActiveModel(Model model)
         {
-            RenderState.activeModel = model;
-            TransformGizmo gizmo = RenderState.activeGizmo ??= new TransformGizmo();
-            gizmo.SetReference(model);
+            await engine.InvokeOnRenderThreadAsync(() =>
+            {
+                if (RenderState.activeModel != null) RenderState.activeModel.selected = 0;
+                RenderState.activeModel = model;
+                if (model != null) model.selected = 1;
+                TransformGizmo gizmo = RenderState.activeGizmo ??= new TransformGizmo();
+                gizmo.SetReference(model);
+                RenderState.instancesDirty = true;
+            });
         }
 
-        public void SetGizmoMode(GIZMO_MODE mode)
+        public async void SetGizmoMode(GIZMO_MODE mode)
         {
-            activeGizmo?.SetMode(mode);
+            await engine.InvokeOnRenderThreadAsync(() => activeGizmo?.SetMode(mode));
         }
 
         private void queueModelUpdate(Model model)
@@ -212,7 +218,7 @@ namespace Model_Viewer
                 {
                     if (mouseMovementStatus == MouseMovementStatus.GIZMO_MOVEMENT)
                     {
-                        activeGizmo?.EndDrag();
+                        _ = engine.InvokeOnRenderThreadAsync(() => activeGizmo?.EndDrag());
                         RenderState.instancesDirty = true;
                     }
                     mouseMovementStatus = MouseMovementStatus.IDLE;
@@ -590,7 +596,7 @@ namespace Model_Viewer
             RenderState.activeCam.settings.Speed *= (float)Math.Pow(1.25, e.Delta / 120.0);
         }
 
-        private void nativeMouseDown(object sender, System.Windows.Forms.MouseEventArgs e)
+        private async void nativeMouseDown(object sender, System.Windows.Forms.MouseEventArgs e)
         {
             _nativeControl.Focus();
             engine.msHandler.Position = new Vector2(e.X, e.Y);
@@ -602,10 +608,20 @@ namespace Model_Viewer
             engine.msHandler.SetButtonState(System.Windows.Input.MouseButton.Left, left);
             engine.msHandler.SetButtonState(System.Windows.Input.MouseButton.Right, right);
 
-            activeGizmo?.UpdateHover(engine.msHandler.Position, viewportWidth, viewportHeight,
-                                     RenderState.activeCam);
-            if (left && activeGizmo?.BeginDrag(engine.msHandler.Position, viewportWidth, viewportHeight,
-                                               RenderState.activeCam) == true)
+            Vector2 mouse = new Vector2(e.X, e.Y);
+            int width = viewportWidth, height = viewportHeight;
+            bool dragging = false;
+            await engine.InvokeOnRenderThreadAsync(() =>
+            {
+                activeGizmo?.UpdateHover(mouse, width, height, RenderState.activeCam);
+                dragging = left && activeGizmo?.BeginDrag(mouse, width, height, RenderState.activeCam) == true;
+            });
+            if ((System.Windows.Forms.Control.MouseButtons & System.Windows.Forms.MouseButtons.Left) == 0)
+            {
+                await engine.InvokeOnRenderThreadAsync(() => activeGizmo?.EndDrag());
+                return;
+            }
+            if (dragging)
             {
                 CallBacks.Log("Engaging gizmo movement");
                 mouseMovementStatus = MouseMovementStatus.GIZMO_MOVEMENT;
@@ -626,11 +642,16 @@ namespace Model_Viewer
             engine.msHandler.Delta = current - engine.msHandler.PrevPosition;
 
             bool left = (e.Button & System.Windows.Forms.MouseButtons.Left) != 0;
+            int width = viewportWidth, height = viewportHeight;
             if (mouseMovementStatus == MouseMovementStatus.IDLE)
-                activeGizmo?.UpdateHover(current, viewportWidth, viewportHeight, RenderState.activeCam);
-            else if (mouseMovementStatus == MouseMovementStatus.GIZMO_MOVEMENT && left &&
-                     activeGizmo?.Drag(current) == true)
-                queueModelUpdate(activeGizmo.reference);
+                _ = engine.InvokeOnRenderThreadAsync(() =>
+                    activeGizmo?.UpdateHover(current, width, height, RenderState.activeCam));
+            else if (mouseMovementStatus == MouseMovementStatus.GIZMO_MOVEMENT && left)
+                _ = engine.InvokeOnRenderThreadAsync(() =>
+                {
+                    if (activeGizmo?.Drag(current) == true)
+                        queueModelUpdate(activeGizmo.reference);
+                });
             if (mouseMovementStatus == MouseMovementStatus.CAMERA_MOVEMENT && left)
             {
                 Camera cam = RenderState.activeCam;
@@ -650,7 +671,7 @@ namespace Model_Viewer
             {
                 if (mouseMovementStatus == MouseMovementStatus.GIZMO_MOVEMENT)
                 {
-                    activeGizmo?.EndDrag();
+                    _ = engine.InvokeOnRenderThreadAsync(() => activeGizmo?.EndDrag());
                     RenderState.instancesDirty = true;
                 }
                 mouseMovementStatus = MouseMovementStatus.IDLE;
@@ -1206,8 +1227,10 @@ namespace Model_Viewer
 
             engine.renderMgr.clearInstances();
             foreach (FlatRenderItem item in flatRenderItems)
+            {
                 if (overlayEnabled(item.node))
                     item.node.updateOwnMeshInfo(item.Hidden);
+            }
         }
 
         private void frameUpdate()
@@ -1356,6 +1379,8 @@ namespace Model_Viewer
         //of the node and its descendants, so refresh those existing stable instance slots.
         private static void updateExistingInstanceData(Model node)
         {
+            if (node is Joint joint)
+                joint.RefreshLineGeometry();
             if (hasCurrentInstance(node) && !(node is Joint) && !(node is Light))
             {
                 GLMeshBufferManager.setInstanceWorldMat(node.meshVao, node.instanceId, node.worldMat);
@@ -1372,24 +1397,28 @@ namespace Model_Viewer
         }
 
         //Skinned meshes receive animation through their joint palette. Rigid meshes parented below animated
-        //joints (for example the portal terminal) instead need their instance transform refreshed.
+        //joints (for example the portal terminal) and locator helpers need their instance transforms refreshed.
         private static void updateAnimatedSkinData(Model node)
         {
+            if (node is Joint joint)
+                joint.RefreshLineGeometry();
             if (node is Scene scene)
                 scene.updateSkinMatrices();
 
-            if (node is Mesh mesh && mesh.parentScene != null && hasCurrentInstance(mesh))
+            if (hasCurrentInstance(node) &&
+                (node is Locator || (node is Mesh && node.parentScene != null)))
             {
-                if (mesh.Skinned)
+                if (node is Mesh mesh && mesh.Skinned)
                 {
                     mesh.meshVao.setSkinMatrices(mesh.parentScene, mesh.instanceId);
                 }
-                else
+                
+
                 {
-                    GLMeshBufferManager.setInstanceWorldMat(mesh.meshVao, mesh.instanceId, mesh.worldMat);
-                    Matrix4 inverse = mesh.getWorldMatInv();
-                    GLMeshBufferManager.setInstanceWorldMatInv(mesh.meshVao, mesh.instanceId, inverse);
-                    GLMeshBufferManager.setInstanceNormalMat(mesh.meshVao, mesh.instanceId, Matrix4.Transpose(inverse));
+                    GLMeshBufferManager.setInstanceWorldMat(node.meshVao, node.instanceId, node.worldMat);
+                    Matrix4 inverse = node.getWorldMatInv();
+                    GLMeshBufferManager.setInstanceWorldMatInv(node.meshVao, node.instanceId, inverse);
+                    GLMeshBufferManager.setInstanceNormalMat(node.meshVao, node.instanceId, Matrix4.Transpose(inverse));
                 }
             }
 

@@ -109,9 +109,8 @@ namespace GLSLHelper {
             GL.GetShader(shader_object_id, ShaderParameter.CompileStatus, out status_code);
             if (status_code != 1)
             {
-                CallBacks.Log(GLShaderHelper.NumberLines(actual_shader_source));
-                CallBacks.showError("Failed to compile shader for the model. Contact Dev",
-                    "Shader Compilation Error");
+                GL.DeleteShader(shader_object_id);
+                shader_object_id = 0;
                 GLShaderHelper.throwCompilationError(compilation_log +
                     GLShaderHelper.NumberLines(actual_shader_source) + "\n" + info);
             }
@@ -124,18 +123,23 @@ namespace GLSLHelper {
             string path = Path.Combine(fw.Path, fw.Filter);
             CallBacks.Log("Reloading {0}", path);
             string data = "";
-            bool islocked = true;
-
-            while (islocked)
+            //Editors can briefly lock a file while saving. Never wait indefinitely.
+            for (int attempt = 0; attempt < 5; attempt++)
             {
                 try
                 {
                     data = File.ReadAllText(path);
-                    islocked = false;
+                    break;
                 }
-                catch (System.IO.IOException)
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
                 {
-                    continue;
+                    if (attempt == 4 || ex is UnauthorizedAccessException)
+                    {
+                        CallBacks.showError("Could not reload shader " + path + ": " + ex.Message,
+                            "Shader Reload Error");
+                        return;
+                    }
+                    System.Threading.Thread.Sleep(50);
                 }
 
             }
@@ -560,15 +564,15 @@ namespace GLSLHelper {
             config.linkVersion++;
 
             //Check Linking
+            GL.GetProgramInfoLog(config.program_id, out info);
             if (RenderState.enableShaderCompilationLog)
             {
-                GL.GetProgramInfoLog(config.program_id, out info);
                 config.log += info + "\n";
             }
                 
             GL.GetProgram(config.program_id, GetProgramParameterName.LinkStatus, out status_code);
             if (status_code != 1)
-                throwCompilationError(config.log);
+                throwCompilationError(config.log + "\n" + info);
 
             loadActiveUniforms(config);
         }
@@ -633,11 +637,19 @@ namespace GLSLHelper {
                     GL.GetProgram(shader_conf.program_id, GetProgramParameterName.LinkStatus, out status_code);
                     if (status_code != 1)
                     {
-                        CallBacks.Log("Unable to link the new shader. Reverting to the old shader");
-                        return;
+                        GL.GetProgramInfoLog(shader_conf.program_id, out string linkLog);
+                        GL.DetachShader(shader_conf.program_id, shaderText.shader_object_id);
+                        GL.AttachShader(shader_conf.program_id, attached_shaders[i]);
+                        GL.DeleteShader(shaderText.shader_object_id);
+                        shaderText.shader_object_id = attached_shaders[i];
+                        GL.LinkProgram(shader_conf.program_id);
+                        shader_conf.linkVersion++;
+                        loadActiveUniforms(shader_conf);
+                        throwCompilationError("Shader reload could not be linked; restored the previous shader.\n" + linkLog);
                     }
 
                     //Delete old shader and reload uniforms
+                    GL.DeleteShader(attached_shaders[i]);
                     loadActiveUniforms(shader_conf); //Re-load active uniforms
                     CallBacks.Log("Shader was modified successfully");
                     break;
@@ -649,19 +661,33 @@ namespace GLSLHelper {
 
         public static void throwCompilationError(string log)
         {
-            //Lock execution until the file is available
-            string log_file = "shader_compilation_log.out";
+            string logFile = Path.Combine(AppContext.BaseDirectory, "shader_compilation_log.out");
+            string details;
+            try
+            {
+                //One attempt only: a locked/unwritable log must not stall the renderer.
+                File.WriteAllText(logFile, log ?? "");
+                details = "Details were saved to:\n" + logFile;
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                details = "Could not write the shader log: " + ex.Message +
+                    "\n\n" + (log ?? "");
+            }
 
-            if (!File.Exists(log_file))
-                File.Create(log_file);
-            
-            while (!FileUtils.IsFileReady(log_file)) { };
-            
-            StreamWriter sr = new StreamWriter(log_file);
-            sr.Write(log);
-            sr.Close();
-            CallBacks.Log(log);
-            throw new ApplicationException("Shader Compilation Failed. Check Log");
+            string message = "Shader compilation or linking failed. The affected shader could not be loaded.\n\n" + details;
+            //The application's normal logger may also be unwritable. Still try to notify the user
+            //and always propagate the original shader failure rather than a logging exception.
+            try { CallBacks.Log(log); } catch (Exception) { }
+            try { CallBacks.showError(message, "Shader Compilation Error"); }
+            catch (Exception)
+            {
+                var dispatcher = Application.Current?.Dispatcher;
+                if (dispatcher != null && !dispatcher.HasShutdownStarted)
+                    dispatcher.BeginInvoke(new Action(() => MessageBox.Show(message,
+                        "Shader Compilation Error", MessageBoxButton.OK, MessageBoxImage.Error)));
+            }
+            throw new ApplicationException("Shader compilation or linking failed. " + details);
         }
     }
 }

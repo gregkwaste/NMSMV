@@ -507,6 +507,13 @@ void pbr_lighting(){
 		//Keep the RGBA16F accumulation finite (max 65504) when bright glow layers overlap
 		finalColor.rgb = min(finalColor.rgb, vec3(64.0));
 
+		#ifdef __D_ADDITIVE
+			//Straight alpha: the additive pass uses SRC_ALPHA, ONE into the HDR frame.
+			//Do not contribute to weighted transparency or background revealage.
+			outcolors[0] = vec4(finalColor.rgb, clamp(finalColor.a, 0.0, 1.0));
+			return;
+		#endif
+
 		//Weighted Blended order independent transparency (McGuire & Bavoil, depth weight from window z).
 		//The old weight ran pow() on NDC z, which is negative for the nearer half of the depth range and gives NaN
 		float d = 1.0 - gl_FragCoord.z;

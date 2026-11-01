@@ -1071,6 +1071,7 @@ namespace MVCore
                 //Copy depth channel to pbuf
                 FramebufferBlitter.CopyDepth(gbuf.fbo, pbuf.fbo, pbuf.size[0], pbuf.size[1], gbuf.size[0], gbuf.size[1]);
                 renderTransparent();
+                renderAdditive();
             }
                     
         }
@@ -1232,6 +1233,8 @@ namespace MVCore
                 //Render transparent meshes
                 foreach (GLMeshVao m in resMgr.transparentMeshShaderMap[shader.shaderHash])
                 {
+                    if (m.material.ShaderFlags.Contains("_D_ADDITIVE"))
+                        continue;
                     if (m.instance_count == 0 || m.UBO_aligned_size == 0)
                         continue;
                     
@@ -1264,6 +1267,46 @@ namespace MVCore
         }
 
         
+        //Add light after ordinary transparency has been composited, but before bloom/tone mapping.
+        //No sorting: additive RGB contributions commute. Opaque depth still occludes these meshes.
+        private void renderAdditive()
+        {
+            TextureBindCache.reset();
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, pbuf.fbo);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+            GL.Enable(EnableCap.DepthTest);
+            GL.DepthMask(false);
+            GL.Enable(EnableCap.Blend);
+            GL.BlendEquation(BlendEquationMode.FuncAdd);
+            //Preserve destination alpha; only RGB represents additive light.
+            GL.BlendFuncSeparate(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.One,
+                BlendingFactorSrc.Zero, BlendingFactorDest.One);
+            GL.PolygonMode(TriangleFace.FrontAndBack, RenderState.renderSettings.RENDERMODE);
+            beginMeshCulling();
+            try
+            {
+                foreach (GLSLShaderConfig shader in resMgr.activeGLForwardTransparentShaders)
+                {
+                    GL.UseProgram(shader.program_id);
+                    foreach (GLMeshVao mesh in resMgr.transparentMeshShaderMap[shader.shaderHash])
+                    {
+                        if (!mesh.material.ShaderFlags.Contains("_D_ADDITIVE") ||
+                            mesh.instance_count == 0 || mesh.UBO_aligned_size == 0)
+                            continue;
+                        bindPerMeshSSBOs(mesh);
+                        setMeshCulling(mesh);
+                        mesh.render(shader, RENDERPASS.FORWARD);
+                    }
+                }
+            }
+            finally
+            {
+                GL.DepthMask(true);
+                GL.Disable(EnableCap.Blend);
+                beginMeshCulling();
+            }
+        }
+
         private void renderFinalPass()
         {
             GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, pbuf.fbo);

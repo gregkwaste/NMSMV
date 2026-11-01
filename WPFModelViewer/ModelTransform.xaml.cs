@@ -118,7 +118,7 @@ namespace WPFModelViewer
         }
 
 
-        private void applyTransform()
+        private async void applyTransform()
         {
             float lX, lY, lZ;
             //Translation
@@ -140,24 +140,36 @@ namespace WPFModelViewer
             Vector3 scale = new Vector3(lX, lY, lZ);
 
             //The new values become the rest transform of the node, which the export writes
-            _mdl.setUserTransform(position, angles, scale);
-            _mdl.update(); //Trigger model update
+            Model model = _mdl;
+            await MVCore.Common.CallBacks.enqueueRenderCommand(() =>
+            {
+                model.setUserTransform(position, angles, scale);
+                model.update();
+            });
         
         }
 
         //Reset transform
-        private void resetTransform(object sender, RoutedEventArgs e)
+        private async void resetTransform(object sender, RoutedEventArgs e)
         {
-            _mdl.__localPosition = oldrestposition;
-            _mdl.__localRotation = oldrestrotation;
-            _mdl.__localScale = oldrestscale;
-            _mdl._localRotationAngles = oldangles;
-            _mdl.localPosition = oldtranslation;
-            _mdl.localRotation = oldrotation;
-            _mdl.localScale = oldscale;
+            Model model = _mdl;
+            Vector3 restPosition = oldrestposition, restScale = oldrestscale, angles = oldangles;
+            Vector3 position = oldtranslation, scale = oldscale;
+            Matrix4 restRotation = oldrestrotation, rotation = oldrotation;
+            await MVCore.Common.CallBacks.enqueueRenderCommand(() =>
+            {
+                model.__localPosition = restPosition;
+                model.__localRotation = restRotation;
+                model.__localScale = restScale;
+                model._localRotationAngles = angles;
+                model.localPosition = position;
+                model.localRotation = rotation;
+                model.localScale = scale;
+                model.update();
+            });
 
             //Reload Values to the control
-            loadModel(_mdl);
+            if (_mdl == model) loadModel(model);
             
         }
 

@@ -44,6 +44,21 @@ namespace MVCore.GMDL
             //We do not apply frustum occlusion on joint objects
             if (Common.RenderState.renderViewSettings.RenderJoints && !lod_filter && renderable && (Children.Count > 0))
             {
+                RefreshLineGeometry();
+                instanceId = GLMeshBufferManager.addInstance(meshVao, this, Matrix4.Identity, Matrix4.Identity, Matrix4.Identity);
+            }
+
+            Common.RenderStats.jointTicks += System.Diagnostics.Stopwatch.GetTimestamp() - t0;
+            Common.RenderStats.jointCount++;
+        }
+
+        //Refresh animated endpoints without changing instance membership or LOD visibility.
+        //Must be called on the render thread after world transforms have been propagated.
+        public void RefreshLineGeometry()
+        {
+            if (Common.RenderState.renderViewSettings.RenderJoints && renderable &&
+                Children.Count > 0 && meshVao?.vao != null)
+            {
                 //Update Vertex Buffer based on the new positions
                 int floats = 2 * Children.Count * 3;
                 int arraysize = floats * sizeof(float);
@@ -74,11 +89,7 @@ namespace MVCore.GMDL
                     uploadedVerts = (float[]) verts.Clone();
                     Common.RenderStats.jointUploads++;
                 }
-                instanceId = GLMeshBufferManager.addInstance(meshVao, this, Matrix4.Identity, Matrix4.Identity, Matrix4.Identity);
             }
-
-            Common.RenderStats.jointTicks += System.Diagnostics.Stopwatch.GetTimestamp() - t0;
-            Common.RenderStats.jointCount++;
         }
 
         public override Model Clone()

@@ -114,13 +114,16 @@ namespace MVCore.GMDL
                     case TkMaterialClass.MaterialClassEnum.HighlightTrans:
                     case TkMaterialClass.MaterialClassEnum.HighlightTransDoubleSided:
                     case TkMaterialClass.MaterialClassEnum.HighlightTransOccluded:
-                    //Additive blending is approximated with the regular transparent pass
+                        add("_F09_TRANSPARENT");
+                        break;
+                    //Keep forward shader storage shared, but use a distinct shader and blend pass.
                     case TkMaterialClass.MaterialClassEnum.Additive:
                     case TkMaterialClass.MaterialClassEnum.AdditiveHighQuality:
                     case TkMaterialClass.MaterialClassEnum.DoublesidedAdditive:
                     case TkMaterialClass.MaterialClassEnum.GunAdditive:
                     case TkMaterialClass.MaterialClassEnum.HighlightAdditive:
                         add("_F09_TRANSPARENT");
+                        add("_D_ADDITIVE");
                         break;
                     case TkMaterialClass.MaterialClassEnum.GlowTranslucent:
                         add("_F09_TRANSPARENT");
@@ -291,7 +294,7 @@ namespace MVCore.GMDL
 
         //Mix this material's procedural textures again (new layer picks and palette colours) and point the
         //samplers at the results. Several materials can share one procedural texture, mixed holds what is done
-        public void regenProcTextures(HashSet<string> mixed)
+        public void regenProcTextures(HashSet<string> mixed, List<Texture> retired)
         {
             Sampler diffuse = null;
             foreach (Sampler s in PSamplers.Values)
@@ -308,9 +311,9 @@ namespace MVCore.GMDL
             string baseName = diffuse.Map; //X.MIXED.DDS
             string prefix = baseName.Substring(0, baseName.Length - 3); //X.MIXED.
             string[] names = { prefix + "DDS", prefix + "MASKS.DDS", prefix + "NORMAL.DDS" };
-            textureManager tm = diffuse.texMgr;
+            textureManager tm = Common.RenderState.activeResMgr.texMgr;
 
-            if (mixed.Add(tm.GetHashCode() + ":" + baseName))
+            if (mixed.Add(baseName))
             {
                 //The mixer replaces the entries, free the old textures only once the new ones exist
                 List<Texture> old = new List<Texture>();
@@ -327,15 +330,15 @@ namespace MVCore.GMDL
                         if (tm.GLtextures.TryGetValue(n, out Texture cur) && cur == t)
                             replaced = false;
                     if (replaced)
-                        t.Dispose();
+                        retired.Add(t);
                 }
             }
 
             foreach (Sampler s in PSamplers.Values)
             {
                 string map = s.Map;
-                if (Array.IndexOf(names, map) >= 0 && s.texMgr != null && s.texMgr.hasTexture(map))
-                    s.tex = s.texMgr.getTexture(map);
+                if (Array.IndexOf(names, map) >= 0 && tm.hasTexture(map))
+                    s.tex = tm.getTexture(map);
             }
         }
 

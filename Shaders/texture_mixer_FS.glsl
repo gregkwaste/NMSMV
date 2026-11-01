@@ -103,7 +103,7 @@ vec4 MixTextures(){
 	//The base layer's own alpha is the material's opacity, keep it for the output
 	float lfBaseAlpha = lLayerXVec4[baseLayerIndex].a;
 
-	//The base layer (lowest used index) covers everything, the layers above it use their alpha as coverage
+	//The base layer (highest used index) covers everything, overlays use their alpha as coverage
 	gBaseAlphaLayerXVec4[baseLayerIndex] = 1.0;
 	for (int i=0; i<8; i++) {
 	   	lfAlpha[i] = mix(lfAlpha[i], 1.0, gBaseAlphaLayerXVec4[i]);
@@ -137,9 +137,9 @@ vec4 MixTextures(){
 	}
 	
 
-	//Blend the layers bottom up: base first, then each layer over it by its coverage
+	//Descriptors list overlays first: blend backwards, from the base up to the topmost overlay
 	vec4 lFinalDiffColor = vec4(0.0, 0.0, 0.0, 0.0);
-	for (int i=0; i<8; i++) {
+	for (int i=7; i>=0; i--) {
 		lFinalDiffColor = mix(lFinalDiffColor, lLayerXVec4[i], lfAlpha[i]);
 	}
 	//Masks and normals blend all four channels. The diffuse alpha is the opacity, not coverage, so it comes from the base

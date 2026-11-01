@@ -1,0 +1,27 @@
+---
+interface Props {
+  title: string;
+  filename?: string;  // Can be local file OR remote URL
+  accent?: 'cyan' | 'violet' | 'amber';
+}
+
+const { title, filename, accent = 'cyan' } = Astro.props;
+
+const isRemoteUrl = filename && /^https?:\/\//.test(filename);
+const videoSrc = filename
+  ? isRemoteUrl ? filename : `${import.meta.env.BASE_URL}videos/${filename}`
+  : undefined;
+---
+
+<figure class={`demo-frame demo-frame--${accent}`}>
+  <figcaption class="demo-frame__bar">
+    <span class="demo-frame__eyebrow">{title}</span>
+    <div class="demo-frame__controls" aria-hidden="true"><i></i><i></i><i></i></div>
+  </figcaption>
+  <div class="demo-frame__viewport">
+    <video class="demo-frame__video" controls muted loop playsinline preload="metadata" aria-label={`${title} feature clip`}>
+      {videoSrc && <source src={`${videoSrc}#t=0.001`} type="video/mp4" />}
+      {videoSrc && <a href={videoSrc}>Watch {title}</a>}
+    </video>
+  </div>
+</figure>

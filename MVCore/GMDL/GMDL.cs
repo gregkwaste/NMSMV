@@ -689,6 +689,7 @@ namespace MVCore.GMDL
             newsampler.texMgr = texMgr;
             newsampler.tex = tex;
             newsampler.texUnit = texUnit;
+            newsampler.isProcGen = isProcGen;
 
             return newsampler;
         }
@@ -733,7 +734,17 @@ namespace MVCore.GMDL
                 //Detect Procedural Texture
                 if (NMSUtils.NMSFileExists(texMbin, RenderState.activeResMgr)) //PAKs or the unpacked folder
                 {
-                    TextureMixer.combineTextures(Map, Palettes.paletteSel, ref texMgr);
+                    textureManager shared = RenderState.activeResMgr.texMgr;
+                    string mixedPrefix = TextureMixer.mixedName(Map);
+                    if (!shared.hasTexture(mixedPrefix + "DDS") ||
+                        !shared.hasTexture(mixedPrefix + "MASKS.DDS") ||
+                        !shared.hasTexture(mixedPrefix + "NORMAL.DDS"))
+                        TextureMixer.combineTextures(Map, Palettes.paletteSel, ref shared);
+                    if (!shared.hasTexture(mixedPrefix + "DDS"))
+                    {
+                        loadTexture();
+                        return;
+                    }
                     //Override Map with the mixed result (X.MIXED.DDS, see TextureMixer.mixedName)
                     Map = TextureMixer.mixedName(Map) + "DDS";
                     isProcGen = true;

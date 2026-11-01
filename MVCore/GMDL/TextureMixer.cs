@@ -268,7 +268,7 @@ namespace MVCore.GMDL
         //X.DDS (or X.MIXED.DDS) -> "X.MIXED.", the prefix of the mixed diffuse/masks/normal names
         public static string mixedName(string path)
         {
-            return path.Split('.')[0] + ".MIXED.";
+            return path.Replace('\\', '/').Split('.')[0].ToUpperInvariant() + ".MIXED.";
         }
 
         private static string siblingTexture(string diffusePath, string suffix)
@@ -279,10 +279,10 @@ namespace MVCore.GMDL
             return NMSUtils.NMSFileExists(path, Common.RenderState.activeResMgr) ? path : "";
         }
 
-        //The base layer is the lowest used one (layer 0 is named BASE in the descriptors)
-        private static int firstUsedLayer(Func<int, bool> used)
+        //Descriptors list topmost overlays first and the base last.
+        private static int baseUsedLayer(Func<int, bool> used)
         {
-            for (int i = 0; i < 8; i++)
+            for (int i = 7; i >= 0; i--)
                 if (used(i))
                     return i;
             return 0;
@@ -359,7 +359,7 @@ namespace MVCore.GMDL
             GL.UseProgram(pass_program);
 
             //Upload base Layers Used
-            int baseLayerIndex = firstUsedLayer(i => baseLayersUsed[i] > 0.0f);
+            int baseLayerIndex = baseUsedLayer(i => baseLayersUsed[i] > 0.0f);
             loc = GL.GetUniformLocation(pass_program, "lbaseLayersUsed");
             if (loc >= 0)
             {
@@ -476,7 +476,7 @@ namespace MVCore.GMDL
 
             //Same layers and coverage as the diffuse: every layer with a diffuse takes part, so a layer
             //without its own masks (default_mask.dds is used instead) still covers the layers below it
-            int baseLayerIndex = firstUsedLayer(i => baseLayersUsed[i] > 0.0f);
+            int baseLayerIndex = baseUsedLayer(i => baseLayersUsed[i] > 0.0f);
             loc = GL.GetUniformLocation(pass_program, "lbaseLayersUsed");
             if (loc >= 0)
             {
@@ -599,7 +599,7 @@ namespace MVCore.GMDL
 
             //Same layers and coverage as the diffuse: every layer with a diffuse takes part, so a layer
             //without its own normals still covers the layers below it
-            int baseLayerIndex = firstUsedLayer(i => baseLayersUsed[i] > 0.0f);
+            int baseLayerIndex = baseUsedLayer(i => baseLayersUsed[i] > 0.0f);
             loc = GL.GetUniformLocation(pass_program, "lbaseLayersUsed");
             if (loc >= 0)
             {

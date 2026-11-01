@@ -212,7 +212,7 @@ namespace WPFModelViewer
                 string sourceTexture = sampler.Map?.Value ?? "";
                 if (File.Exists(sourceTexture))
                 {
-                    sampler.Map = exportTexture(sourceTexture, logicalScene);
+                    sampler.Map = exportTexture(sourceTexture, logicalScene, sampler.Name?.Value);
                     if (!sourceTexture.EndsWith(".DDS", StringComparison.OrdinalIgnoreCase))
                     {
                         sampler.UseCompression = true;
@@ -227,10 +227,14 @@ namespace WPFModelViewer
             return logical;
         }
 
-        private string exportTexture(string sourcePath, string logicalScene)
+        private string exportTexture(string sourcePath, string logicalScene, string samplerName)
         {
             string fullSource = Path.GetFullPath(sourcePath);
-            if (textures.TryGetValue(fullSource, out string existing))
+            bool isDds = fullSource.EndsWith(".DDS", StringComparison.OrdinalIgnoreCase);
+            DdsTextureConverter.Compression compression = isDds ? default :
+                DdsTextureConverter.SelectCompression(fullSource, samplerName);
+            string cacheKey = fullSource + "|" + (isDds ? "DDS" : compression.ToString());
+            if (textures.TryGetValue(cacheKey, out string existing))
                 return existing;
 
             string directory = textureDirectory(logicalScene);
@@ -243,15 +247,14 @@ namespace WPFModelViewer
 
             string destination = physicalPath(logical);
             createParentDirectory(destination);
-            if (fullSource.EndsWith(".DDS", StringComparison.OrdinalIgnoreCase))
+            if (isDds)
                 File.Copy(fullSource, destination, true);
             else
             {
-                bool transparent = DdsTextureConverter.HasTransparency(fullSource);
-                DdsTextureConverter.Convert(fullSource, destination, transparent);
-                CallBacks.Log($"Converted texture to {(transparent ? "BC5" : "BC1")} DDS {destination}");
+                DdsTextureConverter.Convert(fullSource, destination, compression);
+                CallBacks.Log($"Converted texture to {compression.ToString().ToUpperInvariant()} DDS {destination}");
             }
-            textures.Add(fullSource, logical);
+            textures.Add(cacheKey, logical);
             fileCount++;
             return logical;
         }

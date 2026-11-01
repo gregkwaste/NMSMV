@@ -457,10 +457,13 @@ namespace WPFModelViewer
             await glControl.engine.RegenerateProceduralTexturesAsync();
         }
 
-        private void RegenPose_Click(object sender, RoutedEventArgs e)
+        private async void RegenPose_Click(object sender, RoutedEventArgs e)
         {
-            if (RenderState.rootObject != null)
-                randomisePoses(RenderState.rootObject);
+            await glControl.engine.InvokeOnRenderThreadAsync(() =>
+            {
+                if (RenderState.rootObject != null)
+                    randomisePoses(RenderState.rootObject);
+            });
         }
 
         private static void randomisePoses(Model m)
@@ -516,19 +519,14 @@ namespace WPFModelViewer
         private void setActiveModel(Model node)
         {
             //Swap activeModels
-            Model prev_activeModel = RenderState.activeModel;
             glControl.SetActiveModel(node);
 
             //Set binding to objectinfo box
             ObjectInfoBox.Content = node;
 
             //Set Selected
-            RenderState.activeModel.selected = 1;
 
             //Deselect Previews model
-            if (prev_activeModel != null && prev_activeModel != node)
-                prev_activeModel.selected = 0;
-            RenderState.instancesDirty = true;
         }
 
         //Selects a node in the scene tree, expanding its parents. Used by the Systems panel
@@ -1161,5 +1159,4 @@ namespace WPFModelViewer
     }
 
 }
-
 

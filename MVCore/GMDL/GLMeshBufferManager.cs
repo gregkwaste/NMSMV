@@ -104,6 +104,10 @@ namespace MVCore.GMDL
 
         public static int registerInstance(GLMeshVao mesh, Model m)
         {
+            //Joint helper vertices are already in world space. Applying the joint's
+            //world matrix again separates bone endpoints and distorts the skeleton.
+            if (m is Joint)
+                return registerInstance(mesh, m, Matrix4.Identity, Matrix4.Identity, Matrix4.Identity);
             Matrix4 inverse = m.getWorldMatInv();
             return registerInstance(mesh, m, m.worldMat, inverse, Matrix4.Transpose(inverse));
         }

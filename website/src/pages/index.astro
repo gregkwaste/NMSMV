@@ -1,0 +1,208 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import VideoPlaceholder from '../components/VideoPlaceholder.astro';
+import { siteConfig } from '../../site.config.mjs';
+
+const demos = [
+  { title: 'Procedural model generation', filename: 'https://raw.githubusercontent.com/gregkwaste/NMSMV_Website-Assets/main/abandoned_spacestation_procgen.mp4', accent: 'cyan' },
+  { title: 'Atlas station explorarion with animations', filename: 'https://raw.githubusercontent.com/gregkwaste/NMSMV_Website-Assets/main/atlas_station_view.mp4', accent: 'cyan' },
+  { title: 'Procedural creature poses', filename: 'https://raw.githubusercontent.com/gregkwaste/NMSMV_Website-Assets/main/cat_pose_proc.mp4', accent: 'violet' },
+  { title: 'Action System ', filename: 'https://raw.githubusercontent.com/gregkwaste/NMSMV_Website-Assets/main/cry_chamber_actions.mp4', accent: 'amber' },
+  { title: 'Procedural ship model generation', filename: 'https://raw.githubusercontent.com/gregkwaste/NMSMV_Website-Assets/main/fighter_ship_proc.mp4', accent: 'cyan' },
+  { title: 'Procedural NPC model generation', filename: 'https://raw.githubusercontent.com/gregkwaste/NMSMV_Website-Assets/main/npc_robot_proc.mp4', accent: 'violet' },
+  { title: 'Procedural texture generation on S-Class Ships', filename: 'https://raw.githubusercontent.com/gregkwaste/NMSMV_Website-Assets/main/s_class.mp4', accent: 'amber' },
+];
+
+const screenshots = [
+  { name: 'astronaut.png', url: 'https://raw.githubusercontent.com/gregkwaste/NMSMV_Website-Assets/main/astronaut.png' },
+  { name: 'atlas_indoor.png', url: 'https://raw.githubusercontent.com/gregkwaste/NMSMV_Website-Assets/main/atlas_indoor.png' },
+  { name: 'atlas_station.png', url: 'https://raw.githubusercontent.com/gregkwaste/NMSMV_Website-Assets/main/atlas_station.png' },
+  { name: 'diplo.png', url: 'https://raw.githubusercontent.com/gregkwaste/NMSMV_Website-Assets/main/diplo.png' },
+  { name: 'frigate_wireframe.png', url: 'https://raw.githubusercontent.com/gregkwaste/NMSMV_Website-Assets/main/frigate_wireframe.png' },
+  { name: 'large_crystal.png', url: 'https://raw.githubusercontent.com/gregkwaste/NMSMV_Website-Assets/main/large_crystal.png' },
+  { name: 'mech_suit.png', url: 'https://raw.githubusercontent.com/gregkwaste/NMSMV_Website-Assets/main/mech_suit.png' },
+  { name: 'pirate_freighter.png', url: 'https://raw.githubusercontent.com/gregkwaste/NMSMV_Website-Assets/main/pirate_freighter.png' },
+  { name: 'sentinel.png', url: 'https://raw.githubusercontent.com/gregkwaste/NMSMV_Website-Assets/main/sentinel.png' },
+  { name: 'shark_pose.png', url: 'https://raw.githubusercontent.com/gregkwaste/NMSMV_Website-Assets/main/shark_pose.png' },
+  { name: 'terminal.png', url: 'https://raw.githubusercontent.com/gregkwaste/NMSMV_Website-Assets/main/terminal.png' }
+];
+
+const main_feature = [
+  { title: 'Scene & model preview', description: 'Open game Scene files to explore ships, creatures, characters and buildings.' },
+  { title: 'Game & mod archive browsing', description: 'Browse assets directly from PAK archives including mods.'},
+  { title: 'Realistic model preview', description: 'Preview diffuse, normal, and mask maps with a PBR pipeline that approximates the game’s materials.' },
+  { title: 'Animation playback', description: 'Preview skeletal and static model animations.' },
+  { title: 'Procedural model generation', description: 'Explore generated asset variations with a custom procedure that aims to emulate the game’s generation process.' },
+  { title: 'Procedural pose generation', description: 'Explore pose variations on skinned models with animation and pose components.' },
+  { title: 'Procedural texture generation', description: 'Explore generated texture variations.' },
+  { title: 'Model import via Assimp', description: 'Import models in Assimp-supported formats. Animation and texture support depends on the source format and asset.' },
+];
+const experimental_features = [
+  { title: 'Export to MBIN', description: 'Export the current scene, including imported custom geometry and modified node attributes and transforms. Validate exported assets before using them in a mod.' },
+  { title: 'Action system', description: 'Preview game actions and events with interactive controls.' },
+  { title: 'Audio playback', description: 'Embedded WEM decoder to support autio playback actions' },
+];
+
+---
+
+<BaseLayout title={`${siteConfig.productName} — No Man's Sky model viewer`}>
+  <header class="site-header section-shell">
+    <a class="project-name" href="#top">NMSMV</a>
+    <nav aria-label="Project links">
+      <a href={siteConfig.repositoryUrl} target="_blank" rel="noreferrer">GitHub</a>
+      <a href={siteConfig.releasesUrl} target="_blank" rel="noreferrer">Releases</a>
+      <a href={siteConfig.issuesUrl} target="_blank" rel="noreferrer">Issues</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero section-shell">
+      <div class="hero-heading">
+        <img class="hero-logo" src={`${import.meta.env.BASE_URL}images/logo.png`} alt="No Man’s Model Viewer logo" width="1280" height="1280" />
+        <div class="hero-identity">
+          <h1>No Man's Sky Model Viewer</h1>
+          <p class="intro hero-credit">Made by <a href="https://github.com/gregkwaste" target="_blank" rel="noreferrer">gregkwaste</a></p>
+        </div>
+      </div>
+      <p class="intro">Inspect and Explore No Man’s Sky assets.</p>
+      <div class="actions">
+        <a class="button button--primary button--download" href={`${siteConfig.releasesUrl}/latest`} data-release-version data-repository={siteConfig.repositoryUrl} target="_blank" rel="noreferrer">
+          <span class="download-label"><Icon name="download" size={17} /> Download</span>
+          <span class="download-version" aria-live="polite">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M20 13 13 20a2 2 0 0 1-2.8 0L3 12.8V3h9.8l7.2 7.2a2 2 0 0 1 0 2.8Z" /><circle cx="7.5" cy="7.5" r="1" /></svg>
+            <span data-release-label>Latest</span>
+          </span>
+        </a>
+        <a class="button" href={siteConfig.repositoryUrl} target="_blank" rel="noreferrer"><Icon name="github" size={17} /> Source code</a>
+        <a class="button" href={siteConfig.issuesUrl} target="_blank" rel="noreferrer">Report an issue</a>
+      </div>
+      <p class="compatibility" data-compatibility hidden></p>
+    </section>
+
+    <section class="features section-shell" aria-labelledby="features-title">
+      <div class="section-title">
+        <h2 id="features-title">Features</h2>
+      </div>
+      <ul class="features-list">
+        {main_feature.map((feature) => (
+          <li>
+            <strong>{feature.title}:</strong> {feature.description}
+          </li>
+        ))}
+      </ul>
+      <div class="experimental-features" aria-labelledby="experimental-title">
+        <h3 id="experimental-title">Experimental</h3>
+        <ul class="features-list">
+          {experimental_features.map((feature) => (
+            <li><strong>{feature.title}:</strong> {feature.description}</li>
+          ))}
+        </ul>
+      </div>
+    </section>
+
+    <section class="demos section-shell" aria-labelledby="demos-title">
+      <div class="section-title">
+        <h2 id="demos-title">Demos</h2>
+      </div>
+      <div class="demo-grid">
+        {demos.map((demo) => (
+          <VideoPlaceholder title={demo.title} filename={demo.filename} accent={demo.accent} />
+        ))}
+      </div>
+    </section>
+
+    <section class="gallery section-shell" aria-labelledby="gallery-title">
+      <div class="section-title">
+        <h2 id="gallery-title">Screenshots</h2>
+      </div>
+      <div class="gallery-grid" id="screenshots-grid">
+        {screenshots.map((screenshot, index) => (
+          <figure class="screenshot" data-extra-screenshot={index >= 6 ? '' : undefined}>
+            <button class="screenshot-button" type="button" aria-label={`Enlarge ${screenshot.name.replace(/\.png$/, '').replaceAll('_', ' ')}`}>
+              <img src={screenshot.url} alt={screenshot.name.replace(/\.png$/, '').replaceAll('_', ' ')} loading="lazy" decoding="async" class="gallery-item" />
+            </button>
+            <figcaption>{screenshot.name.replace(/\.png$/, '').replaceAll('_', ' ')}</figcaption>
+          </figure>
+        ))}
+      </div>
+      <button class="button gallery-toggle" type="button" data-gallery-toggle aria-controls="screenshots-grid" aria-expanded="false" hidden>Show all screenshots</button>
+    </section>
+
+    <!-- Lightbox modal (hidden by default) -->
+    <dialog class="screenshot-dialog" id="lightbox" aria-label="Enlarged screenshot">
+      <button class="lightbox-close" type="button" aria-label="Close screenshot">&times;</button>
+      <img class="lightbox-image" alt="" />
+    </dialog>
+
+  </main>
+
+  <footer class="site-footer section-shell">
+    <span>NMSMV by <a href="https://github.com/gregkwaste" target="_blank" rel="noreferrer">gregkwaste</a></span>
+    <small>Unofficial fan-made tool. Not affiliated with or endorsed by Hello Games. No Man’s Sky is a trademark of Hello Games.</small>
+  </footer>
+
+  <script>
+    const releaseLink = document.querySelector<HTMLAnchorElement>('[data-release-version]');
+    if (releaseLink) {
+      const repository = new URL(releaseLink.dataset.repository!).pathname.replace(/\/$/, '');
+      fetch(`https://api.github.com/repos${repository}/releases/latest`, {
+        headers: { Accept: 'application/vnd.github+json' },
+      })
+        .then(async (response) => {
+          if (!response.ok) throw new Error('Release lookup failed');
+          return response.json();
+        })
+        .then((release) => {
+          if (typeof release.tag_name === 'string' && release.tag_name) {
+            const label = releaseLink.querySelector('[data-release-label]');
+            if (label) label.textContent = release.tag_name;
+            releaseLink.href = `${releaseLink.dataset.repository}/releases/tag/${encodeURIComponent(release.tag_name)}`;
+          }
+          const compatibility = document.querySelector<HTMLElement>('[data-compatibility]');
+          const testedVersion = typeof release.body === 'string'
+            ? release.body.match(/^Game compatibility:\s*([^\r\n]+)$/im)?.[1]?.trim()
+            : undefined;
+          if (compatibility && testedVersion) {
+            compatibility.textContent = `Tested with ${testedVersion}`;
+            compatibility.hidden = false;
+          }
+        })
+        .catch(() => {
+          // Keep the latest-release link available if GitHub cannot be reached.
+        });
+    }
+
+    const extras = document.querySelectorAll<HTMLElement>('[data-extra-screenshot]');
+    const toggle = document.querySelector<HTMLButtonElement>('[data-gallery-toggle]');
+    if (toggle) {
+      extras.forEach((item) => { item.hidden = true; });
+      toggle.hidden = false;
+      toggle.addEventListener('click', () => {
+        const expanded = toggle.getAttribute('aria-expanded') !== 'true';
+        toggle.setAttribute('aria-expanded', String(expanded));
+        toggle.textContent = expanded ? 'Show fewer screenshots' : 'Show all screenshots';
+        extras.forEach((item) => { item.hidden = !expanded; });
+      });
+    }
+    const lightbox = document.querySelector<HTMLDialogElement>('#lightbox');
+    const lightboxImage = lightbox?.querySelector<HTMLImageElement>('img');
+    if (lightbox && lightboxImage) {
+      document.querySelectorAll<HTMLButtonElement>('.screenshot-button').forEach((button) => {
+        button.addEventListener('click', () => {
+          const image = button.querySelector('img');
+          if (!image) return;
+          lightboxImage.src = image.src;
+          lightboxImage.alt = image.alt;
+          lightbox.showModal();
+          document.body.style.overflow = 'hidden';
+        });
+      });
+      lightbox.querySelector('button')?.addEventListener('click', () => lightbox.close());
+      lightbox.addEventListener('click', (event) => {
+        if (event.target === lightbox) lightbox.close();
+      });
+      lightbox.addEventListener('close', () => { document.body.style.overflow = ''; });
+    }
+  </script>
+</BaseLayout>

@@ -405,10 +405,14 @@ namespace MVCore.Engine
 
             Palettes.set_palleteColors();
             HashSet<string> mixed = new HashSet<string>();
+            List<Texture> retired = new List<Texture>();
             try
             {
                 foreach (Material mat in resMgr.GLmaterials.Values)
-                    mat.regenProcTextures(mixed);
+                    mat.regenProcTextures(mixed, retired);
+                //All consumers now point at the new shared sets.
+                foreach (Texture texture in retired)
+                    texture.Dispose();
             }
             finally
             {
